@@ -1,0 +1,1265 @@
+/* ------------------------------------------------------------------ tokens */
+:root {
+  --sidebar-w: 268px;
+
+  --bg: #000000;
+  --bg-main: #0c0c0c;
+  --field: #1c1c1e;
+  --hover: rgba(255, 255, 255, 0.055);
+  --active: #1f1f21;
+  --bubble-bot: #1c1c1e;
+  --bubble-me: #3a3a3c;
+  --line: rgba(255, 255, 255, 0.08);
+  --text: #f2f2f2;
+  --text-2: #8e8e93;
+  --text-3: #636366;
+  --link: #4a9dff;
+  --blue: #0a84ff;
+  --shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+.sprite {
+  display: none;
+}
+
+svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+input,
+textarea {
+  font: inherit;
+  color: var(--text);
+  background: none;
+  border: 0;
+  outline: none;
+}
+
+::placeholder {
+  color: var(--text-3);
+}
+
+::selection {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.scroll,
+.bots {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+.scroll::-webkit-scrollbar,
+.bots::-webkit-scrollbar {
+  width: 10px;
+}
+
+.scroll::-webkit-scrollbar-thumb,
+.bots::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  background-clip: content-box;
+  border: 3px solid transparent;
+  border-radius: 99px;
+}
+
+/* -------------------------------------------------------------------- shell */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  /* Pin the row height. Without this the implicit row is auto-sized, so a long
+     thread makes .main taller than the window, body becomes scrollable, and
+     focusing the composer scrolls the entire app out of view. */
+  grid-template-rows: 100%;
+  grid-template-areas: "side main";
+  height: 100%;
+  overflow: hidden;
+}
+
+.sidebar {
+  grid-area: side;
+}
+
+.main {
+  grid-area: main;
+}
+
+.screen-pane {
+  grid-area: screen;
+}
+
+/* Wide enough for three columns: chat left, desktop right. */
+.app.has-screen {
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--screen-w, 460px);
+  grid-template-areas: "side main screen";
+}
+
+/* Too narrow to split horizontally, so the desktop goes under the chat and the
+   grip becomes a horizontal one. */
+.app.has-screen.is-stacked {
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) var(--screen-h, 320px);
+  grid-template-areas:
+    "side main"
+    "side screen";
+}
+
+.is-stacked .screen-pane {
+  border-left: 0;
+  border-top: 1px solid var(--line);
+}
+
+.is-stacked .screen-pane__grip {
+  top: -3px;
+  bottom: auto;
+  left: 0;
+  right: 0;
+  width: auto;
+  height: 7px;
+  cursor: row-resize;
+}
+
+.is-stacked .screen-pane__grip:hover {
+  background: linear-gradient(180deg, transparent 2px, rgba(255, 255, 255, 0.18) 3px, transparent 5px);
+}
+
+.is-stacked .screen__head {
+  padding-top: 10px;
+}
+
+/* Collapsed sidebar: a rail of faces and icons. */
+.app.is-rail {
+  --sidebar-w: 66px;
+}
+
+.is-rail .bot-row__body,
+.is-rail .foot-label,
+.is-rail .badge,
+.is-rail .field input,
+.is-rail #btn-new {
+  display: none;
+}
+
+.is-rail .bot-row,
+.is-rail .foot-row,
+.is-rail .sidebar__head {
+  justify-content: center;
+}
+
+.is-rail .field {
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------ sidebar */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  /* Reserve the traffic-light strip here rather than inside the header, so no
+     amount of layout pressure can put a bot row underneath the buttons. */
+  padding: 22px 10px 10px;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+}
+
+.sidebar__head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 34px;
+  flex: none;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  color: var(--text-2);
+  border-radius: 8px;
+  transition: background 0.13s, color 0.13s;
+}
+
+.icon-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.icon-btn:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.icon-btn--sm {
+  width: 26px;
+  height: 26px;
+}
+
+.icon-btn--sm svg {
+  width: 16px;
+  height: 16px;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  flex: none;
+  padding: 0 10px;
+  margin: 6px 0 8px;
+  color: var(--text-3);
+  background: var(--field);
+  border-radius: 10px;
+}
+
+.field svg {
+  width: 16px;
+  height: 16px;
+}
+
+.field input {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+}
+
+/* -------------------------------------------------------------- bot roster */
+.bots {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 6px;
+}
+
+.bot-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 10px;
+  text-align: left;
+  border-radius: 12px;
+  transition: background 0.13s;
+}
+
+.bot-row:hover {
+  background: var(--hover);
+}
+
+.bot-row.is-active {
+  background: var(--active);
+}
+
+.bot-row__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.bot-row__top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.bot-row__name {
+  flex: 1;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bot-row__time {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.bot-row__last {
+  overflow: hidden;
+  font-size: 13.5px;
+  color: var(--text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* bot faces */
+.face {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  gap: 4px;
+  place-content: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+}
+
+.face i {
+  width: 4px;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.72);
+  border-radius: 2px;
+}
+
+.face--circle {
+  border-radius: 50%;
+}
+
+.face--squircle {
+  border-radius: 30%;
+}
+
+.face--drop {
+  border-radius: 50% 50% 50% 22%;
+}
+
+.face--sm {
+  width: 22px;
+  height: 22px;
+  gap: 3px;
+}
+
+.face--sm i {
+  width: 3px;
+  height: 4px;
+  border-radius: 1.5px;
+}
+
+.face--lg {
+  width: 54px;
+  height: 54px;
+  gap: 6px;
+}
+
+.face--lg i {
+  width: 6px;
+  height: 9px;
+  border-radius: 3px;
+}
+
+/* --------------------------------------------------------- sidebar footer */
+.sidebar__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: none;
+  padding-top: 6px;
+}
+
+.foot-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 8px;
+  border-radius: 12px;
+  transition: background 0.13s;
+}
+
+.foot-row:hover {
+  background: var(--hover);
+}
+
+.foot-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--text);
+  background: var(--field);
+  border-radius: 50%;
+}
+
+.foot-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.foot-avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  background: var(--field);
+  border-radius: 50%;
+}
+
+.foot-label {
+  flex: 1;
+  overflow: hidden;
+  font-size: 14.5px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  color: #fff;
+  background: var(--blue);
+  border-radius: 50%;
+}
+
+.badge svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* --------------------------------------------------------------------- main */
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  /* Lets .scroll shrink instead of growing the column to fit the thread. */
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-main);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  /* border-box, so this is padding + a 34px content row: the top 22px reserves
+     the traffic-light strip and keeps this header aligned with the sidebar's. */
+  height: 56px;
+  padding: 22px 14px 0;
+  flex: none;
+  /* Opaque and above the thread: nothing scrolls into the bot's name. */
+  position: relative;
+  z-index: 2;
+  background: var(--bg-main);
+}
+
+/* Messages dissolve as they pass under the header instead of being cut off at
+   a hard line, which read as the chat colliding with the bot's name. */
+.topbar::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  height: 28px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, var(--bg-main), transparent);
+}
+
+.topbar__id {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.topbar__id span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------- thread */
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px 8px;
+}
+
+.turn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.turn--bot {
+  justify-content: flex-start;
+  padding-right: 8%;
+}
+
+.turn--me {
+  justify-content: flex-end;
+  padding-left: 12%;
+}
+
+.bubble {
+  position: relative;
+  min-width: 0;
+  padding: 10px 15px;
+  overflow-wrap: anywhere;
+  border-radius: 18px;
+}
+
+.turn--bot .bubble {
+  background: var(--bubble-bot);
+}
+
+.turn--me .bubble {
+  background: var(--bubble-me);
+}
+
+.bubble__body {
+  overflow: hidden;
+}
+
+.bubble.is-clamped .bubble__body {
+  max-height: 190px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
+}
+
+.more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.more-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.bubble.is-open .more-btn svg {
+  transform: rotate(180deg);
+}
+
+/* rich text inside bubbles */
+.md > *:first-child {
+  margin-top: 0;
+}
+
+.md > *:last-child {
+  margin-bottom: 0;
+}
+
+.md p,
+.md ul,
+.md ol {
+  margin: 0 0 10px;
+}
+
+.md h2,
+.md h3 {
+  margin: 14px 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.md ul,
+.md ol {
+  padding-left: 20px;
+}
+
+.md li {
+  margin-bottom: 4px;
+}
+
+.md li::marker {
+  color: var(--text-2);
+}
+
+.md a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+.md a:hover {
+  text-decoration: underline;
+}
+
+.md code.inline {
+  padding: 1px 5px;
+  font-family: var(--mono);
+  font-size: 0.86em;
+  background: rgba(255, 255, 255, 0.09);
+  border-radius: 5px;
+}
+
+.code {
+  margin: 0 0 10px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.34);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.code__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 6px 5px 11px;
+  font-size: 12px;
+  color: var(--text-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.code__copy {
+  padding: 2px 7px;
+  font-size: 12px;
+  color: var(--text-2);
+  border-radius: 6px;
+}
+
+.code__copy:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.code code {
+  display: block;
+  padding: 11px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+.teach-name {
+  width: 170px;
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  background: var(--field);
+  border-radius: 99px;
+}
+
+.teach-name[hidden] {
+  display: none;
+}
+
+/* A demonstration reads as an event, not a wall of instructions: the badge
+   stands in for the prompt, and the bot's account of it follows below. */
+.turn--note {
+  justify-content: center;
+  gap: 10px;
+}
+
+.learn-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 15px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.09);
+  border-radius: 99px;
+}
+
+.learn-badge svg {
+  width: 15px;
+  height: 15px;
+  opacity: 0.8;
+}
+
+.learn-meta {
+  align-self: center;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+/* hover actions beside a bubble */
+.acts {
+  display: flex;
+  gap: 2px;
+  flex: none;
+  opacity: 0;
+  transition: opacity 0.13s;
+}
+
+.turn:hover .acts,
+.acts:focus-within {
+  opacity: 1;
+}
+
+.acts button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--text-2);
+  border-radius: 8px;
+}
+
+.acts button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.acts button:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.reacts {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.react {
+  padding: 1px 7px;
+  font-size: 13px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+}
+
+/* typing indicator */
+.typing {
+  display: flex;
+  gap: 4px;
+  padding: 4px 2px;
+}
+
+.typing i {
+  width: 7px;
+  height: 7px;
+  background: var(--text-2);
+  border-radius: 50%;
+  animation: bob 1.1s infinite ease-in-out;
+}
+
+.typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes bob {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.caret::after {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: var(--text);
+  border-radius: 1px;
+  animation: blink 1s steps(2) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 14vh 20px 0;
+  color: var(--text-2);
+  text-align: center;
+}
+
+.empty h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.empty p {
+  max-width: 320px;
+  margin: 0;
+  font-size: 14px;
+}
+
+/* ----------------------------------------------------------------- composer */
+.dock {
+  flex: none;
+  padding: 8px 18px 18px;
+}
+
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 7px 7px 7px 8px;
+  background: var(--field);
+  border-radius: 26px;
+}
+
+.composer textarea {
+  flex: 1;
+  min-width: 0;
+  max-height: 168px;
+  padding: 8px 0 7px;
+  resize: none;
+}
+
+.add,
+.mic {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 50%;
+  transition: transform 0.13s, background 0.13s, opacity 0.13s;
+}
+
+.add {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.add:hover {
+  background: rgba(255, 255, 255, 0.17);
+}
+
+.add svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mic {
+  color: #0a0a0a;
+  background: #f2f2f2;
+}
+
+.mic svg {
+  width: 19px;
+  height: 19px;
+  stroke-width: 1.9;
+}
+
+.mic:hover {
+  transform: scale(1.05);
+}
+
+.mic.is-stop svg {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* --------------------------------------------------------------------- menu */
+.menu {
+  position: fixed;
+  z-index: 40;
+  min-width: 176px;
+  padding: 5px;
+  background: #1c1c1e;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  animation: pop 0.11s ease both;
+}
+
+.menu[hidden],
+.overlay[hidden],
+.toast[hidden] {
+  display: none;
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 9px;
+  font-size: 14px;
+  text-align: left;
+  border-radius: 8px;
+}
+
+.menu-item:hover {
+  background: var(--hover);
+}
+
+.menu-item svg {
+  width: 16px;
+  height: 16px;
+  color: var(--text-2);
+}
+
+.menu--emoji {
+  display: flex;
+  min-width: 0;
+  gap: 2px;
+}
+
+.menu--emoji button {
+  width: 34px;
+  height: 34px;
+  font-size: 19px;
+  border-radius: 8px;
+}
+
+.menu--emoji button:hover {
+  background: var(--hover);
+}
+
+/* -------------------------------------------------------------------- sheet */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(3px);
+}
+
+.sheet {
+  width: min(380px, 92vw);
+  background: #17171a;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  animation: pop 0.14s ease both;
+}
+
+.sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 12px 6px 18px;
+}
+
+.sheet__head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.sheet__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 18px 18px;
+}
+
+.sheet__preview {
+  margin-bottom: 4px;
+}
+
+.sheet__body input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  background: var(--field);
+  border-radius: 10px;
+}
+
+.swatches {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 transparent;
+  transition: box-shadow 0.13s, transform 0.13s;
+}
+
+.swatch.is-on {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 2px #17171a, 0 0 0 4px currentColor;
+}
+
+.sheet__foot {
+  padding: 0 18px 18px;
+}
+
+.btn-primary {
+  width: 100%;
+  height: 40px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--blue);
+  border-radius: 12px;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.08);
+}
+
+/* ------------------------------------------------------------ bot's desktop */
+/* A docked third column rather than an overlay, so the desktop and the
+   conversation are visible at once — you watch the bot work while you talk. */
+.screen-pane {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #0d0d0f;
+  border-left: 1px solid var(--line);
+}
+
+.screen-pane[hidden] {
+  display: none;
+}
+
+/* Drag the edge to trade thread width for screen detail. */
+.screen-pane__grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  z-index: 5;
+  width: 7px;
+  cursor: col-resize;
+}
+
+.screen-pane__grip:hover {
+  background: linear-gradient(90deg, transparent 2px, var(--line-hover, rgba(255, 255, 255, 0.18)) 3px, transparent 5px);
+}
+
+.screen__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 22px 10px 10px 14px;
+  flex: none;
+  border-bottom: 1px solid var(--line);
+}
+
+.screen__id {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.screen__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.state-pill {
+  padding: 2px 9px;
+  font-size: 12px;
+  color: var(--text-2);
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 99px;
+}
+
+.state-pill.is-live {
+  color: #0a0a0a;
+  background: #30d158;
+}
+
+.state-pill.is-busy {
+  color: #0a0a0a;
+  background: #ffb020;
+}
+
+.state-pill.is-bad {
+  color: #fff;
+  background: #e0393e;
+}
+
+.chip.is-recording {
+  color: #fff;
+  background: #e0393e;
+  border-color: transparent;
+}
+
+.chip.is-recording svg {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.screen__body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #07070a;
+}
+
+/* Absolute, not a flex/grid child: noVNC measures this box with
+   getBoundingClientRect to pick its scale, so its size must come from the panel
+   rather than from the 1440x900 canvas inside it — otherwise it measures the
+   canvas, computes scale 1.0, and the desktop gets clipped instead of fitted. */
+.screen__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.screen__canvas canvas {
+  display: block;
+}
+
+.screen__idle {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+  background: #07070a;
+}
+
+.screen__idle[hidden] {
+  display: none;
+}
+
+.screen__idle p {
+  max-width: 380px;
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--text-2);
+}
+
+/* The pane can get narrow; keep the header from wrapping into a wall. */
+.screen-pane .screen__id {
+  font-size: 13.5px;
+}
+
+.screen-pane .chip {
+  height: 26px;
+  padding: 0 8px;
+  font-size: 12.5px;
+}
+
+.screen__idle .btn-primary {
+  width: auto;
+  padding: 0 18px;
+}
+
+.screen__log {
+  max-width: 620px;
+  max-height: 190px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-3);
+  text-align: left;
+  white-space: pre-wrap;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+}
+
+/* -------------------------------------------------------------------- toast */
+.toast {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  z-index: 60;
+  padding: 8px 14px;
+  font-size: 13.5px;
+  color: #0a0a0a;
+  background: #f2f2f2;
+  border-radius: 99px;
+  transform: translateX(-50%);
+  animation: pop 0.13s ease both;
+}
+
+@media (max-width: 700px) {
+  .bubble {
+    max-width: 92%;
+  }
+}
