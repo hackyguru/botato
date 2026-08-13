@@ -698,6 +698,100 @@ textarea {
   display: none;
 }
 
+.routines {
+  min-height: 0;
+  padding: 10px 12px 12px;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+}
+
+.routines__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.routines__title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-2);
+  text-transform: uppercase;
+}
+
+.routines__list:empty::after {
+  content: "Nothing scheduled. Routines run while botcage is open.";
+  display: block;
+  padding: 2px 0 4px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.routine {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+}
+
+.routine + .routine {
+  border-top: 1px solid var(--line);
+}
+
+.routine__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.routine__name {
+  overflow: hidden;
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.routine__when {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.routine.is-off .routine__name,
+.routine.is-off .routine__when {
+  opacity: 0.45;
+}
+
+.routine-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.routine-form[hidden] {
+  display: none;
+}
+
+.routine-form input,
+.routine-form textarea {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13.5px;
+  background: var(--field);
+  border-radius: 10px;
+  resize: none;
+}
+
+.routine-when {
+  display: flex;
+  gap: 8px;
+}
+
+.routine-when .picker {
+  flex: 1;
+  height: 30px;
+}
+
 /* Paths a bot keeps its own furniture at — memory, taught tasks, the shared
    folder — read as objects rather than strings. */
 .ref {
@@ -1205,12 +1299,86 @@ textarea {
 .screen-pane {
   container-type: inline-size;
   position: relative;
-  display: flex;
-  flex-direction: column;
+  /* A grid so the internal arrangement can flip with the outer layout: screen
+     above routines when docked to the side, screen beside them when docked
+     along the bottom. */
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-areas:
+    "head"
+    "body"
+    "caption"
+    "routines";
   min-width: 0;
   min-height: 0;
   overflow: hidden;
   background: #0d0d0f;
+  border-left: 1px solid var(--line);
+}
+
+.screen__head {
+  grid-area: head;
+}
+
+.screen__body {
+  grid-area: body;
+  /* A preview card rather than a full-height view, so routines get the room.
+     The expand button trades back. */
+  aspect-ratio: 16 / 10;
+  margin: 12px 12px 0;
+  border-radius: 10px;
+}
+
+.screen__caption {
+  grid-area: caption;
+  padding: 7px 12px 10px;
+  font-size: 12px;
+  color: var(--text-3);
+  text-align: center;
+}
+
+/* Expanded: the screen takes the pane and routines shrink to their content. */
+.is-focus.screen-pane {
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+}
+
+.is-focus .screen__body {
+  aspect-ratio: auto;
+  margin: 0;
+  border-radius: 0;
+}
+
+.is-focus .screen__caption {
+  display: none;
+}
+
+.routines {
+  grid-area: routines;
+}
+
+/* Docked along the bottom: the screen keeps the height, routines take a column
+   beside it rather than stealing vertical space from an already short pane. */
+.is-stacked .screen-pane {
+  grid-template-columns: minmax(0, 1fr) clamp(220px, 32%, 340px);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "head head"
+    "body routines";
+}
+
+/* Along the bottom the pane is already short: the screen keeps its height. */
+.is-stacked .screen__body {
+  aspect-ratio: auto;
+  margin: 0;
+  border-radius: 0;
+}
+
+.is-stacked .screen__caption {
+  display: none;
+}
+
+.is-stacked .routines {
+  border-top: 0;
   border-left: 1px solid var(--line);
 }
 

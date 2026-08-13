@@ -20,8 +20,20 @@ interface Message {
   at: number;
   reaction?: string;
   error?: string;
-  kind?: "teach";
+  kind?: "teach" | "routine";
   meta?: { steps: number; frames: number; slug: string; name?: string };
+}
+
+/** A standing instruction a bot runs on a schedule. */
+interface Routine {
+  id: string;
+  name: string;
+  instruction: string;
+  every: "day" | "weekday" | "hour";
+  /** "HH:MM"; for hourly only the minutes are used. */
+  at: string;
+  active: boolean;
+  lastRunAt?: number;
 }
 
 interface Bot {
@@ -41,9 +53,17 @@ interface Bot {
   network: "full" | "no-lan" | "offline";
   /** Which Claude model answers for this bot. */
   model: string;
+  routines?: Routine[];
 }
 
-type SandboxState = "stopped" | "building" | "starting" | "running" | "error" | "no-docker";
+type SandboxState =
+  | "stopped"
+  | "building"
+  | "starting"
+  | "running"
+  | "error"
+  | "no-docker"
+  | "no-computer";
 
 interface SandboxEvent {
   botId: string;
@@ -93,7 +113,13 @@ const RAIL_AT = 720;
 
 /* ----------------------------------------------------------------- elements */
 
-const $ = <T extends Element>(sel: string) => document.querySelector(sel) as T;
+/** Throws loudly and by name: a missing element used to take the whole module
+    down at import time, leaving an app with no bots and no clue why. */
+const $ = <T extends Element>(sel: string): T => {
+  const found = document.querySelector(sel);
+  if (!found) throw new Error(`botcage: no element matches ${sel}`);
+  return found as T;
+};
 
 const botsEl = $<HTMLDivElement>("#bots");
 const searchEl = $<HTMLInputElement>("#search");
@@ -116,6 +142,12 @@ const sheetSubmit = $<HTMLButtonElement>("#sheet-submit");
 const sheetComputer = $<HTMLInputElement>("#sheet-computer");
 const sheetNetwork = $<HTMLSelectElement>("#sheet-network");
 const sheetModel = $<HTMLSelectElement>("#sheet-model");
+const routineList = $<HTMLDivElement>("#routine-list");
+const routineForm = $<HTMLDivElement>("#routine-form");
+const routineName = $<HTMLInputElement>("#routine-name");
+const routineInstruction = $<HTMLTextAreaElement>("#routine-instruction");
+const routineEvery = $<HTMLSelectElement>("#routine-every");
+const routineAt = $<HTMLInputElement>("#routine-at");
 
 /** Bot being edited in the sheet; null means the sheet is creating a new one. */
 let editing: Bot | null = null;
@@ -318,6 +350,7 @@ function load(): void {
       computer: Boolean(bot.computer),
       network: bot.network ?? "full",
       model: bot.model || MODEL,
+      routines: bot.routines ?? [],
     }));
     state.activeId = data.activeId ?? state.bots[0].id;
     state.screenOpen = Boolean(data.screenOpen);
@@ -364,8 +397,10 @@ function renderRoster(): void {
       const busy = inflight.has(bot.id);
       const sub = busy
         ? "Typing…"
-        : last?.kind === "teach"
-          ? "Learned from demonstration"
+        : last?.kind === "routine"
+          ? `Routine · ${last.meta?.name ?? ""}`
+          : last?.kind === "teach"
+            ? "Learned from demonstration"
           : last
             ? preview(last.text)
             : bot.role;
@@ -419,6 +454,13 @@ function turnEl(msg: Message): HTMLElement {
   const wrap = document.createElement("div");
   wrap.dataset.msg = msg.id;
 
+  if (msg.kind === "routine") {
+    wrap.className = "turn turn--note";
+    wrap.innerHTML =
+      `<span class="learn-badge">${icon("clock")}Routine · ${escapeHtml(msg.meta?.name ?? "")}</span>`;
+    return wrap;
+  }
+
   if (msg.kind === "teach") {
     const steps = msg.meta?.steps ?? 0;
     const frames = msg.meta?.frames ?? 0;
@@ -450,6 +492,12 @@ function renderThread(): void {
 
   topbarId.innerHTML = `${faceHtml(bot, "sm")}<span>${escapeHtml(bot.name)}</span>`;
   input.placeholder = `Message ${bot.name}`;
+
+  const live = (bot.routines ?? []).filter((r) => r.active).length;
+  const routinesBtn = $<HTMLButtonElement>("#btn-routines");
+  routinesBtn.hidden = live === 0;
+  routinesBtn.title = `${live} active routine${live === 1 ? "" : "s"}`;
+  $<HTMLSpanElement>("#btn-routines-count").textContent = String(live);
 
   if (!bot.messages.length) {
     thread.innerHTML =
@@ -693,6 +741,25 @@ function renderSheetPreview(): void {
   ).join("");
 }
 
+function renderRoutines(): void {
+  const bot = state.bots.find((b) => b.id === (screen.botId ?? state.activeId));
+  const routines = bot?.routines ?? [];
+  routineList.innerHTML = routines
+    .map(
+      (routine) =>
+        `<div class="routine${routine.active ? "" : " is-off"}" data-routine="${routine.id}">` +
+        `<div class="routine__body">` +
+        `<div class="routine__name">${escapeHtml(routine.name)}</div>` +
+        `<div class="routine__when">${escapeHtml(describeRoutine(routine))}</div>` +
+        `</div>` +
+        `<input type="checkbox" class="switch" data-toggle="${routine.id}"${routine.active ? " checked" : ""} />` +
+        `<button type="button" class="icon-btn icon-btn--sm" data-drop="${routine.id}" title="Delete">` +
+        `${icon("trash")}</button>` +
+        `</div>`,
+    )
+    .join("");
+}
+
 function openSheet(bot: Bot | null = null): void {
   editing = bot;
   draftColor = bot?.color ?? COLORS[state.bots.length % COLORS.length];
@@ -730,6 +797,7 @@ function saveSheet(): void {
     save();
     renderRoster();
     renderThread();
+    renderRoutines();
     if (screen.botId === state.activeId) void openScreen();
 
     // Network is baked into the container at creation, and a revoked computer
@@ -760,6 +828,7 @@ function createBot(): void {
     computer: sheetComputer.checked,
     network: sheetNetwork.value as Bot["network"],
     model: sheetModel.value,
+    routines: [],
     messages: [],
   };
   state.bots.unshift(bot);
@@ -791,7 +860,75 @@ function openBot(id: string): void {
   renderThread();
   // The pane always shows the bot you're talking to.
   if (!screenPane.hidden && screen.botId !== id) void openScreen();
+  else renderRoutines();
   input.focus();
+}
+
+/* ------------------------------------------------------------------ routines */
+
+const WEEKDAY = [1, 2, 3, 4, 5];
+
+/** When this routine should next run, strictly after `from`. */
+function nextRun(routine: Routine, from: number): number {
+  const [hh, mm] = routine.at.split(":").map(Number);
+  const at = new Date(from);
+
+  if (routine.every === "hour") {
+    at.setMinutes(mm || 0, 0, 0);
+    if (at.getTime() <= from) at.setHours(at.getHours() + 1);
+    return at.getTime();
+  }
+
+  at.setHours(hh || 0, mm || 0, 0, 0);
+  while (at.getTime() <= from || (routine.every === "weekday" && !WEEKDAY.includes(at.getDay()))) {
+    at.setDate(at.getDate() + 1);
+    at.setHours(hh || 0, mm || 0, 0, 0);
+  }
+  return at.getTime();
+}
+
+function describeRoutine(routine: Routine): string {
+  if (routine.every === "hour") return `Every hour at :${routine.at.split(":")[1]}`;
+  const when = routine.every === "weekday" ? "Every weekday" : "Every day";
+  return `${when} at ${routine.at}`;
+}
+
+/** Fire anything due. This runs while the app is open; there is no daemon. */
+function tickRoutines(): void {
+  const now = Date.now();
+
+  for (const bot of state.bots) {
+    if (inflight.has(bot.id)) continue;
+
+    for (const routine of bot.routines ?? []) {
+      if (!routine.active) continue;
+
+      // A routine with no history schedules from now; it never fires on sight.
+      if (!routine.lastRunAt) {
+        routine.lastRunAt = now;
+        continue;
+      }
+      if (nextRun(routine, routine.lastRunAt) > now) continue;
+
+      routine.lastRunAt = now;
+      const note: Message = {
+        id: uid(),
+        from: "me",
+        text: routine.instruction,
+        at: now,
+        kind: "routine",
+        meta: { steps: 0, frames: 0, slug: routine.id, name: routine.name },
+      };
+      bot.messages.push(note);
+      if (bot.id === state.activeId) {
+        if (bot.messages.length === 1) thread.innerHTML = "";
+        thread.append(turnEl(note));
+      }
+      save();
+      void respond(bot, routine.instruction);
+      break; // at most one routine per bot per tick
+    }
+  }
 }
 
 /* -------------------------------------------------------- the bot's desktop */
@@ -861,6 +998,7 @@ const STATE_LABEL: Record<SandboxState, string> = {
   running: "Live",
   error: "Failed",
   "no-docker": "No Docker",
+  "no-computer": "No computer",
 };
 
 const STATE_MESSAGE: Record<SandboxState, string> = {
@@ -873,6 +1011,8 @@ const STATE_MESSAGE: Record<SandboxState, string> = {
   error: "The desktop didn't come up.",
   "no-docker":
     "Docker isn't available. Install Docker Desktop or OrbStack (macOS, Windows) or docker.io (Linux), start it, then try again.",
+  "no-computer":
+    "This bot doesn't have a computer. Turn on Own computer in its settings to give it one — routines below work either way.",
 };
 
 function pushLog(line: string): void {
@@ -894,6 +1034,8 @@ function paintScreen(): void {
   const live = screen.state === "running" && screen.connected;
   screenIdle.hidden = live;
   controlBtn.hidden = !live;
+
+  $<HTMLDivElement>("#screen-caption").textContent = bot ? `${bot.name}'s screen` : "";
 
   const teachBtn = $<HTMLButtonElement>("#btn-teach");
   teachBtn.hidden = !live;
@@ -976,10 +1118,7 @@ function connectScreen(port: number, attempt = 0): void {
 async function openScreen(): Promise<void> {
   const bot = activeBot();
   if (!bot) return;
-  if (!bot.computer) {
-    toast(`${bot.name} has no computer — turn it on in the bot's settings`);
-    return;
-  }
+
 
   screen.botId = bot.id;
   screen.log = [];
@@ -990,7 +1129,14 @@ async function openScreen(): Promise<void> {
   state.screenOpen = true;
   relayout();
   save();
+  renderRoutines();
   paintScreen();
+
+  if (!bot.computer) {
+    screen.state = "no-computer";
+    paintScreen();
+    return;
+  }
 
   const docker = await invoke<{ path: string | null; version: string | null; error: string | null }>(
     "docker_info",
@@ -1346,6 +1492,12 @@ $<HTMLButtonElement>("#btn-screen-power").addEventListener("click", () => {
   void invoke("sandbox_stop", { botId }).catch((err) => pushLog(String(err)));
 });
 
+$<HTMLButtonElement>("#btn-expand").addEventListener("click", (event) => {
+  const button = event.currentTarget as HTMLButtonElement;
+  const focused = screenPane.classList.toggle("is-focus");
+  button.title = focused ? "Shrink the screen" : "Expand the screen";
+});
+
 controlBtn.addEventListener("click", () => {
   screen.control = !screen.control;
   if (screen.rfb) {
@@ -1379,6 +1531,11 @@ input.addEventListener("keydown", (e) => {
 });
 
 $<HTMLButtonElement>("#btn-attach").addEventListener("click", () => toast("Attachments coming soon"));
+$<HTMLButtonElement>("#btn-routines").addEventListener("click", () => {
+  if (screenPane.hidden) void openScreen();
+  else closeScreen();
+});
+
 $<HTMLButtonElement>("#btn-settings").addEventListener("click", () => {
   const bot = activeBot();
   if (bot) openSheet(bot);
@@ -1552,6 +1709,69 @@ sheet.addEventListener("submit", (e) => {
   saveSheet();
 });
 
+$<HTMLButtonElement>("#routine-add").addEventListener("click", () => {
+  routineForm.hidden = !routineForm.hidden;
+  if (!routineForm.hidden) {
+    routineName.focus();
+    routineForm.scrollIntoView({ block: "nearest" });
+  }
+});
+
+$<HTMLButtonElement>("#routine-save").addEventListener("click", () => {
+  const bot = state.bots.find((b) => b.id === (screen.botId ?? state.activeId));
+  if (!bot) return;
+  const name = routineName.value.trim();
+  const instruction = routineInstruction.value.trim();
+  if (!name || !instruction) {
+    toast("A routine needs a name and an instruction");
+    return;
+  }
+
+  bot.routines = bot.routines ?? [];
+  bot.routines.push({
+    id: uid(),
+    name,
+    instruction,
+    every: routineEvery.value as Routine["every"],
+    at: routineAt.value || "09:00",
+    active: true,
+    lastRunAt: Date.now(),
+  });
+
+  routineName.value = "";
+  routineInstruction.value = "";
+  routineForm.hidden = true;
+  save();
+  renderRoutines();
+  renderThread();
+});
+
+routineList.addEventListener("click", (e) => {
+  const target = e.target as HTMLElement;
+  const bot = state.bots.find((b) => b.id === (screen.botId ?? state.activeId));
+  if (!bot) return;
+
+  const toggle = target.closest<HTMLInputElement>("[data-toggle]");
+  if (toggle) {
+    const routine = bot.routines?.find((r) => r.id === toggle.dataset.toggle);
+    if (routine) {
+      routine.active = toggle.checked;
+      // Start the clock again so re-enabling doesn't fire instantly.
+      routine.lastRunAt = Date.now();
+      save();
+      renderRoutines();
+    }
+    return;
+  }
+
+  const drop = target.closest<HTMLButtonElement>("[data-drop]");
+  if (drop && bot.routines) {
+    bot.routines = bot.routines.filter((r) => r.id !== drop.dataset.drop);
+    save();
+    renderRoutines();
+  }
+});
+
 swatches.addEventListener("click", (e) => {
   const swatch = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-color]");
   if (!swatch) return;
@@ -1605,6 +1825,10 @@ renderThread();
 if (state.screenOpen) void openScreen();
 autoGrow();
 input.focus();
+
+// Routines are checked here rather than in Rust: the state they read lives in
+// the webview, and nothing can fire while the app is closed anyway.
+window.setInterval(tickRoutines, 30_000);
 
 void listen<BotEvent>("bot-event", (event) => handleBotEvent(event.payload));
 void listen<SandboxEvent>("sandbox-event", (event) => handleSandboxEvent(event.payload));

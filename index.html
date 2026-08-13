@@ -73,6 +73,13 @@
         <rect x="3" y="3" width="18" height="18" rx="2" />
         <path d="M9.5 3v18" />
       </symbol>
+      <symbol id="i-expand" viewBox="0 0 24 24">
+        <path d="M9 3H3v6M15 21h6v-6M21 9V3h-6M3 15v6h6" />
+      </symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5.2l3.2 1.9" />
+      </symbol>
       <symbol id="i-note" viewBox="0 0 24 24">
         <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
         <path d="M14 3v5h5M9 13h6M9 17h4" />
@@ -129,12 +136,15 @@
         <header class="topbar" data-tauri-drag-region="deep">
           <div class="topbar__id" id="topbar-id"></div>
           <div class="topbar__actions">
-          <button class="icon-btn" id="btn-settings" title="Bot settings" aria-label="Bot settings">
-            <svg><use href="#i-gear" /></svg>
-          </button>
-          <button class="icon-btn" id="btn-monitor" title="Its computer" aria-label="Its computer">
-            <svg><use href="#i-monitor" /></svg>
-          </button>
+            <button type="button" class="chip" id="btn-routines" hidden>
+              <svg><use href="#i-clock" /></svg><span id="btn-routines-count">0</span>
+            </button>
+            <button class="icon-btn" id="btn-settings" title="Bot settings" aria-label="Bot settings">
+              <svg><use href="#i-gear" /></svg>
+            </button>
+            <button class="icon-btn" id="btn-monitor" title="Its computer" aria-label="Its computer">
+              <svg><use href="#i-monitor" /></svg>
+            </button>
           </div>
         </header>
 
@@ -168,7 +178,10 @@
               <button type="button" class="chip" id="btn-control">
                 <svg><use href="#i-eye" /></svg><span id="btn-control-label">View only</span>
               </button>
-              <button type="button" class="icon-btn" id="btn-screen-power" title="Stop desktop">
+              <button type="button" class="icon-btn" id="btn-expand" title="Expand the screen">
+              <svg><use href="#i-expand" /></svg>
+            </button>
+            <button type="button" class="icon-btn" id="btn-screen-power" title="Stop desktop">
                 <svg><use href="#i-power" /></svg>
               </button>
               <button type="button" class="icon-btn" id="btn-screen-close" title="Hide  (Esc)">
@@ -184,6 +197,31 @@
               <pre class="screen__log" id="screen-log" hidden></pre>
             </div>
           </div>
+          <div class="screen__caption" id="screen-caption"></div>
+        <div class="routines" id="routines">
+          <div class="routines__head">
+            <span class="routines__title">Routines</span>
+            <button type="button" class="icon-btn icon-btn--sm" id="routine-add" title="New routine">
+              <svg><use href="#i-plus" /></svg>
+            </button>
+          </div>
+          <div class="routines__list" id="routine-list"></div>
+
+          <div class="routine-form" id="routine-form" hidden>
+            <input id="routine-name" placeholder="Name this routine" spellcheck="false" maxlength="48" />
+            <textarea id="routine-instruction" rows="2"
+                      placeholder="What should it do each time it runs?"></textarea>
+            <div class="routine-when">
+              <select id="routine-every" class="picker">
+                <option value="day">Every day</option>
+                <option value="weekday">Every weekday</option>
+                <option value="hour">Every hour</option>
+              </select>
+              <input type="time" id="routine-at" class="picker" value="09:00" />
+              <button type="button" class="chip" id="routine-save"><span>Add</span></button>
+            </div>
+          </div>
+        </div>
         </aside>
     </div>
 
@@ -232,6 +270,7 @@
               </select>
             </label>
           </div>
+
         </div>
         <div class="sheet__foot">
           <button type="submit" class="btn-primary" id="sheet-submit">Create bot</button>
