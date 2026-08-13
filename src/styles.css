@@ -494,6 +494,12 @@ textarea {
   background: linear-gradient(to bottom, var(--bg-main), transparent);
 }
 
+.topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .topbar__id {
   display: flex;
   align-items: center;
@@ -1032,6 +1038,91 @@ textarea {
   border-radius: 10px;
 }
 
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.setting {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 2px;
+  cursor: pointer;
+}
+
+.setting + .setting {
+  border-top: 1px solid var(--line);
+}
+
+.setting__label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+}
+
+.setting__hint {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-3);
+}
+
+.picker {
+  height: 28px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+  background: var(--field);
+  border: 0;
+  border-radius: 8px;
+}
+
+/* A checkbox drawn as a switch, at roughly the platform's 1.65:1 proportions —
+   the first attempt was 40x24, which read as a stretched pill. */
+.switch {
+  position: relative;
+  width: 33px;
+  height: 20px;
+  flex: none;
+  appearance: none;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.17);
+  border-radius: 99px;
+  transition: background 0.18s ease;
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: transform 0.18s cubic-bezier(0.3, 0.85, 0.4, 1);
+}
+
+.switch:checked {
+  background: #30d158;
+}
+
+.switch:checked::after {
+  transform: translateX(13px);
+}
+
+.switch:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .swatches {
   display: flex;
   gap: 8px;
@@ -1073,6 +1164,7 @@ textarea {
 /* A docked third column rather than an overlay, so the desktop and the
    conversation are visible at once — you watch the bot work while you talk. */
 .screen-pane {
+  container-type: inline-size;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -1085,6 +1177,16 @@ textarea {
 
 .screen-pane[hidden] {
   display: none;
+}
+
+@container (max-width: 430px) {
+  .chip span {
+    display: none;
+  }
+
+  .chip {
+    padding: 0 8px;
+  }
 }
 
 /* Drag the edge to trade thread width for screen detail. */
@@ -1105,7 +1207,6 @@ textarea {
 .screen__head {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 8px;
   padding: 22px 10px 10px 14px;
   flex: none;
@@ -1211,15 +1312,65 @@ textarea {
   color: var(--text-2);
 }
 
-/* The pane can get narrow; keep the header from wrapping into a wall. */
+/* Pill buttons in the desktop pane header. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-2);
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  transition: background 0.14s, color 0.14s, border-color 0.14s;
+}
+
+.chip svg {
+  width: 14px;
+  height: 14px;
+}
+
+.chip:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.11);
+}
+
+/* Holding control is a live state, so it reads like the settings switch. */
+.chip.is-on {
+  color: #0a2a12;
+  background: #30d158;
+  border-color: transparent;
+}
+
+.chip.is-on:hover {
+  background: #3ade63;
+}
+
 .screen-pane .screen__id {
+  min-width: 0;
   font-size: 13.5px;
 }
 
-.screen-pane .chip {
-  height: 26px;
-  padding: 0 8px;
-  font-size: 12.5px;
+.screen-pane .screen__id span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Match the icon buttons to the chips so the row shares one baseline. */
+.screen__actions .icon-btn {
+  width: 28px;
+  height: 28px;
+}
+
+.screen__actions .icon-btn svg {
+  width: 17px;
+  height: 17px;
 }
 
 .screen__idle .btn-primary {

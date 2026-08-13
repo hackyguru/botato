@@ -358,6 +358,8 @@ pub struct BotBrand {
     color: Option<String>,
     timezone: Option<String>,
     locale: Option<String>,
+    /// "full" (default), "no-lan", or "offline".
+    network: Option<String>,
 }
 
 /// Only pass values that look like what they claim to be — these become
@@ -455,7 +457,15 @@ fn launch(app: &AppHandle, bot_id: &str, brand: &BotBrand) -> Result<(u16, u16),
             let tz = format!("TZ={}", sane(&brand.timezone, &['/', '_', '-', '+']));
             let lang = format!("BROWSER_LANG={}", sane(&brand.locale, &['-']));
 
-            let out = docker(&[
+            // Offline cuts the desktop off entirely; no-lan keeps the internet
+            // but drops the private ranges, so it can't reach the home network.
+            let policy = match brand.network.as_deref() {
+                Some("offline") => "offline",
+                Some("no-lan") => "no-lan",
+                _ => "full",
+            };
+            let policy_env = format!("NETWORK_POLICY={policy}");
+            let mut args: Vec<&str> = vec![
                 "run", "-d",
                 "--name", &name,
                 "--label", "botcage=1",
@@ -474,8 +484,15 @@ fn launch(app: &AppHandle, bot_id: &str, brand: &BotBrand) -> Result<(u16, u16),
                 "-v", &work_map,
                 "-p", &vnc_map,
                 "-p", &control_map,
-                IMAGE,
-            ])?;
+            ];
+            args.extend(["-e", &policy_env]);
+            if policy != "full" {
+                // Needed to install its own egress rules, and nothing more.
+                args.extend(["--cap-add", "NET_ADMIN"]);
+            }
+            args.push(IMAGE);
+
+            let out = docker(&args)?;
             if !out.status.success() {
                 return Err(stderr_of(&out));
             }

@@ -35,6 +35,12 @@ interface Bot {
   sessionId: string;
   /** True once a session exists on disk, so later turns can `--resume`. */
   started: boolean;
+  /** May this bot have a desktop at all? Off means it is never told it has one. */
+  computer: boolean;
+  /** What that desktop may reach. */
+  network: "full" | "no-lan" | "offline";
+  /** Which Claude model answers for this bot. */
+  model: string;
 }
 
 type SandboxState = "stopped" | "building" | "starting" | "running" | "error" | "no-docker";
@@ -61,7 +67,7 @@ const STORE = "botcage.state.v3";
 /** Earlier builds persisted canned demo threads — don't carry them forward. */
 const STALE_STORES = ["botcage.state.v1", "botcage.state.v2"];
 
-/** Claude model alias every bot runs on. "sonnet" is cheaper on quota. */
+/** Fallback model for bots created before the per-bot setting existed. */
 const MODEL = "opus";
 
 interface Persisted {
@@ -105,6 +111,14 @@ const sheetName = $<HTMLInputElement>("#sheet-name");
 const sheetRole = $<HTMLInputElement>("#sheet-role");
 const sheetPreview = $<HTMLDivElement>("#sheet-preview");
 const swatches = $<HTMLDivElement>("#swatches");
+const sheetTitle = $<HTMLHeadingElement>("#sheet-title");
+const sheetSubmit = $<HTMLButtonElement>("#sheet-submit");
+const sheetComputer = $<HTMLInputElement>("#sheet-computer");
+const sheetNetwork = $<HTMLSelectElement>("#sheet-network");
+const sheetModel = $<HTMLSelectElement>("#sheet-model");
+
+/** Bot being edited in the sheet; null means the sheet is creating a new one. */
+let editing: Bot | null = null;
 const toastEl = $<HTMLDivElement>("#toast");
 const appEl = $<HTMLDivElement>(".app");
 const screenPane = $<HTMLElement>("#screen-pane");
@@ -247,6 +261,10 @@ function seed(): void {
     shape,
     sessionId: newSessionId(),
     started: false,
+    // A desktop is opt-in: a fresh install may not even have Docker.
+    computer: false,
+    network: "full",
+    model: MODEL,
     messages: [],
   });
 
@@ -273,6 +291,9 @@ function load(): void {
       ...bot,
       sessionId: bot.sessionId || newSessionId(),
       started: Boolean(bot.started),
+      computer: Boolean(bot.computer),
+      network: bot.network ?? "full",
+      model: bot.model || MODEL,
     }));
     state.activeId = data.activeId ?? state.bots[0].id;
     state.screenOpen = Boolean(data.screenOpen);
@@ -480,9 +501,10 @@ async function respond(bot: Bot, prompt: string): Promise<void> {
         resume: bot.started,
         prompt,
         systemPrompt: systemPromptFor(bot),
-        model: MODEL,
+        model: bot.model || MODEL,
         botName: bot.name,
         botRole: bot.role,
+        computer: bot.computer,
       },
     });
   } catch (err) {
@@ -647,21 +669,62 @@ function renderSheetPreview(): void {
   ).join("");
 }
 
-function openSheet(): void {
-  draftColor = COLORS[state.bots.length % COLORS.length];
-  sheetName.value = "";
-  sheetRole.value = "";
+function openSheet(bot: Bot | null = null): void {
+  editing = bot;
+  draftColor = bot?.color ?? COLORS[state.bots.length % COLORS.length];
+  sheetTitle.textContent = bot ? `${bot.name} settings` : "New bot";
+  sheetSubmit.textContent = bot ? "Save" : "Create bot";
+  sheetName.value = bot?.name ?? "";
+  sheetRole.value = bot?.role ?? "";
+  sheetComputer.checked = bot?.computer ?? false;
+  sheetNetwork.value = bot?.network ?? "full";
+  sheetModel.value = bot?.model ?? MODEL;
   renderSheetPreview();
   sheetWrap.hidden = false;
   sheetName.focus();
 }
 
-function createBot(): void {
+function saveSheet(): void {
   const name = sheetName.value.trim();
   if (!name) {
     sheetName.focus();
     return;
   }
+
+  if (editing) {
+    const before = { computer: editing.computer, network: editing.network };
+    Object.assign(editing, {
+      name,
+      role: sheetRole.value.trim(),
+      color: draftColor,
+      computer: sheetComputer.checked,
+      network: sheetNetwork.value as Bot["network"],
+      model: sheetModel.value,
+    });
+    sheetWrap.hidden = true;
+    editing = null;
+    save();
+    renderRoster();
+    renderThread();
+    if (screen.botId === state.activeId) void openScreen();
+
+    // Network is baked into the container at creation, and a revoked computer
+    // should actually stop running.
+    if (before.network !== sheetNetwork.value || (before.computer && !sheetComputer.checked)) {
+      toast(
+        sheetComputer.checked
+          ? "Setting applies next time the desktop starts — stop it to take effect now"
+          : "Computer access revoked",
+      );
+    }
+    return;
+  }
+
+  createBot();
+}
+
+function createBot(): void {
+  const name = sheetName.value.trim();
   const bot: Bot = {
     id: uid(),
     name,
@@ -670,6 +733,9 @@ function createBot(): void {
     shape: SHAPES[state.bots.length % SHAPES.length],
     sessionId: newSessionId(),
     started: false,
+    computer: sheetComputer.checked,
+    network: sheetNetwork.value as Bot["network"],
+    model: sheetModel.value,
     messages: [],
   };
   state.bots.unshift(bot);
@@ -809,6 +875,7 @@ function paintScreen(): void {
   teachBtn.hidden = !live;
   teachBtn.classList.toggle("is-recording", teach.on);
   teachName.hidden = !live || !teach.arming;
+  teachBtn.title = teach.on ? "Stop recording" : "Record a demonstration";
   $<HTMLSpanElement>("#btn-teach-label").textContent = teach.on
     ? `Stop (${teachEvents.length} step${teachEvents.length === 1 ? "" : "s"})`
     : teach.arming
@@ -825,6 +892,7 @@ function paintScreen(): void {
   screenLog.scrollTop = screenLog.scrollHeight;
 
   controlLabel.textContent = screen.control ? "You have control" : "View only";
+  controlBtn.title = screen.control ? "Give control back to the bot" : "Take control of the desktop";
   controlBtn.classList.toggle("is-on", screen.control);
   controlBtn.querySelector("use")?.setAttribute("href", screen.control ? "#i-hand" : "#i-eye");
 }
@@ -884,6 +952,10 @@ function connectScreen(port: number, attempt = 0): void {
 async function openScreen(): Promise<void> {
   const bot = activeBot();
   if (!bot) return;
+  if (!bot.computer) {
+    toast(`${bot.name} has no computer — turn it on in the bot's settings`);
+    return;
+  }
 
   screen.botId = bot.id;
   screen.log = [];
@@ -1233,6 +1305,7 @@ startBtn.addEventListener("click", () => {
       // whatever host it is running on.
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? "",
       locale: navigator.language ?? "",
+      network: bot?.network ?? "full",
     },
   }).catch((err) => {
     screen.state = "error";
@@ -1282,12 +1355,17 @@ input.addEventListener("keydown", (e) => {
 });
 
 $<HTMLButtonElement>("#btn-attach").addEventListener("click", () => toast("Attachments coming soon"));
+$<HTMLButtonElement>("#btn-settings").addEventListener("click", () => {
+  const bot = activeBot();
+  if (bot) openSheet(bot);
+});
+
 $<HTMLButtonElement>("#btn-monitor").addEventListener("click", () => {
   if (screenPane.hidden) void openScreen();
   else closeScreen();
 });
 $<HTMLButtonElement>("#btn-plugins").addEventListener("click", () => toast("No plugins installed"));
-$<HTMLButtonElement>("#btn-new").addEventListener("click", openSheet);
+$<HTMLButtonElement>("#btn-new").addEventListener("click", () => openSheet());
 
 $<HTMLButtonElement>("#btn-account").addEventListener("click", async () => {
   const info = await invoke<{ path: string | null; version: string | null }>("claude_info");
@@ -1319,7 +1397,8 @@ botsEl.addEventListener("contextmenu", (e) => {
   const id = row.dataset.bot!;
   openMenu(
     row,
-    `<button type="button" class="menu-item" data-clear="${id}">${icon("refresh")}Clear thread</button>` +
+    `<button type="button" class="menu-item" data-settings="${id}">${icon("sidebar")}Bot settings</button>` +
+      `<button type="button" class="menu-item" data-clear="${id}">${icon("refresh")}Clear thread</button>` +
       `<button type="button" class="menu-item" data-remove="${id}">${icon("trash")}Delete bot</button>`,
   );
 });
@@ -1428,6 +1507,16 @@ menu.addEventListener("click", (e) => {
     }
   }
 
+  const settings = target.closest<HTMLButtonElement>("[data-settings]");
+  if (settings) {
+    const subject = state.bots.find((b) => b.id === settings.dataset.settings);
+    if (subject) {
+      closeMenu();
+      openSheet(subject);
+      return;
+    }
+  }
+
   const remove = target.closest<HTMLButtonElement>("[data-remove]");
   if (remove) deleteBot(remove.dataset.remove!);
 
@@ -1436,7 +1525,7 @@ menu.addEventListener("click", (e) => {
 
 sheet.addEventListener("submit", (e) => {
   e.preventDefault();
-  createBot();
+  saveSheet();
 });
 
 swatches.addEventListener("click", (e) => {

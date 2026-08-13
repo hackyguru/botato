@@ -12,7 +12,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      bash ca-certificates tzdata sudo \
+      bash ca-certificates tzdata sudo iptables \
       fonts-dejavu-core fonts-liberation fonts-noto-core fonts-noto-color-emoji \
       xvfb x11vnc x11-utils x11-xserver-utils xdotool scrot \
       openbox tint2 xterm dbus-x11 xdg-utils \

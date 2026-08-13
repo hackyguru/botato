@@ -14,6 +14,34 @@ if [ -n "${TZ:-}" ] && [ -f "/usr/share/zoneinfo/$TZ" ]; then
   echo "$TZ" | sudo tee /etc/timezone >/dev/null 2>&1 || true
 fi
 
+# Network policy is enforced from inside: an internal docker network would also
+# stop the host publishing the VNC and control ports, which the panel needs.
+if [ "${NETWORK_POLICY:-full}" != "full" ]; then
+  # Always first: loopback, and replies to connections the host opened — without
+  # these the panel and control API go dark, since Docker reaches published
+  # ports from a private address that the rules below would otherwise block.
+  sudo iptables -A OUTPUT -o lo -j ACCEPT 2>/dev/null || true
+  sudo iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
+fi
+
+case "${NETWORK_POLICY:-full}" in
+  offline)
+    sudo iptables -A OUTPUT -j REJECT 2>/dev/null || true
+    ;;
+  no-lan)
+    # Docker's resolver usually sits on a private address, so name resolution
+    # has to be allowed explicitly or the internet goes with the LAN.
+    for ns in $(awk '/^nameserver/ {print $2}' /etc/resolv.conf 2>/dev/null); do
+      sudo iptables -A OUTPUT -d "$ns" -j ACCEPT 2>/dev/null || true
+    done
+
+    # The internet stays reachable; the user's home network does not.
+    for range in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 169.254.0.0/16 100.64.0.0/10; do
+      sudo iptables -A OUTPUT -d "$range" -j REJECT 2>/dev/null || true
+    done
+    ;;
+esac
+
 mkdir -p "$HOME/Desktop" "$HOME/Downloads" "$HOME/work"
 
 # ~/work is the folder shared with the user's machine; make it reachable from the

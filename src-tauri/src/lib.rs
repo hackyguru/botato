@@ -142,6 +142,9 @@ struct AskRequest {
     model: String,
     bot_name: String,
     bot_role: String,
+    /// Whether the user has granted this bot a desktop at all.
+    #[serde(default)]
+    computer: bool,
 }
 
 /// Claude Code loads `CLAUDE.md` from the session's cwd on every turn, which
@@ -194,7 +197,9 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     // A running desktop earns the bot a second set of tools, pointed at that
     // bot's container. No desktop, no tools — nothing to explain away in the
     // prompt and nothing to fail at call time.
-    let desktop = sandbox::control_port_for(&req.bot_id);
+    // Permission first: a bot with no computer is never told it has one, so it
+    // describes itself the same way whether or not a container happens to run.
+    let desktop = if req.computer { sandbox::control_port_for(&req.bot_id) } else { None };
     let (allowed, system_prompt) = match desktop {
         Some(port) => (
             format!("{TOOLS},{DESKTOP_TOOLS}"),
