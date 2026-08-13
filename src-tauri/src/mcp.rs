@@ -15,6 +15,16 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
+use crate::sandbox;
+
+/// Everything the server needs to act for one bot, handed over as environment
+/// variables by the app when it registers this server with Claude Code.
+pub struct Bot {
+    pub id: String,
+    pub workspace: PathBuf,
+    pub brand: sandbox::BotBrand,
+}
+
 /// Native size of the sandbox display, mirroring SCREEN in the Dockerfile.
 const SCREEN: (u32, u32) = (1440, 900);
 
@@ -80,6 +90,16 @@ fn base64(bytes: &[u8]) -> String {
 fn tool_specs() -> Value {
     let (w, h) = SCREEN;
     json!([
+        {
+            "name": "start_desktop",
+            "description":
+                "Switch on this bot's computer. The desktop is not always running — it stops when \
+                 idle — and every other desktop tool needs it up, so call this first when a task \
+                 needs the machine and the others report it is off. Takes a few seconds, and the \
+                 user sees it happen. There is no matching stop: an idle desktop switches itself \
+                 off.",
+            "inputSchema": { "type": "object", "properties": {} }
+        },
         {
             "name": "screenshot",
             "description": format!(
@@ -256,9 +276,31 @@ fn text_result(text: String, is_error: bool) -> Value {
     json!({ "content": [{ "type": "text", "text": text }], "isError": is_error })
 }
 
-fn call_tool(port: u16, workspace: Option<&PathBuf>, params: &Value) -> Value {
+fn call_tool(bot: &Bot, params: &Value) -> Value {
     let name = params["name"].as_str().unwrap_or_default();
     let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
+
+    if name == "start_desktop" {
+        let log = |_state: &str, _line: &str| {};
+        return match sandbox::ensure_desktop(&bot.id, &bot.brand, &bot.workspace, None, &log) {
+            Ok(_) => {
+                sandbox::touch(&bot.id);
+                text_result("the desktop is up. Screenshot it to see where things stand.".into(), false)
+            }
+            Err(err) => text_result(format!("could not start the desktop: {err}"), true),
+        };
+    }
+
+    // Every other tool needs a running desktop; say so plainly rather than
+    // failing with a connection error.
+    let Some(port) = sandbox::control_port_for(&bot.id) else {
+        return text_result(
+            "the desktop is switched off — call start_desktop first, then retry.".into(),
+            true,
+        );
+    };
+    sandbox::touch(&bot.id);
+    let workspace = Some(&bot.workspace);
 
     if name == "replay" {
         return replay(port, workspace, args["slug"].as_str().unwrap_or_default());
@@ -314,7 +356,7 @@ fn call_tool(port: u16, workspace: Option<&PathBuf>, params: &Value) -> Value {
 
 /* ------------------------------------------------------------------- server */
 
-pub fn serve(control_port: u16, workspace: Option<PathBuf>) {
+pub fn serve(bot: Bot) {
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout();
 
@@ -334,7 +376,7 @@ pub fn serve(control_port: u16, workspace: Option<PathBuf>) {
                 "serverInfo": { "name": "botcage-desktop", "version": env!("CARGO_PKG_VERSION") }
             })),
             "tools/list" => Some(json!({ "tools": tool_specs() })),
-            "tools/call" => Some(call_tool(control_port, workspace.as_ref(), &params)),
+            "tools/call" => Some(call_tool(&bot, &params)),
             "ping" => Some(json!({})),
             _ => None,
         };

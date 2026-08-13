@@ -76,6 +76,9 @@
       <symbol id="i-expand" viewBox="0 0 24 24">
         <path d="M9 3H3v6M15 21h6v-6M21 9V3h-6M3 15v6h6" />
       </symbol>
+      <symbol id="i-play" viewBox="0 0 24 24">
+        <path d="M7 4.5v15l12-7.5z" />
+      </symbol>
       <symbol id="i-clock" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="9" />
         <path d="M12 7v5.2l3.2 1.9" />
@@ -152,7 +155,36 @@
           <section class="thread" id="thread"></section>
         </div>
 
-        <div class="dock">
+
+        <section class="routines-view" id="routines" hidden>
+          <div class="routines__head">
+            <span class="routines__title">Routines</span>
+            <button type="button" class="chip" id="routine-add">
+              <svg><use href="#i-plus" /></svg><span>New routine</span>
+            </button>
+          </div>
+          <div class="routines__list" id="routine-list"></div>
+
+          <div class="routine-form" id="routine-form" hidden>
+            <input id="routine-name" placeholder="Name this routine" spellcheck="false" maxlength="48" />
+            <textarea id="routine-instruction" rows="3"
+                      placeholder="What should it do each time it runs?"></textarea>
+            <div class="routine-when">
+              <select id="routine-every" class="picker">
+                <option value="day">Every day</option>
+                <option value="weekday">Every weekday</option>
+                <option value="hour">Every hour</option>
+                <option value="minutes">Every few minutes</option>
+              </select>
+              <input type="time" id="routine-at" class="picker" value="09:00" />
+              <input type="number" id="routine-interval" class="picker" value="15" min="1" max="720"
+                     title="Minutes between runs" hidden />
+              <button type="button" class="chip" id="routine-save"><span>Add routine</span></button>
+            </div>
+          </div>
+        </section>
+
+        <div class="dock" id="dock">
           <form class="composer" id="composer">
             <button type="button" class="add" id="btn-attach" aria-label="Attach">
               <svg><use href="#i-plus" /></svg>
@@ -198,30 +230,6 @@
             </div>
           </div>
           <div class="screen__caption" id="screen-caption"></div>
-        <div class="routines" id="routines">
-          <div class="routines__head">
-            <span class="routines__title">Routines</span>
-            <button type="button" class="icon-btn icon-btn--sm" id="routine-add" title="New routine">
-              <svg><use href="#i-plus" /></svg>
-            </button>
-          </div>
-          <div class="routines__list" id="routine-list"></div>
-
-          <div class="routine-form" id="routine-form" hidden>
-            <input id="routine-name" placeholder="Name this routine" spellcheck="false" maxlength="48" />
-            <textarea id="routine-instruction" rows="2"
-                      placeholder="What should it do each time it runs?"></textarea>
-            <div class="routine-when">
-              <select id="routine-every" class="picker">
-                <option value="day">Every day</option>
-                <option value="weekday">Every weekday</option>
-                <option value="hour">Every hour</option>
-              </select>
-              <input type="time" id="routine-at" class="picker" value="09:00" />
-              <button type="button" class="chip" id="routine-save"><span>Add</span></button>
-            </div>
-          </div>
-        </div>
         </aside>
     </div>
 

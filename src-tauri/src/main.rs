@@ -7,13 +7,7 @@ fn main() {
     // no separate runtime to install or bundle.
     let mut args = std::env::args().skip(1);
     if args.next().as_deref() == Some("--mcp") {
-        match args.next().and_then(|port| port.parse::<u16>().ok()) {
-            Some(port) => botcage_lib::serve_mcp(port, args.next().map(std::path::PathBuf::from)),
-            None => {
-                eprintln!("usage: botcage --mcp <control-port>");
-                std::process::exit(2);
-            }
-        }
+        botcage_lib::serve_mcp();
         return;
     }
 

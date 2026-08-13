@@ -19,23 +19,47 @@ use tauri::{AppHandle, Emitter, Manager, RunEvent};
 mod mcp;
 mod sandbox;
 
-/// Entry point for `botcage --mcp <port>` (see main.rs).
-pub fn serve_mcp(control_port: u16, workspace: Option<std::path::PathBuf>) {
-    mcp::serve(control_port, workspace);
+/// Entry point for `botcage --mcp` (see main.rs). Identity arrives in the
+/// environment, set by the app when it registers this server.
+pub fn serve_mcp() {
+    let brand = std::env::var("BOTCAGE_BRAND")
+        .ok()
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default();
+
+    mcp::serve(mcp::Bot {
+        id: std::env::var("BOTCAGE_BOT").unwrap_or_default(),
+        workspace: std::env::var("BOTCAGE_WORKSPACE").unwrap_or_default().into(),
+        brand,
+    });
 }
 
 /// Tools the desktop MCP server provides, named as Claude Code addresses them.
 const DESKTOP_TOOLS: &str = "mcp__desktop__screenshot,mcp__desktop__exec,mcp__desktop__click,\
-mcp__desktop__move,mcp__desktop__type,mcp__desktop__key,mcp__desktop__scroll,mcp__desktop__replay";
+mcp__desktop__move,mcp__desktop__type,mcp__desktop__key,mcp__desktop__scroll,mcp__desktop__replay,\
+mcp__desktop__start_desktop";
 
 /// Built-in tools a bot may use. Deliberately no Bash — shell access belongs in
 /// the sandboxed desktop, not on the user's machine.
 const TOOLS: &str = "Read,Glob,Grep,Write,Edit,WebSearch,WebFetch";
 
+/// Every bot has these, desktop or not.
+const ROUTINES_PROMPT: &str = "\
+You can hold standing instructions called routines: a named job on a schedule — every day, every \
+weekday, every hour, or every few minutes down to one — which arrives in this conversation and is answered by you \
+exactly as if the user had typed it. So you are not limited to replying when spoken to: if someone \
+asks for a morning summary, an hourly check, or a nightly tidy-up, the answer is a routine, not \
+\"I can't do that\". Say so, and propose the name, the instruction and the schedule you would use. \
+The user creates and edits them from the clock icon at the top of this conversation, where each \
+routine also has a Run now button. Two honest caveats worth passing on: routines only fire while \
+botcage is open on their machine, and each one spends model usage every time it runs.";
+
 /// Appended to the system prompt only while the bot's desktop is running.
 const DESKTOP_PROMPT: &str = "\
 You have your own computer: a Linux desktop (Debian, openbox, Chromium, a terminal, a file \
-manager) that only you use, reachable through the `desktop` MCP tools. Nobody else's files are \
+manager) that only you use, reachable through the `desktop` MCP tools. It is not always running — \
+it switches itself off when idle — so if a tool reports it is off, call `start_desktop` and carry \
+on; that takes a few seconds and the user sees it happen. Nobody else's files are \
 on it and nothing you do there touches the user's machine.
 
 Work it like an engineer, not like a person at a mouse: reach for `exec` first, because a shell \
@@ -145,6 +169,9 @@ struct AskRequest {
     /// Whether the user has granted this bot a desktop at all.
     #[serde(default)]
     computer: bool,
+    /// Passed through to the container if the bot starts its own desktop.
+    #[serde(default)]
+    brand: sandbox::BotBrand,
 }
 
 /// Claude Code loads `CLAUDE.md` from the session's cwd on every turn, which
@@ -199,13 +226,15 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     // prompt and nothing to fail at call time.
     // Permission first: a bot with no computer is never told it has one, so it
     // describes itself the same way whether or not a container happens to run.
-    let desktop = if req.computer { sandbox::control_port_for(&req.bot_id) } else { None };
-    let (allowed, system_prompt) = match desktop {
-        Some(port) => (
-            format!("{TOOLS},{DESKTOP_TOOLS}"),
-            format!("{}\n\n{}", req.system_prompt, DESKTOP_PROMPT.replace("{port}", &port.to_string())),
-        ),
-        None => (TOOLS.to_string(), req.system_prompt.clone()),
+    // Permission, not container state, decides this: a bot allowed a computer
+    // is told it has one and can switch it on itself, so its account of what it
+    // can do doesn't change with whether something happens to be running.
+    let base = format!("{}\n\n{}", req.system_prompt, ROUTINES_PROMPT);
+    let (allowed, system_prompt) = if req.computer {
+        sandbox::touch(&req.bot_id);
+        (format!("{TOOLS},{DESKTOP_TOOLS}"), format!("{base}\n\n{DESKTOP_PROMPT}"))
+    } else {
+        (TOOLS.to_string(), base)
     };
 
     let mut cmd = Command::new(&bin);
@@ -223,14 +252,19 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    if let Some(port) = desktop {
+    if req.computer {
         let exe = std::env::current_exe().map_err(|e| format!("cannot find my own binary: {e}"))?;
         let config = serde_json::json!({
             "mcpServers": {
                 "desktop": {
-                "command": exe.display().to_string(),
-                "args": ["--mcp", port.to_string(), cwd.display().to_string()]
-            }
+                    "command": exe.display().to_string(),
+                    "args": ["--mcp"],
+                    "env": {
+                        "BOTCAGE_BOT": req.bot_id,
+                        "BOTCAGE_WORKSPACE": cwd.display().to_string(),
+                        "BOTCAGE_BRAND": serde_json::to_string(&req.brand).unwrap_or_default(),
+                    }
+                }
             }
         });
         cmd.args(["--mcp-config", &config.to_string()]);
@@ -473,8 +507,16 @@ pub fn run() {
             sandbox::sandbox_status,
             sandbox::sandbox_start,
             sandbox::sandbox_stop,
+            sandbox::sandbox_rebuild,
+            sandbox::sandbox_keepalive,
             sandbox::sandbox_destroy,
         ])
+        .setup(|_app| {
+            // Bots may switch their own desktops on, so something has to switch
+            // idle ones off.
+            sandbox::start_reaper();
+            Ok(())
+        })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app, event| {

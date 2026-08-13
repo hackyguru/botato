@@ -29,9 +29,11 @@ interface Routine {
   id: string;
   name: string;
   instruction: string;
-  every: "day" | "weekday" | "hour";
+  every: "day" | "weekday" | "hour" | "minutes";
   /** "HH:MM"; for hourly only the minutes are used. */
   at: string;
+  /** Gap in minutes, for the "every few minutes" kind. */
+  minutes?: number;
   active: boolean;
   lastRunAt?: number;
 }
@@ -148,6 +150,7 @@ const routineName = $<HTMLInputElement>("#routine-name");
 const routineInstruction = $<HTMLTextAreaElement>("#routine-instruction");
 const routineEvery = $<HTMLSelectElement>("#routine-every");
 const routineAt = $<HTMLInputElement>("#routine-at");
+const routineInterval = $<HTMLInputElement>("#routine-interval");
 
 /** Bot being edited in the sheet; null means the sheet is creating a new one. */
 let editing: Bot | null = null;
@@ -495,9 +498,8 @@ function renderThread(): void {
 
   const live = (bot.routines ?? []).filter((r) => r.active).length;
   const routinesBtn = $<HTMLButtonElement>("#btn-routines");
-  routinesBtn.hidden = live === 0;
-  routinesBtn.title = `${live} active routine${live === 1 ? "" : "s"}`;
-  $<HTMLSpanElement>("#btn-routines-count").textContent = String(live);
+  routinesBtn.title = live ? `${live} active routine${live === 1 ? "" : "s"}` : "Routines";
+  $<HTMLSpanElement>("#btn-routines-count").textContent = live ? String(live) : "";
 
   if (!bot.messages.length) {
     thread.innerHTML =
@@ -577,6 +579,13 @@ async function respond(bot: Bot, prompt: string): Promise<void> {
         botName: bot.name,
         botRole: bot.role,
         computer: bot.computer,
+        brand: {
+          name: bot.name,
+          color: bot.color,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? "",
+          locale: navigator.language ?? "",
+          network: bot.network,
+        },
       },
     });
   } catch (err) {
@@ -645,7 +654,16 @@ function handleBotEvent(event: BotEvent): void {
   const live = event.botId === state.activeId;
 
   if (event.kind === "tool") {
-    pending.note = `Using ${event.text ?? "a tool"}…`;
+    const tool = (event.text ?? "a tool").replace(/^mcp__desktop__/, "");
+    const desktopTool = tool !== event.text;
+
+    if (tool === "start_desktop") {
+      pending.note = "Starting its computer…";
+      // The MCP server started a container behind our back; catch the panel up.
+      if (event.botId === screen.botId) window.setTimeout(() => void openScreen(), 4000);
+    } else {
+      pending.note = desktopTool ? `On its computer — ${tool}…` : `Using ${tool}…`;
+    }
     if (live && !pending.sawText) waitingHtml(pending.message.id, pending.note);
     return;
   }
@@ -742,7 +760,7 @@ function renderSheetPreview(): void {
 }
 
 function renderRoutines(): void {
-  const bot = state.bots.find((b) => b.id === (screen.botId ?? state.activeId));
+  const bot = activeBot();
   const routines = bot?.routines ?? [];
   routineList.innerHTML = routines
     .map(
@@ -750,9 +768,12 @@ function renderRoutines(): void {
         `<div class="routine${routine.active ? "" : " is-off"}" data-routine="${routine.id}">` +
         `<div class="routine__body">` +
         `<div class="routine__name">${escapeHtml(routine.name)}</div>` +
+        `<div class="routine__what">${escapeHtml(routine.instruction)}</div>` +
         `<div class="routine__when">${escapeHtml(describeRoutine(routine))}</div>` +
         `</div>` +
         `<input type="checkbox" class="switch" data-toggle="${routine.id}"${routine.active ? " checked" : ""} />` +
+        `<button type="button" class="icon-btn icon-btn--sm" data-run="${routine.id}" title="Run now">` +
+        `${icon("play")}</button>` +
         `<button type="button" class="icon-btn icon-btn--sm" data-drop="${routine.id}" title="Delete">` +
         `${icon("trash")}</button>` +
         `</div>`,
@@ -797,7 +818,6 @@ function saveSheet(): void {
     save();
     renderRoster();
     renderThread();
-    renderRoutines();
     if (screen.botId === state.activeId) void openScreen();
 
     // Network is baked into the container at creation, and a revoked computer
@@ -857,10 +877,10 @@ function openBot(id: string): void {
   state.activeId = id;
   save();
   renderRoster();
-  renderThread();
+  if (routinesOpen) renderRoutines();
+  else renderThread();
   // The pane always shows the bot you're talking to.
   if (!screenPane.hidden && screen.botId !== id) void openScreen();
-  else renderRoutines();
   input.focus();
 }
 
@@ -870,6 +890,10 @@ const WEEKDAY = [1, 2, 3, 4, 5];
 
 /** When this routine should next run, strictly after `from`. */
 function nextRun(routine: Routine, from: number): number {
+  if (routine.every === "minutes") {
+    return from + Math.max(1, routine.minutes ?? 15) * 60_000;
+  }
+
   const [hh, mm] = routine.at.split(":").map(Number);
   const at = new Date(from);
 
@@ -888,9 +912,53 @@ function nextRun(routine: Routine, from: number): number {
 }
 
 function describeRoutine(routine: Routine): string {
+  if (routine.every === "minutes") {
+    const gap = Math.max(1, routine.minutes ?? 15);
+    return gap === 1 ? "Every minute" : `Every ${gap} minutes`;
+  }
   if (routine.every === "hour") return `Every hour at :${routine.at.split(":")[1]}`;
   const when = routine.every === "weekday" ? "Every weekday" : "Every day";
   return `${when} at ${routine.at}`;
+}
+
+let routinesOpen = false;
+
+/** The main pane shows either the conversation or this bot's routines. */
+function showRoutines(open: boolean): void {
+  routinesOpen = open;
+  $<HTMLElement>(".main").classList.toggle("is-routines", open);
+  $<HTMLElement>("#routines").hidden = !open;
+  $<HTMLButtonElement>("#btn-routines").classList.toggle("is-on", open);
+  routineForm.hidden = true;
+  if (open) renderRoutines();
+  else renderThread();
+}
+
+/** Run a routine now, from the clock or from the Run now button. */
+function runRoutine(bot: Bot, routine: Routine): void {
+  if (inflight.has(bot.id)) {
+    toast(`${bot.name} is busy — try again when it has finished`);
+    return;
+  }
+
+  routine.lastRunAt = Date.now();
+  const note: Message = {
+    id: uid(),
+    from: "me",
+    text: routine.instruction,
+    at: Date.now(),
+    kind: "routine",
+    meta: { steps: 0, frames: 0, slug: routine.id, name: routine.name },
+  };
+  bot.messages.push(note);
+  if (bot.id === state.activeId) {
+    if (bot.messages.length === 1) thread.innerHTML = "";
+    thread.append(turnEl(note));
+    scrollToEnd(true);
+  }
+  save();
+  renderRoster();
+  void respond(bot, routine.instruction);
 }
 
 /** Fire anything due. This runs while the app is open; there is no daemon. */
@@ -910,22 +978,7 @@ function tickRoutines(): void {
       }
       if (nextRun(routine, routine.lastRunAt) > now) continue;
 
-      routine.lastRunAt = now;
-      const note: Message = {
-        id: uid(),
-        from: "me",
-        text: routine.instruction,
-        at: now,
-        kind: "routine",
-        meta: { steps: 0, frames: 0, slug: routine.id, name: routine.name },
-      };
-      bot.messages.push(note);
-      if (bot.id === state.activeId) {
-        if (bot.messages.length === 1) thread.innerHTML = "";
-        thread.append(turnEl(note));
-      }
-      save();
-      void respond(bot, routine.instruction);
+      runRoutine(bot, routine);
       break; // at most one routine per bot per tick
     }
   }
@@ -1129,7 +1182,6 @@ async function openScreen(): Promise<void> {
   state.screenOpen = true;
   relayout();
   save();
-  renderRoutines();
   paintScreen();
 
   if (!bot.computer) {
@@ -1531,10 +1583,7 @@ input.addEventListener("keydown", (e) => {
 });
 
 $<HTMLButtonElement>("#btn-attach").addEventListener("click", () => toast("Attachments coming soon"));
-$<HTMLButtonElement>("#btn-routines").addEventListener("click", () => {
-  if (screenPane.hidden) void openScreen();
-  else closeScreen();
-});
+$<HTMLButtonElement>("#btn-routines").addEventListener("click", () => showRoutines(!routinesOpen));
 
 $<HTMLButtonElement>("#btn-settings").addEventListener("click", () => {
   const bot = activeBot();
@@ -1579,6 +1628,7 @@ botsEl.addEventListener("contextmenu", (e) => {
   openMenu(
     row,
     `<button type="button" class="menu-item" data-settings="${id}">${icon("sidebar")}Bot settings</button>` +
+      `<button type="button" class="menu-item" data-rebuild="${id}">${icon("power")}Rebuild desktop</button>` +
       `<button type="button" class="menu-item" data-clear="${id}">${icon("refresh")}Clear thread</button>` +
       `<button type="button" class="menu-item" data-remove="${id}">${icon("trash")}Delete bot</button>`,
   );
@@ -1698,6 +1748,26 @@ menu.addEventListener("click", (e) => {
     }
   }
 
+  const rebuild = target.closest<HTMLButtonElement>("[data-rebuild]");
+  if (rebuild) {
+    const subject = state.bots.find((b) => b.id === rebuild.dataset.rebuild);
+    if (subject) {
+      closeMenu();
+      toast(`Rebuilding ${subject.name}'s desktop — its files are kept`);
+      void invoke("sandbox_rebuild", {
+        botId: subject.id,
+        brand: {
+          name: subject.name,
+          color: subject.color,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? "",
+          locale: navigator.language ?? "",
+          network: subject.network,
+        },
+      }).catch((err) => toast(String(err)));
+      return;
+    }
+  }
+
   const remove = target.closest<HTMLButtonElement>("[data-remove]");
   if (remove) deleteBot(remove.dataset.remove!);
 
@@ -1711,10 +1781,19 @@ sheet.addEventListener("submit", (e) => {
 
 $<HTMLButtonElement>("#routine-add").addEventListener("click", () => {
   routineForm.hidden = !routineForm.hidden;
+  routineInterval.hidden = routineEvery.value !== "minutes";
+  routineAt.hidden = routineEvery.value === "minutes";
   if (!routineForm.hidden) {
     routineName.focus();
     routineForm.scrollIntoView({ block: "nearest" });
   }
+});
+
+// Minute intervals ask for a gap, everything else asks for a time.
+routineEvery.addEventListener("change", () => {
+  const byMinutes = routineEvery.value === "minutes";
+  routineInterval.hidden = !byMinutes;
+  routineAt.hidden = byMinutes;
 });
 
 $<HTMLButtonElement>("#routine-save").addEventListener("click", () => {
@@ -1734,6 +1813,7 @@ $<HTMLButtonElement>("#routine-save").addEventListener("click", () => {
     instruction,
     every: routineEvery.value as Routine["every"],
     at: routineAt.value || "09:00",
+    minutes: Number(routineInterval.value) || 15,
     active: true,
     lastRunAt: Date.now(),
   });
@@ -1748,7 +1828,7 @@ $<HTMLButtonElement>("#routine-save").addEventListener("click", () => {
 
 routineList.addEventListener("click", (e) => {
   const target = e.target as HTMLElement;
-  const bot = state.bots.find((b) => b.id === (screen.botId ?? state.activeId));
+  const bot = activeBot();
   if (!bot) return;
 
   const toggle = target.closest<HTMLInputElement>("[data-toggle]");
@@ -1760,6 +1840,16 @@ routineList.addEventListener("click", (e) => {
       routine.lastRunAt = Date.now();
       save();
       renderRoutines();
+    }
+    return;
+  }
+
+  const run = target.closest<HTMLButtonElement>("[data-run]");
+  if (run) {
+    const routine = bot.routines?.find((r) => r.id === run.dataset.run);
+    if (routine) {
+      showRoutines(false);
+      runRoutine(bot, routine);
     }
     return;
   }
@@ -1829,6 +1919,11 @@ input.focus();
 // Routines are checked here rather than in Rust: the state they read lives in
 // the webview, and nothing can fire while the app is closed anyway.
 window.setInterval(tickRoutines, 30_000);
+
+// A desktop you are watching should not be reaped for idleness.
+window.setInterval(() => {
+  if (screen.connected && screen.botId) void invoke("sandbox_keepalive", { botId: screen.botId });
+}, 60_000);
 
 void listen<BotEvent>("bot-event", (event) => handleBotEvent(event.payload));
 void listen<SandboxEvent>("sandbox-event", (event) => handleSandboxEvent(event.payload));

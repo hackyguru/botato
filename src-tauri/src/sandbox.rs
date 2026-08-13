@@ -4,7 +4,7 @@
 //! shell, no platform-specific scripting — so macOS, Linux, and Windows hosts
 //! all take the same path. Ports are published on the host loopback only.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
@@ -18,10 +18,58 @@ use tauri::{AppHandle, Emitter, Manager};
 
 const IMAGE: &str = "botcage/desktop:1";
 const READY_TIMEOUT: Duration = Duration::from_secs(90);
+/// A desktop nobody has used for this long stops itself. Bots may switch their
+/// own machines on, so something has to switch them off.
+const IDLE_LIMIT: Duration = Duration::from_secs(20 * 60);
 
 /// Bots whose desktop is mid-launch, so a double click can't start two.
 #[derive(Default)]
 pub struct Sandboxes(Mutex<HashSet<String>>);
+
+/// When each desktop was last wanted — by a turn, the panel, or a start.
+static LAST_USED: Mutex<Option<HashMap<String, Instant>>> = Mutex::new(None);
+
+pub fn touch(bot_id: &str) {
+    let mut guard = LAST_USED.lock().unwrap();
+    guard.get_or_insert_with(HashMap::new).insert(bot_id.to_string(), Instant::now());
+}
+
+/// The panel calls this while it is connected, so a desktop you are watching is
+/// never reaped out from under you.
+#[tauri::command]
+pub fn sandbox_keepalive(bot_id: String) {
+    touch(&bot_id);
+}
+
+fn idle_for(bot_id: &str) -> Duration {
+    let mut guard = LAST_USED.lock().unwrap();
+    let map = guard.get_or_insert_with(HashMap::new);
+    match map.get(bot_id) {
+        Some(seen) => seen.elapsed(),
+        None => {
+            // First sighting: give it a full window rather than reaping at once.
+            map.insert(bot_id.to_string(), Instant::now());
+            Duration::ZERO
+        }
+    }
+}
+
+/// Stop desktops nobody has touched for a while. Started once, runs for the
+/// life of the app.
+pub fn start_reaper() {
+    std::thread::spawn(|| loop {
+        std::thread::sleep(Duration::from_secs(60));
+        let Ok(out) = docker(&["ps", "--format", "{{.Names}}", "--filter", "label=botcage=1"]) else {
+            continue;
+        };
+        for name in stdout_of(&out).lines() {
+            let Some(bot) = name.strip_prefix("botcage-") else { continue };
+            if idle_for(bot) > IDLE_LIMIT {
+                let _ = docker(&["stop", "-t", "6", name]);
+            }
+        }
+    });
+}
 
 /* -------------------------------------------------------------- docker CLI */
 
@@ -286,7 +334,7 @@ fn image_exists() -> bool {
 
 /// Build the image, streaming progress out as log events — first run pulls a
 /// Debian base and installs a desktop, so this takes minutes.
-fn build_image(app: &AppHandle, bot_id: &str, dir: &Path) -> Result<(), String> {
+fn build_image(bot_id: &str, dir: &Path, log: &dyn Fn(&str, &str)) -> Result<(), String> {
     let bin = locate_docker().ok_or("Docker CLI not found")?;
     let mut cmd = Command::new(bin);
     cmd.args(["build", "--progress", "plain", "-t", IMAGE, "."])
@@ -297,23 +345,19 @@ fn build_image(app: &AppHandle, bot_id: &str, dir: &Path) -> Result<(), String> 
 
     let mut child = cmd.spawn().map_err(|e| format!("docker build: {e}"))?;
     let stderr = child.stderr.take().ok_or("no stderr on docker build")?;
-    let app_handle = app.clone();
-    let bot = bot_id.to_string();
+    let _ = bot_id;
     // Build progress goes to stderr; keep only step lines so the UI stays readable.
-    let pump = std::thread::spawn(move || {
-        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-            let line = line.trim().to_string();
-            if line.starts_with("#") && line.contains("DONE") || line.contains("ERROR") {
-                emit_log(&app_handle, &bot, &line);
-            }
+    for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+        let line = line.trim().to_string();
+        if line.starts_with("#") && line.contains("DONE") || line.contains("ERROR") {
+            log("building", &line);
         }
-    });
+    }
 
     if let Some(stdout) = child.stdout.take() {
         for _ in BufReader::new(stdout).lines().map_while(Result::ok) {}
     }
     let status = child.wait().map_err(|e| e.to_string())?;
-    let _ = pump.join();
 
     if status.success() {
         Ok(())
@@ -351,7 +395,7 @@ pub fn sandbox_status(sandboxes: tauri::State<Sandboxes>, bot_id: String) -> San
 /// How a bot's desktop should present itself: its own identity, and the host's
 /// timezone and language, so the sandbox agrees with the machine it runs on
 /// rather than sitting in UTC/en-US wherever the user actually is.
-#[derive(Clone, Default, Deserialize)]
+#[derive(Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BotBrand {
     name: Option<String>,
@@ -388,7 +432,18 @@ pub fn sandbox_start(
     let brand = brand.unwrap_or_default();
     let app_handle = app.clone();
     std::thread::spawn(move || {
-        let result = launch(&app_handle, &bot_id, &brand);
+        let result = (|| {
+            let work = crate::workspace(&app_handle, &bot_id)?;
+            let context = sandbox_dir(&app_handle).ok();
+            let logger = |state: &str, line: &str| {
+                emit_state(&app_handle, &bot_id, state, None, None);
+                if !line.is_empty() {
+                    emit_log(&app_handle, &bot_id, line);
+                }
+            };
+            ensure_desktop(&bot_id, &brand, &work, context.as_deref(), &logger)
+        })();
+        touch(&bot_id);
         app_handle.state::<Sandboxes>().0.lock().unwrap().remove(&bot_id);
 
         match result {
@@ -403,7 +458,16 @@ pub fn sandbox_start(
     Ok(())
 }
 
-fn launch(app: &AppHandle, bot_id: &str, brand: &BotBrand) -> Result<(u16, u16), String> {
+/// Bring a bot's desktop up, creating the container if it has none. Usable
+/// from the app and from the MCP server process, which has no window: the
+/// caller supplies where to log and where the workspace lives.
+pub fn ensure_desktop(
+    bot_id: &str,
+    brand: &BotBrand,
+    work_dir: &Path,
+    build_context: Option<&Path>,
+    log: &dyn Fn(&str, &str),
+) -> Result<(u16, u16), String> {
     let info = docker_info();
     if let Some(err) = info.error {
         return Err(err);
@@ -412,13 +476,12 @@ fn launch(app: &AppHandle, bot_id: &str, brand: &BotBrand) -> Result<(u16, u16),
     let name = container_of(bot_id);
 
     if !image_exists() {
-        emit_state(app, bot_id, "building", None, None);
-        emit_log(app, bot_id, "Building the sandbox image (first run takes a few minutes)…");
-        let dir = sandbox_dir(app)?;
-        build_image(app, bot_id, &dir)?;
+        log("building", "Building the sandbox image (first run takes a few minutes)…");
+        let dir = build_context.ok_or("the sandbox image is missing and this process cannot build it")?;
+        build_image(bot_id, dir, log)?;
     }
 
-    emit_state(app, bot_id, "starting", None, None);
+    log("starting", "");
 
     let (vnc, control) = match container_running(&name) {
         Some(true) => (
@@ -426,7 +489,7 @@ fn launch(app: &AppHandle, bot_id: &str, brand: &BotBrand) -> Result<(u16, u16),
             published_port(&name, "6081/tcp").ok_or("container is running but port 6081 isn't published")?,
         ),
         Some(false) => {
-            emit_log(app, bot_id, "Waking the existing desktop…");
+            log("starting", "Waking the existing desktop…");
             let out = docker(&["start", &name])?;
             if !out.status.success() {
                 return Err(stderr_of(&out));
@@ -437,7 +500,7 @@ fn launch(app: &AppHandle, bot_id: &str, brand: &BotBrand) -> Result<(u16, u16),
             )
         }
         None => {
-            emit_log(app, bot_id, "Creating a fresh desktop…");
+            log("starting", "Creating a fresh desktop…");
             let vnc = free_port()?;
             let control = free_port()?;
             let volume = format!("{}:/home/bot", name);
@@ -446,9 +509,8 @@ fn launch(app: &AppHandle, bot_id: &str, brand: &BotBrand) -> Result<(u16, u16),
 
             // The bot's Claude Code workspace becomes ~/work on its desktop, so
             // both halves of the bot see one set of files.
-            let host_work = crate::workspace(app, bot_id)?;
-            share_with_container(&host_work);
-            let work_map = format!("{}:/home/bot/work", host_work.display());
+            share_with_container(work_dir);
+            let work_map = format!("{}:/home/bot/work", work_dir.display());
 
             // Drawn into the wallpaper inside the container, so a screenshot
             // always says whose desktop it is.
@@ -526,6 +588,20 @@ pub fn sandbox_stop(app: AppHandle, bot_id: String) -> Result<(), String> {
     }
     emit_state(&app, &bot_id, "stopped", None, None);
     Ok(())
+}
+
+/// Replace the container while keeping the home volume, so a new image or a
+/// changed network policy takes effect without losing the bot's files.
+#[tauri::command]
+pub fn sandbox_rebuild(
+    app: AppHandle,
+    sandboxes: tauri::State<Sandboxes>,
+    bot_id: String,
+    brand: Option<BotBrand>,
+) -> Result<(), String> {
+    let _ = docker(&["rm", "-f", &container_of(&bot_id)]);
+    emit_state(&app, &bot_id, "stopped", None, None);
+    sandbox_start(app, sandboxes, bot_id, brand)
 }
 
 /// Discard a bot's desktop entirely, volume included. Used when a bot is deleted.
