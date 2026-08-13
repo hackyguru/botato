@@ -166,10 +166,34 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => map[c]);
 }
 
+/** Paths that mean something in a bot's world, rendered as badges instead of
+    raw strings. Input is already HTML-escaped, so it is safe in both text and
+    attribute position. */
+function refBadge(path: string): string | null {
+  const badge = (kind: string, symbol: string, label: string) =>
+    `<span class="ref ref--${kind}" title="${path}">${icon(symbol)}${label}</span>`;
+
+  const tidy = (slug: string) => slug.replace(/[-_]+/g, " ").trim();
+  const bare = path.replace(/^\.\//, "");
+
+  if (/^CLAUDE\.md$/i.test(bare)) return badge("memory", "note", "memory");
+
+  const task = bare.match(/^tasks\/([\w.-]+)\.md$/);
+  if (task) return badge("task", "cube", tidy(task[1]));
+
+  const demo = bare.match(/^teach\/([\w.-]+)(?:\/[\w.-]+)?$/);
+  if (demo) return badge("demo", "record", `${tidy(demo[1])} demo`);
+
+  if (/^(~|\/home\/bot)\/work(\/.*)?$/.test(bare)) return badge("folder", "folder", "shared folder");
+  if (/^(~|\/home\/bot)\/Desktop(\/.*)?$/.test(bare)) return badge("folder", "folder", "its desktop");
+
+  return null;
+}
+
 /** Inline markdown: links, `code`, **bold**, *italic*. */
 function inlineMd(s: string): string {
   return escapeHtml(s)
-    .replace(/`([^`]+)`/g, '<code class="inline">$1</code>')
+    .replace(/`([^`]+)`/g, (_m, code: string) => refBadge(code) ?? `<code class="inline">${code}</code>`)
     .replace(/\[([^\]]+)\]\((https?:[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
     .replace(/(^|\s)(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noreferrer">$2</a>')
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")

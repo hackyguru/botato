@@ -698,6 +698,42 @@ textarea {
   display: none;
 }
 
+/* Paths a bot keeps its own furniture at — memory, taught tasks, the shared
+   folder — read as objects rather than strings. */
+.ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 9px 1px 7px;
+  margin: 0 1px;
+  font-size: 0.85em;
+  font-weight: 500;
+  line-height: 1.5;
+  vertical-align: 1px;
+  color: var(--text);
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 99px;
+}
+
+.ref svg {
+  width: 12px;
+  height: 12px;
+  opacity: 0.85;
+}
+
+.ref--memory svg {
+  color: #4a9dff;
+}
+
+.ref--task svg {
+  color: #30d158;
+}
+
+.ref--demo svg {
+  color: #ffb020;
+}
+
 /* A demonstration reads as an event, not a wall of instructions: the badge
    stands in for the prompt, and the bot's account of it follows below. */
 .turn--note {
