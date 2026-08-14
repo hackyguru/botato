@@ -307,6 +307,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     std::thread::spawn(move || {
         let mut final_text: Option<String> = None;
         let mut failure: Option<String> = None;
+        let mut spend: Option<Value> = None;
 
         for line in BufReader::new(stdout).lines().map_while(Result::ok) {
             let Ok(event) = serde_json::from_str::<Value>(&line) else { continue };
@@ -351,6 +352,10 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
                         );
                     } else {
                         final_text = event["result"].as_str().map(str::to_string);
+                        spend = Some(serde_json::json!({
+                            "costUsd": event["total_cost_usd"],
+                            "durationMs": event["duration_ms"],
+                        }));
                     }
                 }
                 _ => {}
@@ -374,7 +379,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
                 if let Some(message) = failure {
                     emit(&app_handle, &bot_id, "error", Some(message), None);
                 } else if ok {
-                    emit(&app_handle, &bot_id, "done", final_text, None);
+                    emit(&app_handle, &bot_id, "done", final_text, spend);
                 } else {
                     let stderr = errors.lock().unwrap().trim().to_string();
                     let tail = stderr.lines().rev().take(4).collect::<Vec<_>>().join(" ");
@@ -425,6 +430,197 @@ fn forget_bot(app: AppHandle, running: tauri::State<Running>, bot_id: String) ->
     let _ = fs::remove_dir_all(&transcripts);
     let _ = fs::remove_dir_all(&dir);
     Ok(())
+}
+
+/// Holds the power assertion while it is on: a child process whose lifetime is
+/// the assertion. Killing it releases the machine back to normal sleep.
+static AWAKE: Mutex<Option<Child>> = Mutex::new(None);
+
+/// Keep the machine from idle-sleeping so bots and routines keep running with
+/// the screen off. The display is deliberately left free to sleep.
+#[tauri::command]
+fn set_awake(on: bool) -> Result<(), String> {
+    let mut guard = AWAKE.lock().unwrap();
+
+    if let Some(mut child) = guard.take() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    if !on {
+        return Ok(());
+    }
+
+    // -i holds off idle sleep on any power source; the display is left alone so
+    // the screen can still switch off.
+    #[cfg(target_os = "macos")]
+    let mut cmd = {
+        let mut cmd = Command::new("/usr/bin/caffeinate");
+        cmd.arg("-i");
+        cmd
+    };
+
+    #[cfg(target_os = "linux")]
+    let mut cmd = {
+        let mut cmd = Command::new("systemd-inhibit");
+        cmd.args([
+            "--what=idle:sleep",
+            "--who=botcage",
+            "--why=running bots",
+            "--mode=block",
+            "sleep",
+            "infinity",
+        ]);
+        cmd
+    };
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        return Err("keeping the machine awake isn't wired up on this platform yet".into());
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        let child = cmd
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(|e| format!("could not hold the machine awake: {e}"))?;
+        *guard = Some(child);
+        Ok(())
+    }
+}
+
+/// Whether lid-close sleep is currently disabled system-wide.
+#[tauri::command]
+fn lid_awake() -> bool {
+    Command::new("/usr/bin/pmset")
+        .arg("-g")
+        .output()
+        .ok()
+        .map(|out| {
+            String::from_utf8_lossy(&out.stdout).lines().any(|line| {
+                let line = line.trim();
+                line.starts_with("disablesleep") && line.ends_with('1')
+            })
+        })
+        .unwrap_or(false)
+}
+
+/// Keep working with the lid shut. Unlike the idle assertion this is a system
+/// setting, not something scoped to this app: it needs an administrator, it
+/// outlives botcage until switched off, and a closed machine doing constant
+/// work runs hotter.
+#[tauri::command]
+fn set_lid_awake(on: bool) -> Result<(), String> {
+    if !cfg!(target_os = "macos") {
+        return Err("lid-close behaviour can only be changed on macOS here".into());
+    }
+
+    let script = format!(
+        "do shell script \"pmset -a disablesleep {}\" with administrator privileges",
+        u8::from(on)
+    );
+    let out = Command::new("/usr/bin/osascript")
+        .args(["-e", &script])
+        .output()
+        .map_err(|e| format!("could not ask for permission: {e}"))?;
+
+    if out.status.success() {
+        return Ok(());
+    }
+    let message = String::from_utf8_lossy(&out.stderr);
+    Err(if message.contains("-128") {
+        "cancelled".into()
+    } else {
+        message.trim().to_string()
+    })
+}
+
+/// Is botcage set to start when the user logs in?
+#[tauri::command]
+fn login_launch() -> bool {
+    login_item_path().map(|path| path.exists()).unwrap_or(false)
+}
+
+fn login_item_path() -> Option<PathBuf> {
+    let home = home();
+    if cfg!(target_os = "macos") {
+        Some(home.join("Library/LaunchAgents/com.hackyguru.botcage.plist"))
+    } else if cfg!(target_os = "linux") {
+        Some(home.join(".config/autostart/botcage.desktop"))
+    } else {
+        None
+    }
+}
+
+/// Start botcage at login, so "always running" survives a restart.
+#[tauri::command]
+fn set_login_launch(on: bool) -> Result<(), String> {
+    let path = login_item_path().ok_or("launching at login isn't wired up on this platform yet")?;
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+
+    if !on {
+        if cfg!(target_os = "macos") && path.exists() {
+            let _ = Command::new("/bin/launchctl").args(["unload", "-w"]).arg(&path).output();
+        }
+        let _ = fs::remove_file(&path);
+        return Ok(());
+    }
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+
+    let body = if cfg!(target_os = "macos") {
+        format!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+             <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \
+             \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n\
+             <plist version=\"1.0\"><dict>\n\
+             <key>Label</key><string>com.hackyguru.botcage</string>\n\
+             <key>ProgramArguments</key><array><string>{}</string></array>\n\
+             <key>RunAtLoad</key><true/>\n\
+             </dict></plist>\n",
+            exe.display()
+        )
+    } else {
+        format!(
+            "[Desktop Entry]\nType=Application\nName=botcage\nExec={}\nX-GNOME-Autostart-enabled=true\n",
+            exe.display()
+        )
+    };
+
+    fs::write(&path, body).map_err(|e| format!("could not write {}: {e}", path.display()))?;
+    if cfg!(target_os = "macos") {
+        let _ = Command::new("/bin/launchctl").args(["load", "-w"]).arg(&path).output();
+    }
+    Ok(())
+}
+
+/// Whoever is logged in — the sidebar used to show a hardcoded name.
+#[tauri::command]
+fn user_name() -> String {
+    std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+fn app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// Where bots keep their workspaces, so the menu can open it.
+#[tauri::command]
+fn bots_dir(app: AppHandle) -> Result<String, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("no app data dir: {e}"))?
+        .join("bots");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.display().to_string())
 }
 
 /* --------------------------------------------------------- teaching a task */
@@ -500,6 +696,14 @@ pub fn run() {
             ask,
             cancel,
             forget_bot,
+            bots_dir,
+            app_version,
+            user_name,
+            set_awake,
+            lid_awake,
+            set_lid_awake,
+            login_launch,
+            set_login_launch,
             teach_capture,
             teach_save,
             teach_name,
@@ -509,6 +713,8 @@ pub fn run() {
             sandbox::sandbox_stop,
             sandbox::sandbox_rebuild,
             sandbox::sandbox_keepalive,
+            sandbox::set_idle_limit,
+            sandbox::rebuild_image,
             sandbox::sandbox_destroy,
         ])
         .setup(|_app| {
@@ -521,6 +727,11 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|_app, event| {
             if let RunEvent::Exit = event {
+                // Release the power assertion with the app that took it.
+                if let Some(mut child) = AWAKE.lock().unwrap().take() {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
                 sandbox::stop_all();
             }
         });

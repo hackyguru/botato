@@ -15,6 +15,7 @@
   --text-3: #636366;
   --link: #4a9dff;
   --blue: #0a84ff;
+  --red: #ff453a;
   --shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, sans-serif;
@@ -172,7 +173,6 @@ textarea {
 
 .is-rail .bot-row__body,
 .is-rail .foot-label,
-.is-rail .badge,
 .is-rail .field input,
 .is-rail #btn-new {
   display: none;
@@ -403,20 +403,7 @@ textarea {
   background: var(--hover);
 }
 
-.foot-icon {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  color: var(--text);
-  background: var(--field);
-  border-radius: 50%;
-}
 
-.foot-icon svg {
-  width: 15px;
-  height: 15px;
-}
 
 .foot-avatar {
   display: grid;
@@ -437,21 +424,6 @@ textarea {
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.badge {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  color: #fff;
-  background: var(--blue);
-  border-radius: 50%;
-}
-
-.badge svg {
-  width: 15px;
-  height: 15px;
 }
 
 /* --------------------------------------------------------------------- main */
@@ -1043,20 +1015,6 @@ textarea {
   transition: transform 0.13s, background 0.13s, opacity 0.13s;
 }
 
-.add {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.add:hover {
-  background: rgba(255, 255, 255, 0.17);
-}
-
-.add svg {
-  width: 20px;
-  height: 20px;
-}
-
 .mic {
   color: #0a0a0a;
   background: #f2f2f2;
@@ -1161,6 +1119,49 @@ textarea {
   animation: pop 0.14s ease both;
 }
 
+.sheet--about {
+  width: min(340px, 92vw);
+  text-align: center;
+}
+
+.sheet--about .sheet__body {
+  gap: 6px;
+  padding-top: 26px;
+}
+
+.about__name {
+  margin: 10px 0 0;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.about__version {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+.about__blurb {
+  margin: 8px 0 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.about__foot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.about__foot .btn-primary {
+  flex: 1;
+}
+
+.menu--account {
+  min-width: 208px;
+}
+
 .sheet__head {
   display: flex;
   align-items: center;
@@ -1194,6 +1195,72 @@ textarea {
   padding: 0 12px;
   background: var(--field);
   border-radius: 10px;
+}
+
+.danger {
+  width: 100%;
+  min-height: 36px;
+  margin-top: 2px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--red);
+  border-radius: 10px;
+  transition: background 0.13s, color 0.13s;
+}
+
+.danger:hover {
+  background: rgba(255, 69, 58, 0.12);
+}
+
+/* Second press confirms. Filling it in makes the armed state impossible to
+   miss, since the next click is not undoable. */
+.danger.is-armed {
+  color: #fff;
+  background: var(--red);
+}
+
+.danger.is-armed:hover {
+  background: #ff5b51;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  margin: 2px 18px 0;
+  padding: 3px;
+  background: var(--field);
+  border-radius: 10px;
+}
+
+.tab {
+  flex: 1;
+  height: 27px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-3);
+  border-radius: 8px;
+  transition: background 0.13s, color 0.13s;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab[aria-selected="true"] {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.11);
+}
+
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.settings-panel[hidden] {
+  display: none;
 }
 
 .settings {

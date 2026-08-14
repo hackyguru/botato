@@ -25,8 +25,18 @@ pub struct Bot {
     pub brand: sandbox::BotBrand,
 }
 
-/// Native size of the sandbox display, mirroring SCREEN in the Dockerfile.
+/// Fallback when the bot was started without a size, matching the Dockerfile.
 const SCREEN: (u32, u32) = (1440, 900);
+
+/// What this bot's display actually measures: the tool descriptions quote it as
+/// the coordinate space, so a stale number makes the bot click in the wrong place.
+fn screen_of(bot: &Bot) -> (u32, u32) {
+    let parsed = bot.brand.screen.as_deref().and_then(|size| {
+        let (w, h) = size.split_once('x')?;
+        Some((w.trim().parse().ok()?, h.trim().parse().ok()?))
+    });
+    parsed.unwrap_or(SCREEN)
+}
 
 /* --------------------------------------------------------------- transport */
 
@@ -87,8 +97,8 @@ fn base64(bytes: &[u8]) -> String {
 
 /* ------------------------------------------------------------------- tools */
 
-fn tool_specs() -> Value {
-    let (w, h) = SCREEN;
+fn tool_specs(bot: &Bot) -> Value {
+    let (w, h) = screen_of(bot);
     json!([
         {
             "name": "start_desktop",
@@ -375,7 +385,7 @@ pub fn serve(bot: Bot) {
                 "capabilities": { "tools": {} },
                 "serverInfo": { "name": "botcage-desktop", "version": env!("CARGO_PKG_VERSION") }
             })),
-            "tools/list" => Some(json!({ "tools": tool_specs() })),
+            "tools/list" => Some(json!({ "tools": tool_specs(&bot) })),
             "tools/call" => Some(call_tool(&bot, &params)),
             "ping" => Some(json!({})),
             _ => None,

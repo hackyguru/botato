@@ -18,9 +18,14 @@ use tauri::{AppHandle, Emitter, Manager};
 
 const IMAGE: &str = "botcage/desktop:1";
 const READY_TIMEOUT: Duration = Duration::from_secs(90);
-/// A desktop nobody has used for this long stops itself. Bots may switch their
-/// own machines on, so something has to switch them off.
-const IDLE_LIMIT: Duration = Duration::from_secs(20 * 60);
+/// Minutes of disuse before a desktop stops itself; 0 disables reaping. Bots
+/// may switch their own machines on, so something has to switch them off.
+static IDLE_MINUTES: Mutex<u64> = Mutex::new(20);
+
+#[tauri::command]
+pub fn set_idle_limit(minutes: u64) {
+    *IDLE_MINUTES.lock().unwrap() = minutes;
+}
 
 /// Bots whose desktop is mid-launch, so a double click can't start two.
 #[derive(Default)]
@@ -64,7 +69,8 @@ pub fn start_reaper() {
         };
         for name in stdout_of(&out).lines() {
             let Some(bot) = name.strip_prefix("botcage-") else { continue };
-            if idle_for(bot) > IDLE_LIMIT {
+            let limit = *IDLE_MINUTES.lock().unwrap();
+            if limit > 0 && idle_for(bot) > Duration::from_secs(limit * 60) {
                 let _ = docker(&["stop", "-t", "6", name]);
             }
         }
@@ -404,6 +410,8 @@ pub struct BotBrand {
     locale: Option<String>,
     /// "full" (default), "no-lan", or "offline".
     network: Option<String>,
+    /// "1440x900" and so on; the image defaults when absent.
+    pub screen: Option<String>,
 }
 
 /// Only pass values that look like what they claim to be — these become
@@ -518,6 +526,10 @@ pub fn ensure_desktop(
             let bot_color = format!("BOT_COLOR={}", brand.color.clone().unwrap_or_default());
             let tz = format!("TZ={}", sane(&brand.timezone, &['/', '_', '-', '+']));
             let lang = format!("BROWSER_LANG={}", sane(&brand.locale, &['-']));
+            let screen = match sane(&brand.screen, &['x']).as_str() {
+                "" => "SCREEN=1440x900x24".to_string(),
+                size => format!("SCREEN={size}x24"),
+            };
 
             // Offline cuts the desktop off entirely; no-lan keeps the internet
             // but drops the private ranges, so it can't reach the home network.
@@ -542,6 +554,7 @@ pub fn ensure_desktop(
                 "-e", &bot_color,
                 "-e", &tz,
                 "-e", &lang,
+                "-e", &screen,
                 "-v", &volume,
                 "-v", &work_map,
                 "-p", &vnc_map,
@@ -610,6 +623,22 @@ pub fn sandbox_destroy(bot_id: String) -> Result<(), String> {
     let name = container_of(&bot_id);
     let _ = docker(&["rm", "-f", &name]);
     let _ = docker(&["volume", "rm", "-f", &name]);
+    Ok(())
+}
+
+/// Rebuild the sandbox image on demand — the usual reason is that the image
+/// changed and existing desktops should be recreated from the new one.
+#[tauri::command]
+pub fn rebuild_image(app: AppHandle) -> Result<(), String> {
+    let dir = sandbox_dir(&app)?;
+    let app_handle = app.clone();
+    std::thread::spawn(move || {
+        let log = |_state: &str, line: &str| emit_log(&app_handle, "app", line);
+        match build_image("app", &dir, &log) {
+            Ok(()) => emit_log(&app_handle, "app", "Sandbox image rebuilt."),
+            Err(err) => emit_log(&app_handle, "app", &format!("Image build failed: {err}")),
+        }
+    });
     Ok(())
 }
 

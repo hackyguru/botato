@@ -14,15 +14,6 @@
       <symbol id="i-search" viewBox="0 0 24 24">
         <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
       </symbol>
-      <symbol id="i-plug" viewBox="0 0 24 24">
-        <path d="M12 22v-5" />
-        <path d="M9 8V2M15 8V2" />
-        <path d="M18 8v3a6 6 0 0 1-12 0V8Z" />
-      </symbol>
-      <symbol id="i-download" viewBox="0 0 24 24">
-        <path d="M12 6v9m0 0 3.5-3.5M12 15l-3.5-3.5" />
-        <circle cx="12" cy="12" r="9.5" />
-      </symbol>
       <symbol id="i-monitor" viewBox="0 0 24 24">
         <rect x="2" y="3" width="20" height="14" rx="2" />
         <path d="M8 21h8M12 17v4" />
@@ -123,14 +114,9 @@
         <div class="bots" id="bots"></div>
 
         <div class="sidebar__foot">
-          <button class="foot-row" id="btn-plugins">
-            <span class="foot-icon"><svg><use href="#i-plug" /></svg></span>
-            <span class="foot-label">Plugins</span>
-          </button>
           <button class="foot-row" id="btn-account">
-            <span class="foot-avatar">G</span>
-            <span class="foot-label">guru (priv/acc)</span>
-            <span class="badge" title="Update available"><svg><use href="#i-download" /></svg></span>
+            <span class="foot-avatar" id="account-initial">·</span>
+            <span class="foot-label" id="account-name">botcage</span>
           </button>
         </div>
       </aside>
@@ -186,9 +172,6 @@
 
         <div class="dock" id="dock">
           <form class="composer" id="composer">
-            <button type="button" class="add" id="btn-attach" aria-label="Attach">
-              <svg><use href="#i-plus" /></svg>
-            </button>
             <textarea id="input" rows="1" placeholder="Message" spellcheck="false"></textarea>
             <button type="submit" class="mic" id="btn-send" aria-label="Send">
               <svg><use href="#i-mic" id="send-icon" /></svg>
@@ -279,6 +262,7 @@
             </label>
           </div>
 
+          <button type="button" class="danger" id="sheet-delete" hidden>Delete bot</button>
         </div>
         <div class="sheet__foot">
           <button type="submit" class="btn-primary" id="sheet-submit">Create bot</button>
@@ -286,6 +270,152 @@
       </form>
     </div>
 
+
+    <div class="overlay" id="app-settings" hidden>
+      <div class="sheet">
+        <div class="sheet__head">
+          <h2>botcage settings</h2>
+          <button type="button" class="icon-btn icon-btn--sm" id="app-settings-close" aria-label="Close">
+            <svg><use href="#i-x" /></svg>
+          </button>
+        </div>
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab" role="tab" data-tab="general" aria-selected="true">General</button>
+          <button type="button" class="tab" role="tab" data-tab="desktops" aria-selected="false">Desktops</button>
+          <button type="button" class="tab" role="tab" data-tab="power" aria-selected="false">Power</button>
+        </div>
+        <div class="sheet__body">
+          <div class="settings-panel" data-tab="general" role="tabpanel">
+            <div class="settings">
+              <label class="setting">
+                <span class="setting__label">Model for new bots
+                  <span class="setting__hint">Existing bots keep their own choice.</span>
+                </span>
+                <select id="app-model" class="picker">
+                  <option value="opus">Opus</option>
+                  <option value="sonnet">Sonnet</option>
+                </select>
+              </label>
+
+              <label class="setting">
+                <span class="setting__label">Run routines
+                  <span class="setting__hint">Turn off to pause every bot's schedule at once.</span>
+                </span>
+                <input type="checkbox" id="app-routines" class="switch" />
+              </label>
+            </div>
+
+            <div class="settings">
+              <div class="setting">
+                <span class="setting__label">Usage
+                  <span class="setting__hint" id="app-usage">No turns yet this session.</span>
+                </span>
+              </div>
+
+              <div class="setting">
+                <span class="setting__label">Environment
+                  <span class="setting__hint" id="app-environment">Checking…</span>
+                </span>
+                <button type="button" class="chip" id="app-open-folder"><span>Open folder</span></button>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel" data-tab="desktops" role="tabpanel" hidden>
+            <div class="settings">
+              <label class="setting">
+                <span class="setting__label">Desktop size
+                  <span class="setting__hint">New desktops only. Use Rebuild desktop in a bot's
+                    menu to resize one it already has.</span>
+                </span>
+                <select id="app-screen" class="picker">
+                  <option value="1280x800">1280 × 800</option>
+                  <option value="1440x900">1440 × 900</option>
+                  <option value="1680x1050">1680 × 1050</option>
+                </select>
+              </label>
+
+              <label class="setting">
+                <span class="setting__label">Stop idle desktops
+                  <span class="setting__hint">A desktop nobody is using costs ~435 MB.</span>
+                </span>
+                <select id="app-idle" class="picker">
+                  <option value="10">After 10 min</option>
+                  <option value="20">After 20 min</option>
+                  <option value="60">After an hour</option>
+                  <option value="0">Never</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="settings">
+              <div class="setting">
+                <span class="setting__label">Running desktops
+                  <span class="setting__hint">Switch every desktop off now. Files are kept.</span>
+                </span>
+                <button type="button" class="chip" id="app-stop-all"><span>Stop all</span></button>
+              </div>
+
+              <div class="setting">
+                <span class="setting__label">Sandbox image
+                  <span class="setting__hint" id="app-image-note">botcage/desktop:1</span>
+                </span>
+                <button type="button" class="chip" id="app-rebuild-image"><span>Rebuild</span></button>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-panel" data-tab="power" role="tabpanel" hidden>
+            <div class="settings">
+              <label class="setting">
+                <span class="setting__label">Keep this computer awake
+                  <span class="setting__hint">Bots and routines keep running with the screen off,
+                    on battery as well as mains.</span>
+                </span>
+                <input type="checkbox" id="app-awake" class="switch" />
+              </label>
+
+              <label class="setting">
+                <span class="setting__label">Keep running with the lid closed
+                  <span class="setting__hint">Asks for your admin password and changes a system
+                    setting, not just this app. A closed machine working constantly runs hot.</span>
+                </span>
+                <input type="checkbox" id="app-lid" class="switch" />
+              </label>
+
+              <label class="setting">
+                <span class="setting__label">Launch at login
+                  <span class="setting__hint">Routines only fire while botcage is open, so this is
+                    what survives a restart.</span>
+                </span>
+                <input type="checkbox" id="app-login" class="switch" />
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="sheet__foot">
+          <button type="button" class="btn-primary" id="app-settings-done">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="about" hidden>
+      <div class="sheet sheet--about">
+        <div class="sheet__body">
+          <span class="face face--squircle face--lg" style="background:#0a84ff"><i></i><i></i></span>
+          <h2 class="about__name">botcage</h2>
+          <p class="about__version" id="about-version">—</p>
+          <p class="about__blurb">
+            Local bots, each a persistent Claude Code session with its own memory, and optionally
+            its own sandboxed Linux desktop to work on.
+          </p>
+        </div>
+        <div class="sheet__foot about__foot">
+          <button type="button" class="chip" id="about-repo"><span>GitHub</span></button>
+          <button type="button" class="btn-primary" id="about-close">Close</button>
+        </div>
+      </div>
+    </div>
 
     <div class="toast" id="toast" hidden></div>
   </body>

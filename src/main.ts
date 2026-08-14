@@ -7,6 +7,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import RFB from "@novnc/novnc";
 
 type Shape = "circle" | "squircle" | "drop";
@@ -101,9 +102,30 @@ interface Persisted {
   screenHeight?: number;
   /** Sidebar collapsed to a rail by choice (it also collapses when cramped). */
   railed?: boolean;
+  app?: AppSettings;
 }
 
-const state: Persisted = { bots: [], activeId: null };
+/** Settings that belong to botcage rather than to one bot. */
+interface AppSettings {
+  model: string;
+  screen: string;
+  idleMinutes: number;
+  routinesOn: boolean;
+  /** Hold a power assertion so the machine doesn't idle-sleep. */
+  awake: boolean;
+}
+
+const DEFAULT_APP: AppSettings = {
+  model: MODEL,
+  screen: "1440x900",
+  idleMinutes: 20,
+  routinesOn: true,
+  awake: false,
+};
+
+const state: Persisted = { bots: [], activeId: null, app: { ...DEFAULT_APP } };
+
+const appSettings = () => state.app ?? DEFAULT_APP;
 
 const SCREEN_PANE = { min: 300, max: 900, initial: 460 };
 const SCREEN_ROW = { min: 200, max: 700, initial: 320 };
@@ -141,6 +163,7 @@ const sheetPreview = $<HTMLDivElement>("#sheet-preview");
 const swatches = $<HTMLDivElement>("#swatches");
 const sheetTitle = $<HTMLHeadingElement>("#sheet-title");
 const sheetSubmit = $<HTMLButtonElement>("#sheet-submit");
+const sheetDelete = $<HTMLButtonElement>("#sheet-delete");
 const sheetComputer = $<HTMLInputElement>("#sheet-computer");
 const sheetNetwork = $<HTMLSelectElement>("#sheet-network");
 const sheetModel = $<HTMLSelectElement>("#sheet-model");
@@ -170,6 +193,13 @@ const controlLabel = $<HTMLSpanElement>("#btn-control-label");
 
 /** Bots with a turn in flight, keyed by bot id. */
 const inflight = new Map<string, { message: Message; sawText: boolean; note: string }>();
+
+/** What this session has spent, and where the usage window stands. */
+const session = {
+  turns: 0,
+  costUsd: 0,
+  limit: null as { status?: string; rateLimitType?: string; resetsAt?: number } | null,
+};
 
 let draftColor = COLORS[0];
 let toastTimer = 0;
@@ -360,6 +390,7 @@ function load(): void {
     state.screenWidth = data.screenWidth;
     state.screenHeight = data.screenHeight;
     state.railed = Boolean(data.railed);
+    state.app = { ...DEFAULT_APP, ...(data.app ?? {}) };
   } catch {
     seed();
   }
@@ -585,6 +616,7 @@ async function respond(bot: Bot, prompt: string): Promise<void> {
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? "",
           locale: navigator.language ?? "",
           network: bot.network,
+          screen: appSettings().screen,
         },
       },
     });
@@ -600,6 +632,11 @@ function finish(botId: string, event: BotEvent): void {
   inflight.delete(botId);
 
   if (event.kind === "done") {
+    const spend = event.detail as { costUsd?: number } | null;
+    if (spend?.costUsd) {
+      session.costUsd += spend.costUsd;
+      session.turns += 1;
+    }
     // The result field is authoritative; deltas can be shed under load.
     if (event.text && event.text.length > pending.message.text.length) {
       pending.message.text = event.text;
@@ -637,6 +674,7 @@ function finish(botId: string, event: BotEvent): void {
 function handleBotEvent(event: BotEvent): void {
   if (event.kind === "rate-limit") {
     const info = event.detail;
+    session.limit = info ?? null;
     if (info && info.status && info.status !== "allowed") {
       const at = info.resetsAt ? clock(info.resetsAt * 1000) : "later";
       toast(`Claude usage limit (${info.rateLimitType ?? "window"}) — resets ${at}`);
@@ -733,7 +771,8 @@ function autoGrow(): void {
 
 /* ------------------------------------------------------------- menus, sheet */
 
-function openMenu(anchor: HTMLElement, html: string, extraClass = ""): void {
+function openMenu(anchor: HTMLElement | null, html: string, extraClass = ""): void {
+  if (!anchor) throw new Error("botcage: openMenu called without an anchor");
   menu.className = `menu ${extraClass}`.trim();
   menu.innerHTML = html;
   menu.hidden = false;
@@ -790,11 +829,37 @@ function openSheet(bot: Bot | null = null): void {
   sheetRole.value = bot?.role ?? "";
   sheetComputer.checked = bot?.computer ?? false;
   sheetNetwork.value = bot?.network ?? "full";
-  sheetModel.value = bot?.model ?? MODEL;
+  sheetModel.value = bot?.model ?? appSettings().model;
   renderSheetPreview();
+  // Only an existing bot can be deleted, and the confirm never carries over
+  // from a previous visit to this sheet.
+  sheetDelete.hidden = !bot;
+  disarmDelete();
   sheetWrap.hidden = false;
   sheetName.focus();
 }
+
+function disarmDelete(): void {
+  sheetDelete.classList.remove("is-armed");
+  sheetDelete.textContent = "Delete bot";
+}
+
+sheetDelete.addEventListener("click", () => {
+  if (!editing) return;
+
+  if (!sheetDelete.classList.contains("is-armed")) {
+    sheetDelete.classList.add("is-armed");
+    sheetDelete.textContent = "Delete permanently — its files and desktop too";
+    return;
+  }
+
+  const { id, name } = editing;
+  sheetWrap.hidden = true;
+  editing = null;
+  disarmDelete();
+  deleteBot(id);
+  toast(`Deleted ${name}`);
+});
 
 function saveSheet(): void {
   const name = sheetName.value.trim();
@@ -847,7 +912,7 @@ function createBot(): void {
     started: false,
     computer: sheetComputer.checked,
     network: sheetNetwork.value as Bot["network"],
-    model: sheetModel.value,
+    model: sheetModel.value || appSettings().model,
     routines: [],
     messages: [],
   };
@@ -882,6 +947,90 @@ function openBot(id: string): void {
   // The pane always shows the bot you're talking to.
   if (!screenPane.hidden && screen.botId !== id) void openScreen();
   input.focus();
+}
+
+/* ------------------------------------------------------------ app settings */
+
+const appWrap = $<HTMLDivElement>("#app-settings");
+const appModel = $<HTMLSelectElement>("#app-model");
+const appScreen = $<HTMLSelectElement>("#app-screen");
+const appIdle = $<HTMLSelectElement>("#app-idle");
+const appRoutines = $<HTMLInputElement>("#app-routines");
+const appAwake = $<HTMLInputElement>("#app-awake");
+const appLid = $<HTMLInputElement>("#app-lid");
+const appLogin = $<HTMLInputElement>("#app-login");
+
+const aboutWrap = $<HTMLDivElement>("#about");
+
+async function openAbout(): Promise<void> {
+  aboutWrap.hidden = false;
+  const version = await invoke<string>("app_version").catch(() => "");
+  $<HTMLParagraphElement>("#about-version").textContent = version ? `Version ${version}` : "";
+}
+
+const settingsTabs = Array.from(document.querySelectorAll<HTMLButtonElement>(".tabs .tab"));
+const settingsPanels = Array.from(document.querySelectorAll<HTMLElement>(".settings-panel"));
+
+function showSettingsTab(name: string): void {
+  for (const tab of settingsTabs) {
+    tab.setAttribute("aria-selected", String(tab.dataset.tab === name));
+  }
+  for (const panel of settingsPanels) {
+    panel.hidden = panel.dataset.tab !== name;
+  }
+}
+
+for (const tab of settingsTabs) {
+  tab.addEventListener("click", () => showSettingsTab(tab.dataset.tab ?? "general"));
+}
+
+async function openAppSettings(): Promise<void> {
+  showSettingsTab("general");
+  const settings = appSettings();
+  appModel.value = settings.model;
+  appScreen.value = settings.screen;
+  appIdle.value = String(settings.idleMinutes);
+  appRoutines.checked = settings.routinesOn;
+  appAwake.checked = settings.awake;
+  appWrap.hidden = false;
+
+  void invoke<boolean>("lid_awake").then((on) => (appLid.checked = on)).catch(() => {});
+  void invoke<boolean>("login_launch").then((on) => (appLogin.checked = on)).catch(() => {});
+
+  const [claude, docker] = await Promise.all([
+    invoke<{ version: string | null }>("claude_info"),
+    invoke<{ version: string | null }>("docker_info"),
+  ]);
+  $<HTMLSpanElement>("#app-environment").textContent =
+    `Claude Code ${claude.version?.split(" ")[0] ?? "missing"} · Docker ${docker.version ?? "not running"}`;
+
+  const spent = session.turns
+    ? `$${session.costUsd.toFixed(2)} over ${session.turns} turn${session.turns === 1 ? "" : "s"} this session`
+    : "No turns yet this session.";
+  const window = session.limit?.resetsAt
+    ? ` · ${session.limit.status === "allowed" ? "within limits" : "limit reached"}, resets ${clock(
+        session.limit.resetsAt * 1000,
+      )}`
+    : "";
+  $<HTMLSpanElement>("#app-usage").textContent = spent + window;
+}
+
+function saveAppSettings(): void {
+  state.app = {
+    model: appModel.value,
+    screen: appScreen.value,
+    idleMinutes: Number(appIdle.value),
+    routinesOn: appRoutines.checked,
+    awake: appAwake.checked,
+  };
+  save();
+  void invoke("set_idle_limit", { minutes: state.app.idleMinutes }).catch(() => {});
+  void invoke("set_awake", { on: state.app.awake }).catch((err) => {
+    appAwake.checked = false;
+    if (state.app) state.app.awake = false;
+    save();
+    toast(String(err));
+  });
 }
 
 /* ------------------------------------------------------------------ routines */
@@ -963,6 +1112,7 @@ function runRoutine(bot: Bot, routine: Routine): void {
 
 /** Fire anything due. This runs while the app is open; there is no daemon. */
 function tickRoutines(): void {
+  if (!appSettings().routinesOn) return;
   const now = Date.now();
 
   for (const bot of state.bots) {
@@ -1220,6 +1370,10 @@ function closeScreen(): void {
 }
 
 function handleSandboxEvent(event: SandboxEvent): void {
+  if (event.botId === "app") {
+    if (event.text) toast(event.text);
+    return;
+  }
   if (event.botId !== screen.botId) return;
 
   if (event.kind === "log") {
@@ -1528,6 +1682,7 @@ startBtn.addEventListener("click", () => {
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? "",
       locale: navigator.language ?? "",
       network: bot?.network ?? "full",
+      screen: appSettings().screen,
     },
   }).catch((err) => {
     screen.state = "error";
@@ -1566,10 +1721,7 @@ composer.addEventListener("submit", (e) => {
     cancelTurn(bot.id);
     return;
   }
-  if (!input.value.trim()) {
-    toast("Voice input coming soon");
-    return;
-  }
+  if (!input.value.trim()) return;
   send(input.value);
 });
 
@@ -1582,7 +1734,6 @@ input.addEventListener("keydown", (e) => {
   }
 });
 
-$<HTMLButtonElement>("#btn-attach").addEventListener("click", () => toast("Attachments coming soon"));
 $<HTMLButtonElement>("#btn-routines").addEventListener("click", () => showRoutines(!routinesOpen));
 
 $<HTMLButtonElement>("#btn-settings").addEventListener("click", () => {
@@ -1594,12 +1745,17 @@ $<HTMLButtonElement>("#btn-monitor").addEventListener("click", () => {
   if (screenPane.hidden) void openScreen();
   else closeScreen();
 });
-$<HTMLButtonElement>("#btn-plugins").addEventListener("click", () => toast("No plugins installed"));
 $<HTMLButtonElement>("#btn-new").addEventListener("click", () => openSheet());
 
-$<HTMLButtonElement>("#btn-account").addEventListener("click", async () => {
-  const info = await invoke<{ path: string | null; version: string | null }>("claude_info");
-  toast(info.path ? `Claude Code ${info.version ?? ""} · ${MODEL}` : "Claude Code CLI not found");
+$<HTMLButtonElement>("#btn-account").addEventListener("click", (event) => {
+  openMenu(
+    event.currentTarget as HTMLElement,
+    `<button type="button" class="menu-item" data-app="settings">${icon("gear")}` +
+      `<span class="menu-item__body"><span class="menu-item__name">Settings</span></span></button>` +
+      `<button type="button" class="menu-item" data-app="about">${icon("cube")}` +
+      `<span class="menu-item__body"><span class="menu-item__name">About</span></span></button>`,
+    "menu--account",
+  );
 });
 
 $<HTMLButtonElement>("#btn-rail").addEventListener("click", toggleRail);
@@ -1697,6 +1853,16 @@ thread.addEventListener("click", (e) => {
 
 menu.addEventListener("click", (e) => {
   const target = e.target as HTMLElement;
+
+  const app = target.closest<HTMLButtonElement>("[data-app]")?.dataset.app;
+  if (app) {
+    closeMenu();
+    if (app === "settings") void openAppSettings();
+    else void openAbout();
+    return;
+  }
+
+
   const bot = activeBot();
 
   const emoji = target.closest<HTMLButtonElement>("[data-emoji]");
@@ -1762,6 +1928,7 @@ menu.addEventListener("click", (e) => {
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? "",
           locale: navigator.language ?? "",
           network: subject.network,
+          screen: appSettings().screen,
         },
       }).catch((err) => toast(String(err)));
       return;
@@ -1777,6 +1944,68 @@ menu.addEventListener("click", (e) => {
 sheet.addEventListener("submit", (e) => {
   e.preventDefault();
   saveSheet();
+});
+
+for (const control of [appModel, appScreen, appIdle, appRoutines, appAwake]) {
+  control.addEventListener("change", saveAppSettings);
+}
+
+$<HTMLButtonElement>("#about-close").addEventListener("click", () => {
+  aboutWrap.hidden = true;
+});
+$<HTMLButtonElement>("#about-repo").addEventListener("click", () => {
+  void openUrl("https://github.com/hackyguru/botcage");
+});
+aboutWrap.addEventListener("mousedown", (e) => {
+  if (e.target === aboutWrap) aboutWrap.hidden = true;
+});
+
+$<HTMLButtonElement>("#app-settings-close").addEventListener("click", () => {
+  appWrap.hidden = true;
+});
+$<HTMLButtonElement>("#app-settings-done").addEventListener("click", () => {
+  appWrap.hidden = true;
+});
+appWrap.addEventListener("mousedown", (e) => {
+  if (e.target === appWrap) appWrap.hidden = true;
+});
+
+$<HTMLButtonElement>("#app-open-folder").addEventListener("click", () => {
+  void invoke<string>("bots_dir").then((dir) => openPath(dir)).catch((err) => toast(String(err)));
+});
+
+// System-level switches: apply immediately, and reflect what actually happened
+// rather than what was clicked.
+appLid.addEventListener("change", () => {
+  const wanted = appLid.checked;
+  void invoke("set_lid_awake", { on: wanted })
+    .then(() => toast(wanted ? "The lid can stay closed now" : "Lid-close sleep restored"))
+    .catch((err) => {
+      appLid.checked = !wanted;
+      toast(String(err) === "cancelled" ? "Cancelled" : String(err));
+    });
+});
+
+appLogin.addEventListener("change", () => {
+  const wanted = appLogin.checked;
+  void invoke("set_login_launch", { on: wanted })
+    .then(() => toast(wanted ? "botcage will start at login" : "botcage won't start at login"))
+    .catch((err) => {
+      appLogin.checked = !wanted;
+      toast(String(err));
+    });
+});
+
+$<HTMLButtonElement>("#app-stop-all").addEventListener("click", () => {
+  for (const bot of state.bots.filter((b) => b.computer)) {
+    void invoke("sandbox_stop", { botId: bot.id }).catch(() => {});
+  }
+  toast("Stopping desktops");
+});
+
+$<HTMLButtonElement>("#app-rebuild-image").addEventListener("click", () => {
+  toast("Rebuilding the sandbox image — this takes a few minutes");
+  void invoke("rebuild_image").catch((err) => toast(String(err)));
 });
 
 $<HTMLButtonElement>("#routine-add").addEventListener("click", () => {
@@ -1894,7 +2123,9 @@ document.addEventListener("keydown", (e) => {
     searchEl.focus();
     searchEl.select();
   } else if (e.key === "Escape") {
-    if (teach.arming) cancelArming();
+    if (!aboutWrap.hidden) aboutWrap.hidden = true;
+    else if (!appWrap.hidden) appWrap.hidden = true;
+    else if (teach.arming) cancelArming();
     else if (teach.on) void stopTeaching();
     else if (!menu.hidden) closeMenu();
     else if (!sheetWrap.hidden) sheetWrap.hidden = true;
@@ -1927,6 +2158,17 @@ window.setInterval(() => {
 
 void listen<BotEvent>("bot-event", (event) => handleBotEvent(event.payload));
 void listen<SandboxEvent>("sandbox-event", (event) => handleSandboxEvent(event.payload));
+void invoke<string>("user_name")
+  .then((name) => {
+    if (!name) return;
+    $<HTMLSpanElement>("#account-name").textContent = name;
+    $<HTMLSpanElement>("#account-initial").textContent = name.slice(0, 1).toUpperCase();
+  })
+  .catch(() => {});
+
+void invoke("set_idle_limit", { minutes: appSettings().idleMinutes }).catch(() => {});
+// Re-assert on launch: the assertion belongs to the process that took it.
+if (appSettings().awake) void invoke("set_awake", { on: true }).catch(() => {});
 
 void invoke<{ path: string | null; version: string | null }>("claude_info").then((info) => {
   claudeReady = Boolean(info.path);
