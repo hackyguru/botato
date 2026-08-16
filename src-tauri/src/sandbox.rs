@@ -140,6 +140,61 @@ fn docker(args: &[&str]) -> Result<Output, String> {
     cmd.output().map_err(|e| format!("docker {}: {e}", args.join(" ")))
 }
 
+/// Sign the bot's CLI in, or sign it out, inside a container that is already
+/// running. Baking the credential in at creation could not answer the ordinary
+/// case — granting a service to a bot that already has a desktop — and left a
+/// revoked grant still working until the container was recreated.
+pub fn sync_github(bot_id: &str, token: Option<&str>) {
+    let name = container_of(bot_id);
+    if container_running(&name) != Some(true) {
+        // Nothing to do: a stopped desktop is signed in when it next starts.
+        return;
+    }
+
+    match token {
+        Some(token) => {
+            // Written straight to gh's config rather than through
+            // `gh auth login --with-token`, which validates scopes and refuses
+            // any token without `repo` — including the public-only ones this
+            // app deliberately offers.
+            let config = format!("github.com:\n    oauth_token: {token}\n    git_protocol: https\n");
+            let _ = docker_stdin(
+                &[
+                    "exec", "-i", "-u", "bot", &name, "sh", "-c",
+                    "mkdir -p ~/.config/gh && cat > ~/.config/gh/hosts.yml \
+                     && chmod 600 ~/.config/gh/hosts.yml",
+                ],
+                &config,
+            );
+            // So `git push` works too, not only `gh`.
+            let _ = docker(&[
+                "exec", "-u", "bot", &name,
+                "git", "config", "--global", "credential.helper", "!gh auth git-credential",
+            ]);
+        }
+        None => {
+            let _ = docker(&[
+                "exec", "-u", "bot", &name,
+                "sh", "-c", "rm -f ~/.config/gh/hosts.yml",
+            ]);
+        }
+    }
+}
+
+/// Same as `docker`, but feeds the process stdin — used for credentials, which
+/// would otherwise sit in the argument list where any process can read them.
+fn docker_stdin(args: &[&str], input: &str) -> Result<Output, String> {
+    let bin = locate_docker().ok_or("Docker CLI not found")?;
+    let mut cmd = Command::new(bin);
+    cmd.args(args).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child = cmd.spawn().map_err(|e| format!("docker {}: {e}", args.join(" ")))?;
+    if let Some(mut pipe) = child.stdin.take() {
+        use std::io::Write;
+        pipe.write_all(input.as_bytes()).map_err(|e| e.to_string())?;
+    }
+    child.wait_with_output().map_err(|e| e.to_string())
+}
+
 fn stdout_of(output: &Output) -> String {
     String::from_utf8_lossy(&output.stdout).trim().to_string()
 }
@@ -412,6 +467,10 @@ pub struct BotBrand {
     network: Option<String>,
     /// "1440x900" and so on; the image defaults when absent.
     pub screen: Option<String>,
+    /// Whether this bot was granted GitHub. The token itself is fetched from the
+    /// keychain here rather than carried through the frontend and the brand.
+    #[serde(default)]
+    pub github: Option<bool>,
 }
 
 /// Only pass values that look like what they claim to be — these become
@@ -586,6 +645,18 @@ pub fn ensure_desktop(
         ));
     }
 
+    // Whatever brought the desktop up, leave it signed in to match the grant as
+    // it stands right now.
+    sync_github(
+        bot_id,
+        brand
+            .github
+            .unwrap_or(false)
+            .then(|| crate::connectors::github_token(Some(bot_id)))
+            .flatten()
+            .as_deref(),
+    );
+
     Ok((vnc, control))
 }
 
@@ -615,6 +686,17 @@ pub fn sandbox_rebuild(
     let _ = docker(&["rm", "-f", &container_of(&bot_id)]);
     emit_state(&app, &bot_id, "stopped", None, None);
     sandbox_start(app, sandboxes, bot_id, brand)
+}
+
+/// Called when a grant changes, so a desktop that is already running picks the
+/// change up without being rebuilt.
+#[tauri::command]
+pub fn sandbox_sync_tools(bot_id: String, github: bool) -> Result<(), String> {
+    let token = github
+        .then(|| crate::connectors::github_token(Some(&bot_id)))
+        .flatten();
+    sync_github(&bot_id, token.as_deref());
+    Ok(())
 }
 
 /// Discard a bot's desktop entirely, volume included. Used when a bot is deleted.

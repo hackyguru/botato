@@ -42,6 +42,11 @@ case "${NETWORK_POLICY:-full}" in
     ;;
 esac
 
+# botcage signs `gh` in from the host once the desktop is up, so nothing is
+# needed here beyond an identity for any commits the bot makes.
+git config --global user.name "${BOT_NAME:-botcage}" 2>/dev/null || true
+git config --global user.email "${BOT_NAME:-botcage}@botcage.local" 2>/dev/null || true
+
 mkdir -p "$HOME/Desktop" "$HOME/Downloads" "$HOME/work"
 
 # ~/work is the folder shared with the user's machine; make it reachable from the

@@ -57,6 +57,48 @@ interface Bot {
   /** Which Claude model answers for this bot. */
   model: string;
   routines?: Routine[];
+  /** MCP server keys this bot may use. Absent means none. */
+  plugins?: string[];
+}
+
+/** One plugin offered by a Claude Code marketplace. */
+interface CatalogEntry {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  author: string;
+  marketplace: string;
+  installed: boolean;
+}
+
+/** A service botcage connects to itself, holding the credential for it. */
+interface Connector {
+  key: string;
+  name: string;
+  description: string;
+  tokenLabel: string;
+  helpUrl: string;
+  needsToken: boolean;
+  /** Connects by showing a code the user approves in their browser. */
+  needsDevice: boolean;
+  /** This bot holds its own credential rather than using the shared one. */
+  ownAccount: boolean;
+  /** Connects by opening a browser and coming back — no setup, no keys. */
+  needsOauth: boolean;
+  /** Needs a consent round trip and the user's own Google OAuth client. */
+  needsGoogle: boolean;
+  redirectUri: string;
+  scopes: string[];
+  connected: boolean;
+}
+
+/** An MCP server this machine can reach — now only ones plugins brought. */
+interface Plugin {
+  key: string;
+  name: string;
+  status: string;
+  connector: boolean;
 }
 
 type SandboxState =
@@ -164,6 +206,7 @@ const swatches = $<HTMLDivElement>("#swatches");
 const sheetTitle = $<HTMLHeadingElement>("#sheet-title");
 const sheetSubmit = $<HTMLButtonElement>("#sheet-submit");
 const sheetDelete = $<HTMLButtonElement>("#sheet-delete");
+
 const sheetComputer = $<HTMLInputElement>("#sheet-computer");
 const sheetNetwork = $<HTMLSelectElement>("#sheet-network");
 const sheetModel = $<HTMLSelectElement>("#sheet-model");
@@ -617,7 +660,12 @@ async function respond(bot: Bot, prompt: string): Promise<void> {
           locale: navigator.language ?? "",
           network: bot.network,
           screen: appSettings().screen,
+          github: (bot.plugins ?? []).includes("github"),
         },
+        plugins: bot.plugins ?? [],
+        // Everything else this machine offers, named so it can be denied: the
+        // servers load whatever we do, so scoping is subtraction, not omission.
+        blockedPlugins: plugins.map((p) => p.key).filter((key) => !(bot.plugins ?? []).includes(key)),
       },
     });
   } catch (err) {
@@ -839,6 +887,512 @@ function openSheet(bot: Bot | null = null): void {
   sheetName.focus();
 }
 
+/* ------------------------------------------------------------- marketplace */
+
+const pluginsWrap = $<HTMLDivElement>("#plugins");
+const pluginsBody = $<HTMLDivElement>("#plugins-body");
+const pluginsSearch = $<HTMLInputElement>("#plugins-search");
+let catalog: CatalogEntry[] = [];
+let marketTab: "all" | "installed" = "all";
+
+/** Words the catalogue's slugs spell out that read wrong title-cased. */
+const ACRONYMS = new Set([
+  "ai", "api", "aws", "cli", "cd", "ci", "cms", "crm", "css", "db", "dns", "gcp",
+  "gpu", "html", "http", "id", "ide", "io", "ios", "k8s", "llm", "mcp", "ml",
+  "os", "qa", "sdk", "seo", "sql", "ssh", "ui", "ux", "vpc", "yaml",
+]);
+
+/** The catalogue ships slugs like "aws-sdk-dev", not display names. */
+function pluginTitle(name: string): string {
+  return name
+    .split(/[-_]/)
+    .map((word) =>
+      ACRONYMS.has(word.toLowerCase())
+        ? word.toUpperCase()
+        : word.charAt(0).toUpperCase() + word.slice(1),
+    )
+    .join(" ");
+}
+
+/** Services botcage connects itself, with the credential we hold for each. */
+function connectedSection(query: string): string {
+  const services = connectors.filter(
+    (service) => !query || service.name.toLowerCase().includes(query),
+  );
+  if (!services.length) return "";
+
+  return (
+    `<div class="market__group"><div class="market__head">` +
+    `<p class="section-title">Services</p></div><div class="market__grid">` +
+    services.map(connectorCard).join("") +
+    `</div></div>`
+  );
+}
+
+function connectorCard(service: Connector): string {
+  const on = pluginsBot?.plugins?.includes(service.key) ?? false;
+  const status = service.connected
+    ? service.ownAccount
+      ? "Connected with its own account"
+      : "Connected"
+    : service.description;
+
+  // Granting is per bot; connecting is the account behind it. Both sit on the
+  // card so the difference is visible rather than something to remember.
+  const grant = service.connected
+    ? `<label class="pcard__grant"><input type="checkbox" class="switch" data-grant="${service.key}"` +
+      `${on ? " checked" : ""} /></label>`
+    : "";
+
+  const action = service.connected
+    ? `<button type="button" class="chip chip--quiet" data-disconnect="${service.key}">` +
+      `<span>${service.ownAccount ? "Remove account" : "Disconnect"}</span></button>`
+    : service.needsToken || service.needsGoogle || service.needsDevice || service.needsOauth
+      ? `<button type="button" class="chip" data-connect="${service.key}"><span>Connect</span></button>`
+      : "";
+
+  // GitHub is where a separate identity earns its keep: a machine account can be
+  // scoped to a few repos instead of everything the user owns.
+  const own =
+    service.needsDevice && service.connected && !service.ownAccount && pluginsBot
+      ? `<a class="pcard__help" href="#" data-own="${service.key}">Sign in as a different account</a>`
+      : "";
+
+  return (
+    `<div class="pcard" data-connector="${service.key}"><span class="pcard__body">` +
+    `<span class="pcard__name">${escapeHtml(service.name)}</span>` +
+    `<span class="pcard__desc">${escapeHtml(status)}</span>${own}</span>${action}${grant}</div>`
+  );
+}
+
+interface ScopeChoice {
+  scope: string;
+  label: string;
+  note: string;
+  onByDefault: boolean;
+}
+
+/** Ask what the bot should be allowed to reach before asking GitHub for a code:
+ *  the approval screen shows exactly these, so choosing after would be too late. */
+function chooseScopes(card: HTMLElement, service: Connector): void {
+  card.innerHTML =
+    `<span class="pcard__body"><span class="pcard__name">${escapeHtml(service.name)}</span>` +
+    `<span class="pcard__desc">Loading…</span></span>`;
+
+  void invoke<ScopeChoice[]>("github_scopes")
+    .then((choices) => {
+      card.innerHTML =
+        `<span class="pcard__body"><span class="pcard__name">${escapeHtml(service.name)}</span>` +
+        `<span class="pcard__desc">Choose what bots may reach. You can disconnect and ` +
+        `reconnect with different access at any time.</span>` +
+        `<span class="scopes">` +
+        choices
+          .map(
+            (choice) =>
+              `<label class="scope"><input type="checkbox" data-scope="${escapeHtml(choice.scope)}"` +
+              `${choice.onByDefault ? " checked" : ""} />` +
+              `<span><span class="scope__label">${escapeHtml(choice.label)}</span>` +
+              `<span class="scope__note">${escapeHtml(choice.note)}</span></span></label>`,
+          )
+          .join("") +
+        `</span></span>` +
+        `<button type="button" class="chip" data-device="${service.key}"><span>Continue</span></button>`;
+    })
+    .catch((err) => {
+      renderCatalog();
+      toast(String(err));
+    });
+}
+
+/** The point of this one: the server registers botcage on request, so there is
+ *  nothing to set up. Press Connect, approve in the browser, done. */
+function startOAuth(card: HTMLElement, service: Connector): void {
+  card.innerHTML =
+    `<span class="pcard__body"><span class="pcard__name">${escapeHtml(service.name)}</span>` +
+    `<span class="pcard__desc">Opening ${escapeHtml(service.name)} to sign in…</span></span>`;
+
+  const bot = pluginsBot?.id ?? null;
+  void invoke<string>("mcp_oauth_start", { key: service.key, bot })
+    .then(async (url) => {
+      // Listen before the browser can redirect back.
+      const finished = invoke("mcp_oauth_finish", { key: service.key, bot });
+      const line = card.querySelector(".pcard__desc");
+      if (line) line.textContent = "Waiting for you to approve it in the browser…";
+      await openUrl(url);
+      await finished;
+      await loadConnectors(pluginsBot);
+      await resyncDesktops();
+      renderCatalog();
+      toast(`Connected ${service.name}`);
+    })
+    .catch((err) => {
+      renderCatalog();
+      toast(String(err));
+    });
+}
+
+/** Device flow: GitHub gives a short code, the user approves it in a browser,
+ *  and we poll until it lands. No redirect and no client secret involved. */
+function startDeviceFlow(card: HTMLElement, service: Connector, scopes: string[]): void {
+  card.innerHTML =
+    `<span class="pcard__body"><span class="pcard__name">${escapeHtml(service.name)}</span>` +
+    `<span class="pcard__desc">Asking ${escapeHtml(service.name)} for a code…</span></span>`;
+
+  void invoke<{ userCode: string; verificationUri: string; deviceCode: string; interval: number }>(
+    "github_device_start",
+    { scopes },
+  )
+    .then(async (device) => {
+      card.innerHTML =
+        `<span class="pcard__body"><span class="pcard__name">${escapeHtml(service.name)}</span>` +
+        `<span class="pcard__desc">Enter this code on ${escapeHtml(service.name)}, then come back. ` +
+        `Waiting…</span>` +
+        `<code class="pcard__code pcard__code--code">${escapeHtml(device.userCode)}</code>` +
+        `<a class="pcard__help" href="#" data-help="${escapeHtml(device.verificationUri)}">Open ${escapeHtml(
+          service.name,
+        )}</a></span>`;
+      await openUrl(device.verificationUri);
+      await invoke("github_device_finish", {
+        deviceCode: device.deviceCode,
+        interval: device.interval,
+        // Present only when connecting an account for this bot alone.
+        bot: service.connected ? (pluginsBot?.id ?? null) : null,
+      });
+      await loadConnectors(pluginsBot);
+      await resyncDesktops();
+      renderCatalog();
+      toast(`Connected ${service.name}`);
+    })
+    .catch((err) => {
+      renderCatalog();
+      toast(String(err));
+    });
+}
+
+/** Google will not register an OAuth client for us, so the user makes one and
+ *  botcage walks them through consent. Everything they must paste into the
+ *  Google console is shown here rather than left to the docs. */
+function askForGoogle(card: HTMLElement, service: Connector): void {
+  card.innerHTML =
+    `<span class="pcard__body"><span class="pcard__name">${escapeHtml(service.name)}</span>` +
+    `<span class="pcard__desc">Create an OAuth client in Google Cloud, add this redirect URI and these ` +
+    `scopes, then paste the client's ID and secret.</span>` +
+    `<code class="pcard__code">${escapeHtml(service.redirectUri)}</code>` +
+    `<code class="pcard__code">${escapeHtml(service.scopes.join("\n"))}</code>` +
+    `<input class="token-input" spellcheck="false" placeholder="Client ID" data-gid="${service.key}" />` +
+    `<input class="token-input" type="password" spellcheck="false" placeholder="Client secret" data-gsecret="${service.key}" />` +
+    `<a class="pcard__help" href="#" data-help="${escapeHtml(service.helpUrl)}">Open the Google console</a>` +
+    `</span><button type="button" class="chip" data-google="${service.key}"><span>Sign in</span></button>`;
+  card.querySelector<HTMLInputElement>("[data-gid]")?.focus();
+}
+
+/** Swap a card into a credential prompt, rather than opening another dialog. */
+function askForToken(card: HTMLElement, service: Connector): void {
+  card.innerHTML =
+    `<span class="pcard__body"><span class="pcard__name">${escapeHtml(service.name)}</span>` +
+    `<input class="token-input" type="password" spellcheck="false" ` +
+    `placeholder="${escapeHtml(service.tokenLabel)}" data-token="${service.key}" />` +
+    `<a class="pcard__help" href="#" data-help="${escapeHtml(service.helpUrl)}">Where do I get this?</a>` +
+    `</span><button type="button" class="chip" data-save-token="${service.key}"><span>Save</span></button>`;
+  card.querySelector<HTMLInputElement>(".token-input")?.focus();
+}
+
+function renderCatalog(): void {
+  const query = pluginsSearch.value.trim().toLowerCase();
+  const shown = catalog.filter((entry) => {
+    if (marketTab === "installed" && !entry.installed) return false;
+    if (!query) return true;
+    return (entry.name + " " + entry.description).toLowerCase().includes(query);
+  });
+
+  if (!shown.length) {
+    const connected = connectedSection(query);
+    if (connected) {
+      pluginsBody.innerHTML = connected;
+      return;
+    }
+    pluginsBody.innerHTML = `<p class="market__empty">${
+      marketTab === "installed" && !query
+        ? "Nothing installed yet. Add something from the Marketplace."
+        : "No plugins match that."
+    }</p>`;
+    return;
+  }
+
+  const groups = new Map<string, CatalogEntry[]>();
+  for (const entry of shown) {
+    const group = groups.get(entry.category) ?? [];
+    group.push(entry);
+    groups.set(entry.category, group);
+  }
+
+  pluginsBody.innerHTML = connectedSection(query) + Array.from(groups.entries())
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(
+      ([category, entries]) =>
+        `<div class="market__group"><p class="section-title">${escapeHtml(pluginTitle(category))}</p>` +
+        `<div class="market__grid">` +
+        entries
+          .map(
+            (entry) =>
+              `<div class="pcard"><span class="pcard__body">` +
+              `<span class="pcard__name">${escapeHtml(pluginTitle(entry.name))}</span>` +
+              `<span class="pcard__desc">${escapeHtml(entry.description)}</span></span>` +
+              (entry.installed
+                ? `<button type="button" class="chip" data-remove-plugin="${escapeHtml(entry.id)}"><span>Remove</span></button>`
+                : `<button type="button" class="chip" data-add-plugin="${escapeHtml(entry.id)}"><span>Add</span></button>`) +
+              `</div>`,
+          )
+          .join("") +
+        `</div></div>`,
+    )
+    .join("");
+}
+
+/** A connect, reconnect or disconnect changes the credential behind a service.
+ *  Any desktop already running stays signed in with the previous one — which the
+ *  provider may by then have revoked — so push the change to all of them.
+ *
+ *  GitHub is the sharp case: an OAuth app holds one token per user, so signing
+ *  in again anywhere invalidates the token every other desktop is holding. */
+async function resyncDesktops(): Promise<void> {
+  await Promise.all(
+    state.bots
+      .filter((bot) => bot.computer)
+      .map((bot) =>
+        invoke("sandbox_sync_tools", {
+          botId: bot.id,
+          github: (bot.plugins ?? []).includes("github"),
+        }).catch(() => {}),
+      ),
+  );
+}
+
+/** Which bot this modal is granting to. Plugins are per bot: the same service
+ *  can be on for one and off for another, with its own account if it needs one. */
+let pluginsBot: Bot | null = null;
+
+async function openPlugins(): Promise<void> {
+  pluginsBot = activeBot();
+  $<HTMLHeadingElement>("#plugins-title").textContent = pluginsBot
+    ? `${pluginsBot.name} · plugins`
+    : "Plugins";
+  pluginsWrap.hidden = false;
+  pluginsSearch.value = "";
+  pluginsBody.innerHTML = `<p class="market__empty">Loading…</p>`;
+  void Promise.all([loadConnectors(pluginsBot), loadPlugins()]).then(() => renderCatalog());
+  try {
+    catalog = await invoke<CatalogEntry[]>("plugin_catalog");
+  } catch (err) {
+    catalog = [];
+    pluginsBody.innerHTML = `<p class="market__empty">${escapeHtml(String(err))}</p>`;
+    return;
+  }
+  renderCatalog();
+}
+
+pluginsSearch.addEventListener("input", renderCatalog);
+
+for (const tab of Array.from(document.querySelectorAll<HTMLButtonElement>(".tabs--market .tab"))) {
+  tab.addEventListener("click", () => {
+    marketTab = tab.dataset.market === "installed" ? "installed" : "all";
+    for (const other of document.querySelectorAll<HTMLButtonElement>(".tabs--market .tab")) {
+      other.setAttribute("aria-selected", String(other === tab));
+    }
+    renderCatalog();
+  });
+}
+
+$<HTMLButtonElement>("#plugins-close").addEventListener("click", () => {
+  pluginsWrap.hidden = true;
+});
+
+pluginsWrap.addEventListener("mousedown", (event) => {
+  if (event.target === pluginsWrap) pluginsWrap.hidden = true;
+});
+
+pluginsBody.addEventListener("click", (event) => {
+  const target = event.target as HTMLElement;
+  const add = target.closest<HTMLButtonElement>("[data-add-plugin]");
+  const remove = target.closest<HTMLButtonElement>("[data-remove-plugin]");
+  const grant = target.closest<HTMLInputElement>("[data-grant]");
+  if (grant) {
+    if (!pluginsBot) return;
+    const key = grant.dataset.grant!;
+    const held = new Set(pluginsBot.plugins ?? []);
+    if (grant.checked) held.add(key);
+    else held.delete(key);
+    pluginsBot.plugins = Array.from(held);
+    save();
+    renderCatalog();
+
+    // A desktop that is already running would otherwise keep whatever it had
+    // when it was created, so push the change to it now.
+    if (pluginsBot.computer) {
+      void invoke("sandbox_sync_tools", {
+        botId: pluginsBot.id,
+        github: held.has("github"),
+      }).catch(() => {});
+    }
+    return;
+  }
+
+  const own = target.closest<HTMLAnchorElement>("[data-own]");
+  if (own) {
+    event.preventDefault();
+    const service = connectors.find((c) => c.key === own.dataset.own);
+    const card = own.closest<HTMLElement>(".pcard");
+    if (service && card) chooseScopes(card, service);
+    return;
+  }
+
+  const help = target.closest<HTMLAnchorElement>("[data-help]");
+  if (help) {
+    event.preventDefault();
+    void openUrl(help.dataset.help!);
+    return;
+  }
+
+  const connect = target.closest<HTMLButtonElement>("[data-connect]");
+  if (connect) {
+    const service = connectors.find((c) => c.key === connect.dataset.connect);
+    const card = connect.closest<HTMLElement>(".pcard");
+    if (!service || !card) return;
+    if (service.needsOauth) startOAuth(card, service);
+    else if (service.needsDevice) chooseScopes(card, service);
+    else if (service.needsGoogle) askForGoogle(card, service);
+    else askForToken(card, service);
+    return;
+  }
+
+  const device = target.closest<HTMLButtonElement>("[data-device]");
+  if (device) {
+    const service = connectors.find((c) => c.key === device.dataset.device);
+    const card = device.closest<HTMLElement>(".pcard");
+    if (!service || !card) return;
+    const scopes = Array.from(card.querySelectorAll<HTMLInputElement>("[data-scope]"))
+      .filter((box) => box.checked)
+      .map((box) => box.dataset.scope!);
+    startDeviceFlow(card, service, scopes);
+    return;
+  }
+
+  const google = target.closest<HTMLButtonElement>("[data-google]");
+  if (google) {
+    const key = google.dataset.google!;
+    const clientId = pluginsBody.querySelector<HTMLInputElement>(`[data-gid="${key}"]`)?.value ?? "";
+    const secret = pluginsBody.querySelector<HTMLInputElement>(`[data-gsecret="${key}"]`)?.value ?? "";
+    google.disabled = true;
+    google.innerHTML = `<span>Waiting for Google…</span>`;
+
+    void invoke<string>("google_consent_url", { key, clientId })
+      .then(async (url) => {
+        // Start listening before the browser can redirect back.
+        const finished = invoke("google_finish", { key, clientId, clientSecret: secret });
+        await openUrl(url);
+        await finished;
+        await loadConnectors(pluginsBot);
+        await resyncDesktops();
+        renderCatalog();
+        toast("Connected");
+      })
+      .catch((err) => {
+        google.disabled = false;
+        google.innerHTML = `<span>Sign in</span>`;
+        toast(String(err));
+      });
+    return;
+  }
+
+  const saveToken = target.closest<HTMLButtonElement>("[data-save-token]");
+  if (saveToken) {
+    const key = saveToken.dataset.saveToken!;
+    const input = pluginsBody.querySelector<HTMLInputElement>(`[data-token="${key}"]`);
+    saveToken.disabled = true;
+    void invoke("connect_connector", { key, token: input?.value ?? "", bot: null })
+      .then(async () => {
+        await loadConnectors(pluginsBot);
+        await resyncDesktops();
+        renderCatalog();
+        toast("Connected");
+      })
+      .catch((err) => {
+        saveToken.disabled = false;
+        toast(String(err));
+      });
+    return;
+  }
+
+  const disconnect = target.closest<HTMLButtonElement>("[data-disconnect]");
+  if (disconnect) {
+    void invoke("disconnect_connector", {
+      key: disconnect.dataset.disconnect,
+      bot: pluginsBot?.id ?? null,
+    })
+      .then(async () => {
+        await loadConnectors(pluginsBot);
+        await resyncDesktops();
+        renderCatalog();
+        toast("Disconnected");
+      })
+      .catch((err) => toast(String(err)));
+    return;
+  }
+
+  const button = add ?? remove;
+  if (!button) return;
+
+  const id = (add?.dataset.addPlugin ?? remove?.dataset.removePlugin)!;
+  const command = add ? "install_plugin" : "uninstall_plugin";
+  button.disabled = true;
+  button.innerHTML = `<span>${add ? "Adding…" : "Removing…"}</span>`;
+
+  void invoke(command, { id })
+    .then(async () => {
+      // A plugin brings MCP servers with it, so the per-bot list is now stale.
+      plugins = [];
+      catalog = await invoke<CatalogEntry[]>("plugin_catalog").catch(() => catalog);
+      renderCatalog();
+      toast(add ? `Added ${pluginTitle(id.split("@")[0])}` : "Removed");
+    })
+    .catch((err) => {
+      button.disabled = false;
+      button.innerHTML = `<span>${add ? "Add" : "Remove"}</span>`;
+      toast(String(err));
+    });
+});
+
+/** What this machine offers. Discovered once, then reused. */
+let plugins: Plugin[] = [];
+let connectors: Connector[] = [];
+
+async function loadConnectors(bot?: Bot | null): Promise<Connector[]> {
+  try {
+    connectors = await invoke<Connector[]>("connectors", { bot: bot?.id ?? null });
+  } catch {
+    connectors = [];
+  }
+  return connectors;
+}
+
+/** Held as a promise, not a result: "none" is a real answer worth remembering,
+ *  and reopening mid-flight should join the run in progress rather than start
+ *  a second one. */
+let pluginsPromise: Promise<Plugin[]> | null = null;
+
+function loadPlugins(force = false): Promise<Plugin[]> {
+  if (pluginsPromise && !force) return pluginsPromise;
+  pluginsPromise = invoke<Plugin[]>("list_plugins")
+    // A missing CLI or a cold login is not worth an error in the user's face;
+    // the section simply says there is nothing connected.
+    .catch(() => [] as Plugin[])
+    .then((found) => {
+      plugins = found;
+      return found;
+    });
+  return pluginsPromise;
+}
+
 function disarmDelete(): void {
   sheetDelete.classList.remove("is-armed");
   sheetDelete.textContent = "Delete bot";
@@ -913,6 +1467,7 @@ function createBot(): void {
     computer: sheetComputer.checked,
     network: sheetNetwork.value as Bot["network"],
     model: sheetModel.value || appSettings().model,
+    plugins: [],
     routines: [],
     messages: [],
   };
@@ -968,8 +1523,8 @@ async function openAbout(): Promise<void> {
   $<HTMLParagraphElement>("#about-version").textContent = version ? `Version ${version}` : "";
 }
 
-const settingsTabs = Array.from(document.querySelectorAll<HTMLButtonElement>(".tabs .tab"));
-const settingsPanels = Array.from(document.querySelectorAll<HTMLElement>(".settings-panel"));
+const settingsTabs = Array.from(document.querySelectorAll<HTMLButtonElement>("#app-settings .tab"));
+const settingsPanels = Array.from(document.querySelectorAll<HTMLElement>("#app-settings .settings-panel"));
 
 function showSettingsTab(name: string): void {
   for (const tab of settingsTabs) {
@@ -1013,6 +1568,7 @@ async function openAppSettings(): Promise<void> {
       )}`
     : "";
   $<HTMLSpanElement>("#app-usage").textContent = spent + window;
+
 }
 
 function saveAppSettings(): void {
@@ -1683,6 +2239,7 @@ startBtn.addEventListener("click", () => {
       locale: navigator.language ?? "",
       network: bot?.network ?? "full",
       screen: appSettings().screen,
+      github: (bot?.plugins ?? []).includes("github"),
     },
   }).catch((err) => {
     screen.state = "error";
@@ -1750,13 +2307,15 @@ $<HTMLButtonElement>("#btn-new").addEventListener("click", () => openSheet());
 $<HTMLButtonElement>("#btn-account").addEventListener("click", (event) => {
   openMenu(
     event.currentTarget as HTMLElement,
-    `<button type="button" class="menu-item" data-app="settings">${icon("gear")}` +
+      `<button type="button" class="menu-item" data-app="settings">${icon("gear")}` +
       `<span class="menu-item__body"><span class="menu-item__name">Settings</span></span></button>` +
       `<button type="button" class="menu-item" data-app="about">${icon("cube")}` +
       `<span class="menu-item__body"><span class="menu-item__name">About</span></span></button>`,
     "menu--account",
   );
 });
+
+$<HTMLButtonElement>("#btn-plugins").addEventListener("click", () => void openPlugins());
 
 $<HTMLButtonElement>("#btn-rail").addEventListener("click", toggleRail);
 
@@ -1929,6 +2488,7 @@ menu.addEventListener("click", (e) => {
           locale: navigator.language ?? "",
           network: subject.network,
           screen: appSettings().screen,
+          github: (subject.plugins ?? []).includes("github"),
         },
       }).catch((err) => toast(String(err)));
       return;

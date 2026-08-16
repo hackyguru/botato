@@ -85,6 +85,11 @@
         <circle cx="12" cy="12" r="3.2" />
         <path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" />
       </symbol>
+      <symbol id="i-plug" viewBox="0 0 24 24">
+        <path d="M9 3v5M15 3v5" />
+        <path d="M6.5 8h11v3.2a5.5 5.5 0 0 1-5.5 5.5 5.5 5.5 0 0 1-5.5-5.5z" />
+        <path d="M12 16.7V21" />
+      </symbol>
       <symbol id="i-cube" viewBox="0 0 24 24">
         <path d="M12 2.7 20.5 7.4v9.2L12 21.3 3.5 16.6V7.4z" />
         <path d="M3.5 7.4 12 12l8.5-4.6M12 12v9.3" />
@@ -127,6 +132,9 @@
           <div class="topbar__actions">
             <button type="button" class="chip" id="btn-routines" hidden>
               <svg><use href="#i-clock" /></svg><span id="btn-routines-count">0</span>
+            </button>
+            <button class="icon-btn" id="btn-plugins" title="Its plugins" aria-label="Its plugins">
+              <svg><use href="#i-plug" /></svg>
             </button>
             <button class="icon-btn" id="btn-settings" title="Bot settings" aria-label="Bot settings">
               <svg><use href="#i-gear" /></svg>
@@ -396,6 +404,25 @@
         <div class="sheet__foot">
           <button type="button" class="btn-primary" id="app-settings-done">Done</button>
         </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="plugins" hidden>
+      <div class="sheet sheet--wide">
+        <div class="sheet__head">
+          <h2 id="plugins-title">Plugins</h2>
+          <button type="button" class="icon-btn icon-btn--sm" id="plugins-close" aria-label="Close">
+            <svg><use href="#i-x" /></svg>
+          </button>
+        </div>
+        <div class="market__bar">
+          <div class="tabs tabs--market" role="tablist">
+            <button type="button" class="tab" role="tab" data-market="all" aria-selected="true">Marketplace</button>
+            <button type="button" class="tab" role="tab" data-market="installed" aria-selected="false">Installed</button>
+          </div>
+          <input id="plugins-search" class="market__search" placeholder="Search plugins" spellcheck="false" />
+        </div>
+        <div class="market" id="plugins-body"></div>
       </div>
     </div>
 

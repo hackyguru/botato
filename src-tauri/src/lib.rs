@@ -16,7 +16,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, RunEvent};
 
+mod connectors;
 mod mcp;
+mod oauth;
+mod plugins;
 mod sandbox;
 
 /// Entry point for `botcage --mcp` (see main.rs). Identity arrives in the
@@ -82,13 +85,13 @@ struct Running(Mutex<HashMap<String, Child>>);
 
 /* ------------------------------------------------------------------ locating */
 
-fn home() -> PathBuf {
+pub(crate) fn home() -> PathBuf {
     std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default()
 }
 
 /// A Finder-launched app inherits almost no PATH, so probe known install
 /// locations before falling back to whatever PATH we do have.
-fn locate_claude() -> Option<PathBuf> {
+pub(crate) fn locate_claude() -> Option<PathBuf> {
     if let Some(raw) = std::env::var_os("CLAUDE_BIN") {
         let explicit = PathBuf::from(raw);
         if explicit.is_file() {
@@ -172,6 +175,32 @@ struct AskRequest {
     /// Passed through to the container if the bot starts its own desktop.
     #[serde(default)]
     brand: sandbox::BotBrand,
+    /// MCP server keys this bot may use, from the app's plugin list.
+    #[serde(default)]
+    plugins: Vec<String>,
+    /// Servers this machine offers that this particular bot may not use. They
+    /// load regardless — denying them is what keeps one bot's connections out
+    /// of another bot's reach.
+    #[serde(default)]
+    blocked_plugins: Vec<String>,
+}
+
+/// Naming the connections in the prompt is what makes a bot reach for them; the
+/// tools are listed either way, but an unmentioned connector tends to go unused.
+fn plugins_prompt(keys: &[String]) -> String {
+    let names = keys
+        .iter()
+        .map(|key| key.trim_start_matches("claude_ai_").replace('_', " "))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "You are connected to: {names}. Their tools are yours to call directly \
+         when a task needs them — read the calendar, search the mail, fetch the \
+         file — rather than asking the user to look something up and paste it \
+         back. These reach the user's real accounts, so treat writes (sending, \
+         deleting, inviting) as actions worth confirming first unless they \
+         asked for exactly that."
+    )
 }
 
 /// Claude Code loads `CLAUDE.md` from the session's cwd on every turn, which
@@ -230,12 +259,32 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     // is told it has one and can switch it on itself, so its account of what it
     // can do doesn't change with whether something happens to be running.
     let base = format!("{}\n\n{}", req.system_prompt, ROUTINES_PROMPT);
-    let (allowed, system_prompt) = if req.computer {
+    let (mut allowed, mut system_prompt) = if req.computer {
         sandbox::touch(&req.bot_id);
         (format!("{TOOLS},{DESKTOP_TOOLS}"), format!("{base}\n\n{DESKTOP_PROMPT}"))
     } else {
         (TOOLS.to_string(), base)
     };
+
+    // A bare `mcp__<server>` rule covers every tool that server offers, so a
+    // connector gaining tools later needs no change here.
+    for key in &req.plugins {
+        allowed.push_str(&format!(",mcp__{key}"));
+    }
+    if !req.plugins.is_empty() {
+        system_prompt.push_str(&format!("\n\n{}", plugins_prompt(&req.plugins)));
+    }
+
+    // The connector's tools cannot check out a repo or run a build, so a bot
+    // with both a desktop and GitHub is told about the CLI that can.
+    if req.computer && req.plugins.iter().any(|key| key == "github") {
+        system_prompt.push_str(
+            "\n\nOn your desktop, `gh` and `git` are installed and already signed in as the \
+             user — clone, branch, commit, push and open pull requests there when a task needs \
+             a working copy rather than a single file edit. Prefer your GitHub tools for \
+             reading issues or files, which is cheaper than a checkout.",
+        );
+    }
 
     let mut cmd = Command::new(&bin);
     cmd.current_dir(&cwd)
@@ -252,23 +301,56 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
+    let mut servers = serde_json::Map::new();
+
     if req.computer {
         let exe = std::env::current_exe().map_err(|e| format!("cannot find my own binary: {e}"))?;
-        let config = serde_json::json!({
-            "mcpServers": {
-                "desktop": {
-                    "command": exe.display().to_string(),
-                    "args": ["--mcp"],
-                    "env": {
-                        "BOTCAGE_BOT": req.bot_id,
-                        "BOTCAGE_WORKSPACE": cwd.display().to_string(),
-                        "BOTCAGE_BRAND": serde_json::to_string(&req.brand).unwrap_or_default(),
-                    }
+        servers.insert(
+            "desktop".into(),
+            serde_json::json!({
+                "command": exe.display().to_string(),
+                "args": ["--mcp"],
+                "env": {
+                    "BOTCAGE_BOT": req.bot_id,
+                    "BOTCAGE_WORKSPACE": cwd.display().to_string(),
+                    "BOTCAGE_BRAND": serde_json::to_string(&req.brand).unwrap_or_default(),
                 }
-            }
-        });
+            }),
+        );
+    }
+
+    // Only the connectors this bot was granted, carrying the credential we hold
+    // for them — so the grant decides reach, not whatever happens to be
+    // configured on the machine.
+    for key in &req.plugins {
+        if let Some(entry) = connectors::server_entry(key, Some(&req.bot_id)) {
+            servers.insert(key.clone(), entry);
+        }
+    }
+
+    if !servers.is_empty() {
+        let config = serde_json::json!({ "mcpServers": servers });
         cmd.args(["--mcp-config", &config.to_string()]);
-        cmd.arg("--strict-mcp-config");
+    }
+
+    // claude.ai connectors are account-wide: every bot granted one would reach
+    // the user's own mail. botcage scopes per bot, so they stay off and our own
+    // connectors take their place. Strict mode would also do this, but it
+    // suppresses the servers installed marketplace plugins bring, which the
+    // user does want.
+    cmd.args(["--settings", "{\"disableClaudeAiConnectors\":true}"]);
+
+    // Our own connectors reach this bot only through the config above, but an
+    // installed marketplace plugin brings its servers to every session. Denying
+    // the ones this bot was not granted is what keeps them apart.
+    if !req.blocked_plugins.is_empty() {
+        let denied = req
+            .blocked_plugins
+            .iter()
+            .map(|key| format!("mcp__{key}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        cmd.args(["--disallowed-tools", &denied]);
     }
 
     if req.resume {
@@ -699,6 +781,20 @@ pub fn run() {
             bots_dir,
             app_version,
             user_name,
+            plugins::list_plugins,
+            connectors::connectors,
+            connectors::connect_connector,
+            connectors::disconnect_connector,
+            connectors::google_consent_url,
+            connectors::google_finish,
+            connectors::github_scopes,
+            connectors::mcp_oauth_start,
+            connectors::mcp_oauth_finish,
+            connectors::github_device_start,
+            connectors::github_device_finish,
+            plugins::plugin_catalog,
+            plugins::install_plugin,
+            plugins::uninstall_plugin,
             set_awake,
             lid_awake,
             set_lid_awake,
@@ -716,6 +812,7 @@ pub fn run() {
             sandbox::set_idle_limit,
             sandbox::rebuild_image,
             sandbox::sandbox_destroy,
+            sandbox::sandbox_sync_tools,
         ])
         .setup(|_app| {
             // Bots may switch their own desktops on, so something has to switch

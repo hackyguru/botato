@@ -24,6 +24,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         || apt-get install -y --no-install-recommends python3-websockify) \
     && rm -rf /var/lib/apt/lists/*
 
+# The GitHub CLI is not in Debian's archive. Take the release tarball rather
+# than adding a third-party apt source, and pin it so an image rebuild is
+# reproducible. Both architectures the base image publishes are covered.
+ARG GH_VERSION=2.97.0
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+      amd64|arm64) ;; \
+      *) echo "no gh build for $arch" >&2; exit 1 ;; \
+    esac; \
+    cd /tmp; \
+    curl -fsSL -o gh.tgz \
+      "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${arch}.tar.gz"; \
+    tar -xzf gh.tgz; \
+    install -m 0755 "gh_${GH_VERSION}_linux_${arch}/bin/gh" /usr/local/bin/gh; \
+    rm -rf /tmp/gh.tgz "/tmp/gh_${GH_VERSION}_linux_${arch}"; \
+    HOME=/root gh --version
+
 COPY entrypoint.sh /usr/local/bin/botcage-entrypoint
 COPY browser.sh /usr/local/bin/browser
 COPY control.py /usr/local/lib/botcage/control.py
@@ -36,7 +54,11 @@ RUN chmod +x /usr/local/bin/botcage-entrypoint /usr/local/bin/browser \
     && echo 'bot ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/bot \
     && chmod 0440 /etc/sudoers.d/bot \
     # Xvfb runs unprivileged and cannot create this itself.
-    && mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
+    && mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix \
+    # An earlier build stage may have created files here as root; the named
+    # volume copies this tree verbatim, so a wrong owner here is a home the bot
+    # cannot write to for the life of that volume.
+    && chown -R bot:bot /home/bot
 
 USER bot
 WORKDIR /home/bot
