@@ -1152,6 +1152,9 @@ fn urldecode(raw: &str) -> String {
 
 /* ------------------------------------------------------------ credentials */
 
+// Only the keychain path names a service; the file fallback elsewhere does not,
+// which makes this dead code on Linux and a hard error under `-D warnings`.
+#[cfg(target_os = "macos")]
 const SERVICE: &str = "botcage";
 
 /// macOS has a real keychain and the `security` CLI to reach it, so use it

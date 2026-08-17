@@ -43,9 +43,11 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
     steps:
+      # No explicit ref: checkout already uses the ref that triggered the run —
+      # the tag on a tag push, the branch on a manual dispatch. Naming the input
+      # tag here made a dispatch try to check out a tag that does not exist yet,
+      # which is precisely the case dispatch is for.
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: System dependencies
         if: startsWith(matrix.platform, 'ubuntu')
