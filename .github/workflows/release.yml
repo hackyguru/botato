@@ -75,6 +75,36 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # A secret pasted with a trailing newline is invisible in the UI and fails
+      # with a bare 401 that names no field. Trimming here costs nothing and
+      # removes a whole class of afternoon.
+      - name: Normalise the Apple credentials
+        env:
+          RAW_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          RAW_CERT_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          RAW_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          RAW_APPLE_ID: ${{ secrets.APPLE_ID }}
+          RAW_APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          RAW_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          keep () {
+            name="$1"; raw="$2"
+            [ -n "$raw" ] || return 0
+            trimmed="$(printf '%s' "$raw" | tr -d '\r\n')"
+            # The trimmed value differs from the stored secret, so it is not
+            # masked automatically. Mask it before it can reach a log.
+            echo "::add-mask::$trimmed"
+            printf '%s=%s\n' "$name" "$trimmed" >> "$GITHUB_ENV"
+          }
+          keep APPLE_CERTIFICATE "$RAW_CERTIFICATE"
+          keep APPLE_CERTIFICATE_PASSWORD "$RAW_CERT_PASSWORD"
+          keep APPLE_SIGNING_IDENTITY "$RAW_IDENTITY"
+          keep APPLE_ID "$RAW_APPLE_ID"
+          keep APPLE_PASSWORD "$RAW_APPLE_PASSWORD"
+          keep APPLE_TEAM_ID "$RAW_TEAM_ID"
+
+      # The Apple values come from the environment set above rather than from
+      # secrets directly, so the trimmed versions are what get used.
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -82,12 +112,6 @@ jobs:
           # the build still succeeds and produces an unsigned bundle, which
           # Gatekeeper will refuse on anyone else's machine — so the release
           # notes below say so rather than letting people find out.
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: ${{ github.event.inputs.tag || github.ref_name }}
           releaseName: botcage ${{ github.event.inputs.tag || github.ref_name }}
