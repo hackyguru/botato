@@ -119,18 +119,33 @@ jobs:
           prerelease: false
           args: --target ${{ matrix.target }}
           releaseBody: |
-            Local bots, each a persistent Claude Code session with its own memory
-            and optionally its own sandboxed Linux desktop.
+            ## Which file do I want?
 
-            **Before it will run**, botcage needs the Claude Code CLI installed
-            and signed in — it drives that rather than shipping a model of its
-            own. Everything else (chat, memory, routines, connectors, plugins)
-            works with nothing further.
+            | You have | Download |
+            | --- | --- |
+            | Mac, Apple silicon (M1–M4) | `botcage_*_aarch64.dmg` |
+            | Mac, Intel | `botcage_*_x64.dmg` |
+            | Debian, Ubuntu, Mint | `botcage_*_amd64.deb` |
+            | Fedora, RHEL, openSUSE | `botcage-*.x86_64.rpm` |
+            | Any other Linux | `botcage_*_amd64.AppImage` |
 
-            A bot's *computer* is optional and off by default. Switch it on and
-            botcage sets up a container engine itself; the Linux desktop image is
-            built on first use and takes a few minutes.
+            Not sure which Mac you have?  → menu → About This Mac. Anything with
+            an M-series chip takes the `aarch64` build.
 
-            > macOS builds are unsigned until a Developer ID is configured, so
-            > Gatekeeper will block them. Right-click → Open, or run
-            > `xattr -dr com.apple.quarantine /Applications/botcage.app`.
+            ## Before it will run
+
+            botcage needs the **Claude Code CLI** installed and signed in — it
+            drives that rather than shipping a model of its own:
+
+            ```sh
+            npm install -g @anthropic-ai/claude-code   # then: claude
+            ```
+
+            A Claude Pro or Max subscription covers it. Everything else — chat,
+            memory, routines, connectors, plugins — works with nothing further.
+
+            ## Giving a bot its own computer
+
+            Optional, and off by default. Switch on **Own computer** in a bot's
+            settings and botcage sets up a container engine itself. The Linux
+            desktop it runs is built on first use and takes a few minutes.

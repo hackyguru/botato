@@ -29,7 +29,12 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "dmg",
+      "deb",
+      "appimage",
+      "rpm"
+    ],
     "resources": [
       "../sandbox/*"
     ],
