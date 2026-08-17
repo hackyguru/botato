@@ -80,9 +80,7 @@ pub fn start_reaper() {
 /* -------------------------------------------------------------- docker CLI */
 
 #[cfg(windows)]
-const DOCKER_EXE: &str = "docker.exe";
 #[cfg(not(windows))]
-const DOCKER_EXE: &str = "docker";
 
 /// Keep Windows from flashing a console window for every docker call.
 #[cfg(windows)]
@@ -102,6 +100,16 @@ fn home() -> PathBuf {
 
 /// GUI apps inherit a minimal PATH on macOS and Windows, so probe the places
 /// Docker Desktop, OrbStack, Colima, and distro packages actually install to.
+/// Any of these will do. botcage issues about a dozen ordinary subcommands —
+/// run, ps, start, stop, rm, exec, build, port, inspect, volume — which podman
+/// and nerdctl implement with the same syntax, so Docker Desktop is one option
+/// rather than the requirement. Ordered by what is likeliest to already be set
+/// up, not by preference.
+#[cfg(not(target_os = "windows"))]
+const ENGINES: &[&str] = &["docker", "podman", "nerdctl"];
+#[cfg(target_os = "windows")]
+const ENGINES: &[&str] = &["docker.exe", "podman.exe", "nerdctl.exe"];
+
 fn locate_docker() -> Option<PathBuf> {
     if let Some(raw) = std::env::var_os("DOCKER_BIN") {
         let explicit = PathBuf::from(raw);
@@ -112,13 +120,22 @@ fn locate_docker() -> Option<PathBuf> {
 
     let mut candidates: Vec<PathBuf> = Vec::new();
     if let Some(path) = std::env::var_os("PATH") {
-        candidates.extend(std::env::split_paths(&path).map(|dir| dir.join(DOCKER_EXE)));
+        for dir in std::env::split_paths(&path) {
+            candidates.extend(ENGINES.iter().map(|engine| dir.join(engine)));
+        }
     }
+    // A Finder-launched app inherits almost no PATH, so probe the usual homes of
+    // each engine as well.
     candidates.extend(
         [
             "/usr/local/bin/docker",
             "/opt/homebrew/bin/docker",
             "/usr/bin/docker",
+            "/usr/local/bin/podman",
+            "/opt/homebrew/bin/podman",
+            "/usr/bin/podman",
+            "/usr/local/bin/nerdctl",
+            "/opt/homebrew/bin/nerdctl",
             "/Applications/Docker.app/Contents/Resources/bin/docker",
             r"C:\Program Files\Docker\Docker\resources\bin\docker.exe",
         ]
@@ -218,14 +235,23 @@ pub fn docker_info() -> DockerInfo {
         return DockerInfo {
             path: None,
             version: None,
-            error: Some("Docker not found — install Docker Desktop, OrbStack, or docker.io".into()),
+            error: Some(
+                "No container engine found. botcage works with Docker, OrbStack, colima, \
+                 Podman or nerdctl — install one and start it."
+                    .into(),
+            ),
         };
     };
+
+    let engine = bin
+        .file_stem()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "engine".into());
 
     match docker(&["version", "--format", "{{.Server.Version}}"]) {
         Ok(out) if out.status.success() => DockerInfo {
             path: Some(bin.display().to_string()),
-            version: Some(stdout_of(&out)),
+            version: Some(format!("{engine} {}", stdout_of(&out))),
             error: None,
         },
         Ok(_) => DockerInfo {

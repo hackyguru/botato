@@ -70,6 +70,14 @@ interface CatalogEntry {
   author: string;
   marketplace: string;
   installed: boolean;
+  /** Publisher avatar; empty when the source gives us nothing. */
+  icon: string;
+  sourceUrl: string;
+  homepage: string;
+  /** Whether this machine can run it. null until verified. */
+  usable: boolean | null;
+  /** Why not, when it cannot. */
+  note: string;
 }
 
 /** A service botcage connects to itself, holding the credential for it. */
@@ -86,9 +94,12 @@ interface Connector {
   ownAccount: boolean;
   /** Connects by opening a browser and coming back — no setup, no keys. */
   needsOauth: boolean;
+  /** A credential is accepted but not required. */
+  tokenOptional: boolean;
   /** Needs a consent round trip and the user's own Google OAuth client. */
   needsGoogle: boolean;
   redirectUri: string;
+  icon: string;
   scopes: string[];
   connected: boolean;
 }
@@ -894,6 +905,34 @@ const pluginsBody = $<HTMLDivElement>("#plugins-body");
 const pluginsSearch = $<HTMLInputElement>("#plugins-search");
 let catalog: CatalogEntry[] = [];
 let marketTab: "all" | "installed" = "all";
+let catalogVerified = false;
+
+/** One fetch per plugin, so it happens once in the background — started at
+ *  launch so the first browse is already filtered rather than filtering itself
+ *  while being read. */
+function verifyCatalogue(): void {
+  if (catalogVerified) return;
+  catalogVerified = true;
+  void invoke("verify_catalogue")
+    .then(async () => {
+      catalog = await invoke<CatalogEntry[]>("plugin_catalog").catch(() => catalog);
+      if (!pluginsWrap.hidden) renderCatalog();
+    })
+    .catch(() => {});
+}
+
+/** A mark for a service or plugin. The remote avatar sits on top of a generated
+ *  one, so a failed or offline fetch simply reveals the fallback instead of
+ *  leaving a broken image. */
+function iconMark(name: string, url: string): string {
+  const hue = Array.from(name).reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 360, 7);
+  const initial = escapeHtml((name.trim()[0] ?? "?").toUpperCase());
+  const image = url ? `<img src="${escapeHtml(url)}" alt="" loading="lazy" decoding="async" />` : "";
+  return (
+    `<span class="mark" style="background:hsl(${hue} 42% 34%)">` +
+    `<span class="mark__initial">${initial}</span>${image}</span>`
+  );
+}
 
 /** Words the catalogue's slugs spell out that read wrong title-cased. */
 const ACRONYMS = new Set([
@@ -930,39 +969,72 @@ function connectedSection(query: string): string {
 }
 
 function connectorCard(service: Connector): string {
+  // Connecting and granting used to be two acts on one card, so a service could
+  // read "Connected" while the bot had nothing. Now there is one control: on for
+  // this bot, or not. The credential behind it is shared between bots and
+  // survives a bot turning the service off.
   const on = pluginsBot?.plugins?.includes(service.key) ?? false;
-  const status = service.connected
+  const keyed = service.tokenOptional && service.connected;
+  const needsAuth =
+    service.needsToken || service.needsGoogle || service.needsDevice || service.needsOauth;
+
+  const status = on
     ? service.ownAccount
       ? "Connected with its own account"
-      : "Connected"
-    : service.description;
+      : keyed
+        ? "Connected — add a key for higher limits"
+        : "Connected"
+    : service.connected && needsAuth
+      ? "Already signed in"
+      : service.description;
 
-  // Granting is per bot; connecting is the account behind it. Both sit on the
-  // card so the difference is visible rather than something to remember.
-  const grant = service.connected
-    ? `<label class="pcard__grant"><input type="checkbox" class="switch" data-grant="${service.key}"` +
-      `${on ? " checked" : ""} /></label>`
-    : "";
+  // Exactly one button per card: whether this bot uses the service. Anything to
+  // do with the account behind it is a quiet link, because two buttons of equal
+  // weight made the card ask two questions at once.
+  const action = on
+    ? `<button type="button" class="chip chip--quiet" data-disconnect="${service.key}"><span>Disconnect</span></button>`
+    : `<button type="button" class="chip" data-connect="${service.key}"><span>Connect</span></button>`;
 
-  const action = service.connected
-    ? `<button type="button" class="chip chip--quiet" data-disconnect="${service.key}">` +
-      `<span>${service.ownAccount ? "Remove account" : "Disconnect"}</span></button>`
-    : service.needsToken || service.needsGoogle || service.needsDevice || service.needsOauth
-      ? `<button type="button" class="chip" data-connect="${service.key}"><span>Connect</span></button>`
-      : "";
-
-  // GitHub is where a separate identity earns its keep: a machine account can be
-  // scoped to a few repos instead of everything the user owns.
-  const own =
+  const accountLinks = [
+    // Adding a key to a service that already works is an upgrade, not a fix.
+    keyed
+      ? `<a class="pcard__link" href="#" data-connect="${service.key}" data-key="1">Add a key</a>`
+      : "",
+    // GitHub is where a separate identity earns its keep: a machine account can
+    // be scoped to a few repos instead of everything the user owns.
     service.needsDevice && service.connected && !service.ownAccount && pluginsBot
-      ? `<a class="pcard__help" href="#" data-own="${service.key}">Sign in as a different account</a>`
-      : "";
+      ? `<a class="pcard__link" href="#" data-own="${service.key}">Use a different account</a>`
+      : "",
+    service.connected && needsAuth
+      ? `<a class="pcard__link" href="#" data-forget="${service.key}" ` +
+        `title="${service.ownAccount ? "Removes this bot's own account" : "Removes the saved sign-in for every bot"}">` +
+        `Sign out</a>`
+      : "",
+  ].filter(Boolean);
 
   return (
-    `<div class="pcard" data-connector="${service.key}"><span class="pcard__body">` +
+    `<div class="pcard" data-connector="${service.key}">${iconMark(service.name, service.icon)}` +
+    `<button type="button" class="pcard__open" data-open-service="${service.key}">` +
     `<span class="pcard__name">${escapeHtml(service.name)}</span>` +
-    `<span class="pcard__desc">${escapeHtml(status)}</span>${own}</span>${action}${grant}</div>`
+    `<span class="pcard__desc">${escapeHtml(status)}</span>` +
+    `</button>` +
+    (accountLinks.length ? `<span class="pcard__links">${accountLinks.join("")}</span>` : "") +
+    `${action}</div>`
   );
+}
+
+interface Component {
+  name: string;
+  description: string;
+}
+
+interface PluginDetail {
+  skills: Component[];
+  commands: Component[];
+  agents: Component[];
+  servers: { name: string; key: string }[];
+  secrets: { var: string; set: boolean }[];
+  installPath: string;
 }
 
 interface ScopeChoice {
@@ -1020,6 +1092,7 @@ function startOAuth(card: HTMLElement, service: Connector): void {
       if (line) line.textContent = "Waiting for you to approve it in the browser…";
       await openUrl(url);
       await finished;
+      await turnOn(service.key);
       await loadConnectors(pluginsBot);
       await resyncDesktops();
       renderCatalog();
@@ -1058,6 +1131,7 @@ function startDeviceFlow(card: HTMLElement, service: Connector, scopes: string[]
         // Present only when connecting an account for this bot alone.
         bot: service.connected ? (pluginsBot?.id ?? null) : null,
       });
+      await turnOn(service.key);
       await loadConnectors(pluginsBot);
       await resyncDesktops();
       renderCatalog();
@@ -1100,7 +1174,15 @@ function askForToken(card: HTMLElement, service: Connector): void {
 function renderCatalog(): void {
   const query = pluginsSearch.value.trim().toLowerCase();
   const shown = catalog.filter((entry) => {
-    if (marketTab === "installed" && !entry.installed) return false;
+    if (marketTab === "installed") {
+      // Everything installed stays listed, working or not — otherwise a plugin
+      // that turned out to be unusable could never be removed.
+      if (!entry.installed) return false;
+    } else if (entry.usable === false) {
+      // Not browsable at all: it cannot run on this machine. Unverified entries
+      // stay, since we have no grounds to drop what we have not checked.
+      return false;
+    }
     if (!query) return true;
     return (entry.name + " " + entry.description).toLowerCase().includes(query);
   });
@@ -1135,11 +1217,13 @@ function renderCatalog(): void {
         entries
           .map(
             (entry) =>
-              `<div class="pcard"><span class="pcard__body">` +
+              `<div class="pcard">${iconMark(entry.name, entry.icon)}` +
+              `<button type="button" class="pcard__open" data-open="${escapeHtml(entry.id)}">` +
               `<span class="pcard__name">${escapeHtml(pluginTitle(entry.name))}</span>` +
-              `<span class="pcard__desc">${escapeHtml(entry.description)}</span></span>` +
+              `<span class="pcard__desc">${escapeHtml(entry.description)}</span></button>` +
               (entry.installed
-                ? `<button type="button" class="chip" data-remove-plugin="${escapeHtml(entry.id)}"><span>Remove</span></button>`
+                ? (entry.usable === false ? `<span class="pcard__added">${escapeHtml(entry.note)}</span>` : "") +
+                  `<button type="button" class="chip" data-remove-plugin="${escapeHtml(entry.id)}"><span>Remove</span></button>`
                 : `<button type="button" class="chip" data-add-plugin="${escapeHtml(entry.id)}"><span>Add</span></button>`) +
               `</div>`,
           )
@@ -1147,6 +1231,34 @@ function renderCatalog(): void {
         `</div></div>`,
     )
     .join("");
+}
+
+/** Signing in is only worth anything if the bot then has it, so every path that
+ *  obtains a credential ends here. This is what "Connect" means to the user. */
+async function turnOn(key: string): Promise<void> {
+  if (!pluginsBot) return;
+  const held = new Set(pluginsBot.plugins ?? []);
+  held.add(key);
+  pluginsBot.plugins = Array.from(held);
+  save();
+  if (pluginsBot.computer) {
+    await invoke("sandbox_sync_tools", {
+      botId: pluginsBot.id,
+      github: held.has("github"),
+    }).catch(() => {});
+  }
+}
+
+async function turnOff(key: string): Promise<void> {
+  if (!pluginsBot) return;
+  pluginsBot.plugins = (pluginsBot.plugins ?? []).filter((k) => k !== key);
+  save();
+  if (pluginsBot.computer) {
+    await invoke("sandbox_sync_tools", {
+      botId: pluginsBot.id,
+      github: (pluginsBot.plugins ?? []).includes("github"),
+    }).catch(() => {});
+  }
 }
 
 /** A connect, reconnect or disconnect changes the credential behind a service.
@@ -1172,6 +1284,146 @@ async function resyncDesktops(): Promise<void> {
  *  can be on for one and off for another, with its own account if it needs one. */
 let pluginsBot: Bot | null = null;
 
+/** What a plugin actually contributes, which the catalogue cannot say. Without
+ *  it a skills-only plugin installs to no visible effect: it brings no MCP
+ *  server, so nothing appears in the bot's connections. */
+/** The same panel for a service. Connectors are what a bot actually reaches
+ *  through, so leaving them unopenable meant the things people use most had no
+ *  way to show what they are or who else uses them. */
+function showConnectorDetail(service: Connector): void {
+  const on = pluginsBot?.plugins?.includes(service.key) ?? false;
+  const host = service.key;
+  const holders = state.bots.filter((bot) => bot.plugins?.includes(service.key));
+
+  const how = service.needsOauth
+    ? "Signs in through your browser. botcage registers itself with the service, so there is nothing to set up."
+    : service.needsDevice
+      ? "Signs in with a short code you approve in your browser. No password or secret is stored by botcage."
+      : service.needsGoogle
+        ? "Signs in through Google, using an OAuth client you create once."
+        : service.needsToken || service.tokenOptional
+          ? `Uses ${service.tokenLabel || "a key"} you paste. It is kept in your system keychain.`
+          : "Needs no sign-in.";
+
+  const rows = [
+    `<div class="comp"><span class="comp__main"><span class="comp__name">This bot</span>` +
+      `<span class="comp__desc">${on ? "Connected" : "Not connected"}</span></span>` +
+      `<span class="comp__kind">${on ? "On" : "Off"}</span></div>`,
+    `<div class="comp"><span class="comp__main"><span class="comp__name">Sign-in</span>` +
+      `<span class="comp__desc">${escapeHtml(how)}</span></span>` +
+      `<span class="comp__kind">${service.connected ? "Done" : "Needed"}</span></div>`,
+    holders.length
+      ? `<div class="comp"><span class="comp__main"><span class="comp__name">Used by</span>` +
+        `<span class="comp__desc">${escapeHtml(holders.map((b) => b.name).join(", "))}</span></span>` +
+        `<span class="comp__kind">${holders.length} bot${holders.length === 1 ? "" : "s"}</span></div>`
+      : "",
+    service.scopes.length
+      ? `<div class="comp"><span class="comp__main"><span class="comp__name">Access</span>` +
+        `<span class="comp__desc">${escapeHtml(service.scopes.join("\n"))}</span></span>` +
+        `<span class="comp__kind">${service.scopes.length} scopes</span></div>`
+      : "",
+  ].filter(Boolean);
+
+  const action = on
+    ? `<button type="button" class="chip chip--quiet" data-disconnect="${service.key}"><span>Disconnect</span></button>`
+    : `<button type="button" class="chip" data-connect="${service.key}"><span>Connect</span></button>`;
+
+  pluginsBody.innerHTML =
+    `<div class="detail">` +
+    `<button type="button" class="detail__back" data-back="1">← Plugins</button>` +
+    `<div class="detail__head">${iconMark(service.name, service.icon)}` +
+    `<span class="detail__id"><span class="detail__name">${escapeHtml(service.name)}</span>` +
+    `<span class="detail__source">${escapeHtml(host)}</span></span>${action}</div>` +
+    `<p class="detail__desc">${escapeHtml(service.description)}</p>` +
+    `<details class="group" open><summary class="group__head">Details</summary>${rows.join("")}</details>` +
+    (service.connected && (service.needsToken || service.needsGoogle || service.needsDevice || service.needsOauth)
+      ? `<button type="button" class="chip chip--quiet" data-forget="${service.key}"><span>Sign out</span></button>`
+      : "") +
+    `</div>`;
+}
+
+function showPluginDetail(entry: CatalogEntry): void {
+  const link = entry.sourceUrl || entry.homepage;
+  const action = entry.installed
+    ? `<button type="button" class="chip chip--quiet" data-remove-plugin="${escapeHtml(entry.id)}"><span>Remove</span></button>`
+    : `<button type="button" class="chip" data-add-plugin="${escapeHtml(entry.id)}"><span>Add</span></button>`;
+
+  // Identity, provenance and the one action on a single line, so everything
+  // below is only ever about what the plugin contains.
+  const head =
+    `<button type="button" class="detail__back" data-back="1">← Plugins</button>` +
+    `<div class="detail__head">${iconMark(entry.name, entry.icon)}` +
+    `<span class="detail__id"><span class="detail__name">${escapeHtml(pluginTitle(entry.name))}</span>` +
+    (link
+      ? `<a class="detail__source" href="#" data-help="${escapeHtml(link)}">View source ↗</a>`
+      : `<span class="detail__source">${escapeHtml(entry.author || entry.marketplace)}</span>`) +
+    `</span>${action}</div>` +
+    `<p class="detail__desc">${escapeHtml(entry.description)}</p>`;
+
+  if (!entry.installed) {
+    pluginsBody.innerHTML =
+      `<div class="detail">${head}` +
+      `<p class="market__empty">Add it to see the skills and connections it brings.</p></div>`;
+    return;
+  }
+
+  pluginsBody.innerHTML = `<div class="detail">${head}<p class="market__empty">Reading…</p></div>`;
+  void invoke<PluginDetail>("plugin_detail", { id: entry.id })
+    .then((detail) => {
+      // <details> rather than scripted folding: it counts, collapses and is
+      // keyboard-navigable with no state of ours to get wrong.
+      const group = (label: string, rows: string[]) =>
+        rows.length
+          ? `<details class="group" open><summary class="group__head">` +
+            `${rows.length} ${rows.length === 1 ? label : label + "s"}</summary>` +
+            rows.join("") +
+            `</details>`
+          : "";
+
+      const componentRows = (items: Component[], kind: string) =>
+        items.map(
+          (item) =>
+            `<div class="comp"><span class="comp__main">` +
+            `<span class="comp__name">${escapeHtml(item.name)}</span>` +
+            (item.description ? `<span class="comp__desc">${escapeHtml(item.description)}</span>` : "") +
+            `</span><span class="comp__kind">${kind}</span></div>`,
+        );
+
+      const serverRows = detail.servers.map(
+        (server) =>
+          `<div class="comp"><span class="comp__main">` +
+          `<span class="comp__name">${escapeHtml(server.name)}</span>` +
+          `<span class="comp__desc">Connect it to this bot from the Services list.</span>` +
+          `</span><span class="comp__kind">Connector</span></div>`,
+      );
+
+      const secretRows = detail.secrets.map(
+        (secret) =>
+          `<div class="comp"><span class="comp__main">` +
+          `<span class="comp__name">${escapeHtml(secret.var)}</span>` +
+          `<span class="comp__desc">${secret.set ? "Saved" : "Needed before this plugin can authenticate."}</span>` +
+          `<input class="token-input" type="password" spellcheck="false" ` +
+          `placeholder="${secret.set ? "Saved — type to replace" : "Paste the value"}" ` +
+          `data-secret="${escapeHtml(secret.var)}" />` +
+          `</span><button type="button" class="chip" data-save-secret="${escapeHtml(secret.var)}" ` +
+          `data-plugin-id="${escapeHtml(entry.id)}"><span>Save</span></button></div>`,
+      );
+
+      const body =
+        group("skill", componentRows(detail.skills, "Skill")) +
+        group("command", componentRows(detail.commands, "Command")) +
+        group("agent", componentRows(detail.agents, "Agent")) +
+        group("connector", serverRows) +
+        group("credential", secretRows);
+
+      pluginsBody.innerHTML =
+        `<div class="detail">${head}` +
+        (body || `<p class="market__empty">This plugin ships no skills or connections.</p>`) +
+        `</div>`;
+    })
+    .catch((err) => toast(String(err)));
+}
+
 async function openPlugins(): Promise<void> {
   pluginsBot = activeBot();
   $<HTMLHeadingElement>("#plugins-title").textContent = pluginsBot
@@ -1181,6 +1433,8 @@ async function openPlugins(): Promise<void> {
   pluginsSearch.value = "";
   pluginsBody.innerHTML = `<p class="market__empty">Loading…</p>`;
   void Promise.all([loadConnectors(pluginsBot), loadPlugins()]).then(() => renderCatalog());
+
+  verifyCatalogue();
   try {
     catalog = await invoke<CatalogEntry[]>("plugin_catalog");
   } catch (err) {
@@ -1215,25 +1469,17 @@ pluginsBody.addEventListener("click", (event) => {
   const target = event.target as HTMLElement;
   const add = target.closest<HTMLButtonElement>("[data-add-plugin]");
   const remove = target.closest<HTMLButtonElement>("[data-remove-plugin]");
-  const grant = target.closest<HTMLInputElement>("[data-grant]");
-  if (grant) {
-    if (!pluginsBot) return;
-    const key = grant.dataset.grant!;
-    const held = new Set(pluginsBot.plugins ?? []);
-    if (grant.checked) held.add(key);
-    else held.delete(key);
-    pluginsBot.plugins = Array.from(held);
-    save();
-    renderCatalog();
-
-    // A desktop that is already running would otherwise keep whatever it had
-    // when it was created, so push the change to it now.
-    if (pluginsBot.computer) {
-      void invoke("sandbox_sync_tools", {
-        botId: pluginsBot.id,
-        github: held.has("github"),
-      }).catch(() => {});
-    }
+  const forget = target.closest<HTMLElement>("[data-forget]");
+  if (forget) {
+    event.preventDefault();
+    void invoke("disconnect_connector", { key: forget.dataset.forget, bot: pluginsBot?.id ?? null })
+      .then(async () => {
+        await loadConnectors(pluginsBot);
+        await resyncDesktops();
+        renderCatalog();
+        toast("Signed out");
+      })
+      .catch((err) => toast(String(err)));
     return;
   }
 
@@ -1246,6 +1492,44 @@ pluginsBody.addEventListener("click", (event) => {
     return;
   }
 
+  if (target.closest("[data-back]")) {
+    renderCatalog();
+    return;
+  }
+
+  const openService = target.closest<HTMLButtonElement>("[data-open-service]");
+  if (openService) {
+    const service = connectors.find((c) => c.key === openService.dataset.openService);
+    if (service) showConnectorDetail(service);
+    return;
+  }
+
+  const open = target.closest<HTMLButtonElement>("[data-open]");
+  if (open) {
+    const entry = catalog.find((c) => c.id === open.dataset.open);
+    if (entry) showPluginDetail(entry);
+    return;
+  }
+
+  const saveSecret = target.closest<HTMLButtonElement>("[data-save-secret]");
+  if (saveSecret) {
+    const id = saveSecret.dataset.pluginId!;
+    const name = saveSecret.dataset.saveSecret!;
+    const field = pluginsBody.querySelector<HTMLInputElement>(`[data-secret="${name}"]`);
+    saveSecret.disabled = true;
+    void invoke("set_plugin_secret", { id, var: name, value: field?.value ?? "" })
+      .then(() => {
+        const entry = catalog.find((c) => c.id === id);
+        if (entry) showPluginDetail(entry);
+        toast("Saved");
+      })
+      .catch((err) => {
+        saveSecret.disabled = false;
+        toast(String(err));
+      });
+    return;
+  }
+
   const help = target.closest<HTMLAnchorElement>("[data-help]");
   if (help) {
     event.preventDefault();
@@ -1253,11 +1537,27 @@ pluginsBody.addEventListener("click", (event) => {
     return;
   }
 
-  const connect = target.closest<HTMLButtonElement>("[data-connect]");
+  const connect = target.closest<HTMLElement>("[data-connect]");
   if (connect) {
+    // "Add a key" reuses the credential prompt rather than the connect flow.
+    if (connect.dataset.key) {
+      event.preventDefault();
+      const service = connectors.find((c) => c.key === connect.dataset.connect);
+      const card = connect.closest<HTMLElement>(".pcard");
+      if (service && card) askForToken(card, service);
+      return;
+    }
     const service = connectors.find((c) => c.key === connect.dataset.connect);
     const card = connect.closest<HTMLElement>(".pcard");
     if (!service || !card) return;
+
+    // Nothing to sign into: either it needs no credential, or one is already
+    // stored from another bot. Turning it on is the whole action.
+    if (service.connected) {
+      void turnOn(service.key).then(renderCatalog);
+      return;
+    }
+
     if (service.needsOauth) startOAuth(card, service);
     else if (service.needsDevice) chooseScopes(card, service);
     else if (service.needsGoogle) askForGoogle(card, service);
@@ -1291,6 +1591,7 @@ pluginsBody.addEventListener("click", (event) => {
         const finished = invoke("google_finish", { key, clientId, clientSecret: secret });
         await openUrl(url);
         await finished;
+        await turnOn(key);
         await loadConnectors(pluginsBot);
         await resyncDesktops();
         renderCatalog();
@@ -1311,6 +1612,7 @@ pluginsBody.addEventListener("click", (event) => {
     saveToken.disabled = true;
     void invoke("connect_connector", { key, token: input?.value ?? "", bot: null })
       .then(async () => {
+        await turnOn(key);
         await loadConnectors(pluginsBot);
         await resyncDesktops();
         renderCatalog();
@@ -1325,17 +1627,9 @@ pluginsBody.addEventListener("click", (event) => {
 
   const disconnect = target.closest<HTMLButtonElement>("[data-disconnect]");
   if (disconnect) {
-    void invoke("disconnect_connector", {
-      key: disconnect.dataset.disconnect,
-      bot: pluginsBot?.id ?? null,
-    })
-      .then(async () => {
-        await loadConnectors(pluginsBot);
-        await resyncDesktops();
-        renderCatalog();
-        toast("Disconnected");
-      })
-      .catch((err) => toast(String(err)));
+    // Off for this bot only. The credential stays for whatever else uses it —
+    // Forget is the way to remove that.
+    void turnOff(disconnect.dataset.disconnect!).then(renderCatalog);
     return;
   }
 
@@ -1557,7 +1851,7 @@ async function openAppSettings(): Promise<void> {
     invoke<{ version: string | null }>("docker_info"),
   ]);
   $<HTMLSpanElement>("#app-environment").textContent =
-    `Claude Code ${claude.version?.split(" ")[0] ?? "missing"} · Docker ${docker.version ?? "not running"}`;
+    `Claude Code ${claude.version?.split(" ")[0] ?? "missing"} · ${docker.version ?? "no container engine"}`;
 
   const spent = session.turns
     ? `$${session.costUsd.toFixed(2)} over ${session.turns} turn${session.turns === 1 ? "" : "s"} this session`
@@ -1580,7 +1874,9 @@ function saveAppSettings(): void {
     awake: appAwake.checked,
   };
   save();
-  void invoke("set_idle_limit", { minutes: state.app.idleMinutes }).catch(() => {});
+  verifyCatalogue();
+
+void invoke("set_idle_limit", { minutes: state.app.idleMinutes }).catch(() => {});
   void invoke("set_awake", { on: state.app.awake }).catch((err) => {
     appAwake.checked = false;
     if (state.app) state.app.awake = false;
@@ -1756,7 +2052,7 @@ const STATE_LABEL: Record<SandboxState, string> = {
   starting: "Starting",
   running: "Live",
   error: "Failed",
-  "no-docker": "No Docker",
+  "no-docker": "Not set up",
   "no-computer": "No computer",
 };
 
@@ -1769,7 +2065,9 @@ const STATE_MESSAGE: Record<SandboxState, string> = {
   running: "Connecting to the desktop…",
   error: "The desktop didn't come up.",
   "no-docker":
-    "Docker isn't available. Install Docker Desktop or OrbStack (macOS, Windows) or docker.io (Linux), start it, then try again.",
+    "A bot's computer runs in a Linux container, and this machine has no engine to run one. " +
+    "On macOS, OrbStack or colima are the lightest; on Linux, install podman or docker.io from " +
+    "your package manager. Everything else in botcage works without it.",
   "no-computer":
     "This bot doesn't have a computer. Turn on Own computer in its settings to give it one — routines below work either way.",
 };
@@ -2725,6 +3023,8 @@ void invoke<string>("user_name")
     $<HTMLSpanElement>("#account-initial").textContent = name.slice(0, 1).toUpperCase();
   })
   .catch(() => {});
+
+verifyCatalogue();
 
 void invoke("set_idle_limit", { minutes: appSettings().idleMinutes }).catch(() => {});
 // Re-assert on launch: the assertion belongs to the process that took it.

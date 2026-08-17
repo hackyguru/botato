@@ -26,8 +26,15 @@ pub struct ConnectorDef {
     pub url: &'static str,
     /// What to call the secret in the UI. Empty when the service needs none.
     pub token_label: &'static str,
+    /// The service works without the credential; supplying one only raises what
+    /// it will do. Gating these behind a key makes them look broken when they
+    /// are not.
+    pub token_optional: bool,
     /// Where the user gets that secret.
     pub help_url: &'static str,
+    /// The service's GitHub handle, used only for its avatar — these are
+    /// services rather than repositories, so there is nothing to derive it from.
+    pub github_owner: &'static str,
     /// Google will not register a client for us — no dynamic registration — so
     /// these connectors need the user's own OAuth client and a consent round
     /// trip rather than a token they can paste.
@@ -42,40 +49,50 @@ pub struct ConnectorDef {
 pub const CONNECTORS: &[ConnectorDef] = &[
     ConnectorDef {
         key: "github",
+        github_owner: "github",
         name: "GitHub",
         description: "Issues, pull requests, code search and repository files.",
         url: "https://api.githubcopilot.com/mcp/",
         token_label: "Personal access token",
+        token_optional: false,
         help_url: "https://github.com/settings/personal-access-tokens",
         google_scopes: &[],
         mcp_oauth: false,
     },
     ConnectorDef {
         key: "context7",
+        github_owner: "upstash",
         name: "Context7",
         description: "Up-to-date documentation and code examples for libraries.",
         url: "https://mcp.context7.com/mcp",
         token_label: "API key",
+        // Verified: context7 answers tool calls unauthenticated; a key raises
+        // the rate limit rather than unlocking it.
+        token_optional: true,
         help_url: "https://context7.com/dashboard",
         google_scopes: &[],
         mcp_oauth: false,
     },
     ConnectorDef {
         key: "deepwiki",
+        github_owner: "AsyncFuncAI",
         name: "DeepWiki",
         description: "Ask questions about any public GitHub repository.",
         url: "https://mcp.deepwiki.com/mcp",
         token_label: "",
+        token_optional: false,
         help_url: "https://deepwiki.com",
         google_scopes: &[],
         mcp_oauth: false,
     },
     ConnectorDef {
         key: "gmail",
+        github_owner: "google",
         name: "Gmail",
         description: "Read and draft mail through Google's own MCP server.",
         url: "https://gmailmcp.googleapis.com/mcp/v1",
         token_label: "",
+        token_optional: false,
         help_url: "https://console.cloud.google.com/auth/clients",
         google_scopes: &[
             "https://www.googleapis.com/auth/gmail.readonly",
@@ -85,10 +102,12 @@ pub const CONNECTORS: &[ConnectorDef] = &[
     },
     ConnectorDef {
         key: "calendar",
+        github_owner: "google",
         name: "Google Calendar",
         description: "Read events and free/busy through Google's own MCP server.",
         url: "https://calendarmcp.googleapis.com/mcp/v1",
         token_label: "",
+        token_optional: false,
         help_url: "https://console.cloud.google.com/auth/clients",
         google_scopes: &[
             "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
@@ -99,14 +118,65 @@ pub const CONNECTORS: &[ConnectorDef] = &[
     },
     ConnectorDef {
         key: "notion",
+        github_owner: "makenotion",
         name: "Notion",
         description: "Search, read and update pages and databases.",
         url: "https://mcp.notion.com/mcp",
         token_label: "",
+        token_optional: false,
         help_url: "https://www.notion.so/profile/integrations",
         google_scopes: &[],
         // Notion's server advertises dynamic registration, PKCE and a public
         // client, so botcage registers itself: nothing for the user to set up.
+        mcp_oauth: true,
+    },
+    ConnectorDef {
+        key: "vercel",
+        github_owner: "vercel",
+        name: "Vercel",
+        description: "Deployments, projects, domains and build logs.",
+        // The tool endpoint is the bare origin here; a /mcp suffix 404s.
+        url: "https://mcp.vercel.com",
+        token_label: "",
+        token_optional: false,
+        help_url: "https://vercel.com/account",
+        google_scopes: &[],
+        mcp_oauth: true,
+    },
+    ConnectorDef {
+        key: "stripe",
+        github_owner: "stripe",
+        name: "Stripe",
+        description: "Payments, customers, subscriptions and invoices.",
+        url: "https://mcp.stripe.com",
+        token_label: "",
+        token_optional: false,
+        help_url: "https://dashboard.stripe.com",
+        google_scopes: &[],
+        mcp_oauth: true,
+    },
+    ConnectorDef {
+        key: "canva",
+        github_owner: "canva",
+        name: "Canva",
+        description: "Find, create and export designs.",
+        url: "https://mcp.canva.com/mcp",
+        token_label: "",
+        token_optional: false,
+        help_url: "https://www.canva.com/settings",
+        google_scopes: &[],
+        mcp_oauth: true,
+    },
+    ConnectorDef {
+        key: "zapier",
+        github_owner: "zapier",
+        name: "Zapier",
+        description: "Run actions in the apps you have already connected to Zapier.",
+        url: "https://mcp.zapier.com/api/mcp/mcp",
+        token_label: "",
+        token_optional: false,
+        help_url: "https://mcp.zapier.com",
+        google_scopes: &[],
         mcp_oauth: true,
     },
 ];
@@ -126,6 +196,8 @@ pub struct ConnectorState {
     pub help_url: String,
     /// False for services that need no credential — those are always usable.
     pub needs_token: bool,
+    /// A credential is accepted but not required.
+    pub token_optional: bool,
     /// Connects by showing a code the user approves in their browser.
     pub needs_device: bool,
     /// This bot holds its own credential rather than using the shared one.
@@ -135,6 +207,7 @@ pub struct ConnectorState {
     /// Needs a consent round trip and the user's own OAuth client.
     pub needs_google: bool,
     pub redirect_uri: String,
+    pub icon: String,
     pub scopes: Vec<String>,
     pub connected: bool,
 }
@@ -173,10 +246,18 @@ pub fn connectors(bot: Option<String>) -> Vec<ConnectorState> {
             help_url: def.help_url.to_string(),
             // With an app registered, GitHub is press-Connect and never asks
             // the user for a token.
-            needs_token: !def.token_label.is_empty() && !(def.key == "github" && github_has_client()),
+            needs_token: !def.token_label.is_empty()
+                && !def.token_optional
+                && !(def.key == "github" && github_has_client()),
+            token_optional: def.token_optional,
             needs_device: def.key == "github" && github_has_client(),
             needs_google: !def.google_scopes.is_empty(),
             redirect_uri: REDIRECT_URI.to_string(),
+            icon: if def.github_owner.is_empty() {
+                String::new()
+            } else {
+                format!("https://github.com/{}.png?size=80", def.github_owner)
+            },
             scopes: def.google_scopes.iter().map(|s| s.to_string()).collect(),
             needs_oauth: def.mcp_oauth,
             own_account: bot
@@ -188,7 +269,7 @@ pub fn connectors(bot: Option<String>) -> Vec<ConnectorState> {
             } else if !def.google_scopes.is_empty() {
                 read_token(&format!("{}.refresh", def.key)).is_some()
             } else {
-                def.token_label.is_empty() || token_for(def.key, bot).is_some()
+                def.token_label.is_empty() || def.token_optional || token_for(def.key, bot).is_some()
             },
         })
         .collect()
@@ -227,6 +308,21 @@ pub fn disconnect_connector(key: String, bot: Option<String>) -> Result<(), Stri
     Ok(())
 }
 
+/// A credential a marketplace plugin expects in the environment. Kept in the
+/// same keychain as everything else rather than a dotfile, and namespaced by
+/// plugin so two plugins wanting API_KEY do not collide.
+pub fn plugin_secret(plugin: &str, var: &str) -> Option<String> {
+    read_token(&format!("plugin.{plugin}.{var}"))
+}
+
+pub fn set_plugin_secret(plugin: &str, var: &str, value: &str) -> Result<(), String> {
+    if value.is_empty() {
+        delete_token(&format!("plugin.{plugin}.{var}"));
+        return Ok(());
+    }
+    store_token(&format!("plugin.{plugin}.{var}"), value)
+}
+
 /// The GitHub credential, for the one case where a bot needs the CLI rather
 /// than the connector's tools: a sandbox that has to clone, build and push.
 ///
@@ -252,8 +348,14 @@ pub fn server_entry(key: &str, bot: Option<&str>) -> Option<serde_json::Value> {
         let token = google_access_token(key).ok()?;
         server["headers"] = serde_json::json!({ "Authorization": format!("Bearer {token}") });
     } else if !def.token_label.is_empty() {
-        let token = token_for(key, bot)?;
-        server["headers"] = serde_json::json!({ "Authorization": format!("Bearer {token}") });
+        match token_for(key, bot) {
+            Some(token) => {
+                server["headers"] = serde_json::json!({ "Authorization": format!("Bearer {token}") })
+            }
+            // Required means no server without it; optional means go anyway.
+            None if !def.token_optional => return None,
+            None => {}
+        }
     }
     Some(server)
 }
@@ -284,12 +386,50 @@ fn discover(url: &str) -> Result<serde_json::Value, String> {
         .and_then(|(scheme, rest)| rest.split_once('/').map(|(host, _)| format!("{scheme}://{host}")))
         .unwrap_or_else(|| url.to_string());
 
-    let meta = get_json(&format!("{origin}/.well-known/oauth-authorization-server"))
-        .map_err(|_| "this server does not publish OAuth metadata".to_string())?;
-    if meta.get("authorization_endpoint").is_some() {
-        return Ok(meta);
+    let path = url
+        .split_once("://")
+        .and_then(|(_, rest)| rest.split_once('/').map(|(_, p)| format!("/{}", p.trim_end_matches('/'))))
+        .unwrap_or_default();
+
+    // The metadata may sit at the origin, or under the resource's own path.
+    for candidate in [
+        format!("{origin}/.well-known/oauth-authorization-server"),
+        format!("{origin}/.well-known/oauth-authorization-server{path}"),
+    ] {
+        if let Ok(meta) = get_json(&candidate) {
+            if meta.get("authorization_endpoint").is_some() {
+                return Ok(meta);
+            }
+        }
     }
-    Err("the server's OAuth metadata has no authorization endpoint".into())
+
+    // Otherwise the resource names its authorization server and we follow that.
+    for candidate in [
+        format!("{origin}/.well-known/oauth-protected-resource{path}"),
+        format!("{origin}/.well-known/oauth-protected-resource"),
+    ] {
+        let Ok(resource) = get_json(&candidate) else { continue };
+        let Some(server) = resource
+            .get("authorization_servers")
+            .and_then(|v| v.as_array())
+            .and_then(|list| list.first())
+            .and_then(|v| v.as_str())
+        else {
+            continue;
+        };
+        for well_known in [
+            "/.well-known/oauth-authorization-server",
+            "/.well-known/openid-configuration",
+        ] {
+            if let Ok(meta) = get_json(&format!("{}{well_known}", server.trim_end_matches('/'))) {
+                if meta.get("authorization_endpoint").is_some() {
+                    return Ok(meta);
+                }
+            }
+        }
+    }
+
+    Err("this server does not publish OAuth metadata botcage can use".into())
 }
 
 /// Step one: register botcage as a client, then hand back the URL to open.
@@ -744,6 +884,68 @@ pub fn google_finish(key: String, client_id: String, client_secret: String) -> R
     Ok(())
 }
 
+/// The one part of botcage a user sees outside the app, so it carries the same
+/// dark surface, face mark and type as the window they came from — landing on a
+/// bare browser default reads like the flow went wrong.
+fn callback_page(ok: bool) -> String {
+    let (mark, heading, body) = if ok {
+        ("#0a84ff", "Connected", "You can close this tab and go back to botcage.")
+    } else {
+        (
+            "#ff453a",
+            "Not connected",
+            "botcage did not get an approval from that page. Close this tab and try again.",
+        )
+    };
+
+    // Inline and self-contained: this is served by a socket that closes straight
+    // after, so nothing else can be fetched.
+    format!(
+        r##"<!doctype html><html lang="en"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>botcage</title>
+<style>
+  :root {{ color-scheme: dark }}
+  * {{ box-sizing: border-box }}
+  body {{
+    margin: 0; min-height: 100vh; display: grid; place-items: center;
+    background: #000; color: #f2f2f2;
+    font: 400 15px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }}
+  .card {{
+    width: min(360px, calc(100vw - 40px));
+    padding: 34px 28px 30px;
+    text-align: center;
+    background: #17171a;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 18px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.6);
+    animation: pop .16s ease both;
+  }}
+  @keyframes pop {{ from {{ opacity: 0; transform: translateY(4px) scale(.98) }} }}
+  /* Without this the card can sit at the animation's starting opacity — an
+     invisible page — wherever motion is turned off. */
+  @media (prefers-reduced-motion: reduce) {{ .card {{ animation: none }} }}
+  .face {{
+    display: grid; grid-auto-flow: column; gap: 5px; place-content: center;
+    width: 46px; height: 46px; margin: 0 auto 16px;
+    background: {mark}; border-radius: 30%;
+  }}
+  .face i {{ width: 5px; height: 8px; background: rgba(0,0,0,.72); border-radius: 2.5px }}
+  h1 {{ margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -.01em }}
+  p {{ margin: 8px 0 0; font-size: 13px; line-height: 1.45; color: #8e8e93 }}
+  .name {{ margin-top: 18px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #636366 }}
+</style>
+<div class="card">
+  <div class="face"><i></i><i></i></div>
+  <h1>{heading}</h1>
+  <p>{body}</p>
+  <div class="name">botcage</div>
+</div>"##
+    )
+}
+
 /// Same listener, but reporting the state parameter too — the MCP flow checks
 /// it to be sure the reply belongs to the sign-in botcage started.
 fn wait_for_code_and_state() -> Result<(String, Option<String>), String> {
@@ -781,15 +983,11 @@ fn wait_for_target() -> Result<String, String> {
         let found = query_value(&target, "code");
         let denied = query_value(&target, "error");
 
-        let message = if found.is_some() {
-            "botcage is connected. You can close this tab."
-        } else {
-            "botcage could not read a code from Google. Close this tab and try again."
-        };
+        let page = callback_page(found.is_some());
         let _ = stream.write_all(
             format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n\
-                 <body style=\"font:15px system-ui;padding:40px\">{message}</body>"
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n\
+                 Cache-Control: no-store\r\nConnection: close\r\n\r\n{page}"
             )
             .as_bytes(),
         );
@@ -1034,26 +1232,34 @@ mod tests {
 
     /// The whole premise of this connector type: a server we have never been
     /// registered with hands us a client id on request.
+    /// The premise of this connector type, checked against every server we
+    /// ship: one we have never registered with hands us a client on request.
     #[test]
-    fn notion_lets_botcage_register_itself() {
-        let def = find("notion").expect("notion is in the registry");
-        let meta = discover(def.url).expect("notion publishes OAuth metadata");
-        println!("authorize: {}", meta["authorization_endpoint"]);
-        println!("token:     {}", meta["token_endpoint"]);
-        assert!(meta.get("registration_endpoint").is_some(), "needs dynamic registration");
-        assert!(
-            meta["code_challenge_methods_supported"]
-                .as_array()
-                .map(|m| m.iter().any(|v| v == "S256"))
-                .unwrap_or(false),
-            "PKCE S256 must be supported"
-        );
+    fn every_oauth_connector_lets_botcage_register_itself() {
+        for def in CONNECTORS.iter().filter(|d| d.mcp_oauth) {
+            let meta = discover(def.url)
+                .unwrap_or_else(|e| panic!("{} publishes no usable metadata: {e}", def.name));
+            assert!(
+                meta.get("registration_endpoint").is_some(),
+                "{} needs dynamic registration",
+                def.name
+            );
+            assert!(
+                meta["code_challenge_methods_supported"]
+                    .as_array()
+                    .map(|m| m.iter().any(|v| v == "S256"))
+                    .unwrap_or(false),
+                "{} must support PKCE S256",
+                def.name
+            );
 
-        let url = mcp_oauth_start("notion".into(), None).expect("registration + authorize url");
-        println!("consent url: {}", &url[..url.len().min(120)]);
-        assert!(url.contains("code_challenge_method=S256"));
-        assert!(url.contains("client_id="));
-        assert!(!url.contains(' '), "a stray space would break the redirect");
+            let url = mcp_oauth_start(def.key.into(), None)
+                .unwrap_or_else(|e| panic!("{} registration failed: {e}", def.name));
+            assert!(url.contains("code_challenge_method=S256"), "{}", def.name);
+            assert!(url.contains("client_id="), "{}", def.name);
+            assert!(!url.contains(' '), "{} url has a stray space", def.name);
+            println!("{:<8} ok — {}", def.name, &url[..url.len().min(78)]);
+        }
     }
 
     #[test]
@@ -1079,6 +1285,26 @@ mod tests {
 
     /// The redirect is the fragile part of the flow: a browser hits a port we
     /// opened for one request. Drive it for real rather than trusting the parse.
+    /// Render both states through the real listener so the page is checked as
+    /// served, not as a string.
+    #[test]
+    fn callback_page_renders_both_outcomes() {
+        for (ok, name) in [(true, "connected"), (false, "refused")] {
+            let page = callback_page(ok);
+            std::fs::write(
+                format!("/private/tmp/claude-501/-Users-guru-Desktop-indie-botcage/82f6a62a-cea8-490b-b05d-c2043f58b852/scratchpad/callback-{name}.html"),
+                &page,
+            )
+            .ok();
+            assert!(page.starts_with("<!doctype html>"));
+            assert!(page.contains("botcage"));
+            // Nothing external: the socket closes right after the response.
+            assert!(!page.contains("http://") && !page.contains("https://"), "must be self-contained");
+        }
+        assert!(callback_page(true).contains("Connected"));
+        assert!(callback_page(false).contains("Not connected"));
+    }
+
     #[test]
     fn loopback_captures_the_code_google_sends() {
         let handle = std::thread::spawn(wait_for_code);
@@ -1089,10 +1315,29 @@ mod tests {
             .output()
             .expect("curl the callback");
         let page = String::from_utf8_lossy(&out.stdout);
-        assert!(page.contains("botcage is connected"), "browser should see a friendly page, got: {page}");
+        assert!(page.contains("Connected"), "the browser should land on the success page");
+        assert!(page.contains("botcage"), "the page should say where it came from");
 
         let code = handle.join().expect("thread").expect("a code");
         assert_eq!(code, "4/test-code", "percent-encoded code must be decoded");
+    }
+
+    /// A service that works without a key must not be gated behind one — that
+    /// is the difference between "add a key for higher limits" and "broken".
+    #[test]
+    fn an_optional_credential_does_not_gate_the_server() {
+        delete_token("context7");
+        let entry = server_entry("context7", None).expect("context7 works without a key");
+        assert!(entry.get("headers").is_none(), "no key stored, so no header");
+
+        store_token("context7", "ctx7-key").expect("store");
+        let entry = server_entry("context7", None).expect("still works");
+        assert_eq!(entry["headers"]["Authorization"], "Bearer ctx7-key");
+        delete_token("context7");
+
+        // A required credential still gates: github yields nothing without one.
+        delete_token("github");
+        assert!(server_entry("github", None).is_none());
     }
 
     #[test]

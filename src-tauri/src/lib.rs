@@ -353,6 +353,10 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         cmd.args(["--disallowed-tools", &denied]);
     }
 
+    for (var, value) in plugins::env_for(&req.plugins) {
+        cmd.env(var, value);
+    }
+
     if req.resume {
         cmd.args(["--resume", &req.session_id]);
     } else {
@@ -793,6 +797,9 @@ pub fn run() {
             connectors::github_device_start,
             connectors::github_device_finish,
             plugins::plugin_catalog,
+            plugins::plugin_detail,
+            plugins::verify_catalogue,
+            plugins::set_plugin_secret,
             plugins::install_plugin,
             plugins::uninstall_plugin,
             set_awake,
