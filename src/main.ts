@@ -275,6 +275,48 @@ const screenIdle = $<HTMLDivElement>("#screen-idle");
 const screenMessage = $<HTMLParagraphElement>("#screen-message");
 const screenLog = $<HTMLPreElement>("#screen-log");
 const startBtn = $<HTMLButtonElement>("#btn-screen-start");
+
+/** The engine botcage can install for itself, and how far along that is. */
+interface EngineStatus {
+  installed: boolean;
+  path: string | null;
+  needsVm: boolean;
+  vmRunning: boolean;
+  downloadMb: number;
+  supported: boolean;
+}
+let engine: EngineStatus | null = null;
+let engineStep = "";
+let installing = false;
+
+// The install is minutes of downloading, so its progress replaces the pane's
+// message rather than being invisible until it finishes.
+void listen<string>("engine", (event) => {
+  engineStep = event.payload;
+  paintScreen();
+});
+
+/** Fetch, verify and unpack an engine, then bring it up and carry on to the
+ *  desktop the user actually asked for. */
+async function setUpEngine(): Promise<void> {
+  installing = true;
+  engineStep = "Starting…";
+  paintScreen();
+  try {
+    await invoke("install_engine");
+    await invoke("start_engine");
+    engine = await invoke<EngineStatus>("engine_status");
+    engineStep = "";
+    installing = false;
+    await openScreen();
+  } catch (err) {
+    installing = false;
+    engineStep = "";
+    screen.log = [String(err)];
+    paintScreen();
+    toast(String(err));
+  }
+}
 const controlBtn = $<HTMLButtonElement>("#btn-control");
 const controlLabel = $<HTMLSpanElement>("#btn-control-label");
 
@@ -2226,9 +2268,20 @@ function paintScreen(): void {
       : "Teach a task";
   $<HTMLButtonElement>("#btn-screen-power").hidden = screen.state !== "running";
 
-  screenMessage.textContent = STATE_MESSAGE[screen.state];
-  startBtn.hidden = !(screen.state === "stopped" || screen.state === "error");
-  startBtn.textContent = screen.state === "error" ? "Try again" : "Start desktop";
+  screenMessage.textContent = engineStep || STATE_MESSAGE[screen.state];
+
+  // With no engine, the useful button is the one that gets you an engine —
+  // otherwise the download machinery exists and nobody can reach it.
+  const needsEngine = screen.state === "no-docker" && (engine?.supported ?? false);
+  startBtn.hidden = !(screen.state === "stopped" || screen.state === "error" || needsEngine);
+  startBtn.disabled = installing;
+  startBtn.textContent = installing
+    ? "Setting up…"
+    : needsEngine
+      ? `Set up botcage's engine (${engine?.downloadMb ?? 0} MB)`
+      : screen.state === "error"
+        ? "Try again"
+        : "Start desktop";
 
   screenLog.hidden = screen.log.length === 0;
   screenLog.textContent = screen.log.slice(-40).join("\n");
@@ -2318,6 +2371,9 @@ async function openScreen(): Promise<void> {
     "docker_info",
   );
   if (!docker.version) {
+    // Ask whether botcage could supply one itself, so the pane can offer that
+    // rather than only naming things to go and install.
+    engine = await invoke<EngineStatus>("engine_status").catch(() => null);
     screen.state = "no-docker";
     if (docker.error) screen.log = [docker.error];
     paintScreen();
@@ -2640,6 +2696,13 @@ teachName.addEventListener("keydown", (event) => {
 $<HTMLButtonElement>("#btn-screen-close").addEventListener("click", closeScreen);
 
 startBtn.addEventListener("click", () => {
+  // No engine means the desktop cannot start at all, so this button installs one
+  // first rather than failing the same way twice.
+  if (screen.state === "no-docker" && engine?.supported && !engine.installed) {
+    void setUpEngine();
+    return;
+  }
+
   const botId = screen.botId;
   if (!botId) return;
   const bot = state.bots.find((b) => b.id === botId);
