@@ -40,7 +40,9 @@ account, which is not what shipping means.
 base64 -i certificate.p12 | pbcopy      # this string is APPLE_CERTIFICATE
 ```
 
-Delete the `.p12` afterwards. It is the private key that signs releases as you.
+Delete the `.p12` once the secret is saved — it is the key that signs releases as
+you. Nothing is lost by deleting it: the certificate and its key stay in the
+keychain, so it can be re-exported whenever another CI needs it.
 
 ### 3. Create an app-specific password for notarisation
 
@@ -48,6 +50,17 @@ Your Apple ID password will not work; notarytool needs a dedicated one.
 
 1. appleid.apple.com → **Sign-In and Security → App-Specific Passwords → +**
 2. Keep the generated `xxxx-xxxx-xxxx-xxxx` string — that is `APPLE_PASSWORD`
+
+> **Read the team id off the Developer ID certificate, not the Development one.**
+> On an Apple Development certificate the name's parenthetical is the *individual*
+> id and the team id hides in the OU field; on a Developer ID certificate both are
+> the team id. Taking the wrong one makes notarisation fail with an error that
+> does not mention the team at all:
+>
+> ```sh
+> security find-certificate -c "Developer ID Application" -p \
+>   ~/Library/Keychains/login.keychain-db | openssl x509 -noout -subject
+> ```
 
 ### 4. Add the repository secrets
 
@@ -57,10 +70,10 @@ Your Apple ID password will not work; notarytool needs a dedicated one.
 | --- | --- |
 | `APPLE_CERTIFICATE` | the base64 string from step 2 |
 | `APPLE_CERTIFICATE_PASSWORD` | the password you set on the `.p12` |
-| `APPLE_SIGNING_IDENTITY` | `Developer ID Application: Your Name (TEAMID)` — exactly as `find-identity` prints it |
+| `APPLE_SIGNING_IDENTITY` | `Developer ID Application: Kumaraguru Thambidurai (6DJWZ77R6C)` — exactly as `find-identity` prints it |
 | `APPLE_ID` | the Apple ID email on the developer account |
 | `APPLE_PASSWORD` | the app-specific password from step 3 |
-| `APPLE_TEAM_ID` | the 10-character team id, in brackets in the identity name |
+| `APPLE_TEAM_ID` | `6DJWZ77R6C` |
 
 The release workflow already passes all six through. They take effect on the next
 tag with no further changes — and while they are absent, builds are unsigned
@@ -86,9 +99,21 @@ Useful for checking the entitlements actually attach, which cannot be verified
 with an ad-hoc signature:
 
 ```sh
-export APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)"
-npx tauri build
-codesign -d --entitlements - src-tauri/target/release/bundle/macos/botcage.app
+export APPLE_SIGNING_IDENTITY="Developer ID Application: Kumaraguru Thambidurai (6DJWZ77R6C)"
+npx tauri build --bundles app
+codesign -dv --verbose=2 src-tauri/target/release/bundle/macos/botcage.app
+codesign -d --entitlements - --xml src-tauri/target/release/bundle/macos/botcage.app
+```
+
+A correctly signed, not-yet-notarised build looks like this — `rejected` is the
+right answer at this stage, and only notarisation changes it:
+
+```
+Authority=Developer ID Application: Kumaraguru Thambidurai (6DJWZ77R6C)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+flags=0x10000(runtime)
+spctl: rejected, source=Unnotarized Developer ID
 ```
 
 ## Linux
