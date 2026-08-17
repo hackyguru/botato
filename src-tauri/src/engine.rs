@@ -2,7 +2,8 @@
 //! nothing preinstalled — no Docker Desktop, no terminal, no admin password.
 //!
 //! Everything lands in botcage's own data directory and nothing touches the
-//! system, which is what makes it removable by deleting a folder.
+//! system, which is what makes it removable by deleting a folder — two, on
+//! macOS, because lima's state cannot live where the rest does (see `lima_home`).
 //!
 //! The two platforms need genuinely different things, so this is not one
 //! mechanism pretending to be portable:
@@ -14,8 +15,10 @@
 //!   CLI on this side talks to it over a forwarded socket.
 
 use serde::Serialize;
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
 /// One file to fetch. Hashes are pinned rather than fetched alongside the
@@ -135,11 +138,33 @@ fn limactl(app: &AppHandle) -> Option<PathBuf> {
     path.is_file().then_some(path)
 }
 
-/// Lima keeps its state beside the binaries rather than in ~/.lima, so removing
-/// botcage's data directory removes the VM with it.
+/// Where lima keeps the VM. Deliberately not inside the app data directory,
+/// which is the obvious place and does not work: lima puts a unix socket under
+/// this directory and a unix path cannot exceed 104 bytes. Measured against the
+/// real binary, `~/Library/Application Support/com.botcage.app/engine/lima-home`
+/// produces a 106-byte socket path for a four-letter username, and lima refuses
+/// to start at all — so this lives in a short directory in the home folder, the
+/// same thing colima and Rancher Desktop do for the same reason.
 fn lima_home(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(engine_dir(app)?.join("lima-home"))
+    let home = app
+        .path()
+        .home_dir()
+        .map_err(|e| format!("no home directory: {e}"))?;
+    Ok(lima_home_in(&home))
 }
+
+fn lima_home_in(home: &Path) -> PathBuf {
+    home.join(".botcage").join("lima")
+}
+
+/// The longest path lima will build under its home: the ssh socket plus the
+/// 17-byte suffix it appends before checking the limit.
+#[cfg(test)]
+fn longest_socket_path(lima_home: &Path) -> PathBuf {
+    lima_home.join(VM_NAME).join("ssh.sock.1234567890123456")
+}
+
+const VM_NAME: &str = "botcage";
 
 #[tauri::command(async)]
 pub fn engine_status(app: AppHandle) -> EngineStatus {
@@ -161,7 +186,7 @@ fn vm_is_running(app: &AppHandle) -> bool {
         return false;
     };
     Command::new(bin)
-        .args(["list", "--format", "{{.Status}}", "botcage"])
+        .args(["list", "--format", "{{.Status}}", VM_NAME])
         .env("LIMA_HOME", home)
         .output()
         .map(|out| String::from_utf8_lossy(&out.stdout).trim() == "Running")
@@ -181,13 +206,14 @@ pub fn install_engine(app: AppHandle) -> Result<String, String> {
     };
 
     for (index, artifact) in ARTIFACTS.iter().enumerate() {
-        say(&format!(
-            "Downloading ({} of {})…",
-            index + 1,
-            ARTIFACTS.len()
-        ));
+        let label = if ARTIFACTS.len() > 1 {
+            format!("Downloading {} of {}", index + 1, ARTIFACTS.len())
+        } else {
+            "Downloading".to_string()
+        };
+        say(&format!("{label}…"));
         let archive = dir.join(format!("download-{index}"));
-        fetch(artifact.url, &archive)?;
+        fetch(artifact.url, &archive, &say, &label)?;
 
         say("Checking the download…");
         let bytes = std::fs::read(&archive).map_err(|e| e.to_string())?;
@@ -221,20 +247,124 @@ pub fn install_engine(app: AppHandle) -> Result<String, String> {
     Ok(client.display().to_string())
 }
 
-fn fetch(url: &str, to: &Path) -> Result<(), String> {
-    let out = Command::new("curl")
+/// Download to `to`, reporting how far along it is. curl's own progress meter
+/// redraws with carriage returns, which line-based reading cannot follow, so the
+/// size of the growing file is the progress — it needs no parsing and cannot
+/// disagree with what actually landed on disk.
+fn fetch(url: &str, to: &Path, say: &dyn Fn(&str), label: &str) -> Result<(), String> {
+    let total = content_length(url);
+    let mut child = Command::new("curl")
         .args(["-fL", "--retry", "2", "-m", "900", "-o"])
         .arg(to)
         .arg(url)
-        .output()
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|e| format!("could not run curl: {e}"))?;
-    if out.status.success() {
-        return Ok(());
+
+    loop {
+        if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
+            if status.success() {
+                return Ok(());
+            }
+            let mut why = String::new();
+            if let Some(mut err) = child.stderr.take() {
+                let _ = err.read_to_string(&mut why);
+            }
+            return Err(format!(
+                "download failed: {}",
+                why.lines().last().unwrap_or("unknown error").trim()
+            ));
+        }
+        let got = std::fs::metadata(to).map(|m| m.len()).unwrap_or(0);
+        say(&progress(label, got, total));
+        std::thread::sleep(Duration::from_millis(400));
     }
-    Err(format!(
-        "download failed: {}",
-        String::from_utf8_lossy(&out.stderr).trim()
-    ))
+}
+
+/// The total size, so progress can be a percentage rather than a rising number.
+/// Zero when the server will not say, which the caller treats as "unknown"
+/// instead of guessing.
+fn content_length(url: &str) -> u64 {
+    // Not curl's %{content_length}: macOS ships a curl that does not have it.
+    let out = match Command::new("curl").args(["-sIL", url]).output() {
+        Ok(out) => out,
+        Err(_) => return 0,
+    };
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            name.trim()
+                .eq_ignore_ascii_case("content-length")
+                .then(|| value.trim().parse::<u64>().ok())?
+        })
+        .next_back()
+        .unwrap_or(0)
+}
+
+/// lima logs for operators, not for a window: a timestamp, a level, the message
+/// in quotes and trailing key=value fields. Pull out the sentence and leave the
+/// rest, or return None for lines nobody should be shown.
+fn readable(line: &str) -> Option<String> {
+    // Two logrus layouts, depending on whether it thinks it has a terminal.
+    let text = if let Some(at) = line.find("msg=") {
+        if line.contains("level=debug") || line.contains("level=trace") {
+            return None;
+        }
+        let rest = &line[at + 4..];
+        match rest.strip_prefix('"') {
+            Some(quoted) => unquote(quoted),
+            None => rest.split_whitespace().next()?.to_string(),
+        }
+    } else if let Some(at) = line.find("] ") {
+        let (level, message) = line.split_at(at);
+        if !level.starts_with("INFO") && !level.starts_with("WARN") && !level.starts_with("ERRO") {
+            return None;
+        }
+        // Trailing fields are separated from the message by runs of spaces.
+        message[2..].split("  ").next()?.to_string()
+    } else {
+        line.to_string()
+    };
+
+    let text = text.trim();
+    if text.is_empty() || text.starts_with("Terminal is not available") {
+        return None;
+    }
+    Some(text.to_string())
+}
+
+/// Read a logrus-quoted value. The message itself quotes things — instance names,
+/// requirement names — and those arrive escaped, so splitting on the next quote
+/// truncates most lines mid-sentence.
+fn unquote(rest: &str) -> String {
+    let mut out = String::new();
+    let mut chars = rest.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => match chars.next() {
+                Some(escaped) => out.push(escaped),
+                None => break,
+            },
+            '"' => break,
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+fn progress(label: &str, got: u64, total: u64) -> String {
+    let mb = |bytes: u64| bytes as f64 / 1_048_576.0;
+    if total == 0 {
+        return format!("{label} — {:.0} MB so far…", mb(got));
+    }
+    format!(
+        "{label} — {:.0} of {:.0} MB ({:.0}%)",
+        mb(got),
+        mb(total),
+        (got as f64 / total as f64 * 100.0).min(100.0)
+    )
 }
 
 fn unpack(archive: &Path, into: &Path, strip: usize) -> Result<(), String> {
@@ -272,8 +402,8 @@ pub fn start_engine(app: AppHandle) -> Result<(), String> {
 
     // vz is Apple's own hypervisor, so no QEMU is needed. virtiofs is what makes
     // a bot's workspace visible inside the VM at the same path.
-    let out = Command::new(&bin)
-        .args(["start", "--name", "botcage", "--tty=false"])
+    let mut child = Command::new(&bin)
+        .args(["start", "--name", VM_NAME, "--tty=false"])
         .args([
             "--vm-type",
             "vz",
@@ -281,18 +411,30 @@ pub fn start_engine(app: AppHandle) -> Result<(), String> {
             "virtiofs",
             "--mount-writable",
         ])
-        .arg("template://docker")
+        .arg("template:docker")
         .env("LIMA_HOME", &home)
-        .output()
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|e| format!("could not start the machine: {e}"))?;
 
-    if !out.status.success() {
+    // This is minutes on a first run — the image download plus a boot that waits
+    // on five requirements in turn. lima says which one it is on, so relay that
+    // rather than leaving one sentence on screen for the whole wait.
+    let mut last = String::new();
+    if let Some(stderr) = child.stderr.take() {
+        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+            if let Some(step) = readable(&line) {
+                let _ = app.emit("engine", &step);
+            }
+            last = line;
+        }
+    }
+    let status = child.wait().map_err(|e| e.to_string())?;
+    if !status.success() {
         return Err(format!(
             "the machine did not start: {}",
-            String::from_utf8_lossy(&out.stderr)
-                .lines()
-                .last()
-                .unwrap_or("unknown error")
+            readable(&last).unwrap_or_else(|| last.trim().to_string())
         ));
     }
     // The socket only exists once the machine is up, so re-point the client now.
@@ -309,7 +451,7 @@ pub fn docker_host(app: &AppHandle) -> Option<String> {
     }
     let socket = lima_home(app)
         .ok()?
-        .join("botcage")
+        .join(VM_NAME)
         .join("sock")
         .join("docker.sock");
     socket
@@ -334,7 +476,16 @@ mod tests {
 
         for artifact in ARTIFACTS {
             let archive = dir.join("download");
-            fetch(artifact.url, &archive).expect("download");
+            let seen = std::cell::RefCell::new(Vec::new());
+            let say = |step: &str| seen.borrow_mut().push(step.to_string());
+            fetch(artifact.url, &archive, &say, "Downloading").expect("download");
+            // A download of this size must report more than its first frame.
+            assert!(
+                seen.borrow().iter().any(|s| s.contains('%')),
+                "no percentage was reported for {}: {:?}",
+                artifact.url,
+                seen.borrow()
+            );
             let bytes = std::fs::read(&archive).expect("read");
             let digest = crate::oauth::sha256(&bytes)
                 .iter()
@@ -408,5 +559,67 @@ mod tests {
                 || artifact.url.contains(PODMAN_VERSION);
             assert!(versioned, "{} names no known version", artifact.url);
         }
+    }
+
+    #[test]
+    fn progress_reads_as_a_sentence() {
+        assert_eq!(
+            progress("Downloading 1 of 2", 5_242_880, 37_586_365),
+            "Downloading 1 of 2 — 5 of 36 MB (14%)"
+        );
+        // A server that will not give a length must not produce "NaN%".
+        assert_eq!(
+            progress("Downloading", 2_097_152, 0),
+            "Downloading — 2 MB so far…"
+        );
+        // Redirects can overshoot the length reported by the first response.
+        assert!(progress("x", 40, 10).ends_with("(100%)"));
+    }
+
+    #[test]
+    fn engine_log_lines_become_readable() {
+        assert_eq!(
+            readable(
+                r#"time="2026-08-17T10:00:00+05:30" level=info msg="Starting the instance \"botcage\" with VM driver \"vz\"""#
+            ),
+            Some(r#"Starting the instance "botcage" with VM driver "vz""#.into())
+        );
+        assert_eq!(
+            readable("INFO[0042] [hostagent] Waiting for the essential requirement 1 of 5: \"ssh\"  fields=x"),
+            Some("[hostagent] Waiting for the essential requirement 1 of 5: \"ssh\"".into())
+        );
+        // Debug noise and lima's own terminal warning are not progress.
+        assert_eq!(readable(r#"level=debug msg="probing ssh""#), None);
+        assert_eq!(
+            readable("INFO[0000] Terminal is not available, proceeding"),
+            None
+        );
+        assert_eq!(readable("   "), None);
+    }
+
+    /// lima refuses to start when the socket path it would create exceeds
+    /// UNIX_PATH_MAX, and the message names the instance rather than the path, so
+    /// this is checked here rather than discovered on someone's machine. The old
+    /// location under Application Support failed this for every macOS user.
+    #[test]
+    fn the_vm_socket_path_fits_in_a_unix_path() {
+        const UNIX_PATH_MAX: usize = 104;
+        // Longer than any macOS account name allows (that limit is 20).
+        for user in ["a", "guru", "kumaraguruthambidurai", &"x".repeat(32)] {
+            let home = PathBuf::from(format!("/Users/{user}"));
+            let socket = longest_socket_path(&lima_home_in(&home));
+            let length = socket.as_os_str().len();
+            assert!(
+                length < UNIX_PATH_MAX,
+                "{} is {length} bytes, over lima's limit",
+                socket.display()
+            );
+        }
+
+        // And the location this replaced, to keep the reason from being lost.
+        let old = PathBuf::from(
+            "/Users/guru/Library/Application Support/com.botcage.app/engine/lima-home",
+        );
+        assert!(longest_socket_path(&old).as_os_str().len() > UNIX_PATH_MAX);
     }
 }
