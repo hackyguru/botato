@@ -234,13 +234,35 @@
             <svg><use href="#i-x" /></svg>
           </button>
         </div>
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab" role="tab" data-tab="general" aria-selected="true">General</button>
+          <button type="button" class="tab" role="tab" data-tab="computer" aria-selected="false">Computer</button>
+          <button type="button" class="tab" role="tab" data-tab="machine" aria-selected="false">Machine</button>
+        </div>
         <div class="sheet__body">
-          <div class="sheet__preview" id="sheet-preview"></div>
-          <input id="sheet-name" placeholder="Name, e.g. Engineer" spellcheck="false" />
-          <input id="sheet-role" placeholder="What it does (optional)" spellcheck="false" />
-          <div class="swatches" id="swatches"></div>
+          <div class="settings-panel" data-tab="general" role="tabpanel">
+            <div class="sheet__preview" id="sheet-preview"></div>
+            <input id="sheet-name" placeholder="Name, e.g. Engineer" spellcheck="false" />
+            <input id="sheet-role" placeholder="What it does (optional)" spellcheck="false" />
+            <div class="swatches" id="swatches"></div>
 
-          <div class="settings">
+            <div class="settings">
+            <label class="setting">
+              <span class="setting__label">Model
+                <span class="setting__hint">Sonnet is easier on your usage limits.</span>
+              </span>
+              <select id="sheet-model" class="picker">
+                <option value="opus">Opus</option>
+                <option value="sonnet">Sonnet</option>
+              </select>
+            </label>
+            </div>
+
+            <button type="button" class="danger" id="sheet-delete" hidden>Delete bot</button>
+          </div>
+
+          <div class="settings-panel" data-tab="computer" role="tabpanel" hidden>
+            <div class="settings">
             <label class="setting">
               <span class="setting__label">Own computer
                 <span class="setting__hint">A private Linux desktop it can switch on when a task needs one.</span>
@@ -258,19 +280,107 @@
                 <option value="offline">Offline</option>
               </select>
             </label>
-
-            <label class="setting">
-              <span class="setting__label">Model
-                <span class="setting__hint">Sonnet is easier on your usage limits.</span>
-              </span>
-              <select id="sheet-model" class="picker">
-                <option value="opus">Opus</option>
-                <option value="sonnet">Sonnet</option>
-              </select>
-            </label>
+            </div>
           </div>
 
-          <button type="button" class="danger" id="sheet-delete" hidden>Delete bot</button>
+          <div class="settings-panel" data-tab="machine" role="tabpanel" hidden>
+            <p class="machine__note" id="sheet-machine-note"></p>
+            <div class="settings">
+              <label class="setting">
+                <span class="setting__label">Browser
+                  <span class="setting__hint">The biggest difference between two bots: a different
+                    engine renders, measures text and negotiates TLS differently.</span>
+                </span>
+                <select id="sheet-browser" class="picker">
+                  <option value="">Automatic</option>
+                  <option value="chromium">Chromium</option>
+                  <option value="firefox">Firefox</option>
+                </select>
+              </label>
+
+              <label class="setting">
+                <span class="setting__label">Text rendering
+                  <span class="setting__hint">Antialiasing and hinting — what a canvas
+                    fingerprint is actually measuring.</span>
+                </span>
+                <select id="sheet-rendering" class="picker">
+                  <option value="">Automatic</option>
+                  <option value="slight">Slight hinting</option>
+                  <option value="full">Full hinting</option>
+                  <option value="subpix">Subpixel (RGB)</option>
+                  <option value="none">No antialiasing</option>
+                </select>
+              </label>
+
+              <label class="setting">
+                <span class="setting__label">Screen
+                  <span class="setting__hint">Applies next time its desktop is built.</span>
+                </span>
+                <select id="sheet-screen" class="picker">
+                  <option value="">Automatic</option>
+                  <option value="1280x800">1280 × 800</option>
+                  <option value="1440x900">1440 × 900</option>
+                  <option value="1512x982">1512 × 982</option>
+                  <option value="1680x1050">1680 × 1050</option>
+                  <option value="1920x1080">1920 × 1080</option>
+                </select>
+              </label>
+
+              <label class="setting">
+                <span class="setting__label">Cores
+                  <span class="setting__hint">What the machine reports having.</span>
+                </span>
+                <select id="sheet-cores" class="picker">
+                  <option value="">Automatic</option>
+                  <option value="2">2</option>
+                  <option value="4">4</option>
+                  <option value="6">6</option>
+                  <option value="8">8</option>
+                </select>
+              </label>
+
+              <label class="setting">
+                <span class="setting__label">Browser window
+                  <span class="setting__hint">Separate from the screen it sits on.</span>
+                </span>
+                <select id="sheet-window" class="picker">
+                  <option value="">Automatic</option>
+                  <option value="1100x740">1100 × 740</option>
+                  <option value="1280x800">1280 × 800</option>
+                  <option value="1400x860">1400 × 860</option>
+                  <option value="1600x980">1600 × 980</option>
+                </select>
+              </label>
+
+              <label class="setting">
+                <span class="setting__label">Fonts
+                  <span class="setting__hint">Which families it has installed.</span>
+                </span>
+                <select id="sheet-fonts" class="picker">
+                  <option value="">Automatic</option>
+                  <option value="full">Full (209 families)</option>
+                  <option value="core">Core only (14)</option>
+                  <option value="wide">Without DejaVu</option>
+                  <option value="liberation">Liberation only</option>
+                  <option value="noto">Noto only</option>
+                </select>
+              </label>
+
+              <label class="setting">
+                <span class="setting__label">Browser language
+                  <span class="setting__hint">Keep it plausible for your location.</span>
+                </span>
+                <select id="sheet-language" class="picker">
+                  <option value="">Default</option>
+                  <option value="en-GB">English (UK)</option>
+                  <option value="en-US">English (US)</option>
+                  <option value="en-IN">English (India)</option>
+                  <option value="fr-FR">French</option>
+                  <option value="de-DE">German</option>
+                </select>
+              </label>
+            </div>
+          </div>
         </div>
         <div class="sheet__foot">
           <button type="submit" class="btn-primary" id="sheet-submit">Create bot</button>

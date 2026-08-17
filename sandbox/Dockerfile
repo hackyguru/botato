@@ -17,7 +17,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       xvfb x11vnc x11-utils x11-xserver-utils xdotool scrot \
       openbox tint2 xterm dbus-x11 xdg-utils \
       python3 python3-pil \
+      # A desktop with no audio device at all is unusual; a null sink gives the
+      # browser something ordinary to enumerate without any hardware.
+      pulseaudio \
       chromium \
+      # A second engine, so two bots can be genuinely different browsers rather
+      # than the same build with different window sizes. Gecko differs from Blink
+      # in canvas rasterisation, font metrics, JS behaviour and TLS handshake —
+      # none of which spoofing can honestly reproduce. Costs ~253MB.
+      firefox-esr \
       pcmanfm mousepad \
       git curl wget nano less unzip jq \
     && (apt-get install -y --no-install-recommends websockify \

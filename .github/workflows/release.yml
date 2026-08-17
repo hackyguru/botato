@@ -1,0 +1,110 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build, e.g. v0.2.0"
+        required: true
+
+jobs:
+  # Fails in seconds rather than after three platform builds have run.
+  verify:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tag matches the version in the app
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: node .github/scripts/check-version.mjs "$TAG"
+
+  build:
+    needs: verify
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            label: macOS (Apple silicon)
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            label: macOS (Intel)
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            label: Linux
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: System dependencies
+        if: startsWith(matrix.platform, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
+            libxdo-dev libssl-dev patchelf file
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.target }}
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signing and notarisation happen only once these exist. Without them
+          # the build still succeeds and produces an unsigned bundle, which
+          # Gatekeeper will refuse on anyone else's machine — so the release
+          # notes below say so rather than letting people find out.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          tagName: ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: botcage ${{ github.event.inputs.tag || github.ref_name }}
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.target }}
+          releaseBody: |
+            Local bots, each a persistent Claude Code session with its own memory
+            and optionally its own sandboxed Linux desktop.
+
+            **Before it will run**, botcage needs the Claude Code CLI installed
+            and signed in — it drives that rather than shipping a model of its
+            own. Everything else (chat, memory, routines, connectors, plugins)
+            works with nothing further.
+
+            A bot's *computer* is optional and off by default. Switch it on and
+            botcage sets up a container engine itself; the Linux desktop image is
+            built on first use and takes a few minutes.
+
+            > macOS builds are unsigned until a Developer ID is configured, so
+            > Gatekeeper will block them. Right-click → Open, or run
+            > `xattr -dr com.apple.quarantine /Applications/botcage.app`.

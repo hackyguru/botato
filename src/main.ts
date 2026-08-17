@@ -59,6 +59,17 @@ interface Bot {
   routines?: Routine[];
   /** MCP server keys this bot may use. Absent means none. */
   plugins?: string[];
+  /** How this bot's computer presents itself. Absent fields follow the app
+   *  defaults; set ones make it a different machine from its siblings. */
+  machine?: {
+    browser?: string;
+    rendering?: string;
+    screen?: string;
+    cores?: number;
+    window?: string;
+    fonts?: string;
+    language?: string;
+  };
 }
 
 /** One plugin offered by a Claude Code marketplace. */
@@ -221,6 +232,28 @@ const sheetDelete = $<HTMLButtonElement>("#sheet-delete");
 const sheetComputer = $<HTMLInputElement>("#sheet-computer");
 const sheetNetwork = $<HTMLSelectElement>("#sheet-network");
 const sheetModel = $<HTMLSelectElement>("#sheet-model");
+const sheetBrowser = $<HTMLSelectElement>("#sheet-browser");
+const sheetRendering = $<HTMLSelectElement>("#sheet-rendering");
+const sheetScreen = $<HTMLSelectElement>("#sheet-screen");
+const sheetCores = $<HTMLSelectElement>("#sheet-cores");
+const sheetWindow = $<HTMLSelectElement>("#sheet-window");
+const sheetFonts = $<HTMLSelectElement>("#sheet-fonts");
+const sheetLanguage = $<HTMLSelectElement>("#sheet-language");
+
+/** Only what the user actually chose, so "Default" stays a default rather than
+ *  being frozen into the bot the first time its settings are saved. */
+function machineFromSheet(): Bot["machine"] {
+  const chosen = {
+    browser: sheetBrowser.value || undefined,
+    rendering: sheetRendering.value || undefined,
+    screen: sheetScreen.value || undefined,
+    cores: sheetCores.value ? Number(sheetCores.value) : undefined,
+    window: sheetWindow.value || undefined,
+    fonts: sheetFonts.value || undefined,
+    language: sheetLanguage.value || undefined,
+  };
+  return Object.values(chosen).some((value) => value !== undefined) ? chosen : undefined;
+}
 const routineList = $<HTMLDivElement>("#routine-list");
 const routineForm = $<HTMLDivElement>("#routine-form");
 const routineName = $<HTMLInputElement>("#routine-name");
@@ -670,8 +703,8 @@ async function respond(bot: Bot, prompt: string): Promise<void> {
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? "",
           locale: navigator.language ?? "",
           network: bot.network,
-          screen: appSettings().screen,
           github: (bot.plugins ?? []).includes("github"),
+          ...machineBrand(bot),
         },
         plugins: bot.plugins ?? [],
         // Everything else this machine offers, named so it can be denied: the
@@ -889,11 +922,26 @@ function openSheet(bot: Bot | null = null): void {
   sheetComputer.checked = bot?.computer ?? false;
   sheetNetwork.value = bot?.network ?? "full";
   sheetModel.value = bot?.model ?? appSettings().model;
+  sheetBrowser.value = bot?.machine?.browser ?? "";
+  sheetRendering.value = bot?.machine?.rendering ?? "";
+  // Say what "Automatic" resolved to, or the tab reads as though nothing is set
+  // while the machine is in fact distinct.
+  const resolved = machineProfile(bot);
+  $<HTMLParagraphElement>("#sheet-machine-note").textContent =
+    `Automatic here means ${resolved.browser} at ${resolved.screen}, ${resolved.cores} cores, ` +
+    `${resolved.fonts} fonts, ${resolved.rendering} text — derived from this bot's id, so no two ` +
+    `bots get the same machine.`;
+  sheetScreen.value = bot?.machine?.screen ?? "";
+  sheetCores.value = bot?.machine?.cores ? String(bot.machine.cores) : "";
+  sheetWindow.value = bot?.machine?.window ?? "";
+  sheetFonts.value = bot?.machine?.fonts ?? "";
+  sheetLanguage.value = bot?.machine?.language ?? "";
   renderSheetPreview();
   // Only an existing bot can be deleted, and the confirm never carries over
   // from a previous visit to this sheet.
   sheetDelete.hidden = !bot;
   disarmDelete();
+  showSheetTab("general");
   sheetWrap.hidden = false;
   sheetName.focus();
 }
@@ -1656,6 +1704,66 @@ pluginsBody.addEventListener("click", (event) => {
     });
 });
 
+/** What a machine can vary by — all real settings, not claims to be something
+ *  else. The order must stay stable: a bot's machine is derived from its id, so
+ *  reordering would silently change an existing bot's fingerprint. */
+const MACHINE_CHOICES = {
+  browser: ["chromium", "firefox"],
+  rendering: ["slight", "full", "none", "subpix"],
+  screen: ["1280x800", "1440x900", "1512x982", "1680x1050", "1920x1080"],
+  window: ["1100x740", "1280x800", "1400x860", "1600x980"],
+  fonts: ["full", "core", "wide", "liberation", "noto"],
+  cores: ["2", "4", "6", "8"],
+} as const;
+
+/** Stable per bot and per field, so ten bots get ten different machines with
+ *  nobody configuring them, and each keeps the same one for life. */
+function derived(botId: string, field: keyof typeof MACHINE_CHOICES): string {
+  const options = MACHINE_CHOICES[field];
+  let hash = 2166136261;
+  for (const ch of `${botId}:${field}`) {
+    hash = ((hash ^ ch.charCodeAt(0)) * 16777619) >>> 0;
+  }
+  return options[hash % options.length];
+}
+
+/** What this bot's machine resolves to: its own choices where it has them, its
+ *  derived defaults elsewhere. */
+function machineProfile(bot: Bot | null | undefined): Record<string, string> {
+  const id = bot?.id ?? "unassigned";
+  const chosen = (bot?.machine ?? {}) as Record<string, unknown>;
+  const pick = (field: keyof typeof MACHINE_CHOICES) => {
+    const value = chosen[field];
+    return value === undefined || value === "" ? derived(id, field) : String(value);
+  };
+  return {
+    browser: pick("browser"),
+    rendering: pick("rendering"),
+    screen: pick("screen"),
+    window: pick("window"),
+    fonts: pick("fonts"),
+    cores: pick("cores"),
+  };
+}
+
+/** The machine half of a brand: the bot's own choices, or the app defaults.
+ *  Locale doubles as the browser language, so a per-bot language overrides it —
+ *  timezone deliberately does not, since it should agree with the IP. */
+function machineBrand(bot: Bot | null | undefined): Record<string, unknown> {
+  const machine = machineProfile(bot);
+  return {
+    browser: machine.browser,
+    rendering: machine.rendering,
+    screen: machine.screen,
+    window: machine.window,
+    fonts: machine.fonts,
+    cores: Number(machine.cores),
+    // Language follows the host unless chosen: a browser announcing French from
+    // a London address is a stronger signal than the one it removes.
+    locale: bot?.machine?.language || navigator.language || "",
+  };
+}
+
 /** What this machine offers. Discovered once, then reused. */
 let plugins: Plugin[] = [];
 let connectors: Connector[] = [];
@@ -1725,6 +1833,7 @@ function saveSheet(): void {
       computer: sheetComputer.checked,
       network: sheetNetwork.value as Bot["network"],
       model: sheetModel.value,
+      machine: machineFromSheet(),
     });
     sheetWrap.hidden = true;
     editing = null;
@@ -1761,6 +1870,7 @@ function createBot(): void {
     computer: sheetComputer.checked,
     network: sheetNetwork.value as Bot["network"],
     model: sheetModel.value || appSettings().model,
+    machine: machineFromSheet(),
     plugins: [],
     routines: [],
     messages: [],
@@ -1817,21 +1927,31 @@ async function openAbout(): Promise<void> {
   $<HTMLParagraphElement>("#about-version").textContent = version ? `Version ${version}` : "";
 }
 
-const settingsTabs = Array.from(document.querySelectorAll<HTMLButtonElement>("#app-settings .tab"));
-const settingsPanels = Array.from(document.querySelectorAll<HTMLElement>("#app-settings .settings-panel"));
+/** Wire one modal's tab strip to its panels, scoped to that modal. Two dialogs
+ *  now use tabs, and querying `.tabs .tab` across the document is exactly how
+ *  one strip ended up clearing the other's selection. Returns the setter, so the
+ *  caller can reset to the first tab when it opens. */
+function wireTabs(root: HTMLElement): (name: string) => void {
+  const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>(".tabs .tab"));
+  const panels = Array.from(root.querySelectorAll<HTMLElement>(".settings-panel"));
 
-function showSettingsTab(name: string): void {
-  for (const tab of settingsTabs) {
-    tab.setAttribute("aria-selected", String(tab.dataset.tab === name));
+  const show = (name: string) => {
+    for (const tab of tabs) {
+      tab.setAttribute("aria-selected", String(tab.dataset.tab === name));
+    }
+    for (const panel of panels) {
+      panel.hidden = panel.dataset.tab !== name;
+    }
+  };
+
+  for (const tab of tabs) {
+    tab.addEventListener("click", () => show(tab.dataset.tab ?? ""));
   }
-  for (const panel of settingsPanels) {
-    panel.hidden = panel.dataset.tab !== name;
-  }
+  return show;
 }
 
-for (const tab of settingsTabs) {
-  tab.addEventListener("click", () => showSettingsTab(tab.dataset.tab ?? "general"));
-}
+const showSettingsTab = wireTabs($<HTMLElement>("#app-settings"));
+const showSheetTab = wireTabs($<HTMLElement>("#sheet-wrap"));
 
 async function openAppSettings(): Promise<void> {
   showSettingsTab("general");
@@ -2536,8 +2656,8 @@ startBtn.addEventListener("click", () => {
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? "",
       locale: navigator.language ?? "",
       network: bot?.network ?? "full",
-      screen: appSettings().screen,
       github: (bot?.plugins ?? []).includes("github"),
+      ...machineBrand(bot),
     },
   }).catch((err) => {
     screen.state = "error";
@@ -2785,8 +2905,8 @@ menu.addEventListener("click", (e) => {
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? "",
           locale: navigator.language ?? "",
           network: subject.network,
-          screen: appSettings().screen,
           github: (subject.plugins ?? []).includes("github"),
+          ...machineBrand(subject),
         },
       }).catch((err) => toast(String(err)));
       return;

@@ -1202,7 +1202,8 @@ textarea {
 
 /* Direct children only: the name and role fields, not the switch nested in a
    setting row — which this rule was stretching to full width and 38px tall. */
-.sheet__body > input {
+.sheet__body > input,
+.settings-panel > input {
   width: 100%;
   height: 38px;
   padding: 0 12px;
@@ -1649,6 +1650,19 @@ a.detail__source:hover {
   flex-direction: column;
   gap: 10px;
   width: 100%;
+}
+
+/* These sat in a centring flex body before they moved into a panel. */
+.settings-panel > .sheet__preview,
+.settings-panel > .swatches {
+  align-self: center;
+}
+
+.machine__note {
+  margin: 0 2px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-3);
 }
 
 .settings-panel[hidden] {

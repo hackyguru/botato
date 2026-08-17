@@ -11,12 +11,37 @@ import io
 import json
 import os
 import subprocess
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 PORT = int(os.environ.get("CONTROL_PORT", "6081"))
 ENV = {**os.environ, "DISPLAY": os.environ.get("DISPLAY", ":1")}
 SHOT = "/tmp/botcage-shot.png"
+
+
+def glide(x, y, steps=14):
+    """Move the pointer through the space between, instead of teleporting.
+
+    A single `mousemove` jumps: the pointer is at one place, then another, with
+    nothing in between. Interpolating is also simply more correct — hover states,
+    drag handles, menus that open on enter and canvas tools that track motion all
+    need the intermediate events to behave the way they do for a person.
+    """
+    try:
+        start = sh(["xdotool", "getmouselocation", "--shell"]).stdout
+        at = dict(line.split("=", 1) for line in start.strip().splitlines() if "=" in line)
+        x0, y0 = int(at.get("X", x)), int(at.get("Y", y))
+    except Exception:
+        x0, y0 = x, y
+
+    for step in range(1, steps + 1):
+        # Ease out, so it slows as it arrives rather than stopping dead.
+        t = step / steps
+        eased = 1 - (1 - t) * (1 - t)
+        sh(["xdotool", "mousemove",
+            str(int(x0 + (x - x0) * eased)), str(int(y0 + (y - y0) * eased))])
+        time.sleep(0.008)
 
 
 def sh(args, timeout=30):
@@ -51,12 +76,12 @@ BUTTONS = {"left": "1", "middle": "2", "right": "3"}
 
 def act(action, body):
     if action == "move":
-        sh(["xdotool", "mousemove", str(body["x"]), str(body["y"])])
+        glide(int(body["x"]), int(body["y"]))
         return {"ok": True}
 
     if action == "click":
         button = BUTTONS.get(body.get("button", "left"), "1")
-        sh(["xdotool", "mousemove", str(body["x"]), str(body["y"])])
+        glide(int(body["x"]), int(body["y"]))
         sh(["xdotool", "click", "--repeat", str(body.get("count", 1)), button])
         return {"ok": True}
 

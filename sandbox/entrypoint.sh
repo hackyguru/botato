@@ -47,6 +47,40 @@ esac
 git config --global user.name "${BOT_NAME:-botcage}" 2>/dev/null || true
 git config --global user.email "${BOT_NAME:-botcage}@botcage.local" 2>/dev/null || true
 
+# How this desktop draws text, and which families it has. Both change what a
+# canvas fingerprint comes out as — verified: the same drawing produces four
+# different hashes across these settings — so two bots configured differently are
+# genuinely different machines rather than copies with different window sizes.
+# These are ordinary display settings a real machine varies by desktop and taste.
+case "${FONT_SET:-full}" in
+  core)        reject='<glob>/usr/share/fonts/truetype/liberation*</glob><glob>/usr/share/fonts/truetype/noto*</glob>' ;;
+  wide)        reject='<glob>/usr/share/fonts/truetype/dejavu*</glob>' ;;
+  liberation)  reject='<glob>/usr/share/fonts/truetype/dejavu*</glob><glob>/usr/share/fonts/truetype/noto*</glob>' ;;
+  noto)        reject='<glob>/usr/share/fonts/truetype/dejavu*</glob><glob>/usr/share/fonts/truetype/liberation*</glob>' ;;
+  *)           reject='' ;;
+esac
+
+case "${TEXT_RENDER:-slight}" in
+  full)   aa=true;  hint=true;  style=hintfull   ; rgba=none ;;
+  none)   aa=false; hint=false; style=hintnone   ; rgba=none ;;
+  subpix) aa=true;  hint=true;  style=hintslight ; rgba=rgb  ;;
+  *)      aa=true;  hint=true;  style=hintslight ; rgba=none ;;
+esac
+
+mkdir -p "$HOME/.config/fontconfig"
+{
+  printf '%s\n' '<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontconfig>'
+  printf '  <match target="font">\n'
+  printf '    <edit name="antialias" mode="assign"><bool>%s</bool></edit>\n' "$aa"
+  printf '    <edit name="hinting" mode="assign"><bool>%s</bool></edit>\n' "$hint"
+  printf '    <edit name="hintstyle" mode="assign"><const>%s</const></edit>\n' "$style"
+  printf '    <edit name="rgba" mode="assign"><const>%s</const></edit>\n' "$rgba"
+  printf '  </match>\n'
+  [ -n "$reject" ] && printf '  <selectfont><rejectfont>%s</rejectfont></selectfont>\n' "$reject"
+  printf '%s\n' '</fontconfig>'
+} > "$HOME/.config/fontconfig/fonts.conf"
+fc-cache -f >/dev/null 2>&1 || true
+
 mkdir -p "$HOME/Desktop" "$HOME/Downloads" "$HOME/work"
 
 # ~/work is the folder shared with the user's machine; make it reachable from the
@@ -62,6 +96,13 @@ rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 2>/dev/null || true
 # the hostname that took it. A recreated container has a new hostname, so a
 # carried-over lock makes Chromium refuse to start.
 rm -f "$HOME/.config/chromium/Singleton"{Lock,Socket,Cookie} 2>/dev/null || true
+
+# A virtual sound card. Nothing plays through it; it exists so the desktop has
+# the audio devices any ordinary machine has.
+pulseaudio --start --exit-idle-time=-1 >/dev/null 2>&1 || true
+pactl load-module module-null-sink sink_name=speakers \
+  sink_properties=device.description=Speakers >/dev/null 2>&1 || true
+pactl load-module module-virtual-source source_name=microphone >/dev/null 2>&1 || true
 
 Xvfb :1 -screen 0 "$SCREEN" -nolisten tcp &
 XVFB=$!

@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A second push to the same branch makes the first run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # Tauri links against the system webview, so the Rust crate will not even
+      # compile without these headers.
+      - name: System dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
+            libxdo-dev libssl-dev patchelf file
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      # The version appears in three files and a release that disagrees with
+      # itself is worse than a failed build, so it is checked on every push
+      # rather than only at tag time.
+      - name: Versions agree
+        run: node .github/scripts/check-version.mjs
+
+      - name: Typecheck and bundle the frontend
+        run: pnpm build
+
+      - name: Rust format
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+
+      - name: Rust lints
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+      # Only the hermetic tests. The rest need the Claude Code CLI, a keychain or
+      # a live service, and are run locally with `cargo test -- --ignored`.
+      - name: Tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+      # Proves the thing a release actually produces, without publishing it.
+      - name: Bundle
+        run: pnpm tauri build --bundles deb
