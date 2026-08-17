@@ -86,7 +86,11 @@ pub fn base64url(bytes: &[u8]) -> String {
     const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     let mut out = String::new();
     for chunk in bytes.chunks(3) {
-        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
         let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
         let take = chunk.len() + 1;
         for i in 0..take {
@@ -138,7 +142,9 @@ mod tests {
         );
         // Spans a block boundary, which is where padding bugs show up.
         assert_eq!(
-            hex(sha256(b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq")),
+            hex(sha256(
+                b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
+            )),
             "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"
         );
     }
@@ -167,6 +173,9 @@ mod tests {
         let a = random_token(32);
         let b = random_token(32);
         assert_ne!(a, b);
-        assert!(a.len() >= 43, "a PKCE verifier must be at least 43 characters");
+        assert!(
+            a.len() >= 43,
+            "a PKCE verifier must be at least 43 characters"
+        );
     }
 }

@@ -36,7 +36,9 @@ static LAST_USED: Mutex<Option<HashMap<String, Instant>>> = Mutex::new(None);
 
 pub fn touch(bot_id: &str) {
     let mut guard = LAST_USED.lock().unwrap();
-    guard.get_or_insert_with(HashMap::new).insert(bot_id.to_string(), Instant::now());
+    guard
+        .get_or_insert_with(HashMap::new)
+        .insert(bot_id.to_string(), Instant::now());
 }
 
 /// The panel calls this while it is connected, so a desktop you are watching is
@@ -64,11 +66,19 @@ fn idle_for(bot_id: &str) -> Duration {
 pub fn start_reaper() {
     std::thread::spawn(|| loop {
         std::thread::sleep(Duration::from_secs(60));
-        let Ok(out) = docker(&["ps", "--format", "{{.Names}}", "--filter", "label=botcage=1"]) else {
+        let Ok(out) = docker(&[
+            "ps",
+            "--format",
+            "{{.Names}}",
+            "--filter",
+            "label=botcage=1",
+        ]) else {
             continue;
         };
         for name in stdout_of(&out).lines() {
-            let Some(bot) = name.strip_prefix("botcage-") else { continue };
+            let Some(bot) = name.strip_prefix("botcage-") else {
+                continue;
+            };
             let limit = *IDLE_MINUTES.lock().unwrap();
             if limit > 0 && idle_for(bot) > Duration::from_secs(limit * 60) {
                 let _ = docker(&["stop", "-t", "6", name]);
@@ -110,7 +120,25 @@ const ENGINES: &[&str] = &["docker", "podman", "nerdctl"];
 #[cfg(target_os = "windows")]
 const ENGINES: &[&str] = &["docker.exe", "podman.exe", "nerdctl.exe"];
 
+/// Set once the app is up, so the sandbox layer can reach the engine botcage
+/// installed without every call needing an AppHandle.
+static MANAGED: Mutex<Option<(PathBuf, Option<String>)>> = Mutex::new(None);
+
+/// Remember botcage's own engine, and where its socket lives. Called at startup
+/// and after an install, so a fresh install is used without a restart.
+pub fn use_managed_engine(client: Option<PathBuf>, host: Option<String>) {
+    *MANAGED.lock().unwrap() = client.map(|path| (path, host));
+}
+
 fn locate_docker() -> Option<PathBuf> {
+    // botcage's own engine first: if the user let us install one, that is the
+    // one they expect to be running, whatever else happens to be on PATH.
+    if let Some((path, _)) = MANAGED.lock().unwrap().clone() {
+        if path.is_file() {
+            return Some(path);
+        }
+    }
+
     if let Some(raw) = std::env::var_os("DOCKER_BIN") {
         let explicit = PathBuf::from(raw);
         if explicit.is_file() {
@@ -153,8 +181,10 @@ fn docker(args: &[&str]) -> Result<Output, String> {
     let bin = locate_docker().ok_or("Docker CLI not found")?;
     let mut cmd = Command::new(bin);
     cmd.args(args);
+    with_socket(&mut cmd);
     quiet(&mut cmd);
-    cmd.output().map_err(|e| format!("docker {}: {e}", args.join(" ")))
+    cmd.output()
+        .map_err(|e| format!("docker {}: {e}", args.join(" ")))
 }
 
 /// Sign the bot's CLI in, or sign it out, inside a container that is already
@@ -174,10 +204,17 @@ pub fn sync_github(bot_id: &str, token: Option<&str>) {
             // `gh auth login --with-token`, which validates scopes and refuses
             // any token without `repo` — including the public-only ones this
             // app deliberately offers.
-            let config = format!("github.com:\n    oauth_token: {token}\n    git_protocol: https\n");
+            let config =
+                format!("github.com:\n    oauth_token: {token}\n    git_protocol: https\n");
             let _ = docker_stdin(
                 &[
-                    "exec", "-i", "-u", "bot", &name, "sh", "-c",
+                    "exec",
+                    "-i",
+                    "-u",
+                    "bot",
+                    &name,
+                    "sh",
+                    "-c",
                     "mkdir -p ~/.config/gh && cat > ~/.config/gh/hosts.yml \
                      && chmod 600 ~/.config/gh/hosts.yml",
                 ],
@@ -185,14 +222,26 @@ pub fn sync_github(bot_id: &str, token: Option<&str>) {
             );
             // So `git push` works too, not only `gh`.
             let _ = docker(&[
-                "exec", "-u", "bot", &name,
-                "git", "config", "--global", "credential.helper", "!gh auth git-credential",
+                "exec",
+                "-u",
+                "bot",
+                &name,
+                "git",
+                "config",
+                "--global",
+                "credential.helper",
+                "!gh auth git-credential",
             ]);
         }
         None => {
             let _ = docker(&[
-                "exec", "-u", "bot", &name,
-                "sh", "-c", "rm -f ~/.config/gh/hosts.yml",
+                "exec",
+                "-u",
+                "bot",
+                &name,
+                "sh",
+                "-c",
+                "rm -f ~/.config/gh/hosts.yml",
             ]);
         }
     }
@@ -203,13 +252,28 @@ pub fn sync_github(bot_id: &str, token: Option<&str>) {
 fn docker_stdin(args: &[&str], input: &str) -> Result<Output, String> {
     let bin = locate_docker().ok_or("Docker CLI not found")?;
     let mut cmd = Command::new(bin);
-    cmd.args(args).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
-    let mut child = cmd.spawn().map_err(|e| format!("docker {}: {e}", args.join(" ")))?;
+    cmd.args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    with_socket(&mut cmd);
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("docker {}: {e}", args.join(" ")))?;
     if let Some(mut pipe) = child.stdin.take() {
         use std::io::Write;
-        pipe.write_all(input.as_bytes()).map_err(|e| e.to_string())?;
+        pipe.write_all(input.as_bytes())
+            .map_err(|e| e.to_string())?;
     }
     child.wait_with_output().map_err(|e| e.to_string())
+}
+
+/// On macOS the engine lives in a VM, so the client needs telling where its
+/// socket is; on Linux podman talks to nothing and this does nothing.
+fn with_socket(cmd: &mut Command) {
+    if let Some((_, Some(host))) = MANAGED.lock().unwrap().clone() {
+        cmd.env("DOCKER_HOST", host);
+    }
 }
 
 fn stdout_of(output: &Output) -> String {
@@ -257,9 +321,15 @@ pub fn docker_info() -> DockerInfo {
         Ok(_) => DockerInfo {
             path: Some(bin.display().to_string()),
             version: None,
-            error: Some("Docker is installed but the daemon isn't running — start it and retry".into()),
+            error: Some(
+                "Docker is installed but the daemon isn't running — start it and retry".into(),
+            ),
         },
-        Err(err) => DockerInfo { path: Some(bin.display().to_string()), version: None, error: Some(err) },
+        Err(err) => DockerInfo {
+            path: Some(bin.display().to_string()),
+            version: None,
+            error: Some(err),
+        },
     }
 }
 
@@ -292,7 +362,13 @@ fn emit_state(app: &AppHandle, bot_id: &str, state: &str, vnc: Option<u16>, cont
 fn slug(bot_id: &str) -> String {
     bot_id
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
         .collect()
 }
 
@@ -339,7 +415,9 @@ fn published_port(name: &str, container_port: &str) -> Option<u16> {
 #[cfg(unix)]
 fn share_with_container(dir: &Path) {
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
-    let Ok(meta) = std::fs::metadata(dir) else { return };
+    let Ok(meta) = std::fs::metadata(dir) else {
+        return;
+    };
     if meta.uid() == 1000 {
         return;
     }
@@ -362,7 +440,8 @@ fn free_port() -> Result<u16, String> {
 /// desktop itself answers.
 fn health_ok(port: u16) -> bool {
     let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
-    let Ok(mut stream) = TcpStream::connect_timeout(&addr.into(), Duration::from_millis(700)) else {
+    let Ok(mut stream) = TcpStream::connect_timeout(&addr.into(), Duration::from_millis(700))
+    else {
         return false;
     };
     let _ = stream.set_read_timeout(Some(Duration::from_millis(2000)));
@@ -416,7 +495,9 @@ fn sandbox_dir(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn image_exists() -> bool {
-    docker(&["image", "inspect", IMAGE]).map(|o| o.status.success()).unwrap_or(false)
+    docker(&["image", "inspect", IMAGE])
+        .map(|o| o.status.success())
+        .unwrap_or(false)
 }
 
 /// Build the image, streaming progress out as log events — first run pulls a
@@ -466,7 +547,11 @@ pub struct SandboxState {
 #[tauri::command]
 pub fn sandbox_status(sandboxes: tauri::State<Sandboxes>, bot_id: String) -> SandboxState {
     if sandboxes.0.lock().unwrap().contains(&bot_id) {
-        return SandboxState { state: "starting".into(), vnc_port: None, control_port: None };
+        return SandboxState {
+            state: "starting".into(),
+            vnc_port: None,
+            control_port: None,
+        };
     }
     let name = container_of(&bot_id);
     match container_running(&name) {
@@ -475,7 +560,11 @@ pub fn sandbox_status(sandboxes: tauri::State<Sandboxes>, bot_id: String) -> San
             vnc_port: published_port(&name, "6080/tcp"),
             control_port: published_port(&name, "6081/tcp"),
         },
-        _ => SandboxState { state: "stopped".into(), vnc_port: None, control_port: None },
+        _ => SandboxState {
+            state: "stopped".into(),
+            vnc_port: None,
+            control_port: None,
+        },
     }
 }
 
@@ -493,6 +582,29 @@ pub struct BotBrand {
     network: Option<String>,
     /// "1440x900" and so on; the image defaults when absent.
     pub screen: Option<String>,
+    /// How many cores the desktop reports. Set with a cpuset rather than a quota:
+    /// `--cpus` throttles without changing what the machine says it has, so a
+    /// page still sees every core the host owns.
+    #[serde(default)]
+    pub cores: Option<u32>,
+    /// The browser window, which is not the same thing as the screen and differs
+    /// between real people.
+    #[serde(default)]
+    pub window: Option<String>,
+    /// Which font families exist. Enumeration and text metrics are among the
+    /// heavier fingerprint signals, so this is a real difference between bots.
+    #[serde(default)]
+    pub fonts: Option<String>,
+    /// Which browser engine the desktop runs. The single largest honest
+    /// difference between two bots: a different engine differs in canvas, font
+    /// metrics, JS behaviour and even TLS handshake.
+    #[serde(default)]
+    pub browser: Option<String>,
+    /// Antialiasing, hinting and subpixel order. Ordinary display settings, and
+    /// each combination rasterises text differently — which is what a canvas
+    /// fingerprint is measuring.
+    #[serde(default)]
+    pub rendering: Option<String>,
     /// Whether this bot was granted GitHub. The token itself is fetched from the
     /// keychain here rather than carried through the frontend and the brand.
     #[serde(default)]
@@ -537,10 +649,17 @@ pub fn sandbox_start(
             ensure_desktop(&bot_id, &brand, &work, context.as_deref(), &logger)
         })();
         touch(&bot_id);
-        app_handle.state::<Sandboxes>().0.lock().unwrap().remove(&bot_id);
+        app_handle
+            .state::<Sandboxes>()
+            .0
+            .lock()
+            .unwrap()
+            .remove(&bot_id);
 
         match result {
-            Ok((vnc, control)) => emit_state(&app_handle, &bot_id, "running", Some(vnc), Some(control)),
+            Ok((vnc, control)) => {
+                emit_state(&app_handle, &bot_id, "running", Some(vnc), Some(control))
+            }
             Err(err) => {
                 emit_log(&app_handle, &bot_id, &err);
                 emit_state(&app_handle, &bot_id, "error", None, None);
@@ -569,8 +688,12 @@ pub fn ensure_desktop(
     let name = container_of(bot_id);
 
     if !image_exists() {
-        log("building", "Building the sandbox image (first run takes a few minutes)…");
-        let dir = build_context.ok_or("the sandbox image is missing and this process cannot build it")?;
+        log(
+            "building",
+            "Building the sandbox image (first run takes a few minutes)…",
+        );
+        let dir =
+            build_context.ok_or("the sandbox image is missing and this process cannot build it")?;
         build_image(bot_id, dir, log)?;
     }
 
@@ -578,8 +701,10 @@ pub fn ensure_desktop(
 
     let (vnc, control) = match container_running(&name) {
         Some(true) => (
-            published_port(&name, "6080/tcp").ok_or("container is running but port 6080 isn't published")?,
-            published_port(&name, "6081/tcp").ok_or("container is running but port 6081 isn't published")?,
+            published_port(&name, "6080/tcp")
+                .ok_or("container is running but port 6080 isn't published")?,
+            published_port(&name, "6081/tcp")
+                .ok_or("container is running but port 6081 isn't published")?,
         ),
         Some(false) => {
             log("starting", "Waking the existing desktop…");
@@ -611,6 +736,15 @@ pub fn ensure_desktop(
             let bot_color = format!("BOT_COLOR={}", brand.color.clone().unwrap_or_default());
             let tz = format!("TZ={}", sane(&brand.timezone, &['/', '_', '-', '+']));
             let lang = format!("BROWSER_LANG={}", sane(&brand.locale, &['-']));
+            // Pinning to a range is what makes the count visible inside; a quota
+            // does not. Clamped because an out-of-range cpuset refuses to start.
+            let cores = brand.cores.unwrap_or(2).clamp(1, 8);
+            let cpuset = format!("0-{}", cores - 1);
+            let window = format!("BROWSER_WINDOW={}", sane(&brand.window, &['x']));
+            let fonts = format!("FONT_SET={}", sane(&brand.fonts, &['-']));
+            let engine = format!("BROWSER_ENGINE={}", sane(&brand.browser, &['-']));
+            let render = format!("TEXT_RENDER={}", sane(&brand.rendering, &['-']));
+
             let screen = match sane(&brand.screen, &['x']).as_str() {
                 "" => "SCREEN=1440x900x24".to_string(),
                 size => format!("SCREEN={size}x24"),
@@ -625,26 +759,45 @@ pub fn ensure_desktop(
             };
             let policy_env = format!("NETWORK_POLICY={policy}");
             let mut args: Vec<&str> = vec![
-                "run", "-d",
-                "--name", &name,
-                "--label", "botcage=1",
-                "--shm-size", "512m",
+                "run",
+                "-d",
+                "--name",
+                &name,
+                "--label",
+                "botcage=1",
+                "--shm-size",
+                "512m",
                 // A desktop idles at ~130MB and ~3% CPU, but a browser that
                 // wanders into a spin will happily eat a core, and a runaway
                 // process should never be able to starve the host.
-                "--cpus", "2",
-                "--memory", "3g",
-                "--pids-limit", "512",
-                "-e", &bot_name,
-                "-e", &bot_color,
-                "-e", &tz,
-                "-e", &lang,
-                "-e", &screen,
-                "-v", &volume,
-                "-v", &work_map,
-                "-p", &vnc_map,
-                "-p", &control_map,
+                "--memory",
+                "3g",
+                "--pids-limit",
+                "512",
+                "-e",
+                &bot_name,
+                "-e",
+                &bot_color,
+                "-e",
+                &tz,
+                "-e",
+                &lang,
+                "-e",
+                &screen,
+                "-v",
+                &volume,
+                "-v",
+                &work_map,
+                "-p",
+                &vnc_map,
+                "-p",
+                &control_map,
             ];
+            args.extend(["--cpuset-cpus", &cpuset]);
+            args.extend(["-e", &window]);
+            args.extend(["-e", &fonts]);
+            args.extend(["-e", &engine]);
+            args.extend(["-e", &render]);
             args.extend(["-e", &policy_env]);
             if policy != "full" {
                 // Needed to install its own egress rules, and nothing more.
@@ -752,7 +905,9 @@ pub fn rebuild_image(app: AppHandle) -> Result<(), String> {
 
 /// Best-effort: leave no desktops running after the app quits.
 pub fn stop_all() {
-    let Ok(out) = docker(&["ps", "-q", "--filter", "label=botcage=1"]) else { return };
+    let Ok(out) = docker(&["ps", "-q", "--filter", "label=botcage=1"]) else {
+        return;
+    };
     let ids: Vec<String> = stdout_of(&out).lines().map(str::to_string).collect();
     if ids.is_empty() {
         return;

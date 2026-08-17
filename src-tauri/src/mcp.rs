@@ -57,8 +57,12 @@ pub(crate) fn request(
          Content-Type: application/json\r\nContent-Length: {}\r\n\r\n",
         payload.len()
     );
-    stream.write_all(head.as_bytes()).map_err(|e| e.to_string())?;
-    stream.write_all(payload.as_bytes()).map_err(|e| e.to_string())?;
+    stream
+        .write_all(head.as_bytes())
+        .map_err(|e| e.to_string())?;
+    stream
+        .write_all(payload.as_bytes())
+        .map_err(|e| e.to_string())?;
 
     let mut raw = Vec::new();
     stream.read_to_end(&mut raw).map_err(|e| e.to_string())?;
@@ -82,7 +86,11 @@ const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012
 fn base64(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
     for chunk in bytes.chunks(3) {
-        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
         let n = u32::from(b[0]) << 16 | u32::from(b[1]) << 8 | u32::from(b[2]);
         for i in 0..4 {
             if i <= chunk.len() {
@@ -248,7 +256,9 @@ fn replay(port: u16, workspace: Option<&PathBuf>, slug: &str) -> Value {
     };
     let parsed: Value = match serde_json::from_str(&raw) {
         Ok(value) => value,
-        Err(err) => return text_result(format!("{} is not valid JSON: {err}", path.display()), true),
+        Err(err) => {
+            return text_result(format!("{} is not valid JSON: {err}", path.display()), true)
+        }
     };
     let Some(events) = parsed["events"].as_array() else {
         return text_result("the demonstration has no events".into(), true);
@@ -257,7 +267,10 @@ fn replay(port: u16, workspace: Option<&PathBuf>, slug: &str) -> Value {
     let mut done = 0;
     for event in events {
         let (endpoint, body) = match event["t"].as_str().unwrap_or_default() {
-            "click" => ("click", json!({ "x": event["x"], "y": event["y"], "button": event["button"] })),
+            "click" => (
+                "click",
+                json!({ "x": event["x"], "y": event["y"], "button": event["button"] }),
+            ),
             "move" => ("move", json!({ "x": event["x"], "y": event["y"] })),
             "key" => ("key", json!({ "keys": event["keys"] })),
             "type" => ("type", json!({ "text": event["text"] })),
@@ -265,7 +278,12 @@ fn replay(port: u16, workspace: Option<&PathBuf>, slug: &str) -> Value {
             other => return text_result(format!("unknown event type: {other}"), true),
         };
 
-        if let Err(err) = request(port, "POST", &format!("/{endpoint}"), Some(&body.to_string())) {
+        if let Err(err) = request(
+            port,
+            "POST",
+            &format!("/{endpoint}"),
+            Some(&body.to_string()),
+        ) {
             return text_result(format!("replay stopped after {done} events: {err}"), true);
         }
         done += 1;
@@ -288,14 +306,20 @@ fn text_result(text: String, is_error: bool) -> Value {
 
 fn call_tool(bot: &Bot, params: &Value) -> Value {
     let name = params["name"].as_str().unwrap_or_default();
-    let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
+    let args = params
+        .get("arguments")
+        .cloned()
+        .unwrap_or_else(|| json!({}));
 
     if name == "start_desktop" {
         let log = |_state: &str, _line: &str| {};
         return match sandbox::ensure_desktop(&bot.id, &bot.brand, &bot.workspace, None, &log) {
             Ok(_) => {
                 sandbox::touch(&bot.id);
-                text_result("the desktop is up. Screenshot it to see where things stand.".into(), false)
+                text_result(
+                    "the desktop is up. Screenshot it to see where things stand.".into(),
+                    false,
+                )
             }
             Err(err) => text_result(format!("could not start the desktop: {err}"), true),
         };
@@ -327,7 +351,10 @@ fn call_tool(bot: &Bot, params: &Value) -> Value {
                 "content": [{ "type": "image", "data": base64(&body), "mimeType": "image/png" }]
             }),
             Ok((status, body)) => text_result(
-                format!("the desktop returned {status}: {}", String::from_utf8_lossy(&body)),
+                format!(
+                    "the desktop returned {status}: {}",
+                    String::from_utf8_lossy(&body)
+                ),
                 true,
             ),
         };
@@ -374,7 +401,9 @@ pub fn serve(bot: Bot) {
         if line.trim().is_empty() {
             continue;
         }
-        let Ok(message) = serde_json::from_str::<Value>(&line) else { continue };
+        let Ok(message) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
         let id = message.get("id").cloned();
         let method = message["method"].as_str().unwrap_or_default();
         let params = message.get("params").cloned().unwrap_or_else(|| json!({}));

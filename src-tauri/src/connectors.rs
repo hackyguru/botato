@@ -269,7 +269,9 @@ pub fn connectors(bot: Option<String>) -> Vec<ConnectorState> {
             } else if !def.google_scopes.is_empty() {
                 read_token(&format!("{}.refresh", def.key)).is_some()
             } else {
-                def.token_label.is_empty() || def.token_optional || token_for(def.key, bot).is_some()
+                def.token_label.is_empty()
+                    || def.token_optional
+                    || token_for(def.key, bot).is_some()
             },
         })
         .collect()
@@ -350,7 +352,8 @@ pub fn server_entry(key: &str, bot: Option<&str>) -> Option<serde_json::Value> {
     } else if !def.token_label.is_empty() {
         match token_for(key, bot) {
             Some(token) => {
-                server["headers"] = serde_json::json!({ "Authorization": format!("Bearer {token}") })
+                server["headers"] =
+                    serde_json::json!({ "Authorization": format!("Bearer {token}") })
             }
             // Required means no server without it; optional means go anyway.
             None if !def.token_optional => return None,
@@ -383,12 +386,18 @@ fn pending() -> &'static Mutex<HashMap<String, PendingAuth>> {
 fn discover(url: &str) -> Result<serde_json::Value, String> {
     let origin = url
         .split_once("://")
-        .and_then(|(scheme, rest)| rest.split_once('/').map(|(host, _)| format!("{scheme}://{host}")))
+        .and_then(|(scheme, rest)| {
+            rest.split_once('/')
+                .map(|(host, _)| format!("{scheme}://{host}"))
+        })
         .unwrap_or_else(|| url.to_string());
 
     let path = url
         .split_once("://")
-        .and_then(|(_, rest)| rest.split_once('/').map(|(_, p)| format!("/{}", p.trim_end_matches('/'))))
+        .and_then(|(_, rest)| {
+            rest.split_once('/')
+                .map(|(_, p)| format!("/{}", p.trim_end_matches('/')))
+        })
         .unwrap_or_default();
 
     // The metadata may sit at the origin, or under the resource's own path.
@@ -408,7 +417,9 @@ fn discover(url: &str) -> Result<serde_json::Value, String> {
         format!("{origin}/.well-known/oauth-protected-resource{path}"),
         format!("{origin}/.well-known/oauth-protected-resource"),
     ] {
-        let Ok(resource) = get_json(&candidate) else { continue };
+        let Ok(resource) = get_json(&candidate) else {
+            continue;
+        };
         let Some(server) = resource
             .get("authorization_servers")
             .and_then(|v| v.as_array())
@@ -609,7 +620,10 @@ fn post_json_body(url: &str, body: &str) -> Result<serde_json::Value, String> {
         .map_err(|e| format!("could not reach {url}: {e}"))?;
     serde_json::from_slice(&out.stdout).map_err(|_| {
         let text = String::from_utf8_lossy(&out.stdout);
-        format!("unexpected reply: {}", text.chars().take(160).collect::<String>())
+        format!(
+            "unexpected reply: {}",
+            text.chars().take(160).collect::<String>()
+        )
     })
 }
 
@@ -732,7 +746,11 @@ pub fn github_device_start(scopes: Vec<String>) -> Result<DeviceCode, String> {
     // user on the approval screen, so it must match what they ticked.
     let asked = scopes
         .iter()
-        .filter(|scope| GITHUB_SCOPE_CHOICES.iter().any(|c| c.scope == scope.as_str()))
+        .filter(|scope| {
+            GITHUB_SCOPE_CHOICES
+                .iter()
+                .any(|c| c.scope == scope.as_str())
+        })
         .map(String::as_str)
         .collect::<Vec<_>>()
         .join(" ");
@@ -889,7 +907,11 @@ pub fn google_finish(key: String, client_id: String, client_secret: String) -> R
 /// bare browser default reads like the flow went wrong.
 fn callback_page(ok: bool) -> String {
     let (mark, heading, body) = if ok {
-        ("#0a84ff", "Connected", "You can close this tab and go back to botcage.")
+        (
+            "#0a84ff",
+            "Connected",
+            "You can close this tab and go back to botcage.",
+        )
     } else {
         (
             "#ff453a",
@@ -967,9 +989,7 @@ fn wait_for_code() -> Result<String, String> {
 fn wait_for_target() -> Result<String, String> {
     let listener = TcpListener::bind(("127.0.0.1", 8765))
         .map_err(|e| format!("could not listen on port 8765 for Google's reply: {e}"))?;
-    listener
-        .set_nonblocking(false)
-        .map_err(|e| e.to_string())?;
+    listener.set_nonblocking(false).map_err(|e| e.to_string())?;
 
     // Give the user time to sign in and consent, but do not wait forever.
     let deadline = Instant::now() + Duration::from_secs(180);
@@ -979,7 +999,11 @@ fn wait_for_target() -> Result<String, String> {
         let read = stream.read(&mut buf).unwrap_or(0);
         let request = String::from_utf8_lossy(&buf[..read]).to_string();
 
-        let target = request.split_whitespace().nth(1).unwrap_or_default().to_string();
+        let target = request
+            .split_whitespace()
+            .nth(1)
+            .unwrap_or_default()
+            .to_string();
         let found = query_value(&target, "code");
         let denied = query_value(&target, "error");
 
@@ -1028,9 +1052,15 @@ fn google_access_token(key: &str) -> Result<String, String> {
         .to_string();
 
     // Expire our copy early, so a turn never starts with a token about to die.
-    let lifetime = token.get("expires_in").and_then(|v| v.as_u64()).unwrap_or(3600);
+    let lifetime = token
+        .get("expires_in")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(3600);
     let until = Instant::now() + Duration::from_secs(lifetime.saturating_sub(120));
-    access_cache().lock().unwrap().insert(key.to_string(), (access.clone(), until));
+    access_cache()
+        .lock()
+        .unwrap()
+        .insert(key.to_string(), (access.clone(), until));
     Ok(access)
 }
 
@@ -1062,7 +1092,10 @@ fn post_json(url: &str, body: &str) -> Result<serde_json::Value, String> {
 
     serde_json::from_slice(&out.stdout).map_err(|_| {
         let text = String::from_utf8_lossy(&out.stdout);
-        format!("unexpected reply: {}", text.chars().take(160).collect::<String>())
+        format!(
+            "unexpected reply: {}",
+            text.chars().take(160).collect::<String>()
+        )
     })
 }
 
@@ -1128,7 +1161,16 @@ const SERVICE: &str = "botcage";
 fn store_token(key: &str, token: &str) -> Result<(), String> {
     let account = format!("{SERVICE}.{key}");
     let out = Command::new("/usr/bin/security")
-        .args(["add-generic-password", "-U", "-a", &account, "-s", SERVICE, "-w", token])
+        .args([
+            "add-generic-password",
+            "-U",
+            "-a",
+            &account,
+            "-s",
+            SERVICE,
+            "-w",
+            token,
+        ])
         .output()
         .map_err(|e| format!("could not reach the keychain: {e}"))?;
     if out.status.success() {
@@ -1180,7 +1222,10 @@ fn store_token(key: &str, token: &str) -> Result<(), String> {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
     let mut tokens = all_tokens();
-    tokens.insert(key.to_string(), serde_json::Value::String(token.to_string()));
+    tokens.insert(
+        key.to_string(),
+        serde_json::Value::String(token.to_string()),
+    );
     let body = serde_json::to_string(&tokens).map_err(|e| e.to_string())?;
     std::fs::write(&path, body).map_err(|e| e.to_string())?;
 
@@ -1214,6 +1259,7 @@ mod tests {
     /// Storing a credential is the whole point; a silent failure here would look
     /// like "connected" in the UI and an unauthenticated server at turn time.
     #[test]
+    #[ignore = "uses the OS keychain; run with --ignored"]
     fn credentials_round_trip() {
         let key = "botcage-selftest";
         delete_token(key);
@@ -1235,6 +1281,7 @@ mod tests {
     /// The premise of this connector type, checked against every server we
     /// ship: one we have never registered with hands us a client on request.
     #[test]
+    #[ignore = "registers with live services; run with --ignored"]
     fn every_oauth_connector_lets_botcage_register_itself() {
         for def in CONNECTORS.iter().filter(|d| d.mcp_oauth) {
             let meta = discover(def.url)
@@ -1268,7 +1315,10 @@ mod tests {
             .expect("calendar is a google connector");
         println!("{url}");
         assert!(!url.contains(' '), "a stray space would break the redirect");
-        assert!(url.contains("access_type=offline"), "needed for a refresh token");
+        assert!(
+            url.contains("access_type=offline"),
+            "needed for a refresh token"
+        );
         assert!(url.contains("calendar.events.readonly"));
         assert!(url.contains("localhost%3A8765%2Fcallback"));
         assert!(google_consent_url("github".into(), "x".into()).is_err());
@@ -1279,7 +1329,10 @@ mod tests {
     fn percent_coding_round_trips() {
         let raw = "https://www.googleapis.com/auth/gmail.readonly a+b";
         assert_eq!(urldecode(&urlencode(raw)), raw);
-        assert_eq!(query_value("/callback?code=4%2F0Ab&state=x", "code").as_deref(), Some("4/0Ab"));
+        assert_eq!(
+            query_value("/callback?code=4%2F0Ab&state=x", "code").as_deref(),
+            Some("4/0Ab")
+        );
         assert_eq!(query_value("/callback?error=access_denied", "code"), None);
     }
 
@@ -1299,24 +1352,39 @@ mod tests {
             assert!(page.starts_with("<!doctype html>"));
             assert!(page.contains("botcage"));
             // Nothing external: the socket closes right after the response.
-            assert!(!page.contains("http://") && !page.contains("https://"), "must be self-contained");
+            assert!(
+                !page.contains("http://") && !page.contains("https://"),
+                "must be self-contained"
+            );
         }
         assert!(callback_page(true).contains("Connected"));
         assert!(callback_page(false).contains("Not connected"));
     }
 
     #[test]
+    #[ignore = "binds a port and shells out to curl; run with --ignored"]
     fn loopback_captures_the_code_google_sends() {
         let handle = std::thread::spawn(wait_for_code);
         std::thread::sleep(Duration::from_millis(300));
 
         let out = Command::new("curl")
-            .args(["-s", "-m", "10", "http://localhost:8765/callback?code=4%2Ftest-code&scope=x"])
+            .args([
+                "-s",
+                "-m",
+                "10",
+                "http://localhost:8765/callback?code=4%2Ftest-code&scope=x",
+            ])
             .output()
             .expect("curl the callback");
         let page = String::from_utf8_lossy(&out.stdout);
-        assert!(page.contains("Connected"), "the browser should land on the success page");
-        assert!(page.contains("botcage"), "the page should say where it came from");
+        assert!(
+            page.contains("Connected"),
+            "the browser should land on the success page"
+        );
+        assert!(
+            page.contains("botcage"),
+            "the page should say where it came from"
+        );
 
         let code = handle.join().expect("thread").expect("a code");
         assert_eq!(code, "4/test-code", "percent-encoded code must be decoded");
@@ -1325,10 +1393,14 @@ mod tests {
     /// A service that works without a key must not be gated behind one — that
     /// is the difference between "add a key for higher limits" and "broken".
     #[test]
+    #[ignore = "uses the OS keychain; run with --ignored"]
     fn an_optional_credential_does_not_gate_the_server() {
         delete_token("context7");
         let entry = server_entry("context7", None).expect("context7 works without a key");
-        assert!(entry.get("headers").is_none(), "no key stored, so no header");
+        assert!(
+            entry.get("headers").is_none(),
+            "no key stored, so no header"
+        );
 
         store_token("context7", "ctx7-key").expect("store");
         let entry = server_entry("context7", None).expect("still works");
@@ -1341,6 +1413,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "uses the OS keychain; run with --ignored"]
     fn granted_connector_becomes_a_server_entry() {
         // One that needs no credential is always usable.
         let entry = server_entry("deepwiki", None).expect("deepwiki needs no token");
@@ -1351,6 +1424,7 @@ mod tests {
     /// The whole point of per-bot connectors: one bot's account must not become
     /// every bot's, and a bot without its own must still get the shared one.
     #[test]
+    #[ignore = "uses the OS keychain; run with --ignored"]
     fn a_bots_own_account_wins_over_the_shared_one() {
         let shared = "github-test";
         let bot = "bot-alpha";
@@ -1361,17 +1435,29 @@ mod tests {
 
         // Shared only: every bot uses it.
         store_token(shared, "shared-token").expect("store shared");
-        assert_eq!(token_for(shared, Some(bot)).as_deref(), Some("shared-token"));
-        assert_eq!(token_for(shared, Some(other)).as_deref(), Some("shared-token"));
+        assert_eq!(
+            token_for(shared, Some(bot)).as_deref(),
+            Some("shared-token")
+        );
+        assert_eq!(
+            token_for(shared, Some(other)).as_deref(),
+            Some("shared-token")
+        );
 
         // One bot brings its own; the other is unaffected.
         store_token(&slot(shared, Some(bot)), "alpha-token").expect("store own");
         assert_eq!(token_for(shared, Some(bot)).as_deref(), Some("alpha-token"));
-        assert_eq!(token_for(shared, Some(other)).as_deref(), Some("shared-token"));
+        assert_eq!(
+            token_for(shared, Some(other)).as_deref(),
+            Some("shared-token")
+        );
 
         // Dropping the bot's own falls back rather than leaving it with nothing.
         delete_token(&slot(shared, Some(bot)));
-        assert_eq!(token_for(shared, Some(bot)).as_deref(), Some("shared-token"));
+        assert_eq!(
+            token_for(shared, Some(bot)).as_deref(),
+            Some("shared-token")
+        );
 
         delete_token(shared);
         assert_eq!(token_for(shared, Some(bot)), None);

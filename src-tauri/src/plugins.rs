@@ -7,11 +7,11 @@
 //! could not actually reach would be worse than not listing it.
 
 use serde::{Deserialize, Serialize};
-use std::io::{BufRead, BufReader};
 use std::collections::HashMap;
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 use std::process::{Command, Stdio};
+use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -32,7 +32,13 @@ pub struct Plugin {
 /// "claude.ai Google Calendar" addresses as `mcp__claude_ai_Google_Calendar__*`.
 fn key_of(name: &str) -> String {
     name.chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -68,7 +74,10 @@ fn probe_with_retries(attempts: u32) -> Vec<Plugin> {
 }
 
 fn cache_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().app_data_dir().map_err(|e| format!("no app data dir: {e}"))?;
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("no app data dir: {e}"))?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.join("plugins.json"))
 }
@@ -189,23 +198,36 @@ pub fn plugin_catalog() -> Result<Vec<CatalogEntry>, String> {
     let installed = installed_ids();
     let health = load_health();
     let root = claude_dir().join("plugins").join("marketplaces");
-    let entries = std::fs::read_dir(&root)
-        .map_err(|_| "No marketplaces configured yet.".to_string())?;
+    let entries =
+        std::fs::read_dir(&root).map_err(|_| "No marketplaces configured yet.".to_string())?;
 
     let mut out = Vec::new();
     for market in entries.flatten() {
-        let manifest = market.path().join(".claude-plugin").join("marketplace.json");
-        let Ok(raw) = std::fs::read_to_string(&manifest) else { continue };
-        let Ok(doc) = serde_json::from_str::<serde_json::Value>(&raw) else { continue };
+        let manifest = market
+            .path()
+            .join(".claude-plugin")
+            .join("marketplace.json");
+        let Ok(raw) = std::fs::read_to_string(&manifest) else {
+            continue;
+        };
+        let Ok(doc) = serde_json::from_str::<serde_json::Value>(&raw) else {
+            continue;
+        };
         let market_name = doc
             .get("name")
             .and_then(|v| v.as_str())
             .map(str::to_string)
             .unwrap_or_else(|| market.file_name().to_string_lossy().into_owned());
 
-        let listed = doc.get("plugins").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+        let listed = doc
+            .get("plugins")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
         for plugin in &listed {
-            let Some(name) = plugin.get("name").and_then(|v| v.as_str()) else { continue };
+            let Some(name) = plugin.get("name").and_then(|v| v.as_str()) else {
+                continue;
+            };
             let id = format!("{name}@{market_name}");
             let (usable, note) = match health.get(name) {
                 Some(h) => {
@@ -253,7 +275,7 @@ pub fn plugin_catalog() -> Result<Vec<CatalogEntry>, String> {
         }
     }
 
-    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    out.sort_by_key(|entry| entry.name.to_lowercase());
     Ok(out)
 }
 
@@ -266,8 +288,14 @@ fn owner_avatar(source: Option<&serde_json::Value>) -> String {
         // marketplace, so the marketplace's own owner is the publisher.
         Some(value) if value.is_string() => "anthropics".to_string(),
         Some(value) => {
-            let url = value.get("url").and_then(|v| v.as_str()).unwrap_or_default();
-            match url.strip_prefix("https://github.com/").and_then(|rest| rest.split('/').next()) {
+            let url = value
+                .get("url")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
+            match url
+                .strip_prefix("https://github.com/")
+                .and_then(|rest| rest.split('/').next())
+            {
                 Some(owner) if !owner.is_empty() => owner.to_string(),
                 _ => return String::new(),
             }
@@ -299,8 +327,13 @@ fn source_url(source: Option<&serde_json::Value>, market: &str) -> String {
 }
 
 fn installed_ids() -> Vec<String> {
-    let Some(bin) = crate::locate_claude() else { return Vec::new() };
-    let Ok(out) = Command::new(bin).args(["plugin", "list", "--json"]).output() else {
+    let Some(bin) = crate::locate_claude() else {
+        return Vec::new();
+    };
+    let Ok(out) = Command::new(bin)
+        .args(["plugin", "list", "--json"])
+        .output()
+    else {
         return Vec::new();
     };
     serde_json::from_slice::<serde_json::Value>(&out.stdout)
@@ -400,19 +433,36 @@ fn config_locations(source: &serde_json::Value, market: &Path) -> Vec<String> {
         let base = market.join(relative.trim_start_matches("./"));
         return vec![
             base.join(".mcp.json").display().to_string(),
-            base.join(".claude-plugin/plugin.json").display().to_string(),
+            base.join(".claude-plugin/plugin.json")
+                .display()
+                .to_string(),
         ];
     }
 
-    let url = source.get("url").and_then(|v| v.as_str()).unwrap_or_default();
+    let url = source
+        .get("url")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
     let sha = source.get("sha").and_then(|v| v.as_str()).unwrap_or("HEAD");
-    let sub = source.get("path").and_then(|v| v.as_str()).unwrap_or_default().trim_matches(|c| c == '.' || c == '/');
-    let Some(repo) = url.strip_prefix("https://github.com/") else { return Vec::new() };
+    let sub = source
+        .get("path")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .trim_matches(|c| c == '.' || c == '/');
+    let Some(repo) = url.strip_prefix("https://github.com/") else {
+        return Vec::new();
+    };
     let repo = repo.trim_end_matches(".git");
-    let prefix = if sub.is_empty() { String::new() } else { format!("{sub}/") };
+    let prefix = if sub.is_empty() {
+        String::new()
+    } else {
+        format!("{sub}/")
+    };
     vec![
         format!("https://raw.githubusercontent.com/{repo}/{sha}/{prefix}.mcp.json"),
-        format!("https://raw.githubusercontent.com/{repo}/{sha}/{prefix}.claude-plugin/plugin.json"),
+        format!(
+            "https://raw.githubusercontent.com/{repo}/{sha}/{prefix}.claude-plugin/plugin.json"
+        ),
     ]
 }
 
@@ -424,14 +474,21 @@ fn read_config(location: &str) -> Option<serde_json::Value> {
         .args(["-sfL", "-m", "15", "-H", "User-Agent: botcage", location])
         .output()
         .ok()?;
-    out.status.success().then(|| serde_json::from_slice(&out.stdout).ok()).flatten()
+    out.status
+        .success()
+        .then(|| serde_json::from_slice(&out.stdout).ok())
+        .flatten()
 }
 
 fn health_of(source: &serde_json::Value, market: &Path) -> Health {
     let mut health = Health::default();
     for location in config_locations(source, market) {
-        let Some(doc) = read_config(&location) else { continue };
-        let Some(servers) = doc.get("mcpServers").and_then(|v| v.as_object()) else { continue };
+        let Some(doc) = read_config(&location) else {
+            continue;
+        };
+        let Some(servers) = doc.get("mcpServers").and_then(|v| v.as_object()) else {
+            continue;
+        };
         if servers.is_empty() {
             continue;
         }
@@ -463,13 +520,30 @@ fn health_of(source: &serde_json::Value, market: &Path) -> Health {
 pub fn verify_catalogue() -> Result<usize, String> {
     let root = claude_dir().join("plugins").join("marketplaces");
     let mut work = Vec::new();
-    for market in std::fs::read_dir(&root).map_err(|e| e.to_string())?.flatten() {
-        let manifest = market.path().join(".claude-plugin").join("marketplace.json");
-        let Ok(raw) = std::fs::read_to_string(&manifest) else { continue };
-        let Ok(doc) = serde_json::from_str::<serde_json::Value>(&raw) else { continue };
-        for plugin in doc.get("plugins").and_then(|v| v.as_array()).cloned().unwrap_or_default() {
-            let (Some(name), Some(source)) = (plugin.get("name").and_then(|v| v.as_str()), plugin.get("source"))
-            else {
+    for market in std::fs::read_dir(&root)
+        .map_err(|e| e.to_string())?
+        .flatten()
+    {
+        let manifest = market
+            .path()
+            .join(".claude-plugin")
+            .join("marketplace.json");
+        let Ok(raw) = std::fs::read_to_string(&manifest) else {
+            continue;
+        };
+        let Ok(doc) = serde_json::from_str::<serde_json::Value>(&raw) else {
+            continue;
+        };
+        for plugin in doc
+            .get("plugins")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default()
+        {
+            let (Some(name), Some(source)) = (
+                plugin.get("name").and_then(|v| v.as_str()),
+                plugin.get("source"),
+            ) else {
                 continue;
             };
             work.push((name.to_string(), source.clone(), market.path()));
@@ -483,7 +557,9 @@ pub fn verify_catalogue() -> Result<usize, String> {
     std::thread::scope(|scope| {
         for _ in 0..12 {
             scope.spawn(|| loop {
-                let Some((name, source, market)) = queue.lock().unwrap().next() else { break };
+                let Some((name, source, market)) = queue.lock().unwrap().next() else {
+                    break;
+                };
                 let health = health_of(&source, &market);
                 found.lock().unwrap().insert(name, health);
             });
@@ -543,10 +619,19 @@ fn front_matter(path: &Path, fallback: &str) -> Component {
     let mut name = fallback.to_string();
     let mut description = String::new();
 
-    if let Some(block) = raw.strip_prefix("---").and_then(|rest| rest.split("---").next()) {
+    if let Some(block) = raw
+        .strip_prefix("---")
+        .and_then(|rest| rest.split("---").next())
+    {
         for line in block.lines() {
-            let Some((key, value)) = line.split_once(':') else { continue };
-            let value = value.trim().trim_matches('"').trim_matches('\'').to_string();
+            let Some((key, value)) = line.split_once(':') else {
+                continue;
+            };
+            let value = value
+                .trim()
+                .trim_matches('"')
+                .trim_matches('\'')
+                .to_string();
             match key.trim() {
                 "name" if !value.is_empty() => name = value,
                 "description" if !value.is_empty() => description = value,
@@ -558,7 +643,9 @@ fn front_matter(path: &Path, fallback: &str) -> Component {
 }
 
 fn components_in(dir: &Path, nested: bool) -> Vec<Component> {
-    let Ok(entries) = std::fs::read_dir(dir) else { return Vec::new() };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
     let mut out: Vec<Component> = entries
         .flatten()
         .filter_map(|entry| {
@@ -584,10 +671,19 @@ fn servers_of(dir: &Path, plugin_name: &str) -> (Vec<PluginServer>, Vec<String>)
     let mut servers = Vec::new();
     let mut vars = Vec::new();
 
-    for candidate in [dir.join(".mcp.json"), dir.join(".claude-plugin").join("plugin.json")] {
-        let Ok(raw) = std::fs::read_to_string(&candidate) else { continue };
-        let Ok(doc) = serde_json::from_str::<serde_json::Value>(&raw) else { continue };
-        let Some(map) = doc.get("mcpServers").and_then(|v| v.as_object()) else { continue };
+    for candidate in [
+        dir.join(".mcp.json"),
+        dir.join(".claude-plugin").join("plugin.json"),
+    ] {
+        let Ok(raw) = std::fs::read_to_string(&candidate) else {
+            continue;
+        };
+        let Ok(doc) = serde_json::from_str::<serde_json::Value>(&raw) else {
+            continue;
+        };
+        let Some(map) = doc.get("mcpServers").and_then(|v| v.as_object()) else {
+            continue;
+        };
 
         for (name, config) in map {
             servers.push(PluginServer {
@@ -621,7 +717,10 @@ fn servers_of(dir: &Path, plugin_name: &str) -> (Vec<PluginServer>, Vec<String>)
 
 fn installed_path(id: &str) -> Option<PathBuf> {
     let bin = crate::locate_claude()?;
-    let out = Command::new(bin).args(["plugin", "list", "--json"]).output().ok()?;
+    let out = Command::new(bin)
+        .args(["plugin", "list", "--json"])
+        .output()
+        .ok()?;
     let list = serde_json::from_slice::<serde_json::Value>(&out.stdout).ok()?;
     list.as_array()?.iter().find_map(|entry| {
         if entry.get("id")?.as_str()? != id {
@@ -663,8 +762,13 @@ pub fn set_plugin_secret(id: String, var: String, value: String) -> Result<(), S
 /// authenticate. Only plugins whose server this bot was actually granted
 /// contribute, so one bot's key is not handed to every session.
 pub fn env_for(granted: &[String]) -> Vec<(String, String)> {
-    let Some(bin) = crate::locate_claude() else { return Vec::new() };
-    let Ok(out) = Command::new(bin).args(["plugin", "list", "--json"]).output() else {
+    let Some(bin) = crate::locate_claude() else {
+        return Vec::new();
+    };
+    let Ok(out) = Command::new(bin)
+        .args(["plugin", "list", "--json"])
+        .output()
+    else {
         return Vec::new();
     };
     let Ok(list) = serde_json::from_slice::<serde_json::Value>(&out.stdout) else {
@@ -673,8 +777,12 @@ pub fn env_for(granted: &[String]) -> Vec<(String, String)> {
 
     let mut env = Vec::new();
     for plugin in list.as_array().unwrap_or(&Vec::new()) {
-        let Some(id) = plugin.get("id").and_then(|v| v.as_str()) else { continue };
-        let Some(path) = plugin.get("installPath").and_then(|v| v.as_str()) else { continue };
+        let Some(id) = plugin.get("id").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        let Some(path) = plugin.get("installPath").and_then(|v| v.as_str()) else {
+            continue;
+        };
         let name = id.split('@').next().unwrap_or(id);
         let (servers, vars) = servers_of(Path::new(path), name);
         if !servers.iter().any(|s| granted.iter().any(|g| g == &s.key)) {
@@ -696,7 +804,10 @@ mod tests {
     #[test]
     fn key_matches_how_claude_code_names_connector_tools() {
         // Observed: mcp__claude_ai_Google_Calendar__create_event
-        assert_eq!(key_of("claude.ai Google Calendar"), "claude_ai_Google_Calendar");
+        assert_eq!(
+            key_of("claude.ai Google Calendar"),
+            "claude_ai_Google_Calendar"
+        );
         assert_eq!(key_of("desktop"), "desktop");
         assert_eq!(key_of("my-server_2"), "my-server_2");
     }
@@ -707,10 +818,14 @@ mod tests {
     /// botcage supplies its own connectors now, so a claude.ai one appearing here
     /// would be a server a bot could be granted but never actually reach.
     #[test]
+    #[ignore = "needs the Claude Code CLI; run with --ignored"]
     fn discovery_excludes_claude_ai_connectors() {
         let found = probe_with_retries(3);
         for plugin in &found {
-            println!("{} | key={} status={}", plugin.name, plugin.key, plugin.status);
+            println!(
+                "{} | key={} status={}",
+                plugin.name, plugin.key, plugin.status
+            );
         }
         assert!(
             found.iter().all(|plugin| !plugin.connector),
@@ -724,20 +839,33 @@ mod tests {
     /// id and the CLI's id ever disagree, the entry looks uninstalled and the
     /// panel offers "Add" for something already present.
     #[test]
+    #[ignore = "needs the Claude Code CLI; run with --ignored"]
     fn an_installed_plugin_is_marked_installed_and_openable() {
         let catalogue = plugin_catalog().expect("catalogue");
         let installed: Vec<_> = catalogue.iter().filter(|e| e.installed).collect();
-        println!("catalogue says installed: {:?}", installed.iter().map(|e| &e.id).collect::<Vec<_>>());
+        println!(
+            "catalogue says installed: {:?}",
+            installed.iter().map(|e| &e.id).collect::<Vec<_>>()
+        );
         println!("cli ids:                  {:?}", installed_ids());
 
         for entry in &installed {
             let detail = plugin_detail(entry.id.clone());
-            println!("  {} → detail {}", entry.id, if detail.is_ok() { "ok" } else { "FAILED" });
-            assert!(detail.is_ok(), "{} is installed but its detail cannot be read", entry.id);
+            println!(
+                "  {} → detail {}",
+                entry.id,
+                if detail.is_ok() { "ok" } else { "FAILED" }
+            );
+            assert!(
+                detail.is_ok(),
+                "{} is installed but its detail cannot be read",
+                entry.id
+            );
         }
     }
 
     #[test]
+    #[ignore = "needs the Claude Code CLI; run with --ignored"]
     fn detail_reads_what_an_installed_plugin_holds() {
         let Ok(detail) = plugin_detail("plugin-dev@claude-plugins-official".into()) else {
             println!("plugin-dev not installed; skipping");
@@ -745,25 +873,42 @@ mod tests {
         };
         println!(
             "skills={} commands={} agents={} servers={}",
-            detail.skills.len(), detail.commands.len(), detail.agents.len(), detail.servers.len()
+            detail.skills.len(),
+            detail.commands.len(),
+            detail.agents.len(),
+            detail.servers.len()
         );
         for skill in detail.skills.iter().take(3) {
-            println!("  skill {} — {}", skill.name, &skill.description[..skill.description.len().min(60)]);
+            println!(
+                "  skill {} — {}",
+                skill.name,
+                &skill.description[..skill.description.len().min(60)]
+            );
         }
         assert!(!detail.skills.is_empty(), "plugin-dev ships skills");
-        assert!(detail.skills.iter().all(|s| !s.description.is_empty()), "each needs a description");
+        assert!(
+            detail.skills.iter().all(|s| !s.description.is_empty()),
+            "each needs a description"
+        );
     }
 
     /// The credential case: context7's server interpolates an API key, and that
     /// is what the Plugins screen has to ask for.
     #[test]
+    #[ignore = "needs the Claude Code CLI; run with --ignored"]
     fn detail_finds_the_credential_a_server_needs() {
         let Ok(detail) = plugin_detail("context7@claude-plugins-official".into()) else {
             println!("context7 not installed; skipping");
             return;
         };
-        println!("servers: {:?}", detail.servers.iter().map(|s| &s.key).collect::<Vec<_>>());
-        println!("secrets: {:?}", detail.secrets.iter().map(|s| &s.var).collect::<Vec<_>>());
+        println!(
+            "servers: {:?}",
+            detail.servers.iter().map(|s| &s.key).collect::<Vec<_>>()
+        );
+        println!(
+            "secrets: {:?}",
+            detail.secrets.iter().map(|s| &s.var).collect::<Vec<_>>()
+        );
         assert_eq!(detail.servers.len(), 1);
         assert_eq!(detail.servers[0].key, "plugin_context7_context7");
         assert!(detail.secrets.iter().any(|s| s.var == "CONTEXT7_API_KEY"));
@@ -781,7 +926,11 @@ mod tests {
         let mut blocked: std::collections::BTreeMap<String, usize> = Default::default();
         for h in health.values() {
             let (ok, why) = h.verdict();
-            if ok { usable += 1 } else { *blocked.entry(why).or_default() += 1 }
+            if ok {
+                usable += 1
+            } else {
+                *blocked.entry(why).or_default() += 1
+            }
         }
         println!("checked {checked}; usable {usable}");
         for (why, n) in &blocked {
@@ -791,20 +940,28 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "needs a marketplace on disk; run with --ignored"]
     fn catalogue_parses_the_marketplace_manifests() {
         let found = plugin_catalog().expect("marketplace manifests should be readable");
         let with_category = found.iter().filter(|p| p.category != "other").count();
         let with_author = found.iter().filter(|p| !p.author.is_empty()).count();
-        println!("catalogue: {} entries, {with_category} categorised, {with_author} with an author", found.len());
+        println!(
+            "catalogue: {} entries, {with_category} categorised, {with_author} with an author",
+            found.len()
+        );
         println!("sample: {:?}", found.first().map(|p| (&p.id, &p.category)));
         assert!(found.len() > 50, "expected a populated catalogue");
     }
 
     #[test]
+    #[ignore = "needs the Claude Code CLI; run with --ignored"]
     fn probe_reaches_the_cli() {
         let found = probe_once().expect("discovery should reach the CLI");
         for plugin in &found {
-            println!("{} | key={} status={} connector={}", plugin.name, plugin.key, plugin.status, plugin.connector);
+            println!(
+                "{} | key={} status={} connector={}",
+                plugin.name, plugin.key, plugin.status, plugin.connector
+            );
         }
         println!("servers seen: {}", found.len());
     }

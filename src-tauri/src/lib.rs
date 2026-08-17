@@ -17,6 +17,7 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, RunEvent};
 
 mod connectors;
+mod engine;
 mod mcp;
 mod oauth;
 mod plugins;
@@ -32,7 +33,9 @@ pub fn serve_mcp() {
 
     mcp::serve(mcp::Bot {
         id: std::env::var("BOTCAGE_BOT").unwrap_or_default(),
-        workspace: std::env::var("BOTCAGE_WORKSPACE").unwrap_or_default().into(),
+        workspace: std::env::var("BOTCAGE_WORKSPACE")
+            .unwrap_or_default()
+            .into(),
         brand,
     });
 }
@@ -86,7 +89,9 @@ struct Running(Mutex<HashMap<String, Child>>);
 /* ------------------------------------------------------------------ locating */
 
 pub(crate) fn home() -> PathBuf {
-    std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default()
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_default()
 }
 
 /// A Finder-launched app inherits almost no PATH, so probe known install
@@ -123,7 +128,10 @@ struct ClaudeInfo {
 #[tauri::command]
 fn claude_info() -> ClaudeInfo {
     let Some(bin) = locate_claude() else {
-        return ClaudeInfo { path: None, version: None };
+        return ClaudeInfo {
+            path: None,
+            version: None,
+        };
     };
     let version = Command::new(&bin)
         .arg("--version")
@@ -132,7 +140,10 @@ fn claude_info() -> ClaudeInfo {
         .and_then(|out| String::from_utf8(out.stdout).ok())
         .map(|out| out.trim().to_string());
 
-    ClaudeInfo { path: Some(bin.display().to_string()), version }
+    ClaudeInfo {
+        path: Some(bin.display().to_string()),
+        version,
+    }
 }
 
 /* -------------------------------------------------------------------- events */
@@ -151,7 +162,12 @@ struct BotEvent {
 fn emit(app: &AppHandle, bot_id: &str, kind: &str, text: Option<String>, detail: Option<Value>) {
     let _ = app.emit(
         "bot-event",
-        BotEvent { bot_id: bot_id.to_string(), kind: kind.to_string(), text, detail },
+        BotEvent {
+            bot_id: bot_id.to_string(),
+            kind: kind.to_string(),
+            text,
+            detail,
+        },
     );
 }
 
@@ -261,7 +277,10 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     let base = format!("{}\n\n{}", req.system_prompt, ROUTINES_PROMPT);
     let (mut allowed, mut system_prompt) = if req.computer {
         sandbox::touch(&req.bot_id);
-        (format!("{TOOLS},{DESKTOP_TOOLS}"), format!("{base}\n\n{DESKTOP_PROMPT}"))
+        (
+            format!("{TOOLS},{DESKTOP_TOOLS}"),
+            format!("{base}\n\n{DESKTOP_PROMPT}"),
+        )
     } else {
         (TOOLS.to_string(), base)
     };
@@ -374,8 +393,14 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
             .map_err(|e| format!("could not send the prompt: {e}"))?;
     }
 
-    let stdout = child.stdout.take().ok_or("no stdout on the claude process")?;
-    let stderr = child.stderr.take().ok_or("no stderr on the claude process")?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or("no stdout on the claude process")?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or("no stderr on the claude process")?;
 
     running.0.lock().unwrap().insert(req.bot_id.clone(), child);
 
@@ -396,7 +421,9 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         let mut spend: Option<Value> = None;
 
         for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-            let Ok(event) = serde_json::from_str::<Value>(&line) else { continue };
+            let Ok(event) = serde_json::from_str::<Value>(&line) else {
+                continue;
+            };
 
             match event["type"].as_str().unwrap_or_default() {
                 "stream_event" => {
@@ -426,7 +453,13 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
                     }
                 }
                 "rate_limit_event" => {
-                    emit(&app_handle, &bot_id, "rate-limit", None, Some(event["rate_limit_info"].clone()));
+                    emit(
+                        &app_handle,
+                        &bot_id,
+                        "rate-limit",
+                        None,
+                        Some(event["rate_limit_info"].clone()),
+                    );
                 }
                 "result" => {
                     if event["is_error"].as_bool().unwrap_or(false) {
@@ -497,7 +530,11 @@ fn cancel(app: AppHandle, running: tauri::State<Running>, bot_id: String) {
 /// transcript, and delete its workspace. The desktop is torn down separately by
 /// `sandbox_destroy` so this stays usable when Docker isn't installed.
 #[tauri::command]
-fn forget_bot(app: AppHandle, running: tauri::State<Running>, bot_id: String) -> Result<(), String> {
+fn forget_bot(
+    app: AppHandle,
+    running: tauri::State<Running>,
+    bot_id: String,
+) -> Result<(), String> {
     if let Some(mut child) = running.0.lock().unwrap().remove(&bot_id) {
         let _ = child.kill();
         let _ = child.wait();
@@ -509,7 +546,13 @@ fn forget_bot(app: AppHandle, running: tauri::State<Running>, bot_id: String) ->
         .display()
         .to_string()
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' { c } else { '-' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' {
+                c
+            } else {
+                '-'
+            }
+        })
         .collect();
     let transcripts = home().join(".claude/projects").join(&encoded);
 
@@ -648,7 +691,10 @@ fn set_login_launch(on: bool) -> Result<(), String> {
 
     if !on {
         if cfg!(target_os = "macos") && path.exists() {
-            let _ = Command::new("/bin/launchctl").args(["unload", "-w"]).arg(&path).output();
+            let _ = Command::new("/bin/launchctl")
+                .args(["unload", "-w"])
+                .arg(&path)
+                .output();
         }
         let _ = fs::remove_file(&path);
         return Ok(());
@@ -679,7 +725,10 @@ fn set_login_launch(on: bool) -> Result<(), String> {
 
     fs::write(&path, body).map_err(|e| format!("could not write {}: {e}", path.display()))?;
     if cfg!(target_os = "macos") {
-        let _ = Command::new("/bin/launchctl").args(["load", "-w"]).arg(&path).output();
+        let _ = Command::new("/bin/launchctl")
+            .args(["load", "-w"])
+            .arg(&path)
+            .output();
     }
     Ok(())
 }
@@ -762,7 +811,11 @@ fn teach_save(
 /// The name a bot chose for an unnamed demonstration, if it wrote one.
 #[tauri::command]
 fn teach_name(app: AppHandle, bot_id: String, slug: String) -> Option<String> {
-    let path = workspace(&app, &bot_id).ok()?.join("teach").join(&slug).join("name.txt");
+    let path = workspace(&app, &bot_id)
+        .ok()?
+        .join("teach")
+        .join(&slug)
+        .join("name.txt");
     let raw = fs::read_to_string(path).ok()?;
     let name = raw.lines().next()?.trim();
     if name.is_empty() {
@@ -811,6 +864,9 @@ pub fn run() {
             teach_save,
             teach_name,
             sandbox::docker_info,
+            engine::engine_status,
+            engine::install_engine,
+            engine::start_engine,
             sandbox::sandbox_status,
             sandbox::sandbox_start,
             sandbox::sandbox_stop,
@@ -821,7 +877,15 @@ pub fn run() {
             sandbox::sandbox_destroy,
             sandbox::sandbox_sync_tools,
         ])
-        .setup(|_app| {
+        .setup(|app| {
+            // If botcage installed its own engine, use that rather than whatever
+            // is on PATH — it is the one the user agreed to.
+            let handle = app.handle().clone();
+            sandbox::use_managed_engine(
+                engine::managed_client(&handle),
+                engine::docker_host(&handle),
+            );
+
             // Bots may switch their own desktops on, so something has to switch
             // idle ones off.
             sandbox::start_reaper();
