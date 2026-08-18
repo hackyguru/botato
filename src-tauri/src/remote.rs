@@ -219,6 +219,7 @@ pub fn remote_start(app: AppHandle) -> Result<u16, String> {
     let listener = TcpListener::bind(("0.0.0.0", PORT))
         .map_err(|e| format!("could not listen on port {PORT}: {e}"))?;
     remote().lock().unwrap().running = true;
+    heartbeat();
 
     std::thread::spawn(move || {
         for stream in listener.incoming() {
@@ -493,11 +494,32 @@ fn subscribe(mut stream: TcpStream) {
     let head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\
                 Cache-Control: no-cache\r\nAccess-Control-Allow-Origin: *\r\n\
                 Connection: keep-alive\r\n\r\n";
-    if stream.write_all(head.as_bytes()).is_err() {
+    // A comment frame straight away, before any bot has said anything. Headers
+    // alone do not reach a client until the first body bytes do, so without
+    // this a phone cannot tell "connected and quiet" from "not connected" —
+    // which is exactly how it read.
+    if stream.write_all(head.as_bytes()).is_err() || stream.write_all(b": connected\n\n").is_err() {
         return;
     }
     let _ = stream.flush();
     remote().lock().unwrap().listeners.push(stream);
+}
+
+/// Keep quiet connections alive and notice dead ones. A phone changes network,
+/// sleeps and moves between cells; something has to write, or a stream that
+/// died in a pocket looks identical to one where nothing has happened.
+fn heartbeat() {
+    std::thread::spawn(|| loop {
+        std::thread::sleep(Duration::from_secs(20));
+        let mut state = remote().lock().unwrap();
+        if !state.running {
+            state.listeners.clear();
+            return;
+        }
+        state
+            .listeners
+            .retain_mut(|stream| stream.write_all(b": ping\n\n").is_ok() && stream.flush().is_ok());
+    });
 }
 
 #[cfg(test)]
