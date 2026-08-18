@@ -1,0 +1,30 @@
+# The phone's half of botcage's peer-to-peer link.
+#
+# Deliberately thin: it knows how to reach a laptop by public key and how to
+# carry an HTTP request over that link. Everything about what botcage can do
+# stays in the JavaScript, as it does on the desktop side.
+[package]
+name = "botcage-p2p"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+# staticlib for iOS, cdylib for Android, rlib so the tests can use it.
+crate-type = ["staticlib", "cdylib", "lib"]
+name = "botcage_p2p"
+
+[dependencies]
+iroh = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "io-util", "sync", "time"] }
+uniffi = { version = "0.32", features = ["cli"] }
+thiserror = "2"
+serde_json = "1"
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true

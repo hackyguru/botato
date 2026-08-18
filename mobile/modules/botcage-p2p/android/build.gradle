@@ -1,0 +1,29 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.botcagep2p'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.botcagep2p"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+  sourceSets {
+    main {
+      jniLibs.srcDirs = ['src/main/jniLibs']
+    }
+  }
+}
+
+dependencies {
+  // UniFFI's Kotlin bindings reach the Rust library through JNA. The `@aar`
+  // build is the one that carries the native support libraries Android needs.
+  implementation 'net.java.dev.jna:jna:5.14.0@aar'
+}

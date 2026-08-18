@@ -843,6 +843,7 @@ pub fn run() {
             sandbox::docker_info,
             p2p::p2p_start,
             p2p::p2p_id,
+            p2p::p2p_address,
             remote::remote_status,
             remote::remote_start,
             remote::remote_stop,

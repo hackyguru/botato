@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["BotcageP2pModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.botcagep2p.BotcageP2pModule"]
+  }
+}

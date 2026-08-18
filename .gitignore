@@ -27,3 +27,13 @@ dist-ssr
 mobile/node_modules
 mobile/.expo
 mobile/dist
+
+# Built by mobile/rust/build.sh — hundreds of MB of static libraries, and
+# regenerated from the crate whenever the bindings change.
+mobile/rust/botcage-p2p/target
+mobile/rust/botcage-p2p/jniLibs
+mobile/rust/botcage-p2p/bindings
+mobile/modules/botcage-p2p/ios/BotcageP2P.xcframework
+mobile/modules/botcage-p2p/ios/botcage_p2p.swift
+mobile/modules/botcage-p2p/android/src/main/jniLibs
+mobile/modules/botcage-p2p/android/src/main/java/uniffi

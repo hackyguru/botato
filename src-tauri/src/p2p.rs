@@ -27,8 +27,18 @@ const ALPN: &[u8] = b"botcage/1";
 /// phone pairs with, and it survives restarts because the key is kept.
 static IDENTITY: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 
+/// The full address — key, home relay, and the direct addresses this machine
+/// knows of itself. Handed to a phone at pairing time so its first connection
+/// needs no lookup; afterwards the key alone is enough, because that is the part
+/// that does not change when the laptop moves between networks.
+static ADDRESS: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+
 fn identity() -> &'static Mutex<Option<String>> {
     IDENTITY.get_or_init(|| Mutex::new(None))
+}
+
+fn address() -> &'static Mutex<Option<String>> {
+    ADDRESS.get_or_init(|| Mutex::new(None))
 }
 
 /// Where this machine's long-lived private key lives. Losing it means every
@@ -73,10 +83,18 @@ fn secret_key(app: &AppHandle) -> Result<iroh::SecretKey, String> {
     Ok(iroh::SecretKey::from_bytes(&bytes))
 }
 
-/// This machine's address for a phone, if the endpoint is up.
+/// This machine's identity, if the endpoint is up.
 #[tauri::command(async)]
 pub fn p2p_id() -> Option<String> {
     identity().lock().unwrap().clone()
+}
+
+/// Everything a phone needs to find this machine the first time. Re-read rather
+/// than cached by the caller: a laptop that changes network learns new direct
+/// addresses, and a pairing code shown afterwards should carry them.
+#[tauri::command(async)]
+pub fn p2p_address() -> Option<String> {
+    address().lock().unwrap().clone()
 }
 
 /// Bring up the peer-to-peer endpoint. Returns the id a phone pairs with.
@@ -119,6 +137,19 @@ pub fn p2p_start(app: AppHandle) -> Result<String, String> {
             let id = endpoint.id().to_string();
             *identity().lock().unwrap() = Some(id.clone());
             let _ = ready.send(Ok(id));
+
+            // Direct addresses are discovered a moment after binding, so this is
+            // refreshed rather than read once — a pairing code shown thirty
+            // seconds in should carry the best route available by then.
+            let watcher = endpoint.clone();
+            tokio::spawn(async move {
+                loop {
+                    if let Ok(text) = serde_json::to_string(&watcher.addr()) {
+                        *address().lock().unwrap() = Some(text);
+                    }
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                }
+            });
 
             // One task per connection, one per stream: a phone with the event
             // stream open must not stop it making ordinary requests.
