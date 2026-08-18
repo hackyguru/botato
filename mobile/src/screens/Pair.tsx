@@ -7,7 +7,7 @@
  * complete and says what answered, rather than waiting for the code to be typed
  * before reporting that the address was wrong.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -31,6 +31,7 @@ export default function Pair({ onPaired }: { onPaired: (pairing: Pairing) => voi
   const [found, setFound] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const codeField = useRef<TextInput>(null);
 
   async function check(address: string) {
     setFound(null);
@@ -77,13 +78,17 @@ export default function Pair({ onPaired }: { onPaired: (pairing: Pairing) => voi
         <Text style={s.label}>Address</Text>
         <TextInput
           style={s.input}
+          autoFocus
           value={host}
           onChangeText={(text) => {
             setHost(text);
             setFound(null);
           }}
           onBlur={() => check(host)}
-          onSubmitEditing={() => check(host)}
+          onSubmitEditing={() => {
+            void check(host);
+            codeField.current?.focus();
+          }}
           placeholder="100.x.y.z"
           placeholderTextColor={T.text3}
           autoCapitalize="none"
@@ -95,6 +100,7 @@ export default function Pair({ onPaired }: { onPaired: (pairing: Pairing) => voi
 
         <Text style={s.label}>Pairing code</Text>
         <TextInput
+          ref={codeField}
           style={[s.input, s.code]}
           value={code}
           onChangeText={(text) => setCode(text.toUpperCase())}

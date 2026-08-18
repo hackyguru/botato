@@ -3523,6 +3523,10 @@ interface RemoteStatus {
   tailscale: boolean;
 }
 
+/** This machine's peer-to-peer identity — the address a phone pairs with, which
+ *  keeps working when the laptop changes network. */
+let peerId: string | null = null;
+
 const appRemote = $<HTMLInputElement>("#app-remote");
 const remoteWhere = $<HTMLSpanElement>("#app-remote-where");
 const remotePairing = $<HTMLDivElement>("#app-remote-pairing");
@@ -3537,15 +3541,14 @@ function paintRemote(status: RemoteStatus): void {
 
   if (!status.running) {
     remoteWhere.textContent = "Off.";
+  } else if (peerId) {
+    // The peer-to-peer identity is the honest answer: it does not change when
+    // this machine moves between networks, and needs nothing forwarded.
+    remoteWhere.textContent = "Anywhere — your phone finds this machine directly, on any network.";
   } else if (status.addresses.length === 0) {
     remoteWhere.textContent = `Port ${status.port}, but this machine has no network address.`;
   } else {
-    const where = status.addresses.slice(0, 2).join(", ");
-    // A tailnet address is the one that still works away from the house, so say
-    // which kind of reach this is rather than printing numbers alone.
-    remoteWhere.textContent = status.tailscale
-      ? `${where}:${status.port} — over Tailscale, so it works anywhere.`
-      : `${where}:${status.port} — same network only. Install Tailscale to reach it from anywhere.`;
+    remoteWhere.textContent = `${status.addresses[0]}:${status.port} — this network only.`;
   }
 
   remoteDevices.textContent = status.devices.length
@@ -3563,7 +3566,11 @@ function paintRemote(status: RemoteStatus): void {
 }
 
 async function refreshRemote(): Promise<void> {
-  const status = await invoke<RemoteStatus>("remote_status").catch(() => null);
+  const [status, id] = await Promise.all([
+    invoke<RemoteStatus>("remote_status").catch(() => null),
+    invoke<string | null>("p2p_id").catch(() => null),
+  ]);
+  peerId = id;
   if (status) paintRemote(status);
 }
 
@@ -3571,6 +3578,13 @@ appRemote.addEventListener("change", async () => {
   try {
     if (appRemote.checked) {
       await invoke("remote_start");
+      // Bring up the peer-to-peer endpoint alongside the local server, so a
+      // phone works away from the house without anything else being set up.
+      // Failing this is not fatal: the same server still answers on the LAN.
+      peerId = await invoke<string>("p2p_start").catch((err) => {
+        toast(`Reachable on this network only: ${err}`);
+        return null;
+      });
       // A fresh code every time it is switched on: one that was read out and
       // then abandoned should not still work later.
       await invoke<string>("remote_pairing_code");

@@ -20,6 +20,7 @@ mod connectors;
 mod engine;
 mod mcp;
 mod oauth;
+mod p2p;
 mod plugins;
 mod remote;
 mod sandbox;
@@ -840,6 +841,8 @@ pub fn run() {
             teach_save,
             teach_name,
             sandbox::docker_info,
+            p2p::p2p_start,
+            p2p::p2p_id,
             remote::remote_status,
             remote::remote_start,
             remote::remote_stop,
