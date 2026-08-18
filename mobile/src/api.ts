@@ -11,11 +11,18 @@
  */
 import { getItem, removeItem, setItem } from "./storage";
 
-/** Where a paired desktop lives. The port is fixed by the desktop app. */
+/** Where a paired desktop lives.
+ *
+ *  Two ways of reaching the same machine. `host` is its address on a network
+ *  this phone happens to share; `peer` is its public key, which works from
+ *  anywhere and does not change when the laptop moves. A pairing usually has
+ *  both, and the peer link is tried first. */
 export interface Pairing {
   host: string;
   port: number;
   token: string;
+  /** The laptop's peer-to-peer address, if it offered one. */
+  peer?: string;
   /** What the desktop calls itself, for the screen that lists connections. */
   name: string;
 }
@@ -73,12 +80,68 @@ export async function pair(host: string, port: number, code: string, name: strin
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body?.error ?? "pairing was refused");
-  const pairing: Pairing = { host, port, token: body.token, name: "botcage" };
+  // The laptop hands over its peer address at the same time, so a phone paired
+  // at home keeps working once it leaves.
+  const pairing: Pairing = {
+    host,
+    port,
+    token: body.token,
+    peer: typeof body.peer === "string" ? body.peer : undefined,
+    name: "botcage",
+  };
   await savePairing(pairing);
+  void openPeerLink(pairing);
   return pairing;
 }
 
 export class NotPaired extends Error {}
+
+/** The native peer-to-peer link. Absent in Expo Go and on web, where the app
+ *  falls back to reaching the laptop over the local network — so this is loaded
+ *  defensively rather than imported, and everything below checks for it. */
+type NativeLink = {
+  connect(address: string): Promise<string>;
+  request(
+    method: string,
+    path: string,
+    token?: string | null,
+    body?: string | null,
+  ): Promise<{ status: number; body: string }>;
+  listen(): void;
+  stop(): void;
+  isConnected(): boolean;
+  addListener(
+    name: "frame",
+    handler: (event: { name: string; data: string }) => void,
+  ): { remove(): void };
+  addListener(
+    name: "state",
+    handler: (event: { connected: boolean }) => void,
+  ): { remove(): void };
+};
+
+let native: NativeLink | null = null;
+try {
+  native = (require("../modules/botcage-p2p") as { default: NativeLink }).default;
+} catch {
+  native = null;
+}
+
+export const canReachAnywhere = () => native !== null;
+
+/** Open the peer-to-peer link, if this build has one and the pairing names a
+ *  laptop by key. Returns whether the link is up. */
+export async function openPeerLink(pairing: Pairing): Promise<boolean> {
+  if (!native || !pairing.peer) return false;
+  try {
+    await native.connect(pairing.peer);
+    return true;
+  } catch {
+    // Falling back to the local network is better than refusing to work: at
+    // home, the address in the pairing still reaches the same machine.
+    return false;
+  }
+}
 
 /** Ask the desktop to do something. The name is the desktop's action name, so
  *  adding a feature there needs no change here. */
@@ -87,6 +150,20 @@ export async function call<T>(
   kind: string,
   payload: Record<string, unknown> = {},
 ): Promise<T> {
+  // Peer-to-peer first when it is available: it is the path that works away
+  // from home, and at home it lands on the same machine anyway.
+  if (native && pairing.peer && native.isConnected()) {
+    const answer = await native
+      .request("POST", `/api/${kind}`, pairing.token, JSON.stringify(payload))
+      .catch((err: unknown) => {
+        throw new Error(err instanceof Error ? err.message : String(err));
+      });
+    if (answer.status === 401) throw new NotPaired("this phone is no longer paired");
+    const parsed = answer.body ? JSON.parse(answer.body) : {};
+    if (answer.status >= 400) throw new Error(parsed?.error ?? `the laptop answered ${answer.status}`);
+    return parsed as T;
+  }
+
   let response: Response;
   try {
     response = await withTimeout(`${baseUrl(pairing.host, pairing.port)}/api/${kind}`, {
@@ -128,6 +205,26 @@ export function listen(
   onEvent: (event: BotEvent) => void,
   onOpen?: (connected: boolean) => void,
 ): () => void {
+  // The native link delivers frames as events rather than as a byte stream, so
+  // there is nothing to parse here — the sink already cut them apart.
+  if (native && pairing.peer && native.isConnected()) {
+    const frames = native.addListener("frame", (event) => {
+      if (event.name !== "bot-event") return;
+      try {
+        onEvent(JSON.parse(event.data) as BotEvent);
+      } catch {
+        /* a frame we can't read is not worth crashing over */
+      }
+    });
+    const state = native.addListener("state", (event) => onOpen?.(event.connected));
+    native.listen();
+    return () => {
+      native?.stop();
+      frames.remove();
+      state.remove();
+    };
+  }
+
   let stopped = false;
   let request: XMLHttpRequest | null = null;
   let retry: ReturnType<typeof setTimeout> | null = null;

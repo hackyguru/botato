@@ -14,6 +14,10 @@ export interface Response {
 }
 
 export interface P2pEvents {
+  // Expo's event map wants an index signature; the two named events below are
+  // the ones this module actually sends.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [event: string]: (...args: any[]) => void;
   /** One server-sent event frame from the desktop. */
   frame: (event: { name: string; data: string }) => void;
   /** Whether the event stream is up. */

@@ -486,7 +486,13 @@ fn pair(app: &AppHandle, stream: &mut TcpStream, request: &Request) {
     drop(state);
     save_devices(app, &devices);
 
-    send(stream, "200 OK", &json!({ "token": token }));
+    // The peer address goes with the token: a phone paired at home must keep
+    // working once it leaves, and this is the only moment both are in hand.
+    send(
+        stream,
+        "200 OK",
+        &json!({ "token": token, "peer": crate::p2p::p2p_address() }),
+    );
 }
 
 /// Hold the connection open and stream events until the phone goes away.
