@@ -17,6 +17,11 @@ Pod::Spec.new do |s|
   # Swift/Objective-C compatibility
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
+    # Where CocoaPods unpacks the xcframework's slice. Without this the
+    # generated bindings' `#if canImport(botcage_p2pFFI)` quietly fails and
+    # every Rust symbol goes missing at compile time — a silent guard around a
+    # missing search path, which is a miserable thing to debug.
+    'SWIFT_INCLUDE_PATHS' => '"$(PODS_XCFRAMEWORKS_BUILD_DIR)/BotcageP2p"',
   }
 
   # Everything except the xcframework's own contents: sweeping its headers into
