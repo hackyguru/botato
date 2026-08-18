@@ -2312,3 +2312,18 @@ a.detail__source:hover {
   text-indent: 0.24em;
   color: var(--text);
 }
+
+/* A pairing code is read by a camera across a desk, so it is given room and a
+   white quiet zone — a QR on a dark background scans badly or not at all. */
+.pairing-qr {
+  align-self: center;
+  width: 220px;
+  height: 220px;
+  padding: 10px;
+  background: #fff;
+  border-radius: 12px;
+}
+
+.pairing-qr[hidden] {
+  display: none;
+}

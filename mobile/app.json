@@ -11,7 +11,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.botcage.phone",
       "infoPlist": {
-        "NSLocalNetworkUsageDescription": "botcage connects directly to your own laptop."
+        "NSLocalNetworkUsageDescription": "botcage connects directly to your own laptop.",
+        "NSCameraUsageDescription": "botcage uses the camera once, to scan the pairing code your laptop shows."
       }
     },
     "android": {
@@ -28,7 +29,13 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "botcage uses the camera once, to scan the pairing code your laptop shows."
+        }
+      ]
     ],
     "scheme": "botcage"
   }

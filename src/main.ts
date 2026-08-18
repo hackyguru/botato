@@ -5,6 +5,7 @@
  * (see src-tauri/src/lib.rs), authenticated by the user's own login.
  */
 
+import QRCode from "qrcode";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
@@ -3526,12 +3527,15 @@ interface RemoteStatus {
 let peerId: string | null = null;
 
 const appRemote = $<HTMLInputElement>("#app-remote");
+const remoteQr = $<HTMLCanvasElement>("#app-remote-qr");
 const remoteWhere = $<HTMLSpanElement>("#app-remote-where");
 const remotePairing = $<HTMLDivElement>("#app-remote-pairing");
 const remoteCode = $<HTMLSpanElement>("#app-remote-code");
 const remoteHint = $<HTMLSpanElement>("#app-remote-hint");
 const remoteDevices = $<HTMLSpanElement>("#app-remote-devices");
-let codeTimer: number | null = null;
+// Not `number`: the QR encoder's types pull in Node's, where a timer is an
+// object rather than a handle.
+let codeTimer: ReturnType<typeof setInterval> | null = null;
 
 function paintRemote(status: RemoteStatus): void {
   appRemote.checked = status.running;
@@ -3555,10 +3559,41 @@ function paintRemote(status: RemoteStatus): void {
   if (status.code) {
     remoteCode.textContent = status.code;
     const minutes = Math.max(1, Math.round(status.codeExpiresIn / 60));
-    remoteHint.textContent = `Type this into botcage on your phone. Expires in ${minutes} min.`;
+    remoteHint.textContent = `Expires in ${minutes} min, and works once.`;
+    void paintPairingCode(status.code);
   } else {
     remoteCode.textContent = "------";
     remoteHint.textContent = "Turn the switch off and on to show a new code.";
+    remoteQr.hidden = true;
+  }
+}
+
+/** Draw the address and the code as one square, so pairing is a single scan
+ *  rather than a 187-character paste. Both halves have to be there: the address
+ *  says which machine, the code proves you are standing in front of it. */
+async function paintPairingCode(code: string): Promise<void> {
+  const address = await invoke<string | null>("p2p_address").catch(() => null);
+  if (!address) {
+    remoteQr.hidden = true;
+    return;
+  }
+  try {
+    await QRCode.toCanvas(remoteQr, JSON.stringify({ peer: address, code }), {
+      // Drawn at twice the size it is shown at. The payload needs a 63-module
+      // grid, which at 220 physical pixels is three and a half pixels per
+      // module — fine to look at, and too fine for a camera on a Retina screen.
+      width: 440,
+      margin: 1,
+      // Black on white regardless of the app's theme: a camera reads contrast,
+      // not design.
+      color: { dark: "#000000", light: "#ffffff" },
+      errorCorrectionLevel: "M",
+    });
+    remoteQr.hidden = false;
+  } catch {
+    // A QR that will not draw is not worth an error — the code and the copy
+    // button below it do the same job.
+    remoteQr.hidden = true;
   }
 }
 
