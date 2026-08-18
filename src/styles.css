@@ -2291,3 +2291,24 @@ a.detail__source:hover {
 .setup__foot .chip {
   flex: 0 0 auto;
 }
+
+/* ------------------------------------------------------------- phone access */
+/* The pairing code is read off this screen and typed into a phone, so it is set
+   in the widest, most unambiguous shape the sheet allows. */
+.setting--stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.pairing-code {
+  align-self: center;
+  font-family: var(--mono);
+  font-size: 27px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  /* The letter spacing is applied after each glyph, including the last, which
+     otherwise pushes the code visibly off-centre. */
+  text-indent: 0.24em;
+  color: var(--text);
+}

@@ -2022,6 +2022,19 @@ async function openAppSettings(): Promise<void> {
   appAwake.checked = settings.awake;
   appWrap.hidden = false;
 
+  void refreshRemote();
+  // Unqualified on purpose: this function has a local named `window` (the usage
+  // limit window), which shadows the global.
+  if (codeTimer !== null) clearInterval(codeTimer);
+  codeTimer = setInterval(() => {
+    if (appWrap.hidden) {
+      if (codeTimer !== null) clearInterval(codeTimer);
+      codeTimer = null;
+      return;
+    }
+    void refreshRemote();
+  }, 15000);
+
   void invoke<boolean>("lid_awake").then((on) => (appLid.checked = on)).catch(() => {});
   void invoke<boolean>("login_launch").then((on) => (appLogin.checked = on)).catch(() => {});
 
@@ -3496,6 +3509,262 @@ setupSkip.addEventListener("click", () => {
   stopSignInWatch();
   const index = SETUP_STEPS.indexOf(setupAt);
   goTo(SETUP_STEPS[Math.min(index + 1, SETUP_STEPS.length - 1)]);
+});
+
+/* ------------------------------------------------------- phone access settings */
+
+interface RemoteStatus {
+  running: boolean;
+  port: number;
+  code: string | null;
+  codeExpiresIn: number;
+  devices: string[];
+  addresses: string[];
+  tailscale: boolean;
+}
+
+const appRemote = $<HTMLInputElement>("#app-remote");
+const remoteWhere = $<HTMLSpanElement>("#app-remote-where");
+const remotePairing = $<HTMLDivElement>("#app-remote-pairing");
+const remoteCode = $<HTMLSpanElement>("#app-remote-code");
+const remoteHint = $<HTMLSpanElement>("#app-remote-hint");
+const remoteDevices = $<HTMLSpanElement>("#app-remote-devices");
+let codeTimer: number | null = null;
+
+function paintRemote(status: RemoteStatus): void {
+  appRemote.checked = status.running;
+  remotePairing.hidden = !status.running;
+
+  if (!status.running) {
+    remoteWhere.textContent = "Off.";
+  } else if (status.addresses.length === 0) {
+    remoteWhere.textContent = `Port ${status.port}, but this machine has no network address.`;
+  } else {
+    const where = status.addresses.slice(0, 2).join(", ");
+    // A tailnet address is the one that still works away from the house, so say
+    // which kind of reach this is rather than printing numbers alone.
+    remoteWhere.textContent = status.tailscale
+      ? `${where}:${status.port} — over Tailscale, so it works anywhere.`
+      : `${where}:${status.port} — same network only. Install Tailscale to reach it from anywhere.`;
+  }
+
+  remoteDevices.textContent = status.devices.length
+    ? `${status.devices.length} paired: ${status.devices.join(", ")}`
+    : "None yet.";
+
+  if (status.code) {
+    remoteCode.textContent = status.code;
+    const minutes = Math.max(1, Math.round(status.codeExpiresIn / 60));
+    remoteHint.textContent = `Type this into botcage on your phone. Expires in ${minutes} min.`;
+  } else {
+    remoteCode.textContent = "------";
+    remoteHint.textContent = "Turn the switch off and on to show a new code.";
+  }
+}
+
+async function refreshRemote(): Promise<void> {
+  const status = await invoke<RemoteStatus>("remote_status").catch(() => null);
+  if (status) paintRemote(status);
+}
+
+appRemote.addEventListener("change", async () => {
+  try {
+    if (appRemote.checked) {
+      await invoke("remote_start");
+      // A fresh code every time it is switched on: one that was read out and
+      // then abandoned should not still work later.
+      await invoke<string>("remote_pairing_code");
+    } else {
+      await invoke("remote_stop");
+    }
+  } catch (err) {
+    appRemote.checked = false;
+    toast(String(err));
+  }
+  await refreshRemote();
+});
+
+$<HTMLButtonElement>("#app-remote-forget").addEventListener("click", async () => {
+  await invoke("remote_forget_devices").catch(() => {});
+  await refreshRemote();
+  toast("Paired devices forgotten");
+});
+
+/* --------------------------------------------------------------- phone client */
+/* A paired phone drives this window rather than talking to a second copy of the
+   app. Rust holds the socket and forwards each request here; every answer below
+   goes through the same functions the desktop UI uses, so the two cannot drift
+   apart and nothing is implemented twice. */
+
+interface RemoteRequest {
+  id: number;
+  kind: string;
+  payload: Record<string, unknown>;
+}
+
+/** What a phone needs to draw the whole app. Deliberately not the raw store:
+ *  session ids and internal flags are of no use to a client and no business of
+ *  the network. */
+function remoteSnapshot(): Record<string, unknown> {
+  return {
+    activeId: state.activeId,
+    settings: appSettings(),
+    claudeReady,
+    bots: state.bots.map((bot) => ({
+      id: bot.id,
+      name: bot.name,
+      role: bot.role,
+      color: bot.color,
+      shape: bot.shape,
+      model: bot.model,
+      computer: bot.computer,
+      network: bot.network,
+      plugins: bot.plugins ?? [],
+      routines: bot.routines ?? [],
+      busy: inflight.has(bot.id),
+      messages: bot.messages,
+    })),
+  };
+}
+
+/** Send as a bot, from the phone. Routed through respond() so the desktop shows
+ *  the same conversation as it happens, rather than the two diverging until a
+ *  reload. */
+function remoteSend(botId: string, text: string): Record<string, unknown> {
+  const bot = state.bots.find((b) => b.id === botId);
+  if (!bot) throw new Error("no such bot");
+  if (inflight.has(bot.id)) throw new Error("this bot is already working on something");
+  if (!claudeReady) throw new Error("Claude Code isn't installed or signed in on the desktop");
+
+  const clean = text.trim();
+  if (!clean) throw new Error("nothing to send");
+
+  const msg: Message = { id: uid(), from: "me", text: clean, at: Date.now() };
+  bot.messages.push(msg);
+  if (bot.id === state.activeId) {
+    if (bot.messages.length === 1) thread.innerHTML = "";
+    thread.append(turnEl(msg));
+    scrollToEnd(true);
+  }
+  save();
+  renderRoster();
+  void respond(bot, clean);
+  return { id: msg.id };
+}
+
+const REMOTE_ACTIONS: Record<string, (payload: Record<string, unknown>) => unknown> = {
+  state: () => remoteSnapshot(),
+
+  send: (p) => remoteSend(String(p.botId ?? ""), String(p.text ?? "")),
+
+  cancel: (p) => {
+    cancelTurn(String(p.botId ?? ""));
+    return {};
+  },
+
+  open: (p) => {
+    openBot(String(p.botId ?? ""));
+    return {};
+  },
+
+  "bot/create": (p) => {
+    const bot: Bot = {
+      id: uid(),
+      name: String(p.name ?? "New bot").slice(0, 40) || "New bot",
+      role: String(p.role ?? ""),
+      color: COLORS[state.bots.length % COLORS.length],
+      shape: SHAPES[state.bots.length % SHAPES.length],
+      messages: [],
+      sessionId: crypto.randomUUID(),
+      started: false,
+      computer: false,
+      network: "full",
+      model: appSettings().model,
+      plugins: [],
+      routines: [],
+    };
+    state.bots.push(bot);
+    state.activeId = bot.id;
+    save();
+    renderRoster();
+    renderThread();
+    return { id: bot.id };
+  },
+
+  "bot/update": (p) => {
+    const bot = state.bots.find((b) => b.id === String(p.botId ?? ""));
+    if (!bot) throw new Error("no such bot");
+    // Only the fields a phone has any business setting.
+    if (typeof p.name === "string") bot.name = p.name.slice(0, 40);
+    if (typeof p.role === "string") bot.role = p.role;
+    if (typeof p.model === "string") bot.model = p.model;
+    if (p.network === "full" || p.network === "no-lan" || p.network === "offline") {
+      bot.network = p.network;
+    }
+    if (typeof p.computer === "boolean") bot.computer = p.computer;
+    if (Array.isArray(p.plugins)) bot.plugins = p.plugins.map(String);
+    save();
+    renderRoster();
+    return {};
+  },
+
+  "bot/delete": (p) => {
+    deleteBot(String(p.botId ?? ""));
+    return {};
+  },
+
+  "routine/save": (p) => {
+    const bot = state.bots.find((b) => b.id === String(p.botId ?? ""));
+    if (!bot) throw new Error("no such bot");
+    const routine = p.routine as Routine | undefined;
+    if (!routine?.instruction) throw new Error("a routine needs something to do");
+    bot.routines = bot.routines ?? [];
+    const existing = bot.routines.findIndex((r) => r.id === routine.id);
+    if (existing >= 0) bot.routines[existing] = routine;
+    else bot.routines.push({ ...routine, id: routine.id || uid() });
+    save();
+    renderRoutines();
+    return {};
+  },
+
+  "routine/delete": (p) => {
+    const bot = state.bots.find((b) => b.id === String(p.botId ?? ""));
+    if (!bot) throw new Error("no such bot");
+    bot.routines = (bot.routines ?? []).filter((r) => r.id !== String(p.routineId ?? ""));
+    save();
+    renderRoutines();
+    return {};
+  },
+
+  "desktop/start": (p) => {
+    const bot = state.bots.find((b) => b.id === String(p.botId ?? ""));
+    if (!bot) throw new Error("no such bot");
+    if (!bot.computer) throw new Error("this bot has no computer");
+    void invoke("sandbox_start", { botId: bot.id, brand: machineBrand(bot) });
+    return {};
+  },
+
+  "desktop/stop": (p) => {
+    void invoke("sandbox_stop", { botId: String(p.botId ?? "") });
+    return {};
+  },
+
+  plugins: () => loadPlugins().then((list) => ({ plugins: list })),
+};
+
+void listen<RemoteRequest>("remote-request", async (event) => {
+  const { id, kind, payload } = event.payload;
+  const action = REMOTE_ACTIONS[kind];
+  if (!action) {
+    void invoke("remote_reply", { id, ok: false, payload: `botcage has no "${kind}" action` });
+    return;
+  }
+  try {
+    const result = await action(payload ?? {});
+    void invoke("remote_reply", { id, ok: true, payload: result ?? {} });
+  } catch (err) {
+    void invoke("remote_reply", { id, ok: false, payload: String(err) });
+  }
 });
 
 /* --------------------------------------------------------------------- boot */

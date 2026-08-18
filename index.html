@@ -401,6 +401,7 @@
           <button type="button" class="tab" role="tab" data-tab="general" aria-selected="true">General</button>
           <button type="button" class="tab" role="tab" data-tab="desktops" aria-selected="false">Desktops</button>
           <button type="button" class="tab" role="tab" data-tab="power" aria-selected="false">Power</button>
+          <button type="button" class="tab" role="tab" data-tab="phone" aria-selected="false">Phone</button>
         </div>
         <div class="sheet__body">
           <div class="settings-panel" data-tab="general" role="tabpanel">
@@ -508,6 +509,42 @@
                 </span>
                 <input type="checkbox" id="app-login" class="switch" />
               </label>
+            </div>
+          </div>
+
+          <!-- The phone app talks to this machine over the network, so the
+               panel leads with who can reach it rather than with a switch. -->
+          <div class="settings-panel" data-tab="phone" role="tabpanel" hidden>
+            <div class="settings">
+              <label class="setting">
+                <span class="setting__label">Allow phone access
+                  <span class="setting__hint">Lets botcage on your phone drive this machine. Only
+                    devices you pair are let in.</span>
+                </span>
+                <input type="checkbox" id="app-remote" class="switch" />
+              </label>
+
+              <div class="setting">
+                <span class="setting__label">Reachable at
+                  <span class="setting__hint" id="app-remote-where">Off.</span>
+                </span>
+              </div>
+            </div>
+
+            <div class="settings" id="app-remote-pairing" hidden>
+              <div class="setting setting--stack">
+                <span class="setting__label">Pairing code
+                  <span class="setting__hint" id="app-remote-hint">Type this into botcage on your
+                    phone.</span>
+                </span>
+                <span class="pairing-code" id="app-remote-code">------</span>
+              </div>
+              <div class="setting">
+                <span class="setting__label">Paired devices
+                  <span class="setting__hint" id="app-remote-devices">None yet.</span>
+                </span>
+                <button type="button" class="chip" id="app-remote-forget"><span>Forget all</span></button>
+              </div>
             </div>
           </div>
         </div>

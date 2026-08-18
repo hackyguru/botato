@@ -21,6 +21,7 @@ mod engine;
 mod mcp;
 mod oauth;
 mod plugins;
+mod remote;
 mod sandbox;
 mod setup;
 
@@ -133,15 +134,18 @@ struct BotEvent {
 }
 
 fn emit(app: &AppHandle, bot_id: &str, kind: &str, text: Option<String>, detail: Option<Value>) {
-    let _ = app.emit(
-        "bot-event",
-        BotEvent {
-            bot_id: bot_id.to_string(),
-            kind: kind.to_string(),
-            text,
-            detail,
-        },
-    );
+    let event = BotEvent {
+        bot_id: bot_id.to_string(),
+        kind: kind.to_string(),
+        text,
+        detail,
+    };
+    // A paired phone is fed from here rather than from the window, so a reply
+    // arrives on it token by token exactly as it does on the desktop.
+    if let Ok(payload) = serde_json::to_value(&event) {
+        remote::broadcast("bot-event", &payload);
+    }
+    let _ = app.emit("bot-event", event);
 }
 
 /* ----------------------------------------------------------------- one turn */
@@ -836,6 +840,12 @@ pub fn run() {
             teach_save,
             teach_name,
             sandbox::docker_info,
+            remote::remote_status,
+            remote::remote_start,
+            remote::remote_stop,
+            remote::remote_pairing_code,
+            remote::remote_forget_devices,
+            remote::remote_reply,
             setup::claude_state,
             setup::install_claude,
             setup::claude_sign_in,
