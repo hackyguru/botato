@@ -53,6 +53,11 @@ build_ios () {
   rm -rf "$module/ios/BotcageP2P.xcframework"
   cp -R "target/BotcageP2P.xcframework" "$module/ios/"
   cp bindings/swift/botcage_p2p.swift "$module/ios/"
+  # The C header goes in the pod as well, so CocoaPods puts it in the umbrella
+  # and the Rust symbols are visible to the generated Swift without depending on
+  # the xcframework's own module being importable — which it is not, and which
+  # fails silently because the generated code guards it with canImport.
+  cp bindings/swift/botcage_p2pFFI.h "$module/ios/"
 }
 
 build_android () {

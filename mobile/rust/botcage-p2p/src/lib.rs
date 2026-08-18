@@ -149,8 +149,7 @@ impl Peer {
 
     /// Hold a stream open and hand every frame to the sink. Blocks until the
     /// stream ends or `stop` is called, so the caller runs it on its own thread.
-    pub fn listen(&self, sink: Box<dyn EventSink>) -> Result<(), P2pError> {
-        let token = None::<String>;
+    pub fn listen(&self, token: Option<String>, sink: Box<dyn EventSink>) -> Result<(), P2pError> {
         self.listening.store(true, Ordering::SeqCst);
         let result = runtime().block_on(async {
             let connection = self.dial().await?;
@@ -162,9 +161,46 @@ impl Peer {
                 .await
                 .map_err(|e| failed(format!("could not start the event stream: {e}")))?;
 
-            sink.on_state(true);
+            // Not connected until the laptop says so. Reporting it on the way
+            // out means an event stream the laptop refuses — a stale token, an
+            // unpaired device — still looks live for a moment, and then looks
+            // like a network problem, which is the wrong thing to go and fix.
             let mut pending = String::new();
             let mut buf = vec![0u8; 8 * 1024];
+            loop {
+                match recv.read(&mut buf).await {
+                    Ok(Some(read)) if read > 0 => {
+                        pending.push_str(&String::from_utf8_lossy(&buf[..read]));
+                        if let Some(end) = pending.find("\r\n\r\n") {
+                            let head = pending[..end].to_string();
+                            if !head.starts_with("HTTP/1.1 200") {
+                                sink.on_state(false);
+                                let why = head.lines().next().unwrap_or("refused").to_string();
+                                return Err(failed(format!("the laptop refused the stream: {why}")));
+                            }
+                            pending = pending[end + 4..].to_string();
+                            break;
+                        }
+                    }
+                    Ok(_) => {
+                        sink.on_state(false);
+                        return Err(failed("the laptop closed the stream"));
+                    }
+                    Err(e) => {
+                        sink.on_state(false);
+                        return Err(failed(format!("the event stream stopped: {e}")));
+                    }
+                }
+            }
+            sink.on_state(true);
+
+            // Whatever arrived with the headers may already hold whole frames.
+            while let Some(at) = pending.find("\n\n") {
+                let frame: String = pending.drain(..at + 2).collect();
+                if let Some((name, data)) = parse_frame(&frame) {
+                    sink.on_frame(name, data);
+                }
+            }
             // Frames arrive split across reads as often as not, so whole frames
             // are cut from a buffer rather than assumed per read.
             while self.listening.load(Ordering::SeqCst) {
@@ -342,6 +378,12 @@ mod tests {
                     let read = stream.read(&mut buf).unwrap_or(0);
                     let request = String::from_utf8_lossy(&buf[..read]).to_string();
                     if request.contains("/api/events") {
+                        // The token has to reach the laptop, or the stream is
+                        // refused — which is exactly the bug this now covers.
+                        assert!(
+                            request.contains("Authorization: Bearer tok"),
+                            "the event stream must carry the token: {request}"
+                        );
                         let _ = stream.write_all(
                             b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\r\n: connected\n\n",
                         );
@@ -431,7 +473,7 @@ mod tests {
                     self.1.store(connected, Ordering::SeqCst);
                 }
             }
-            let _ = peer2.listen(Box::new(Shared(sink_seen, sink_up)));
+            let _ = peer2.listen(Some("tok".into()), Box::new(Shared(sink_seen, sink_up)));
         });
         std::thread::sleep(Duration::from_millis(900));
         peer.stop();

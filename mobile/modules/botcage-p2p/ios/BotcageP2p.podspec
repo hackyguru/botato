@@ -22,6 +22,15 @@ Pod::Spec.new do |s|
     # every Rust symbol goes missing at compile time — a silent guard around a
     # missing search path, which is a miserable thing to debug.
     'SWIFT_INCLUDE_PATHS' => '"$(PODS_XCFRAMEWORKS_BUILD_DIR)/BotcageP2p"',
+    'LIBRARY_SEARCH_PATHS' => '"$(PODS_XCFRAMEWORKS_BUILD_DIR)/BotcageP2p"',
+  }
+
+  # The app target does the final link, and CocoaPods only puts the pod's own
+  # build directory on its search path — not the one the xcframework's slice is
+  # unpacked into. Without this the link fails with "library 'botcage_p2p' not
+  # found" even though the framework is present and correctly declared.
+  s.user_target_xcconfig = {
+    'LIBRARY_SEARCH_PATHS' => '"$(PODS_XCFRAMEWORKS_BUILD_DIR)/BotcageP2p"',
   }
 
   # Everything except the xcframework's own contents: sweeping its headers into

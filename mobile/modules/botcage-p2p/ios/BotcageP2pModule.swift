@@ -53,11 +53,11 @@ public class BotcageP2pModule: Module {
 
     // Not async: it returns at once and the stream runs on its own thread, so
     // the JavaScript side is never left holding a promise for hours.
-    Function("listen") {
+    Function("listen") { (token: String?) in
       guard let peer = self.peer, self.streaming == nil else { return }
       let sink = Frames(module: self)
       let thread = Thread {
-        try? peer.listen(sink: sink)
+        try? peer.listen(token: token, sink: sink)
         self.streaming = nil
       }
       thread.name = "botcage.p2p.events"

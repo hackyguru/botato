@@ -30,8 +30,9 @@ declare class BotcageP2pModule extends NativeModule<P2pEvents> {
    *  laptop's public key afterwards. */
   connect(address: string): Promise<string>;
   request(method: string, path: string, token?: string | null, body?: string | null): Promise<Response>;
-  /** Start the event stream. Returns at once; frames arrive as events. */
-  listen(): void;
+  /** Start the event stream. Returns at once; frames arrive as events. The
+   *  token is required — the laptop refuses an unauthenticated stream. */
+  listen(token?: string | null): void;
   stop(): void;
   isConnected(): boolean;
 }

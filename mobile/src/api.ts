@@ -62,7 +62,7 @@ type NativeLink = {
     token?: string | null,
     body?: string | null,
   ): Promise<{ status: number; body: string }>;
-  listen(): void;
+  listen(token?: string | null): void;
   stop(): void;
   isConnected(): boolean;
   addListener(
@@ -204,7 +204,7 @@ export function listen(
   const state = peer.addListener("state", (event) => onOpen?.(event.connected));
 
   void connected(pairing)
-    .then(() => peer.listen())
+    .then(() => peer.listen(pairing.token))
     .catch(() => onOpen?.(false));
 
   return () => {
