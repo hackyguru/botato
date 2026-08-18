@@ -554,6 +554,74 @@
       </div>
     </div>
 
+    <!-- First run, and reachable afterwards from the account menu. Each step
+         reports what botcage can see rather than telling someone what to type:
+         the CLI is either there or it is installed from here, and the engine is
+         optional and says so. -->
+    <div class="overlay" id="setup" hidden>
+      <div class="sheet sheet--setup">
+        <div class="setup__rail" id="setup-rail" aria-hidden="true"></div>
+
+        <div class="setup__body">
+          <section class="setup__step" data-step="welcome">
+            <span class="face face--squircle face--lg" style="background:#0a84ff"><i></i><i></i></span>
+            <h2 class="setup__title">Welcome to botcage</h2>
+            <p class="setup__blurb">
+              Bots live on this machine. Each one is a Claude Code session that keeps its own
+              memory, and can be given a private Linux desktop to work on.
+            </p>
+            <p class="setup__blurb setup__blurb--dim">Two things to check first — it takes a minute.</p>
+          </section>
+
+          <section class="setup__step" data-step="claude" hidden>
+            <h2 class="setup__title">Claude Code</h2>
+            <p class="setup__blurb">
+              botcage drives the Claude Code CLI rather than shipping a model of its own, so bots
+              can't reply without it. A Claude Pro or Max subscription covers it.
+            </p>
+            <div class="setup__check" id="setup-claude-check">
+              <span class="setup__dot" data-state="wait"></span>
+              <span class="setup__check-text" id="setup-claude-text">Checking…</span>
+            </div>
+            <pre class="setup__log" id="setup-claude-log" hidden></pre>
+            <p class="setup__fine" id="setup-claude-fine" hidden>
+              Runs Anthropic's own installer, <code>https://claude.ai/install.sh</code>, as you —
+              no admin password, everything under your home folder.
+            </p>
+          </section>
+
+          <section class="setup__step" data-step="engine" hidden>
+            <h2 class="setup__title">A computer for your bots</h2>
+            <p class="setup__blurb">
+              Optional. A bot given its own computer gets a sandboxed Linux desktop with a browser
+              and a terminal, which you can watch it use. Everything else works without this.
+            </p>
+            <div class="setup__check" id="setup-engine-check">
+              <span class="setup__dot" data-state="wait"></span>
+              <span class="setup__check-text" id="setup-engine-text">Checking…</span>
+            </div>
+            <p class="setup__fine" id="setup-engine-fine" hidden></p>
+          </section>
+
+          <section class="setup__step" data-step="done" hidden>
+            <h2 class="setup__title">Ready</h2>
+            <p class="setup__blurb" id="setup-done-blurb">Everything botcage needs is in place.</p>
+            <ul class="setup__list">
+              <li><b>New bot</b> — the + above the list on the left.</li>
+              <li><b>Plugins</b> — connect GitHub, Gmail, Notion and the rest from the top bar.</li>
+              <li><b>Routines</b> — give a bot something to do on a schedule.</li>
+            </ul>
+          </section>
+        </div>
+
+        <div class="sheet__foot setup__foot">
+          <button type="button" class="chip" id="setup-back" hidden><span>Back</span></button>
+          <button type="button" class="chip" id="setup-skip" hidden><span>Skip</span></button>
+          <button type="button" class="btn-primary" id="setup-next">Get started</button>
+        </div>
+      </div>
+    </div>
+
     <div class="toast" id="toast" hidden></div>
   </body>
 </html>

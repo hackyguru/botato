@@ -22,6 +22,7 @@ mod mcp;
 mod oauth;
 mod plugins;
 mod sandbox;
+mod setup;
 
 /// Entry point for `botcage --mcp` (see main.rs). Identity arrives in the
 /// environment, set by the app when it registers this server.
@@ -116,34 +117,6 @@ pub(crate) fn locate_claude() -> Option<PathBuf> {
     }
 
     candidates.into_iter().find(|candidate| candidate.is_file())
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ClaudeInfo {
-    path: Option<String>,
-    version: Option<String>,
-}
-
-#[tauri::command]
-fn claude_info() -> ClaudeInfo {
-    let Some(bin) = locate_claude() else {
-        return ClaudeInfo {
-            path: None,
-            version: None,
-        };
-    };
-    let version = Command::new(&bin)
-        .arg("--version")
-        .output()
-        .ok()
-        .and_then(|out| String::from_utf8(out.stdout).ok())
-        .map(|out| out.trim().to_string());
-
-    ClaudeInfo {
-        path: Some(bin.display().to_string()),
-        version,
-    }
 }
 
 /* -------------------------------------------------------------------- events */
@@ -831,7 +804,6 @@ pub fn run() {
         .manage(Running::default())
         .manage(sandbox::Sandboxes::default())
         .invoke_handler(tauri::generate_handler![
-            claude_info,
             ask,
             cancel,
             forget_bot,
@@ -864,6 +836,9 @@ pub fn run() {
             teach_save,
             teach_name,
             sandbox::docker_info,
+            setup::claude_state,
+            setup::install_claude,
+            setup::claude_sign_in,
             engine::engine_status,
             engine::install_engine,
             engine::start_engine,

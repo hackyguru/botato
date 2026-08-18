@@ -177,6 +177,8 @@ interface AppSettings {
   routinesOn: boolean;
   /** Hold a power assertion so the machine doesn't idle-sleep. */
   awake: boolean;
+  /** Setup has been walked through once. Reopenable from the account menu. */
+  onboarded: boolean;
 }
 
 const DEFAULT_APP: AppSettings = {
@@ -185,6 +187,7 @@ const DEFAULT_APP: AppSettings = {
   idleMinutes: 20,
   routinesOn: true,
   awake: false,
+  onboarded: false,
 };
 
 const state: Persisted = { bots: [], activeId: null, app: { ...DEFAULT_APP } };
@@ -293,25 +296,39 @@ let installing = false;
 // message rather than being invisible until it finishes.
 void listen<string>("engine", (event) => {
   engineStep = event.payload;
-  paintScreen();
+  paintEngineProgress();
 });
 
-/** Fetch, verify and unpack an engine, then bring it up and carry on to the
- *  desktop the user actually asked for. */
-async function setUpEngine(): Promise<void> {
+/** Both places that can install an engine — the desktop pane and onboarding —
+ *  show the same running commentary. */
+function paintEngineProgress(): void {
+  paintScreen();
+  if (!setupWrap.hidden) paintSetup();
+}
+
+/** Fetch, verify, unpack and start an engine. Throws on failure so each caller
+ *  can report it where the user is looking. */
+async function installEngine(): Promise<void> {
   installing = true;
   engineStep = "Starting…";
-  paintScreen();
+  paintEngineProgress();
   try {
     await invoke("install_engine");
     await invoke("start_engine");
     engine = await invoke<EngineStatus>("engine_status");
-    engineStep = "";
+  } finally {
     installing = false;
+    engineStep = "";
+  }
+}
+
+/** Fetch, verify and unpack an engine, then bring it up and carry on to the
+ *  desktop the user actually asked for. */
+async function setUpEngine(): Promise<void> {
+  try {
+    await installEngine();
     await openScreen();
   } catch (err) {
-    installing = false;
-    engineStep = "";
     screen.log = [String(err)];
     paintScreen();
     toast(String(err));
@@ -2009,11 +2026,16 @@ async function openAppSettings(): Promise<void> {
   void invoke<boolean>("login_launch").then((on) => (appLogin.checked = on)).catch(() => {});
 
   const [claude, docker] = await Promise.all([
-    invoke<{ version: string | null }>("claude_info"),
+    invoke<ClaudeState>("claude_state"),
     invoke<{ version: string | null }>("docker_info"),
   ]);
+  // Signed out is worth naming here too: the CLI being present is not the same
+  // as it being able to answer.
+  const cli = claude.path
+    ? `Claude Code ${claude.version?.split(" ")[0] ?? "?"}${claude.signedIn ? "" : " (signed out)"}`
+    : "Claude Code missing";
   $<HTMLSpanElement>("#app-environment").textContent =
-    `Claude Code ${claude.version?.split(" ")[0] ?? "missing"} · ${docker.version ?? "no container engine"}`;
+    `${cli} · ${docker.version ?? "no container engine"}`;
 
   const spent = session.turns
     ? `$${session.costUsd.toFixed(2)} over ${session.turns} turn${session.turns === 1 ? "" : "s"} this session`
@@ -2034,6 +2056,7 @@ function saveAppSettings(): void {
     idleMinutes: Number(appIdle.value),
     routinesOn: appRoutines.checked,
     awake: appAwake.checked,
+    onboarded: appSettings().onboarded,
   };
   save();
   verifyCatalogue();
@@ -2790,6 +2813,8 @@ $<HTMLButtonElement>("#btn-account").addEventListener("click", (event) => {
     event.currentTarget as HTMLElement,
       `<button type="button" class="menu-item" data-app="settings">${icon("gear")}` +
       `<span class="menu-item__body"><span class="menu-item__name">Settings</span></span></button>` +
+      `<button type="button" class="menu-item" data-app="setup">${icon("hand")}` +
+      `<span class="menu-item__body"><span class="menu-item__name">Setup</span></span></button>` +
       `<button type="button" class="menu-item" data-app="about">${icon("cube")}` +
       `<span class="menu-item__body"><span class="menu-item__name">About</span></span></button>`,
     "menu--account",
@@ -2898,6 +2923,7 @@ menu.addEventListener("click", (e) => {
   if (app) {
     closeMenu();
     if (app === "settings") void openAppSettings();
+    else if (app === "setup") void openSetup(appSettings().onboarded ? "claude" : "welcome");
     else void openAbout();
     return;
   }
@@ -3164,7 +3190,8 @@ document.addEventListener("keydown", (e) => {
     searchEl.focus();
     searchEl.select();
   } else if (e.key === "Escape") {
-    if (!aboutWrap.hidden) aboutWrap.hidden = true;
+    if (!setupWrap.hidden) closeSetup();
+    else if (!aboutWrap.hidden) aboutWrap.hidden = true;
     else if (!appWrap.hidden) appWrap.hidden = true;
     else if (teach.arming) cancelArming();
     else if (teach.on) void stopTeaching();
@@ -3175,6 +3202,301 @@ document.addEventListener("keydown", (e) => {
 });
 
 window.addEventListener("resize", closeMenu);
+
+/* ----------------------------------------------------------------- onboarding */
+/* botcage needs a signed-in Claude Code CLI to answer at all, and optionally an
+   engine for bots given a computer. Both used to be a toast and a paragraph in
+   the release notes; this walks through them, does the work where it can, and
+   never claims a step is done without looking. */
+
+interface ClaudeState {
+  path: string | null;
+  version: string | null;
+  signedIn: boolean;
+  email: string | null;
+  plan: string | null;
+  trouble: string | null;
+}
+
+const SETUP_STEPS = ["welcome", "claude", "engine", "done"] as const;
+type SetupStep = (typeof SETUP_STEPS)[number];
+
+const setupWrap = $<HTMLDivElement>("#setup");
+const setupRail = $<HTMLDivElement>("#setup-rail");
+const setupNext = $<HTMLButtonElement>("#setup-next");
+const setupBack = $<HTMLButtonElement>("#setup-back");
+const setupSkip = $<HTMLButtonElement>("#setup-skip");
+
+let setupAt: SetupStep = "welcome";
+let claudeState: ClaudeState | null = null;
+let claudeBusy = "";
+let setupLog: string[] = [];
+/** Set while a terminal is open for sign-in, so the sheet can wait for it. */
+let signInWatch: number | null = null;
+/** Waiting on a sign-in happening elsewhere is not the same as working: the
+ *  terminal may have been closed, so this waits without trapping anyone. */
+let signInWaiting = false;
+
+setupRail.innerHTML = SETUP_STEPS.map(() => `<span class="setup__seg"></span>`).join("");
+
+void listen<string>("claude-setup", (event) => {
+  setupLog = [...setupLog, event.payload].slice(-40);
+  paintSetup();
+});
+
+async function openSetup(at: SetupStep = "welcome"): Promise<void> {
+  setupAt = at;
+  setupLog = [];
+  setupWrap.hidden = false;
+  paintSetup();
+  await Promise.all([refreshClaude(), refreshEngine()]);
+  paintSetup();
+}
+
+function closeSetup(): void {
+  setupWrap.hidden = true;
+  stopSignInWatch();
+  // Shown once. Someone who skipped a step can reopen it from the account menu,
+  // and a missing CLI still warns on its own.
+  if (!appSettings().onboarded) {
+    state.app = { ...appSettings(), onboarded: true };
+    save();
+  }
+}
+
+async function refreshClaude(): Promise<void> {
+  claudeState = await invoke<ClaudeState>("claude_state").catch(() => null);
+  claudeReady = Boolean(claudeState?.path && claudeState.signedIn);
+}
+
+async function refreshEngine(): Promise<void> {
+  engine = await invoke<EngineStatus>("engine_status").catch(() => null);
+}
+
+/** Is this step's work done? Used for the button label and for skipping past
+ *  steps that need nothing. */
+function stepSatisfied(step: SetupStep): boolean {
+  if (step === "claude") return Boolean(claudeState?.path && claudeState.signedIn);
+  if (step === "engine") return Boolean(engine?.installed) || engine?.supported === false;
+  return true;
+}
+
+function paintSetup(): void {
+  const index = SETUP_STEPS.indexOf(setupAt);
+  setupRail.querySelectorAll<HTMLElement>(".setup__seg").forEach((seg, at) => {
+    seg.dataset.on = String(at <= index);
+  });
+  setupWrap.querySelectorAll<HTMLElement>(".setup__step").forEach((section) => {
+    section.hidden = section.dataset.step !== setupAt;
+  });
+
+  const busy = installing || (Boolean(claudeBusy) && !signInWaiting);
+  setupBack.hidden = index === 0 || busy;
+  setupSkip.hidden = true;
+  setupNext.disabled = busy;
+  setupNext.textContent = "Continue";
+
+  if (setupAt === "welcome") setupNext.textContent = "Get started";
+  if (setupAt === "claude") paintClaudeStep();
+  if (setupAt === "engine") paintEngineStep();
+  if (setupAt === "done") paintDoneStep();
+}
+
+function paintClaudeStep(): void {
+  const dot = $<HTMLSpanElement>("#setup-claude-check .setup__dot");
+  const text = $<HTMLSpanElement>("#setup-claude-text");
+  const log = $<HTMLPreElement>("#setup-claude-log");
+  const fine = $<HTMLParagraphElement>("#setup-claude-fine");
+
+  log.hidden = setupLog.length === 0;
+  log.textContent = setupLog.join("\n");
+  log.scrollTop = log.scrollHeight;
+
+  if (claudeBusy) {
+    dot.dataset.state = "busy";
+    text.textContent = claudeBusy;
+    fine.hidden = true;
+    if (signInWaiting) {
+      // The sign-in is finished in a browser, and botcage only finds out by
+      // asking. It asks every couple of seconds anyway; this is for the person
+      // who would rather not wait for the next one.
+      setupNext.textContent = "Check again";
+      setupSkip.hidden = false;
+    }
+    return;
+  }
+
+  const version = claudeState?.version?.split(" ")[0] ?? "";
+  if (!claudeState?.path) {
+    dot.dataset.state = "missing";
+    text.textContent = "Not installed — about 220 MB.";
+    fine.hidden = false;
+    setupNext.textContent = "Install Claude Code";
+    setupSkip.hidden = false;
+    return;
+  }
+  fine.hidden = true;
+  if (!claudeState.signedIn) {
+    dot.dataset.state = "missing";
+    text.textContent = claudeState.trouble
+      ? `Claude Code ${version} — ${claudeState.trouble}.`
+      : `Claude Code ${version} is installed, but not signed in.`;
+    setupNext.textContent = "Sign in";
+    setupSkip.hidden = false;
+    return;
+  }
+  dot.dataset.state = "ok";
+  const who = claudeState.email ?? "signed in";
+  text.textContent = claudeState.plan
+    ? `Claude Code ${version} · ${who} · ${claudeState.plan}`
+    : `Claude Code ${version} · ${who}`;
+}
+
+function paintEngineStep(): void {
+  const dot = $<HTMLSpanElement>("#setup-engine-check .setup__dot");
+  const text = $<HTMLSpanElement>("#setup-engine-text");
+  const fine = $<HTMLParagraphElement>("#setup-engine-fine");
+  fine.hidden = true;
+
+  if (installing) {
+    dot.dataset.state = "busy";
+    text.textContent = engineStep || "Setting up…";
+    return;
+  }
+  if (engine?.supported === false) {
+    dot.dataset.state = "missing";
+    text.textContent = "botcage has no engine for this platform yet.";
+    return;
+  }
+  if (engine?.installed) {
+    dot.dataset.state = "ok";
+    text.textContent = "Ready — bots can be given a computer.";
+    return;
+  }
+  dot.dataset.state = "missing";
+  text.textContent = `Not set up — about ${engine?.downloadMb ?? 0} MB to download.`;
+  fine.hidden = false;
+  fine.textContent =
+    "The desktop image is built the first time a bot switches its computer on, which takes a few more minutes.";
+  setupNext.textContent = "Set it up";
+  setupSkip.hidden = false;
+}
+
+function paintDoneStep(): void {
+  const blurb = $<HTMLParagraphElement>("#setup-done-blurb");
+  if (stepSatisfied("claude")) {
+    blurb.textContent = "Everything botcage needs is in place.";
+  } else {
+    blurb.textContent =
+      "Bots can't reply until Claude Code is installed and signed in. Reopen this from the account menu when you're ready.";
+  }
+  setupNext.textContent = "Start using botcage";
+}
+
+function goTo(step: SetupStep): void {
+  setupAt = step;
+  setupLog = [];
+  paintSetup();
+}
+
+/** The primary button does whatever the step still needs, and only moves on
+ *  once there is nothing left to do. */
+async function setupAdvance(): Promise<void> {
+  if (setupAt === "welcome") return goTo("claude");
+  if (setupAt === "done") return closeSetup();
+
+  if (setupAt === "claude") {
+    if (stepSatisfied("claude")) return goTo("engine");
+    if (signInWaiting) {
+      await refreshClaude();
+      if (claudeState?.signedIn) stopSignInWatch();
+      paintSetup();
+      return;
+    }
+    if (!claudeState?.path) return installClaude();
+    return startSignIn();
+  }
+
+  if (setupAt === "engine") {
+    if (stepSatisfied("engine")) return goTo("done");
+    try {
+      await installEngine();
+      toast("Engine ready");
+    } catch (err) {
+      toast(String(err));
+    }
+    paintSetup();
+  }
+}
+
+async function installClaude(): Promise<void> {
+  claudeBusy = "Installing…";
+  setupLog = [];
+  paintSetup();
+  try {
+    await invoke<string>("install_claude");
+    await refreshClaude();
+    claudeBusy = "";
+    paintSetup();
+    // Installed but signed out is the normal outcome, and the step now asks for
+    // exactly that rather than looking finished. Only say "installed" if the
+    // binary is actually there, whatever the installer reported.
+    if (claudeState?.path && !claudeState.signedIn) toast("Claude Code installed — sign in next");
+  } catch (err) {
+    claudeBusy = "";
+    setupLog = [...setupLog, String(err)];
+    paintSetup();
+    toast(String(err));
+  }
+}
+
+/** Hand off to a terminal, then watch for the account to appear. Polling is the
+ *  honest mechanism here: the sign-in happens in another process and a browser,
+ *  and neither reports back to us. */
+async function startSignIn(): Promise<void> {
+  try {
+    await invoke("claude_sign_in");
+  } catch (err) {
+    toast(String(err));
+    return;
+  }
+  claudeBusy = "Waiting for you to finish signing in…";
+  signInWaiting = true;
+  paintSetup();
+
+  stopSignInWatch();
+  const until = Date.now() + 10 * 60 * 1000;
+  signInWatch = window.setInterval(() => {
+    void refreshClaude().then(() => {
+      if (claudeState?.signedIn) {
+        stopSignInWatch();
+        paintSetup();
+        toast("Signed in");
+      } else if (Date.now() > until) {
+        stopSignInWatch();
+        paintSetup();
+      }
+    });
+  }, 2000);
+}
+
+function stopSignInWatch(): void {
+  if (signInWatch !== null) window.clearInterval(signInWatch);
+  signInWatch = null;
+  signInWaiting = false;
+  claudeBusy = "";
+}
+
+setupNext.addEventListener("click", () => void setupAdvance());
+setupBack.addEventListener("click", () => {
+  const index = SETUP_STEPS.indexOf(setupAt);
+  if (index > 0) goTo(SETUP_STEPS[index - 1]);
+});
+setupSkip.addEventListener("click", () => {
+  stopSignInWatch();
+  const index = SETUP_STEPS.indexOf(setupAt);
+  goTo(SETUP_STEPS[Math.min(index + 1, SETUP_STEPS.length - 1)]);
+});
 
 /* --------------------------------------------------------------------- boot */
 
@@ -3213,9 +3535,10 @@ void invoke("set_idle_limit", { minutes: appSettings().idleMinutes }).catch(() =
 // Re-assert on launch: the assertion belongs to the process that took it.
 if (appSettings().awake) void invoke("set_awake", { on: true }).catch(() => {});
 
-void invoke<{ path: string | null; version: string | null }>("claude_info").then((info) => {
-  claudeReady = Boolean(info.path);
-  if (!claudeReady) {
-    toast("Claude Code CLI not found — bots can't reply until it's installed");
-  }
+// First run walks through setup. Afterwards it only reappears when the thing
+// bots actually depend on is missing, and opens at that step rather than at the
+// welcome screen someone has already read.
+void refreshClaude().then(() => {
+  if (!appSettings().onboarded) void openSetup("welcome");
+  else if (!claudeReady) void openSetup("claude");
 });

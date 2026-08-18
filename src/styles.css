@@ -26,6 +26,14 @@
   box-sizing: border-box;
 }
 
+/* `hidden` is only a `display: none` in the UA stylesheet, so any class of ours
+   that sets display beats it — .chip, .icon-btn and .setup__step all did, which
+   meant `el.hidden = true` silently did nothing for them. This was being
+   patched one selector at a time; it is one rule. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   height: 100%;
@@ -679,19 +687,11 @@ textarea {
   border-radius: 99px;
 }
 
-.teach-name[hidden] {
-  display: none;
-}
-
 .routines-view {
   flex: 1;
   min-height: 0;
   padding: 8px 22px 24px;
   overflow-y: auto;
-}
-
-.routines-view[hidden] {
-  display: none;
 }
 
 /* While routines are on screen the thread and composer step aside. */
@@ -777,10 +777,6 @@ textarea {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--line);
   border-radius: 12px;
-}
-
-.routine-form[hidden] {
-  display: none;
 }
 
 .routine-form input,
@@ -1059,12 +1055,6 @@ textarea {
   border-radius: 12px;
   box-shadow: var(--shadow);
   animation: pop 0.11s ease both;
-}
-
-.menu[hidden],
-.overlay[hidden],
-.toast[hidden] {
-  display: none;
 }
 
 @keyframes pop {
@@ -1665,10 +1655,6 @@ a.detail__source:hover {
   color: var(--text-3);
 }
 
-.settings-panel[hidden] {
-  display: none;
-}
-
 .settings {
   display: flex;
   flex-direction: column;
@@ -1879,10 +1865,6 @@ a.detail__source:hover {
   border-left: 1px solid var(--line);
 }
 
-.screen-pane[hidden] {
-  display: none;
-}
-
 @container (max-width: 430px) {
   .chip span {
     display: none;
@@ -2005,10 +1987,6 @@ a.detail__source:hover {
   background: #07070a;
 }
 
-.screen__idle[hidden] {
-  display: none;
-}
-
 .screen__idle p {
   max-width: 380px;
   margin: 0;
@@ -2117,4 +2095,199 @@ a.detail__source:hover {
   .bubble {
     max-width: 92%;
   }
+}
+
+/* --------------------------------------------------------------- onboarding */
+/* Taller than the other sheets and a fixed height, so the four steps do not
+   resize the window as you move between them. */
+.sheet--setup {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(440px, 92vw);
+  /* Fixed, so moving between steps does not resize the sheet under the cursor.
+     Sized for the tallest step — the CLI install, with its log open. */
+  height: min(470px, 88vh);
+}
+
+/* Progress as a row of segments rather than "step 2 of 4": it shows how much is
+   left without asking anyone to count. */
+.setup__rail {
+  display: flex;
+  gap: 4px;
+  padding: 16px 18px 0;
+}
+
+.setup__seg {
+  flex: 1;
+  height: 3px;
+  background: var(--line);
+  border-radius: 2px;
+  transition: background 0.2s ease;
+}
+
+.setup__seg[data-on="true"] {
+  background: var(--blue);
+}
+
+.setup__body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 22px 22px 8px;
+  overflow-y: auto;
+}
+
+.setup__step {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  /* Centred rather than top-aligned: the steps differ in height by a couple of
+     paragraphs, and pinning them to the top left a hole above the buttons. */
+  justify-content: center;
+  min-height: 0;
+  text-align: center;
+  animation: pop 0.16s ease both;
+}
+
+.setup__title {
+  margin: 14px 0 0;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.setup__blurb {
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+.setup__blurb--dim {
+  color: var(--text-3);
+}
+
+/* The line that answers "is this done?" — a dot whose colour is the whole
+   status, and text that says what botcage actually found. */
+.setup__check {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  margin-top: 18px;
+  padding: 12px 14px;
+  font-size: 13px;
+  text-align: left;
+  background: var(--field);
+  border-radius: 12px;
+}
+
+.setup__dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  background: var(--text-3);
+  border-radius: 50%;
+}
+
+.setup__dot[data-state="ok"] {
+  background: #32d74b;
+}
+
+.setup__dot[data-state="missing"] {
+  background: #ff9f0a;
+}
+
+.setup__dot[data-state="bad"] {
+  background: var(--red);
+}
+
+/* Working: a pulse rather than a spinner, since the wait is minutes and a
+   spinner at that length reads as a hang. */
+.setup__dot[data-state="busy"] {
+  background: var(--blue);
+  animation: setup-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes setup-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup__dot[data-state="busy"] {
+    animation: none;
+  }
+
+  .setup__step {
+    animation: none;
+  }
+}
+
+.setup__check-text {
+  min-width: 0;
+  color: var(--text);
+}
+
+/* Installer output. Capped and scrolled to the bottom, so a long build cannot
+   push the buttons off the sheet. */
+.setup__log {
+  width: 100%;
+  max-height: 92px;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-2);
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #121214;
+  border-radius: 10px;
+}
+
+.setup__fine {
+  margin: 12px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+.setup__fine code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.setup__list {
+  margin: 16px 0 0;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--text-2);
+  text-align: left;
+  list-style: none;
+}
+
+.setup__list b {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.setup__foot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* The primary action takes the room; Back and Skip stay label-sized. */
+.setup__foot .btn-primary {
+  flex: 1;
+}
+
+.setup__foot .chip {
+  flex: 0 0 auto;
 }
