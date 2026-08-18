@@ -29,25 +29,28 @@ const ALPN: &[u8] = b"botcage/1";
 /// laptop that is actually asleep is reported rather than waited on.
 const TIMEOUT: Duration = Duration::from_secs(20);
 
+/// Not named `message`: UniFFI maps these onto Kotlin exceptions, where a
+/// `message` field collides with the one every Throwable already has, and the
+/// generated bindings do not compile. Found by building for Android.
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 pub enum P2pError {
     /// The laptop could not be reached: asleep, offline, or not running botcage.
-    #[error("{message}")]
-    Unreachable { message: String },
+    #[error("{reason}")]
+    Unreachable { reason: String },
     /// It was reached, but something in between went wrong.
-    #[error("{message}")]
-    Failed { message: String },
+    #[error("{reason}")]
+    Failed { reason: String },
 }
 
-fn unreachable(message: impl std::fmt::Display) -> P2pError {
+fn unreachable(reason: impl std::fmt::Display) -> P2pError {
     P2pError::Unreachable {
-        message: message.to_string(),
+        reason: reason.to_string(),
     }
 }
 
-fn failed(message: impl std::fmt::Display) -> P2pError {
+fn failed(reason: impl std::fmt::Display) -> P2pError {
     P2pError::Failed {
-        message: message.to_string(),
+        reason: reason.to_string(),
     }
 }
 

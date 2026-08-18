@@ -33,9 +33,10 @@ class BotcageP2pModule : Module() {
     }
 
     // Returns at once; the stream blocks on a thread of its own.
+    // Returns null rather than Unit: Expo's Function expects a value.
     Function("listen") {
-      val open = peer ?: return@Function
-      if (streaming != null) return@Function
+      val open = peer ?: return@Function null
+      if (streaming != null) return@Function null
       streaming = thread(name = "botcage.p2p.events") {
         val sink = object : EventSink {
           override fun onFrame(name: String, data: String) {
@@ -54,10 +55,12 @@ class BotcageP2pModule : Module() {
           streaming = null
         }
       }
+      null
     }
 
     Function("stop") {
       peer?.stop()
+      null
     }
 
     Function("isConnected") {

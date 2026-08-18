@@ -37,3 +37,7 @@ mobile/modules/botcage-p2p/ios/BotcageP2P.xcframework
 mobile/modules/botcage-p2p/ios/botcage_p2p.swift
 mobile/modules/botcage-p2p/android/src/main/jniLibs
 mobile/modules/botcage-p2p/android/src/main/java/uniffi
+
+# Gradle output for the local module
+mobile/modules/*/android/build
+mobile/modules/*/android/.cxx

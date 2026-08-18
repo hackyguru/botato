@@ -39,9 +39,19 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 
-/// Chosen to sit outside the ranges macOS hands out for ephemeral ports, so a
-/// restart does not find it taken by something else.
-pub const PORT: u16 = 8767;
+/// No fixed port. Nothing outside this machine dials it — the peer-to-peer link
+/// is the only route in, and it is told which port to use — so a number in the
+/// source can only cause the failure it was meant to prevent: a second botcage,
+/// or a stale one from a rebuild, finding the port taken and refusing to start.
+fn port() -> u16 {
+    remote().lock().unwrap().port
+}
+
+/// Where the splice should connect. Public for the p2p module, which is the only
+/// thing that ever needs it.
+pub fn local_port() -> u16 {
+    port()
+}
 
 /// A pairing code is short enough to type off a screen, so it must not live
 /// long. Five minutes is enough to walk to the sofa and fetch your phone.
@@ -70,6 +80,8 @@ struct Remote {
     peers: HashMap<u16, String>,
     /// Open event streams. Writing to a dead one is how they get reaped.
     listeners: Vec<TcpStream>,
+    /// The port the server actually bound, chosen by the operating system.
+    port: u16,
     /// Requests handed to the desktop window, awaiting its answer.
     pending: HashMap<u64, Sender<Result<Value, String>>>,
     next_id: u64,
@@ -83,6 +95,7 @@ impl Default for Remote {
             devices: HashMap::new(),
             wrong: 0,
             peers: HashMap::new(),
+            port: 0,
             listeners: Vec::new(),
             pending: HashMap::new(),
             next_id: 1,
@@ -169,7 +182,7 @@ pub fn remote_status(app: AppHandle) -> RemoteStatus {
     };
     RemoteStatus {
         running: state.running,
-        port: PORT,
+        port: state.port,
         code,
         code_expires_in: expires,
         devices: state.devices.values().map(|d| d.name.clone()).collect(),
@@ -183,17 +196,25 @@ pub fn remote_start(app: AppHandle) -> Result<u16, String> {
     {
         let mut state = remote().lock().unwrap();
         if state.running {
-            return Ok(PORT);
+            return Ok(state.port);
         }
         state.devices = load_devices(&app);
     }
 
-    // Loopback, not every interface: the only route in is the peer-to-peer
+    // Loopback and whatever port is free: the only route in is the peer-to-peer
     // link, which terminates here. Nothing is exposed to whatever network this
-    // machine happens to have joined.
-    let listener = TcpListener::bind(("127.0.0.1", PORT))
-        .map_err(|e| format!("could not listen on port {PORT}: {e}"))?;
-    remote().lock().unwrap().running = true;
+    // machine happens to have joined, and nothing else has to agree on a number.
+    let listener = TcpListener::bind(("127.0.0.1", 0))
+        .map_err(|e| format!("could not start the local server: {e}"))?;
+    let bound = listener
+        .local_addr()
+        .map_err(|e| format!("could not read the server's port: {e}"))?
+        .port();
+    {
+        let mut state = remote().lock().unwrap();
+        state.running = true;
+        state.port = bound;
+    }
     heartbeat();
 
     std::thread::spawn(move || {
@@ -206,7 +227,7 @@ pub fn remote_start(app: AppHandle) -> Result<u16, String> {
             std::thread::spawn(move || handle(app, stream));
         }
     });
-    Ok(PORT)
+    Ok(bound)
 }
 
 #[tauri::command(async)]
@@ -287,6 +308,13 @@ fn relay(app: &AppHandle, kind: &str, payload: Value) -> Result<Value, String> {
             Err("the desktop app did not answer — is its window open?".into())
         }
     }
+}
+
+/// Point the splice at a listener a test opened, so the p2p path can be checked
+/// without a running app.
+#[cfg(test)]
+pub fn use_port_for_test(port: u16) {
+    remote().lock().unwrap().port = port;
 }
 
 /// Note which key a spliced connection belongs to. Called by the p2p module

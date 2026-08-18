@@ -76,15 +76,24 @@ type NativeLink = {
 };
 
 let native: NativeLink | null = null;
+/** Why the link is missing, if it is. Reported rather than swallowed: the first
+ *  version of this hid a wrong import path behind the same message a build
+ *  without native code would show, which is a bad way to lose an afternoon. */
+let linkProblem = "";
 try {
-  native = (require("../modules/botcage-p2p") as { default: NativeLink }).default;
-} catch {
+  // The local module's entry point is the file, not the directory — there is no
+  // package.json here to resolve an index for us.
+  native = (require("../modules/botcage-p2p/src/index") as { default: NativeLink }).default;
+} catch (err) {
   native = null;
+  linkProblem = err instanceof Error ? err.message : String(err);
 }
 
 export const hasLink = () => native !== null;
 
-const NO_LINK = "this build of botcage can't open a connection — it needs a development build";
+const NO_LINK = `botcage can't open a connection — it needs a development build${
+  linkProblem ? ` (${linkProblem})` : ""
+}`;
 
 function link(): NativeLink {
   if (!native) throw new Error(NO_LINK);

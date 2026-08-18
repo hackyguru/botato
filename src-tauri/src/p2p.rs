@@ -186,7 +186,8 @@ async fn splice(
     recv: iroh::endpoint::RecvStream,
     peer: String,
 ) -> std::io::Result<()> {
-    let mut local = tokio::net::TcpStream::connect(("127.0.0.1", crate::remote::PORT)).await?;
+    let mut local =
+        tokio::net::TcpStream::connect(("127.0.0.1", crate::remote::local_port())).await?;
     let port = local.local_addr()?.port();
     crate::remote::register_peer(port, peer);
 
@@ -236,8 +237,10 @@ mod tests {
     fn a_peer_can_reach_the_local_server() {
         use std::io::{Read, Write};
         // A stand-in for the API server, so the test needs no running app.
-        let listener = std::net::TcpListener::bind(("127.0.0.1", crate::remote::PORT))
-            .expect("the api port must be free for this test");
+        // Any free port, and the splice is told which — the same way the real
+        // server hands its port over.
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).expect("bind");
+        crate::remote::use_port_for_test(listener.local_addr().unwrap().port());
         std::thread::spawn(move || {
             for stream in listener.incoming().take(1) {
                 let Ok(mut stream) = stream else { continue };
@@ -296,6 +299,33 @@ mod tests {
             println!(
                 "  reached the local server over p2p: {}",
                 text.lines().next().unwrap_or("")
+            );
+        });
+    }
+
+    /// What a phone is actually given to find this machine with. Prints the
+    /// home relay and the direct addresses, which is the difference between
+    /// "works on my desk" and "works from a train".
+    #[test]
+    #[ignore = "talks to the network; run explicitly"]
+    fn the_endpoint_gets_a_relay_and_addresses() {
+        let runtime = tokio::runtime::Runtime::new().expect("runtime");
+        runtime.block_on(async {
+            let endpoint = iroh::Endpoint::builder(iroh::endpoint::presets::N0)
+                .alpns(vec![ALPN.to_vec()])
+                .bind()
+                .await
+                .expect("bind");
+
+            // Direct addresses and a home relay are learned a moment after
+            // binding, so give it that moment.
+            tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+            let address = endpoint.addr();
+            let json = serde_json::to_string_pretty(&address).expect("address");
+            println!("{json}");
+            assert!(
+                json.contains("relay") || json.contains("http"),
+                "no relay in the address — a phone on mobile data would have nothing to fall back to"
             );
         });
     }
