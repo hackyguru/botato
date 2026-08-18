@@ -41,3 +41,6 @@ mobile/modules/botcage-p2p/android/src/main/java/uniffi
 # Gradle output for the local module
 mobile/modules/*/android/build
 mobile/modules/*/android/.cxx
+
+# Generated native projects (expo prebuild regenerates them)
+mobile/ios

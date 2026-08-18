@@ -5,7 +5,7 @@
 // the event stream gets a thread of its own because it blocks until it ends.
 import ExpoModulesCore
 
-private class Frames: EventSink {
+private final class Frames: EventSink {
   private weak var module: BotcageP2pModule?
 
   init(module: BotcageP2pModule) {
@@ -75,7 +75,7 @@ public class BotcageP2pModule: Module {
   }
 }
 
-private class NotConnected: Exception {
+private final class NotConnected: Exception {
   override var reason: String {
     "this phone is not connected to a botcage yet"
   }

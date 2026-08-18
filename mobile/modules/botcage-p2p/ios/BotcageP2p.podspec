@@ -19,7 +19,11 @@ Pod::Spec.new do |s|
     'DEFINES_MODULE' => 'YES',
   }
 
-  s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}"
+  # Everything except the xcframework's own contents: sweeping its headers into
+  # source_files makes CocoaPods pass -lbotcage_p2p instead of linking the
+  # framework, and the build then fails with "library not found".
+  s.source_files = "*.{h,m,mm,swift,hpp,cpp}"
+  s.exclude_files = "BotcageP2P.xcframework/**/*"
 
   # The Rust library and the bindings generated from it. Built by
   # ../rust/build.sh, which regenerates both together so they cannot disagree.
