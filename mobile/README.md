@@ -8,45 +8,47 @@ drifts.
 There is no server of ours in the middle and no account. The phone stores one
 address and one token, and talks to that machine directly.
 
-## Reaching a laptop that isn't next to you
+## How it reaches your laptop, and why that is safe
 
-On the same network, the laptop's address is enough. Away from it, install
-[Tailscale](https://tailscale.com) on both — it gives every device a `100.x`
-address that follows it between networks, with nothing forwarded and no ports
-opened. botcage's Phone settings show that address first when it finds one.
+Your laptop listens on nothing. The API is bound to its own loopback address, so
+no port is open on any network it joins — a café's Wi-Fi has nothing to find.
 
-Traffic to a `100.x` address is encrypted by Tailscale itself, which is why this
-speaks plain HTTP: adding TLS on top would mean shipping a certificate for an
-address that changes per machine, to protect a tunnel that is already encrypted.
-On a plain home network the token still gates access, but the traffic is only as
-private as the network is.
+The only way in is a QUIC connection made directly between the two devices, in
+which the laptop's identity *is* its public key. That gives the same guarantees
+wherever you are:
+
+- **Encrypted end to end.** When a direct path cannot be punched through a NAT,
+  packets fall back to public relays, which forward ciphertext and hold no key
+  that could open it.
+- **The laptop cannot be impersonated.** Reaching it means holding its private
+  key, so nothing on the network can stand in for it.
+- **Your phone cannot be impersonated either.** The laptop records this phone's
+  key at pairing time and binds the token to it. A token copied off this device
+  is refused from any other, even with the right code.
+- **Same network, same rules.** At home the two connect directly over the LAN —
+  faster, and encrypted exactly as it is from a train.
 
 ## Pairing
 
 1. On the laptop: account menu → **Settings → Phone**, turn on phone access.
 2. It shows an address and a six-character code. The code lasts five minutes and
    works once.
-3. Type both into this app. The token it gets back goes to the iOS keychain or
+3. Paste both into this app. The token it gets back goes to the iOS keychain or
    the Android keystore.
+
+A code lasts five minutes, works once, and is burned after five wrong guesses.
 
 **Forget all** in the same settings panel revokes every paired device.
 
 ## Running it
 
-```sh
-npm install
-npx expo start            # then scan the QR code with Expo Go
-npx expo start --web      # or run it in a browser
-```
-
-The web target is a development convenience — `expo-secure-store` has no web
-implementation, so there the token falls back to `localStorage`.
-
-Installing on a device you own needs a build rather than Expo Go:
+Speaking QUIC needs native code, so Expo Go cannot run this app — it needs a
+development build:
 
 ```sh
-npx expo run:ios          # needs Xcode
-npx expo run:android      # needs Android Studio, or an attached device
+../mobile/rust/build.sh   # builds the link for both platforms
+npx expo run:ios          # needs Xcode and CocoaPods
+npx expo run:android      # needs a JDK and the Android SDK
 ```
 
 ## What it does

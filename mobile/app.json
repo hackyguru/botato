@@ -11,11 +11,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.botcage.phone",
       "infoPlist": {
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true,
-          "NSAllowsLocalNetworking": true
-        },
-        "NSLocalNetworkUsageDescription": "botcage talks to your own laptop on your network or Tailscale."
+        "NSLocalNetworkUsageDescription": "botcage connects directly to your own laptop."
       }
     },
     "android": {
@@ -26,7 +22,6 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "usesCleartextTraffic": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {

@@ -3519,8 +3519,6 @@ interface RemoteStatus {
   code: string | null;
   codeExpiresIn: number;
   devices: string[];
-  addresses: string[];
-  tailscale: boolean;
 }
 
 /** This machine's peer-to-peer identity — the address a phone pairs with, which
@@ -3539,16 +3537,15 @@ function paintRemote(status: RemoteStatus): void {
   appRemote.checked = status.running;
   remotePairing.hidden = !status.running;
 
+  // There is one way in and it is the same everywhere, so this says what the
+  // connection is rather than listing addresses that no longer mean anything.
   if (!status.running) {
     remoteWhere.textContent = "Off.";
   } else if (peerId) {
-    // The peer-to-peer identity is the honest answer: it does not change when
-    // this machine moves between networks, and needs nothing forwarded.
-    remoteWhere.textContent = "Anywhere — your phone finds this machine directly, on any network.";
-  } else if (status.addresses.length === 0) {
-    remoteWhere.textContent = `Port ${status.port}, but this machine has no network address.`;
+    remoteWhere.textContent =
+      "Anywhere — encrypted end to end, and nothing is open on your network.";
   } else {
-    remoteWhere.textContent = `${status.addresses[0]}:${status.port} — this network only.`;
+    remoteWhere.textContent = "Starting the connection…";
   }
 
   remoteDevices.textContent = status.devices.length
@@ -3596,6 +3593,17 @@ appRemote.addEventListener("change", async () => {
     toast(String(err));
   }
   await refreshRemote();
+});
+
+$<HTMLButtonElement>("#app-remote-copy").addEventListener("click", async () => {
+  // The full address, not just the key: it saves the phone a lookup on its
+  // first connection, and the key inside it is what keeps working afterwards.
+  const address = await invoke<string | null>("p2p_address").catch(() => null);
+  if (!address) {
+    toast("The connection isn't up yet — try again in a moment");
+    return;
+  }
+  await copy(address);
 });
 
 $<HTMLButtonElement>("#app-remote-forget").addEventListener("click", async () => {

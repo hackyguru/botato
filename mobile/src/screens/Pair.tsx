@@ -23,23 +23,21 @@ import * as Device from "expo-device";
 import { pair, probe, type Pairing } from "../api";
 import { T } from "../theme";
 
-const PORT = 8767;
-
 export default function Pair({ onPaired }: { onPaired: (pairing: Pairing) => void }) {
-  const [host, setHost] = useState("");
+  const [address, setAddress] = useState("");
   const [code, setCode] = useState("");
   const [found, setFound] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const codeField = useRef<TextInput>(null);
 
-  async function check(address: string) {
+  async function check(text: string) {
     setFound(null);
     setError(null);
-    const clean = address.trim();
-    if (clean.length < 7) return;
+    const clean = text.trim();
+    if (clean.length < 20) return;
     try {
-      const info = await probe(clean, PORT);
+      const info = await probe(clean);
       setFound(`botcage ${info.version}`);
     } catch (err) {
       setError(String(err instanceof Error ? err.message : err));
@@ -51,7 +49,7 @@ export default function Pair({ onPaired }: { onPaired: (pairing: Pairing) => voi
     setError(null);
     try {
       const name = Device.deviceName ?? (Platform.OS === "ios" ? "an iPhone" : "an Android phone");
-      onPaired(await pair(host.trim(), PORT, code, name));
+      onPaired(await pair(address.trim(), code, name));
     } catch (err) {
       setError(String(err instanceof Error ? err.message : err));
     } finally {
@@ -72,28 +70,28 @@ export default function Pair({ onPaired }: { onPaired: (pairing: Pairing) => voi
         <Text style={s.title}>Connect to your botcage</Text>
         <Text style={s.blurb}>
           On the laptop: botcage → account menu → Settings → Phone. Turn on phone access, and it
-          shows the address and a code.
+          shows what to paste here plus a code.
         </Text>
 
-        <Text style={s.label}>Address</Text>
+        <Text style={s.label}>Your laptop</Text>
         <TextInput
           style={s.input}
           autoFocus
-          value={host}
+          value={address}
           onChangeText={(text) => {
-            setHost(text);
+            setAddress(text);
             setFound(null);
           }}
-          onBlur={() => check(host)}
+          onBlur={() => check(address)}
           onSubmitEditing={() => {
-            void check(host);
+            void check(address);
             codeField.current?.focus();
           }}
-          placeholder="100.x.y.z"
+          placeholder="paste what the laptop shows"
           placeholderTextColor={T.text3}
           autoCapitalize="none"
           autoCorrect={false}
-          keyboardType="numbers-and-punctuation"
+          multiline
           returnKeyType="next"
         />
         {found ? <Text style={s.found}>Found {found}</Text> : null}
@@ -116,16 +114,17 @@ export default function Pair({ onPaired }: { onPaired: (pairing: Pairing) => voi
         {error ? <Text style={s.error}>{error}</Text> : null}
 
         <Pressable
-          style={[s.button, (busy || !host || code.length < 6) && s.buttonOff]}
-          disabled={busy || !host || code.length < 6}
+          style={[s.button, (busy || !address || code.length < 6) && s.buttonOff]}
+          disabled={busy || !address || code.length < 6}
           onPress={connect}
         >
           {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.buttonText}>Connect</Text>}
         </Pressable>
 
         <Text style={s.fine}>
-          The code expires after five minutes and works once. Nothing goes through a server of
-          ours — this phone talks to that laptop directly.
+          Encrypted end to end and tied to this phone: a code lasts five minutes and works once,
+          and the key it earns is refused from any other device. Nothing passes through a server
+          of ours.
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>

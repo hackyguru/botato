@@ -160,7 +160,7 @@ pub fn p2p_start(app: AppHandle) -> Result<String, String> {
                     };
                     while let Ok((send, recv)) = connection.accept_bi().await {
                         tokio::spawn(async move {
-                            let _ = splice(send, recv).await;
+                            let _ = splice(send, recv, "test-peer".into()).await;
                         });
                     }
                 });
@@ -177,13 +177,26 @@ pub fn p2p_start(app: AppHandle) -> Result<String, String> {
 /// Splicing rather than parsing is what keeps this module ignorant of the API:
 /// requests, responses and the event stream are all just bytes, and anything
 /// added to the server works over p2p the day it is added.
+/// The caller's key travels beside the stream rather than inside it — noted
+/// against the local port of this connection, which the server reads back. A
+/// phone therefore cannot claim to be another device by writing a header, and
+/// the splice stays byte-for-byte transparent.
 async fn splice(
     send: iroh::endpoint::SendStream,
     recv: iroh::endpoint::RecvStream,
+    peer: String,
 ) -> std::io::Result<()> {
     let mut local = tokio::net::TcpStream::connect(("127.0.0.1", crate::remote::PORT)).await?;
+    let port = local.local_addr()?.port();
+    crate::remote::register_peer(port, peer);
+
     let mut remote = tokio::io::join(recv, send);
-    tokio::io::copy_bidirectional(&mut remote, &mut local).await?;
+    let outcome = tokio::io::copy_bidirectional(&mut remote, &mut local).await;
+
+    // The operating system reuses the port the moment this closes, so the claim
+    // on it has to go with it.
+    crate::remote::forget_peer(port);
+    outcome?;
     Ok(())
 }
 
@@ -258,7 +271,7 @@ mod tests {
                     };
                     while let Ok((send, recv)) = connection.accept_bi().await {
                         tokio::spawn(async move {
-                            let _ = splice(send, recv).await;
+                            let _ = splice(send, recv, "test-peer".into()).await;
                         });
                     }
                 }

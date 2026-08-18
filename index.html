@@ -534,10 +534,18 @@
             <div class="settings" id="app-remote-pairing" hidden>
               <div class="setting setting--stack">
                 <span class="setting__label">Pairing code
-                  <span class="setting__hint" id="app-remote-hint">Type this into botcage on your
+                  <span class="setting__hint" id="app-remote-hint">Enter this in botcage on your
                     phone.</span>
                 </span>
                 <span class="pairing-code" id="app-remote-code">------</span>
+              </div>
+
+              <div class="setting">
+                <span class="setting__label">This machine
+                  <span class="setting__hint">Paste this into the phone's first field. It is a
+                    public key, not an address — it keeps working when you change network.</span>
+                </span>
+                <button type="button" class="chip" id="app-remote-copy"><span>Copy</span></button>
               </div>
               <div class="setting">
                 <span class="setting__label">Paired devices

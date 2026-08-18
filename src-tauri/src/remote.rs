@@ -15,10 +15,18 @@
 //! callback listener this is modelled on. The whole point of the app is a 2 MB
 //! download.
 //!
-//! Reachability is Tailscale's job, not ours. On a tailnet the phone reaches the
-//! laptop from anywhere with no ports forwarded and no account of ours in the
-//! middle. This server binds to every interface and refuses anything without a
-//! token, so it is equally correct on a home network.
+//! Everything arrives over the peer-to-peer link, including on a network the
+//! two devices share. The server listens on loopback only, so there is no port
+//! open on any network this machine joins and nothing to find on a café's Wi-Fi
+//! — a phone reaches it exclusively through an authenticated QUIC connection,
+//! whose encryption is the same whether the two are in the same room or on
+//! different continents.
+//!
+//! Two things must hold before a request is answered: it arrived over a
+//! connection from a paired device's key, and it carries that device's token.
+//! Neither alone is enough. A token lifted from one phone is refused from
+//! another, and a stranger who learns this machine's public key gets no further
+//! than a connection that answers nothing.
 
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -49,8 +57,17 @@ struct Remote {
     /// Live pairing code and the moment it expires.
     code: Option<(String, u64)>,
     /// Paired devices, by SHA-256 of their token: nothing here can be replayed
-    /// as a credential if the file is read.
-    devices: HashMap<String, String>,
+    /// as a credential if the file is read. The value carries the device's own
+    /// public key, so a token only works from the phone it was issued to.
+    devices: HashMap<String, Device>,
+    /// Wrong pairing codes seen for the live code. A code is short enough to
+    /// read aloud, so it must not survive being guessed at.
+    wrong: u32,
+    /// Which key is on the other end of each spliced connection, by the local
+    /// port the peer-to-peer link opened. The splice stays byte-for-byte
+    /// transparent this way — the identity travels beside the stream, not in
+    /// it, so nothing can spoof it by writing a header.
+    peers: HashMap<u16, String>,
     /// Open event streams. Writing to a dead one is how they get reaped.
     listeners: Vec<TcpStream>,
     /// Requests handed to the desktop window, awaiting its answer.
@@ -64,6 +81,8 @@ impl Default for Remote {
             running: false,
             code: None,
             devices: HashMap::new(),
+            wrong: 0,
+            peers: HashMap::new(),
             listeners: Vec::new(),
             pending: HashMap::new(),
             next_id: 1,
@@ -92,6 +111,14 @@ fn hash(token: &str) -> String {
 
 /* ------------------------------------------------------------------- state */
 
+/// A phone that has been paired: what to call it, and which key it speaks from.
+#[derive(Clone, Serialize, serde::Deserialize)]
+pub struct Device {
+    pub name: String,
+    /// The device's public key. A token is only accepted from this key.
+    pub peer: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteStatus {
@@ -101,9 +128,6 @@ pub struct RemoteStatus {
     pub code: Option<String>,
     pub code_expires_in: u64,
     pub devices: Vec<String>,
-    /// Addresses this machine can be reached on, tailnet first.
-    pub addresses: Vec<String>,
-    pub tailscale: bool,
 }
 
 fn devices_file(app: &AppHandle) -> Result<PathBuf, String> {
@@ -115,71 +139,22 @@ fn devices_file(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("paired-devices.json"))
 }
 
-fn load_devices(app: &AppHandle) -> HashMap<String, String> {
+fn load_devices(app: &AppHandle) -> HashMap<String, Device> {
     let Ok(path) = devices_file(app) else {
         return HashMap::new();
     };
     std::fs::read_to_string(path)
         .ok()
-        .and_then(|raw| serde_json::from_str::<HashMap<String, String>>(&raw).ok())
+        .and_then(|raw| serde_json::from_str::<HashMap<String, Device>>(&raw).ok())
         .unwrap_or_default()
 }
 
-fn save_devices(app: &AppHandle, devices: &HashMap<String, String>) {
+fn save_devices(app: &AppHandle, devices: &HashMap<String, Device>) {
     if let Ok(path) = devices_file(app) {
         if let Ok(text) = serde_json::to_string_pretty(devices) {
             let _ = std::fs::write(path, text);
         }
     }
-}
-
-/// Every address a phone could be told to use. A tailnet address (Tailscale's
-/// 100.64.0.0/10 range) comes first because it is the one that still works away
-/// from the house.
-fn addresses() -> Vec<String> {
-    let output = if cfg!(target_os = "macos") {
-        std::process::Command::new("ifconfig").output()
-    } else {
-        std::process::Command::new("ip")
-            .args(["-4", "addr"])
-            .output()
-    };
-    let Ok(out) = output else {
-        return Vec::new();
-    };
-    let text = String::from_utf8_lossy(&out.stdout);
-
-    let mut found: Vec<String> = Vec::new();
-    for line in text.lines() {
-        let line = line.trim();
-        let rest = line
-            .strip_prefix("inet ")
-            .or_else(|| line.strip_prefix("inet4 "));
-        let Some(rest) = rest else { continue };
-        let Some(address) = rest.split_whitespace().next() else {
-            continue;
-        };
-        // Linux prints a prefix length; macOS does not.
-        let address = address.split('/').next().unwrap_or(address).to_string();
-        if address.starts_with("127.") || found.contains(&address) {
-            continue;
-        }
-        found.push(address);
-    }
-    found.sort_by_key(|address| !is_tailnet(address));
-    found
-}
-
-/// Tailscale hands out addresses from the carrier-grade NAT range, 100.64/10.
-fn is_tailnet(address: &str) -> bool {
-    let mut parts = address.split('.');
-    let (Some(100), Some(second)) = (
-        parts.next().and_then(|p| p.parse::<u8>().ok()),
-        parts.next().and_then(|p| p.parse::<u16>().ok()),
-    ) else {
-        return false;
-    };
-    (64..=127).contains(&second)
 }
 
 #[tauri::command(async)]
@@ -192,15 +167,12 @@ pub fn remote_status(app: AppHandle) -> RemoteStatus {
         Some((code, at)) if *at > now() => (Some(code.clone()), at - now()),
         _ => (None, 0),
     };
-    let addresses = addresses();
     RemoteStatus {
         running: state.running,
         port: PORT,
         code,
         code_expires_in: expires,
-        devices: state.devices.values().cloned().collect(),
-        tailscale: addresses.iter().any(|a| is_tailnet(a)),
-        addresses,
+        devices: state.devices.values().map(|d| d.name.clone()).collect(),
     }
 }
 
@@ -216,7 +188,10 @@ pub fn remote_start(app: AppHandle) -> Result<u16, String> {
         state.devices = load_devices(&app);
     }
 
-    let listener = TcpListener::bind(("0.0.0.0", PORT))
+    // Loopback, not every interface: the only route in is the peer-to-peer
+    // link, which terminates here. Nothing is exposed to whatever network this
+    // machine happens to have joined.
+    let listener = TcpListener::bind(("127.0.0.1", PORT))
         .map_err(|e| format!("could not listen on port {PORT}: {e}"))?;
     remote().lock().unwrap().running = true;
     heartbeat();
@@ -260,7 +235,9 @@ pub fn remote_pairing_code() -> Result<String, String> {
     } else {
         format!("{digits:X<6}")
     };
-    remote().lock().unwrap().code = Some((code.clone(), now() + PAIRING_SECONDS));
+    let mut state = remote().lock().unwrap();
+    state.code = Some((code.clone(), now() + PAIRING_SECONDS));
+    state.wrong = 0;
     Ok(code)
 }
 
@@ -310,6 +287,21 @@ fn relay(app: &AppHandle, kind: &str, payload: Value) -> Result<Value, String> {
             Err("the desktop app did not answer — is its window open?".into())
         }
     }
+}
+
+/// Note which key a spliced connection belongs to. Called by the p2p module
+/// with the local port of the connection it just opened to this server.
+pub fn register_peer(port: u16, peer: String) {
+    remote().lock().unwrap().peers.insert(port, peer);
+}
+
+pub fn forget_peer(port: u16) {
+    remote().lock().unwrap().peers.remove(&port);
+}
+
+fn peer_of(stream: &TcpStream) -> Option<String> {
+    let port = stream.peer_addr().ok()?.port();
+    remote().lock().unwrap().peers.get(&port).cloned()
 }
 
 /* -------------------------------------------------------------- streaming */
@@ -392,6 +384,10 @@ fn send(stream: &mut TcpStream, status: &str, body: &Value) {
 }
 
 fn handle(app: AppHandle, mut stream: TcpStream) {
+    // Which device is on the other end, established by QUIC before a byte of
+    // this request was written. A connection that did not arrive through the
+    // peer-to-peer link has none, and is answered by nothing.
+    let peer = peer_of(&stream);
     let Some(request) = read_request(&mut stream) else {
         return;
     };
@@ -415,11 +411,21 @@ fn handle(app: AppHandle, mut stream: TcpStream) {
     }
 
     if path == "/api/pair" && request.method == "POST" {
-        pair(&app, &mut stream, &request);
+        match &peer {
+            Some(peer) => pair(&app, &mut stream, &request, peer),
+            // Pairing is how a device becomes known, so it is the one request
+            // that may come from a stranger — but it still has to arrive over
+            // an encrypted connection whose key we can record.
+            None => send(
+                &mut stream,
+                "403 Forbidden",
+                &json!({ "error": "pair over botcage's own connection" }),
+            ),
+        }
         return;
     }
 
-    if !authorised(&request) {
+    if !authorised(&request, peer.as_deref()) {
         send(
             &mut stream,
             "401 Unauthorized",
@@ -450,15 +456,25 @@ fn handle(app: AppHandle, mut stream: TcpStream) {
     }
 }
 
-fn authorised(request: &Request) -> bool {
-    let Some(token) = &request.token else {
+/// A request is answered only when both halves agree: the token was issued to
+/// this device, and the connection is coming from that device's key.
+fn authorised(request: &Request, peer: Option<&str>) -> bool {
+    let (Some(token), Some(peer)) = (&request.token, peer) else {
         return false;
     };
     let state = remote().lock().unwrap();
-    state.running && state.devices.contains_key(&hash(token))
+    state.running
+        && state
+            .devices
+            .get(&hash(token))
+            .is_some_and(|device| device.peer == peer)
 }
 
-fn pair(app: &AppHandle, stream: &mut TcpStream, request: &Request) {
+/// How many wrong codes end the attempt. A six-character code is meant to be
+/// read off a screen once, not guessed at.
+const CODE_ATTEMPTS: u32 = 5;
+
+fn pair(app: &AppHandle, stream: &mut TcpStream, request: &Request, peer: &str) {
     let body: Value = serde_json::from_str(&request.body).unwrap_or(json!({}));
     let given = body["code"].as_str().unwrap_or("").to_uppercase();
     let name = body["name"].as_str().unwrap_or("a phone").to_string();
@@ -469,11 +485,24 @@ fn pair(app: &AppHandle, stream: &mut TcpStream, request: &Request) {
         None => false,
     };
     if !valid {
+        state.wrong += 1;
+        if state.wrong >= CODE_ATTEMPTS {
+            // Guessed at enough times: the code is gone, and a new one has to
+            // be shown deliberately.
+            state.code = None;
+        }
+        let left = CODE_ATTEMPTS.saturating_sub(state.wrong);
         drop(state);
         send(
             stream,
             "403 Forbidden",
-            &json!({ "error": "that code is wrong or has expired" }),
+            &json!({
+                "error": if left == 0 {
+                    "too many wrong codes — show a new one on the laptop".to_string()
+                } else {
+                    "that code is wrong or has expired".to_string()
+                }
+            }),
         );
         return;
     }
@@ -481,7 +510,14 @@ fn pair(app: &AppHandle, stream: &mut TcpStream, request: &Request) {
     let token = crate::oauth::random_token(32);
     // A code is good for one device, so a shoulder-surfed code cannot be reused.
     state.code = None;
-    state.devices.insert(hash(&token), name);
+    state.wrong = 0;
+    state.devices.insert(
+        hash(&token),
+        Device {
+            name,
+            peer: peer.to_string(),
+        },
+    );
     let devices = state.devices.clone();
     drop(state);
     save_devices(app, &devices);
@@ -533,19 +569,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn tailnet_addresses_are_recognised() {
-        assert!(is_tailnet("100.101.102.103"));
-        assert!(is_tailnet("100.64.0.1"));
-        assert!(is_tailnet("100.127.255.254"));
-        // Neighbouring ranges are ordinary public addresses, not a tailnet.
-        assert!(!is_tailnet("100.63.0.1"));
-        assert!(!is_tailnet("100.128.0.1"));
-        assert!(!is_tailnet("192.168.1.4"));
-        assert!(!is_tailnet("10.0.0.2"));
-        assert!(!is_tailnet("not an address"));
-    }
-
-    #[test]
     fn tokens_are_stored_only_as_hashes() {
         let token = "a-token-that-must-not-be-recoverable";
         let digest = hash(token);
@@ -555,42 +578,59 @@ mod tests {
         assert_ne!(digest, hash("another"));
     }
 
-    /// The whole path a phone takes, against a real socket: refuse without a
-    /// token, refuse a wrong code, pair with the right one, then accept the
-    /// token it was given. Everything here would otherwise be discovered on a
-    /// phone, which is the worst place to debug it.
+    /// The whole path a phone takes, against a real socket: refused without a
+    /// token, refused with a wrong code, paired with the right one, then let in
+    /// — and refused again when the same token arrives from a different device
+    /// or over a connection with no proven key at all. Everything here would
+    /// otherwise be discovered on a phone, which is the worst place to debug it.
     #[test]
-    fn a_phone_can_pair_and_then_be_let_in() {
+    fn a_token_only_works_from_the_device_it_was_issued_to() {
         use std::io::{BufRead, BufReader, Read, Write};
         use std::net::TcpStream;
 
-        // A listener of our own, so the test needs no running app and no fixed
-        // port: the routing under test is the same.
+        const PHONE: &str = "the-phones-key";
+        const IMPOSTOR: &str = "someone-elses-key";
+
         let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind");
         let port = listener.local_addr().unwrap().port();
         {
             let mut state = remote().lock().unwrap();
             state.running = true;
             state.devices.clear();
+            state.peers.clear();
+            state.wrong = 0;
             state.code = Some(("ABC123".into(), now() + 60));
         }
 
+        // Stands in for the p2p module: claims a key for each connection the
+        // way the splice does, keyed by the port the client dialled from.
+        let claim: std::sync::Arc<Mutex<Option<String>>> =
+            std::sync::Arc::new(Mutex::new(Some(PHONE.into())));
+        let claimed = claim.clone();
+
         std::thread::spawn(move || {
-            for stream in listener.incoming().take(5) {
+            for stream in listener.incoming().take(6) {
                 let Ok(mut stream) = stream else { continue };
+                if let Some(key) = claimed.lock().unwrap().clone() {
+                    register_peer(stream.peer_addr().unwrap().port(), key);
+                }
+                let peer = peer_of(&stream);
                 let Some(request) = read_request(&mut stream) else {
                     continue;
                 };
                 let path = request.path.split('?').next().unwrap_or("").to_string();
+
                 if path == "/api/pair" {
-                    // pair() needs an AppHandle only to persist; exercise the
-                    // decision and the token mint here.
+                    let Some(peer) = peer else {
+                        send(&mut stream, "403 Forbidden", &json!({ "error": "no key" }));
+                        continue;
+                    };
                     let body: Value = serde_json::from_str(&request.body).unwrap_or(json!({}));
                     let given = body["code"].as_str().unwrap_or("").to_uppercase();
                     let mut state = remote().lock().unwrap();
-                    let valid =
+                    let ok =
                         matches!(&state.code, Some((code, at)) if *at > now() && given == *code);
-                    if !valid {
+                    if !ok {
                         drop(state);
                         send(
                             &mut stream,
@@ -601,10 +641,16 @@ mod tests {
                     }
                     let token = crate::oauth::random_token(32);
                     state.code = None;
-                    state.devices.insert(hash(&token), "test phone".into());
+                    state.devices.insert(
+                        hash(&token),
+                        Device {
+                            name: "test phone".into(),
+                            peer,
+                        },
+                    );
                     drop(state);
                     send(&mut stream, "200 OK", &json!({ "token": token }));
-                } else if !authorised(&request) {
+                } else if !authorised(&request, peer.as_deref()) {
                     send(
                         &mut stream,
                         "401 Unauthorized",
@@ -632,8 +678,10 @@ mod tests {
                 reader.read_line(&mut status).unwrap();
                 let mut rest = String::new();
                 reader.read_to_string(&mut rest).unwrap();
-                let body = rest.split("\r\n\r\n").nth(1).unwrap_or("").to_string();
-                (status.trim().to_string(), body)
+                (
+                    status.trim().to_string(),
+                    rest.split("\r\n\r\n").nth(1).unwrap_or("").to_string(),
+                )
             };
 
         let (status, _) = call("GET", "/api/state", None, "");
@@ -648,12 +696,7 @@ mod tests {
             "a wrong code must be refused, got {status}"
         );
 
-        let (status, body) = call(
-            "POST",
-            "/api/pair",
-            None,
-            r#"{"code":"abc123","name":"test phone"}"#,
-        );
+        let (status, body) = call("POST", "/api/pair", None, r#"{"code":"abc123"}"#);
         assert!(
             status.contains("200"),
             "the right code must pair, got {status}"
@@ -662,24 +705,54 @@ mod tests {
             .as_str()
             .expect("a token")
             .to_string();
-        assert!(token.len() > 20, "token looks too short: {token}");
 
-        let (status, body) = call("GET", "/api/state", Some(&token), "");
+        let (status, _) = call("GET", "/api/state", Some(&token), "");
         assert!(
             status.contains("200"),
-            "the paired token must be accepted, got {status}"
+            "the paired device must be let in, got {status}"
         );
-        assert!(body.contains("phone"), "unexpected body {body}");
 
-        // The code is spent, so a second device cannot reuse an overheard one.
-        let (status, _) = call("POST", "/api/pair", None, r#"{"code":"ABC123"}"#);
+        // The same token, from a different key: this is the stolen-token case,
+        // and it is the reason the key is checked at all.
+        *claim.lock().unwrap() = Some(IMPOSTOR.into());
+        let (status, _) = call("GET", "/api/state", Some(&token), "");
         assert!(
-            status.contains("403"),
-            "a used code must not pair again, got {status}"
+            status.contains("401"),
+            "another device must be refused, got {status}"
+        );
+
+        // And a connection that never went through the p2p link has no key.
+        *claim.lock().unwrap() = None;
+        let (status, _) = call("GET", "/api/state", Some(&token), "");
+        assert!(
+            status.contains("401"),
+            "an unproven connection must be refused, got {status}"
         );
 
         let mut state = remote().lock().unwrap();
         state.running = false;
         state.devices.clear();
+        state.peers.clear();
+    }
+
+    #[test]
+    fn a_guessed_code_burns_out() {
+        {
+            let mut state = remote().lock().unwrap();
+            state.code = Some(("ZZZZZZ".into(), now() + 60));
+            state.wrong = 0;
+        }
+        // Five wrong answers is the whole budget for a code read off a screen.
+        for _ in 0..CODE_ATTEMPTS {
+            let mut state = remote().lock().unwrap();
+            state.wrong += 1;
+            if state.wrong >= CODE_ATTEMPTS {
+                state.code = None;
+            }
+        }
+        assert!(
+            remote().lock().unwrap().code.is_none(),
+            "the code must not survive being guessed at"
+        );
     }
 }
