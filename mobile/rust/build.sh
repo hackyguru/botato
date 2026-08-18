@@ -31,10 +31,21 @@ generate_bindings () {
 
 build_ios () {
   echo "→ ios"
-  for target in aarch64-apple-ios aarch64-apple-ios-sim; do
+  # Both simulator architectures, not just the Mac's own: a Release build
+  # compiles for every simulator arch, and a missing x86_64 slice fails at the
+  # link with "symbol(s) not found" rather than anything that names the cause.
+  for target in aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios; do
     rustup target add "$target" >/dev/null 2>&1 || true
     cargo build --release --target "$target"
   done
+
+  # One simulator library covering both architectures.
+  local sim="$crate/target/simulator-universal"
+  mkdir -p "$sim"
+  lipo -create \
+    "target/aarch64-apple-ios-sim/release/libbotcage_p2p.a" \
+    "target/x86_64-apple-ios/release/libbotcage_p2p.a" \
+    -output "$sim/libbotcage_p2p.a"
 
   # xcodebuild wants headers in a directory with the modulemap under its
   # conventional name, not uniffi's.
@@ -46,7 +57,7 @@ build_ios () {
 
   xcodebuild -create-xcframework \
     -library "target/aarch64-apple-ios/release/libbotcage_p2p.a" -headers "$headers" \
-    -library "target/aarch64-apple-ios-sim/release/libbotcage_p2p.a" -headers "$headers" \
+    -library "$sim/libbotcage_p2p.a" -headers "$headers" \
     -output "target/BotcageP2P.xcframework" >/dev/null
 
   mkdir -p "$module/ios"
