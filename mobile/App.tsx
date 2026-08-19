@@ -131,6 +131,8 @@ export default function App() {
     let live = true;
     let stop = listen(pairing, apply, setConnected);
     let retry: ReturnType<typeof setTimeout> | null = null;
+    /** How many attempts have failed in a row, for the backoff. */
+    let waited = 0;
     void refresh();
 
     /** Throw the stream away and open a new one. Reconnecting is cheaper than
@@ -151,11 +153,19 @@ export default function App() {
         // A stream that drops while the app is open — a change of network, a
         // laptop that slept — comes back on its own rather than sitting on
         // "reconnecting" until someone pulls to refresh.
-        if (!up && live && !retry) {
+        if (up) {
+          waited = 0;
+        } else if (live && !retry) {
+          // Keep trying. The laptop may be closed, or its phone access
+          // switched off, and neither announces itself coming back — so the
+          // phone has to ask. Backing off to half a minute keeps a laptop
+          // that is off for an hour from being dialled every four seconds.
+          const wait = Math.min(4000 * 2 ** waited, 30000);
+          waited += 1;
           retry = setTimeout(() => {
             retry = null;
             if (AppState.currentState === "active") reopen();
-          }, 4000);
+          }, wait);
         }
       });
     };

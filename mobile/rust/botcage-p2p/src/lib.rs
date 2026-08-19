@@ -163,7 +163,17 @@ impl Peer {
     pub fn listen(&self, token: Option<String>, sink: Box<dyn EventSink>) -> Result<(), P2pError> {
         self.listening.store(true, Ordering::SeqCst);
         let result = runtime().block_on(async {
-            let connection = self.dial().await?;
+            // Report a failed dial as the stream going down. Returning the
+            // error alone told the phone nothing, so it scheduled one retry,
+            // that retry failed just as quietly, and the light stayed amber
+            // even after the laptop came back.
+            let connection = match self.dial().await {
+                Ok(connection) => connection,
+                Err(e) => {
+                    sink.on_state(false);
+                    return Err(e);
+                }
+            };
             let (mut send, mut recv) = connection
                 .open_bi()
                 .await

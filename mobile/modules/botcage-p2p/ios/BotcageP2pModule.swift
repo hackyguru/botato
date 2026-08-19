@@ -65,7 +65,13 @@ public class BotcageP2pModule: Module {
       guard let peer = self.peer, self.streaming == nil else { return }
       let sink = Frames(module: self)
       let thread = Thread {
-        try? peer.listen(token: token, sink: sink)
+        do {
+          try peer.listen(token: token, sink: sink)
+        } catch {
+          // Whatever went wrong, the stream is not running — and the app can
+          // only retry if it is told so.
+          self.emit(connected: false)
+        }
         self.streaming = nil
       }
       thread.name = "botcage.p2p.events"
