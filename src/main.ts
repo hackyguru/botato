@@ -20,6 +20,10 @@ interface Message {
       the thread renders as a badge rather than showing verbatim. */
   text: string;
   at: number;
+  /** Sent from a paired phone rather than this window. Shown on the bubble,
+   *  because a thread read the next morning gives no other clue that you wrote
+   *  it from a train. */
+  fromPhone?: boolean;
   reaction?: string;
   error?: string;
   kind?: "teach" | "routine";
@@ -610,10 +614,12 @@ function bubbleHtml(msg: Message): string {
   const body = `<div class="md">${renderMd(msg.text)}</div>`;
   const clamp = msg.text.length > CLAMP_AT;
   const react = msg.reaction ? `<div class="reacts"><span class="react">${msg.reaction}</span></div>` : "";
+  const phone = msg.fromPhone ? `<span class="from-phone" title="Sent from your phone">${icon("ios")}</span>` : "";
   return (
     `<div class="bubble${clamp ? " is-clamped" : ""}">` +
     `<div class="bubble__body">${body}</div>` +
     (clamp ? `<button type="button" class="more-btn">Show more ${icon("chev")}</button>` : "") +
+    phone +
     react +
     `</div>`
   );
@@ -3723,6 +3729,7 @@ function remoteSnapshot(): Record<string, unknown> {
       routines: bot.routines ?? [],
       busy: inflight.has(bot.id),
       messages: bot.messages,
+      // the phone renders the same mark on its own side
     })),
   };
 }
@@ -3739,7 +3746,7 @@ function remoteSend(botId: string, text: string): Record<string, unknown> {
   const clean = text.trim();
   if (!clean) throw new Error("nothing to send");
 
-  const msg: Message = { id: uid(), from: "me", text: clean, at: Date.now() };
+  const msg: Message = { id: uid(), from: "me", text: clean, at: Date.now(), fromPhone: true };
   bot.messages.push(msg);
   if (bot.id === state.activeId) {
     if (bot.messages.length === 1) thread.innerHTML = "";

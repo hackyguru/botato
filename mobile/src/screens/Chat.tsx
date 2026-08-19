@@ -101,6 +101,14 @@ export default function Chat({
             ) : (
               <Text style={s.text}>{message.text}</Text>
             )}
+            {message.fromPhone ? (
+              // The same mark the desktop puts on these, so one thread reads
+              // the same way on both screens. Drawn rather than set in a glyph:
+              // the phone symbol is not in every system font.
+              <View style={s.fromPhone}>
+                <View style={s.fromPhoneBar} />
+              </View>
+            ) : null}
           </View>
         ))}
         {bot.busy ? (
@@ -158,6 +166,20 @@ const s = StyleSheet.create({
   mine: { alignSelf: "flex-end", backgroundColor: T.bubbleMe },
   theirs: { alignSelf: "flex-start", backgroundColor: T.bubbleBot },
   text: { color: T.text, fontSize: 15.5, lineHeight: 22 },
+  fromPhone: {
+    alignSelf: "flex-end",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    width: 8,
+    height: 12,
+    marginTop: 3,
+    paddingBottom: 1.5,
+    borderWidth: 1,
+    borderColor: T.text,
+    borderRadius: 2.5,
+    opacity: 0.45,
+  },
+  fromPhoneBar: { width: 3, height: 1, backgroundColor: T.text },
   working: { flexDirection: "row", gap: 10, alignItems: "center", paddingHorizontal: 6 },
   workingText: { flex: 1, color: T.text3, fontSize: 13 },
   stop: { color: T.red, fontSize: 13, fontWeight: "600" },

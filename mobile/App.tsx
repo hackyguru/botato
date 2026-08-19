@@ -277,7 +277,13 @@ export default function App() {
                             busy: true,
                             messages: [
                               ...b.messages,
-                              { id: `local-${Date.now()}`, from: "me" as const, text, at: Date.now() },
+                              {
+                                id: `local-${Date.now()}`,
+                                from: "me" as const,
+                                text,
+                                at: Date.now(),
+                                fromPhone: true,
+                              },
                             ],
                           }
                         : b,

@@ -2394,3 +2394,30 @@ a.detail__source:hover {
   font-size: 11.5px;
   color: var(--text-3);
 }
+
+/* A message you sent from your phone. Small and inside the bubble's corner: it
+   is a note about where you were, not something to read. */
+.from-phone {
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
+  display: grid;
+  place-items: center;
+  opacity: 0.45;
+}
+
+.from-phone svg {
+  width: 11px;
+  height: 11px;
+  color: var(--text);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Room for the mark, so it never sits on the last line of text. */
+.turn--me .bubble:has(.from-phone) .bubble__body {
+  padding-right: 14px;
+}

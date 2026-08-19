@@ -4,6 +4,8 @@ export interface Message {
   from: "me" | "bot";
   text: string;
   at: number;
+  /** Sent from a phone rather than the laptop. */
+  fromPhone?: boolean;
   note?: string;
 }
 
