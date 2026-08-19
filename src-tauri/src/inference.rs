@@ -48,6 +48,17 @@ pub struct Turn {
     pub model: String,
     /// The bot's own workspace, which is also where a transcript would live.
     pub cwd: std::path::PathBuf,
+    /// Which tools this bot may use, as botcage decided. The engine names them
+    /// in whatever way it takes; it does not choose them.
+    pub allowed_tools: String,
+    /// Plugins this bot may not use. Named by key: how a denial is spelled is
+    /// the engine's convention, not botcage's.
+    pub denied_plugins: Vec<String>,
+    /// The MCP servers this bot's connectors amount to. Which servers is
+    /// botcage's business; how they are handed over is the engine's.
+    pub mcp_servers: serde_json::Value,
+    /// Secrets a plugin needs in the environment.
+    pub env: Vec<(String, String)>,
 }
 
 /// What botcage understands, whatever produced it.
@@ -212,6 +223,69 @@ impl Engine for ClaudeCode {
 /// A line may carry nothing worth showing (a system frame, a heartbeat), so the
 /// answer is a list rather than an option.
 impl ClaudeCode {
+    /// The command that runs one turn.
+    ///
+    /// Every flag here is Claude Code's own vocabulary — what to call streaming
+    /// output, how to name a denied tool, whether a conversation is continued
+    /// by id — which is exactly why it belongs to the engine rather than to the
+    /// runner that spawns it.
+    pub fn command(&self, turn: &Turn) -> Result<std::process::Command, String> {
+        let bin = crate::locate_claude()
+            .ok_or("Claude Code CLI not found — install it, or point CLAUDE_BIN at the binary")?;
+
+        let mut cmd = std::process::Command::new(&bin);
+        cmd.current_dir(&turn.cwd)
+            .arg("-p")
+            .arg("--verbose")
+            .args(["--output-format", "stream-json"])
+            .arg("--include-partial-messages")
+            .args(["--model", &turn.model])
+            .args(["--permission-mode", "acceptEdits"])
+            .args(["--tools", crate::TOOLS])
+            .args(["--allowed-tools", &turn.allowed_tools])
+            .args(["--append-system-prompt", &turn.system_prompt])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+
+        if let Some(servers) = turn.mcp_servers.as_object() {
+            if !servers.is_empty() {
+                let config = serde_json::json!({ "mcpServers": turn.mcp_servers });
+                cmd.args(["--mcp-config", &config.to_string()]);
+            }
+        }
+
+        // Not --strict-mcp-config, which would also suppress the servers an
+        // installed marketplace plugin brings. Only claude.ai's own connectors
+        // are turned off: botcage supplies its own, and a bot should reach the
+        // account its user connected here rather than one connected elsewhere.
+        cmd.args(["--settings", "{\"disableClaudeAiConnectors\":true}"]);
+
+        // Scoping is subtraction: an installed plugin offers its servers to
+        // every session, so a bot that may not use one has it denied by name.
+        if !turn.denied_plugins.is_empty() {
+            let denied = turn
+                .denied_plugins
+                .iter()
+                .map(|key| format!("mcp__{key}"))
+                .collect::<Vec<_>>()
+                .join(",");
+            cmd.args(["--disallowed-tools", &denied]);
+        }
+
+        for (var, value) in &turn.env {
+            cmd.env(var, value);
+        }
+
+        if turn.resume {
+            cmd.args(["--resume", &turn.session_id]);
+        } else {
+            cmd.args(["--session-id", &turn.session_id]);
+        }
+
+        Ok(cmd)
+    }
+
     pub fn read_line(&self, line: &str) -> Vec<Event> {
         let Ok(frame) = serde_json::from_str::<serde_json::Value>(line) else {
             // A partial or malformed line loses that line, not the turn.
@@ -490,6 +564,93 @@ mod tests {
         assert!(read(r#"{"type":"stream_event","event":{"type":"message_start"}}"#).is_empty());
         assert!(read(r#"{"type":"resu"#).is_empty());
         assert!(read("").is_empty());
+    }
+
+    /// The command a turn runs, checked flag by flag.
+    ///
+    /// This moved out of the runner, and the failure mode of moving it is an
+    /// argument quietly going missing — a bot that answers without its tools,
+    /// or a conversation that starts again every message. None of that shows up
+    /// as a crash, so it is asserted rather than eyeballed.
+    #[test]
+    fn a_turn_asks_for_everything_it_used_to() {
+        let turn = Turn {
+            bot_id: "b1".into(),
+            session_id: "11111111-1111-4111-8111-111111111111".into(),
+            resume: true,
+            prompt: "morning".into(),
+            system_prompt: "you are Engineer".into(),
+            model: "opus".into(),
+            cwd: std::env::temp_dir(),
+            allowed_tools: "Read,Glob,mcp__github".into(),
+            denied_plugins: vec!["notion".into()],
+            mcp_servers: serde_json::json!({ "github": { "command": "x" } }),
+            env: vec![("GITHUB_TOKEN".into(), "secret".into())],
+        };
+
+        let Ok(cmd) = ClaudeCode.command(&turn) else {
+            // No CLI on this machine; the flags cannot be inspected, and that
+            // is a fact about the machine rather than a failure of the code.
+            return;
+        };
+        let args: Vec<String> = cmd
+            .get_args()
+            .map(|a| a.to_string_lossy().to_string())
+            .collect();
+        let has = |flag: &str, value: &str| {
+            args.windows(2)
+                .any(|pair| pair[0] == flag && pair[1] == value)
+        };
+
+        assert!(args.iter().any(|a| a == "-p"), "not headless: {args:?}");
+        assert!(has("--output-format", "stream-json"), "not streaming");
+        assert!(
+            args.iter().any(|a| a == "--include-partial-messages"),
+            "no partial messages, so nothing would stream token by token"
+        );
+        assert!(has("--model", "opus"));
+        assert!(has("--allowed-tools", "Read,Glob,mcp__github"));
+        assert!(has("--append-system-prompt", "you are Engineer"));
+        assert!(
+            has("--disallowed-tools", "mcp__notion"),
+            "a denied plugin must be denied by name, or scoping does nothing"
+        );
+        assert!(
+            args.iter().any(|a| a.contains("disableClaudeAiConnectors")),
+            "claude.ai's connectors must stay off — botcage supplies its own"
+        );
+        assert!(
+            args.iter().any(|a| a.contains("mcpServers")),
+            "the bot's connectors never reached it"
+        );
+        assert!(
+            has("--resume", "11111111-1111-4111-8111-111111111111"),
+            "a continuing conversation must resume, not start again"
+        );
+        assert_eq!(
+            cmd.get_current_dir().map(|d| d.to_path_buf()),
+            Some(std::env::temp_dir()),
+            "a turn runs in the bot's own workspace"
+        );
+        assert!(
+            cmd.get_envs()
+                .any(|(k, v)| k == "GITHUB_TOKEN" && v == Some("secret".as_ref())),
+            "a plugin's secret never reached the process"
+        );
+
+        // And a bot's first turn creates the session rather than resuming one
+        // that does not exist — the difference that wedged a bot earlier today.
+        let first = Turn {
+            resume: false,
+            ..turn
+        };
+        let cmd = ClaudeCode.command(&first).expect("command");
+        let args: Vec<String> = cmd
+            .get_args()
+            .map(|a| a.to_string_lossy().to_string())
+            .collect();
+        assert!(args.iter().any(|a| a == "--session-id"));
+        assert!(!args.iter().any(|a| a == "--resume"));
     }
 
     #[test]

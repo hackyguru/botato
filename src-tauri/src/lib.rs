@@ -52,7 +52,7 @@ mcp__desktop__start_desktop";
 
 /// Built-in tools a bot may use. Deliberately no Bash — shell access belongs in
 /// the sandboxed desktop, not on the user's machine.
-const TOOLS: &str = "Read,Glob,Grep,Write,Edit,WebSearch,WebFetch";
+pub(crate) const TOOLS: &str = "Read,Glob,Grep,Write,Edit,WebSearch,WebFetch";
 
 /// Every bot has these, desktop or not.
 const ROUTINES_PROMPT: &str = "\
@@ -303,21 +303,10 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         );
     }
 
-    let mut cmd = Command::new(&bin);
-    cmd.current_dir(&cwd)
-        .arg("-p")
-        .arg("--verbose")
-        .args(["--output-format", "stream-json"])
-        .arg("--include-partial-messages")
-        .args(["--model", &req.model])
-        .args(["--permission-mode", "acceptEdits"])
-        .args(["--tools", TOOLS])
-        .args(["--allowed-tools", &allowed])
-        .args(["--append-system-prompt", &system_prompt])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
+    // Which servers a bot gets is botcage's decision, and stays here: a desktop
+    // if it has one, plus the connectors it was granted, each carrying the
+    // credential we hold — so the grant decides reach, not whatever happens to
+    // be configured on the machine.
     let mut servers = serde_json::Map::new();
 
     if req.computer {
@@ -336,49 +325,29 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         );
     }
 
-    // Only the connectors this bot was granted, carrying the credential we hold
-    // for them — so the grant decides reach, not whatever happens to be
-    // configured on the machine.
     for key in &req.plugins {
         if let Some(entry) = connectors::server_entry(key, Some(&req.bot_id)) {
             servers.insert(key.clone(), entry);
         }
     }
 
-    if !servers.is_empty() {
-        let config = serde_json::json!({ "mcpServers": servers });
-        cmd.args(["--mcp-config", &config.to_string()]);
-    }
+    // What tools, which connectors, which secrets: botcage's decisions. How any
+    // of it is spelled on a command line: the engine's.
+    let turn = inference::Turn {
+        bot_id: req.bot_id.clone(),
+        session_id: req.session_id.clone(),
+        resume: req.resume,
+        prompt: req.prompt.clone(),
+        system_prompt,
+        model: req.model.clone(),
+        cwd: cwd.clone(),
+        allowed_tools: allowed,
+        denied_plugins: req.blocked_plugins.clone(),
+        mcp_servers: serde_json::Value::Object(servers),
+        env: plugins::env_for(&req.plugins),
+    };
 
-    // claude.ai connectors are account-wide: every bot granted one would reach
-    // the user's own mail. botcage scopes per bot, so they stay off and our own
-    // connectors take their place. Strict mode would also do this, but it
-    // suppresses the servers installed marketplace plugins bring, which the
-    // user does want.
-    cmd.args(["--settings", "{\"disableClaudeAiConnectors\":true}"]);
-
-    // Our own connectors reach this bot only through the config above, but an
-    // installed marketplace plugin brings its servers to every session. Denying
-    // the ones this bot was not granted is what keeps them apart.
-    if !req.blocked_plugins.is_empty() {
-        let denied = req
-            .blocked_plugins
-            .iter()
-            .map(|key| format!("mcp__{key}"))
-            .collect::<Vec<_>>()
-            .join(",");
-        cmd.args(["--disallowed-tools", &denied]);
-    }
-
-    for (var, value) in plugins::env_for(&req.plugins) {
-        cmd.env(var, value);
-    }
-
-    if req.resume {
-        cmd.args(["--resume", &req.session_id]);
-    } else {
-        cmd.args(["--session-id", &req.session_id]);
-    }
+    let mut cmd = inference::ClaudeCode.command(&turn)?;
 
     let mut child = cmd
         .spawn()
