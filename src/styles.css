@@ -1212,6 +1212,15 @@ textarea {
   border-radius: 10px;
 }
 
+/* A sheet with tabs holds one size across all of them. Each panel has its own
+   amount of content — Power is three rows, Phone is a QR square — so sizing to
+   the content meant the window jumped every time a tab was clicked, moving the
+   tabs themselves out from under the pointer. Switching a tab now moves the
+   content and nothing else. */
+.sheet:has(.tabs) {
+  height: min(620px, 88vh);
+}
+
 .sheet--wide {
   width: min(860px, 94vw);
 }
