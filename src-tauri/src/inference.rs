@@ -193,10 +193,72 @@ impl Engine for ClaudeCode {
     }
 }
 
+/// Google's Gemini CLI.
+///
+/// The second engine, and chosen deliberately as the awkward one: it streams
+/// newline-delimited events like Claude Code and speaks MCP, but it does not
+/// resume a conversation from a session id in headless mode. That makes it the
+/// first engine botcage has to remember a transcript for — which is exactly the
+/// assumption worth breaking early, while there are two engines rather than
+/// five.
+pub struct GeminiCli;
+
+/// Where the Gemini CLI installs itself. Same shape as the Claude Code search:
+/// an app launched from Finder inherits almost no PATH, so known locations are
+/// tried before whatever PATH happens to hold.
+pub fn locate_gemini() -> Option<std::path::PathBuf> {
+    if let Some(raw) = std::env::var_os("GEMINI_BIN") {
+        let explicit = std::path::PathBuf::from(raw);
+        if explicit.is_file() {
+            return Some(explicit);
+        }
+    }
+
+    let mut candidates = vec![
+        crate::home().join(".local/bin/gemini"),
+        crate::home().join(".npm-global/bin/gemini"),
+        std::path::PathBuf::from("/opt/homebrew/bin/gemini"),
+        std::path::PathBuf::from("/usr/local/bin/gemini"),
+    ];
+    if let Some(path) = std::env::var_os("PATH") {
+        candidates.extend(std::env::split_paths(&path).map(|dir| dir.join("gemini")));
+    }
+    candidates.into_iter().find(|candidate| candidate.is_file())
+}
+
+impl Engine for GeminiCli {
+    fn key(&self) -> &'static str {
+        "gemini-cli"
+    }
+
+    fn name(&self) -> &'static str {
+        "Gemini CLI"
+    }
+
+    fn ready(&self) -> Ready {
+        match locate_gemini() {
+            None => Ready::no("not installed — npm install -g @google/gemini-cli"),
+            Some(_) => Ready::yes(),
+        }
+    }
+
+    fn owns_transcript(&self) -> bool {
+        // Headless runs take a prompt and stream a reply; there is no session to
+        // resume. botcage keeps the conversation and sends it.
+        false
+    }
+
+    fn tools(&self) -> ToolDelivery {
+        // It has its own MCP client, so a bot's connectors are handed over as
+        // servers rather than rebuilt as function definitions.
+        ToolDelivery::Native
+    }
+}
+
 /// Every engine botcage knows about. A list rather than a constant, so adding
 /// one is a line here and an implementation beside it.
 pub fn all() -> Vec<Box<dyn Engine>> {
-    vec![Box::new(ClaudeCode)]
+    vec![Box::new(ClaudeCode), Box::new(GeminiCli)]
 }
 
 /// The engine a bot asked for, or the default when it named none — every bot
@@ -265,6 +327,23 @@ mod tests {
                 engine.name()
             );
         }
+    }
+
+    /// The reason for adding a second engine at all: to find out what botcage
+    /// assumed. Claude Code keeps its own conversation; Gemini does not — and a
+    /// turn runner written for the first would silently lose the thread on the
+    /// second.
+    #[test]
+    fn engines_disagree_about_who_keeps_the_conversation() {
+        let claude = for_key(Some("claude-code"));
+        let gemini = for_key(Some("gemini-cli"));
+        assert!(claude.owns_transcript());
+        assert!(!gemini.owns_transcript());
+        assert_ne!(
+            claude.owns_transcript(),
+            gemini.owns_transcript(),
+            "if every engine agreed, the seam would not be earning anything"
+        );
     }
 
     #[test]
