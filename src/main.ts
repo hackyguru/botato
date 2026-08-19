@@ -834,6 +834,19 @@ function finish(botId: string, event: BotEvent): void {
 }
 
 function handleBotEvent(event: BotEvent): void {
+  // Any event at all proves the CLI ran, and the session file exists from that
+  // moment. Marking the bot started only when a turn *finished* meant a first
+  // turn that was cancelled or failed left the flag false with the session
+  // already on disk — so every later turn asked for a new session with an id
+  // that was taken, and the bot answered "Session ID … is already in use"
+  // forever. Recording it here also heals a bot already in that state: the
+  // failure itself is the event that sets the flag.
+  const from = state.bots.find((bot) => bot.id === event.botId);
+  if (from && !from.started) {
+    from.started = true;
+    save();
+  }
+
   if (event.kind === "rate-limit") {
     const info = event.detail;
     session.limit = info ?? null;
