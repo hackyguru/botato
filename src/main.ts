@@ -3565,6 +3565,7 @@ const remoteCode = $<HTMLSpanElement>("#app-remote-code");
 const remoteHint = $<HTMLSpanElement>("#app-remote-hint");
 const remoteDevices = $<HTMLSpanElement>("#app-remote-devices");
 const remoteKey = $<HTMLSpanElement>("#app-remote-key");
+const remoteNewCode = $<HTMLButtonElement>("#app-remote-new-code");
 const remoteList = $<HTMLDivElement>("#app-remote-list");
 // Not `number`: the QR encoder's types pull in Node's, where a timer is an
 // object rather than a handle.
@@ -3597,15 +3598,23 @@ function paintRemote(status: RemoteStatus): void {
     : "None yet.";
   remoteList.replaceChildren(...status.devices.map(deviceRow));
 
+  // A code is only worth showing while someone is looking at it: it lasts five
+  // minutes and is spent on first use. So the square appears when there is one
+  // and asks for a new one when there is not — rather than leaving the panel
+  // empty with the switch on, which is what happened after a restart restored
+  // phone access, and again five minutes after every pairing.
   if (status.code) {
     remoteCode.textContent = status.code;
+    remoteCode.hidden = false;
+    remoteNewCode.hidden = true;
     const minutes = Math.max(1, Math.round(status.codeExpiresIn / 60));
     remoteHint.textContent = `Expires in ${minutes} min, and works once.`;
     void paintPairingCode(status.code);
   } else {
-    remoteCode.textContent = "------";
-    remoteHint.textContent = "Turn the switch off and on to show a new code.";
+    remoteCode.hidden = true;
     remoteQr.hidden = true;
+    remoteNewCode.hidden = false;
+    remoteHint.textContent = "Pair another device whenever you like.";
   }
 }
 
@@ -3706,6 +3715,11 @@ appRemote.addEventListener("change", async () => {
     appRemote.checked = false;
     toast(String(err));
   }
+  await refreshRemote();
+});
+
+remoteNewCode.addEventListener("click", async () => {
+  await invoke<string>("remote_pairing_code").catch((err) => toast(String(err)));
   await refreshRemote();
 });
 
