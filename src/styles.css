@@ -2465,6 +2465,10 @@ a.detail__source:hover {
 /* This machine's key, for someone typing it into a phone. Grouped, because
    sixty-four unbroken characters cannot be read back and forth without losing
    your place — and monospaced so 0 and O are different shapes. */
+/* Hidden until asked for. It is not a credential — the private half never
+   leaves this machine — but it does say where this laptop can be found, and a
+   screen share or a photographed screen should not hand that over by default.
+   Blurred rather than removed, so it is visibly *there* and one movement away. */
 .machine-key {
   align-self: stretch;
   padding: 10px 12px;
@@ -2477,4 +2481,20 @@ a.detail__source:hover {
   background: var(--field);
   border-radius: 10px;
   user-select: all;
+  filter: blur(5px);
+  transition: filter 0.14s ease;
+}
+
+.machine-key:hover,
+.machine-key:focus-visible,
+/* Hovering the row is enough: someone reaching for Copy has already shown they
+   want it, and having the key sharpen under the pointer explains itself. */
+.setting:hover > .machine-key {
+  filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .machine-key {
+    transition: none;
+  }
 }
