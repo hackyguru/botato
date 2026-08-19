@@ -67,12 +67,22 @@ pub enum Event {
     Thinking(String),
     /// A tool is being used, by name.
     Tool(String),
-    /// The turn finished. Cost is optional because not every engine bills.
+    /// The turn finished.
+    ///
+    /// `text` is the whole answer as the engine finally rendered it, which is
+    /// authoritative: deltas can be shed under load, and the app prefers this
+    /// when it is longer. Cost and duration are optional because not every
+    /// engine bills or counts.
     Done {
+        text: Option<String>,
         cost_usd: Option<f64>,
+        duration_ms: Option<u64>,
     },
-    /// The engine is waiting on a usage limit, and when it resets.
+    /// The engine is waiting on a usage limit. Every field is optional: an
+    /// engine that has limits may still decline to explain them.
     RateLimit {
+        status: Option<String>,
+        kind: Option<String>,
         resets_at: Option<u64>,
     },
     Error(String),
@@ -202,11 +212,6 @@ impl Engine for ClaudeCode {
 /// A line may carry nothing worth showing (a system frame, a heartbeat), so the
 /// answer is a list rather than an option.
 impl ClaudeCode {
-    // Not yet the parser the runner uses: lib.rs still reads the stream inline.
-    // Swapping it over is a change to the one path every bot depends on, and is
-    // worth doing where it can be watched rather than at the end of a long
-    // session. The tests below hold this to the same output meanwhile.
-    #[allow(dead_code)]
     pub fn read_line(&self, line: &str) -> Vec<Event> {
         let Ok(frame) = serde_json::from_str::<serde_json::Value>(line) else {
             // A partial or malformed line loses that line, not the turn.
@@ -248,9 +253,14 @@ impl ClaudeCode {
                 })
                 .unwrap_or_default(),
 
-            "rate_limit_event" => vec![Event::RateLimit {
-                resets_at: frame["rate_limit_info"]["resetsAt"].as_u64(),
-            }],
+            "rate_limit_event" => {
+                let info = &frame["rate_limit_info"];
+                vec![Event::RateLimit {
+                    status: info["status"].as_str().map(str::to_string),
+                    kind: info["rateLimitType"].as_str().map(str::to_string),
+                    resets_at: info["resetsAt"].as_u64(),
+                }]
+            }
 
             "result" => {
                 if frame["is_error"].as_bool().unwrap_or(false) {
@@ -262,7 +272,9 @@ impl ClaudeCode {
                     )]
                 } else {
                     vec![Event::Done {
+                        text: frame["result"].as_str().map(str::to_string),
                         cost_usd: frame["total_cost_usd"].as_f64(),
+                        duration_ms: frame["duration_ms"].as_u64(),
                     }]
                 }
             }
@@ -452,8 +464,9 @@ mod tests {
         ));
 
         assert!(matches!(
-            read(r#"{"type":"result","is_error":false,"result":"done","total_cost_usd":0.0121}"#).as_slice(),
-            [Event::Done { cost_usd: Some(cost) }] if (cost - 0.0121).abs() < 1e-9
+            read(r#"{"type":"result","is_error":false,"result":"done","total_cost_usd":0.0121,"duration_ms":8200}"#).as_slice(),
+            [Event::Done { text: Some(text), cost_usd: Some(cost), duration_ms: Some(8200) }]
+                if text == "done" && (cost - 0.0121).abs() < 1e-9
         ));
 
         // A failed turn is an error, not a completion with sad contents.
@@ -466,7 +479,8 @@ mod tests {
             read(r#"{"type":"rate_limit_event","rate_limit_info":{"resetsAt":1750000000}}"#)
                 .as_slice(),
             [Event::RateLimit {
-                resets_at: Some(1750000000)
+                resets_at: Some(1750000000),
+                ..
             }]
         ));
 

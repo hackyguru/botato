@@ -419,63 +419,52 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         let mut spend: Option<Value> = None;
 
         for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-            let Ok(event) = serde_json::from_str::<Value>(&line) else {
-                continue;
-            };
-
-            match event["type"].as_str().unwrap_or_default() {
-                "stream_event" => {
-                    let inner = &event["event"];
-                    if inner["type"] == "content_block_delta" {
-                        let delta = &inner["delta"];
-                        let kind = match delta["type"].as_str().unwrap_or_default() {
-                            "text_delta" => "delta",
-                            "thinking_delta" => "thinking",
-                            _ => continue,
-                        };
-                        let text = delta["text"]
-                            .as_str()
-                            .or_else(|| delta["thinking"].as_str())
-                            .unwrap_or_default();
-                        emit(&app_handle, &bot_id, kind, Some(text.to_string()), None);
+            // Read by the engine rather than here. What a stream means is the
+            // engine's business; this loop's business is what botcage does
+            // about it, and the two were the same code only because there was
+            // one engine.
+            for event in inference::ClaudeCode.read_line(&line) {
+                match event {
+                    inference::Event::Delta(text) => {
+                        emit(&app_handle, &bot_id, "delta", Some(text), None)
                     }
-                }
-                "assistant" => {
-                    if let Some(blocks) = event["message"]["content"].as_array() {
-                        for block in blocks {
-                            if block["type"] == "tool_use" {
-                                let name = block["name"].as_str().unwrap_or("a tool");
-                                emit(&app_handle, &bot_id, "tool", Some(name.to_string()), None);
-                            }
-                        }
+                    inference::Event::Thinking(text) => {
+                        emit(&app_handle, &bot_id, "thinking", Some(text), None)
                     }
-                }
-                "rate_limit_event" => {
-                    emit(
+                    inference::Event::Tool(name) => {
+                        emit(&app_handle, &bot_id, "tool", Some(name), None)
+                    }
+                    inference::Event::RateLimit {
+                        status,
+                        kind,
+                        resets_at,
+                    } => emit(
                         &app_handle,
                         &bot_id,
                         "rate-limit",
                         None,
-                        Some(event["rate_limit_info"].clone()),
-                    );
-                }
-                "result" => {
-                    if event["is_error"].as_bool().unwrap_or(false) {
-                        failure = Some(
-                            event["result"]
-                                .as_str()
-                                .unwrap_or("the turn ended with an error")
-                                .to_string(),
-                        );
-                    } else {
-                        final_text = event["result"].as_str().map(str::to_string);
+                        Some(serde_json::json!({
+                            "status": status,
+                            "rateLimitType": kind,
+                            "resetsAt": resets_at,
+                        })),
+                    ),
+                    // Held rather than emitted: the turn is only over once the
+                    // process is, and how it ended decides which of these the
+                    // app is told about.
+                    inference::Event::Done {
+                        text,
+                        cost_usd,
+                        duration_ms,
+                    } => {
+                        final_text = text;
                         spend = Some(serde_json::json!({
-                            "costUsd": event["total_cost_usd"],
-                            "durationMs": event["duration_ms"],
+                            "costUsd": cost_usd,
+                            "durationMs": duration_ms,
                         }));
                     }
+                    inference::Event::Error(why) => failure = Some(why),
                 }
-                _ => {}
             }
         }
 
