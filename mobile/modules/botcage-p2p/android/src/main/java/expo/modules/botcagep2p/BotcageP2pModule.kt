@@ -14,7 +14,10 @@ class NotConnectedException :
 
 class BotcageP2pModule : Module() {
   private var peer: Peer? = null
-  private var streaming: Thread? = null
+
+  /** Counts attempts to open the event stream, so a stale one can be ignored
+   *  rather than blocking its own replacement. */
+  private var generation = 0
 
   override fun definition() = ModuleDefinition {
     Name("BotcageP2p")
@@ -32,27 +35,29 @@ class BotcageP2pModule : Module() {
       mapOf("status" to response.status.toInt(), "body" to response.body)
     }
 
-    // Returns at once; the stream blocks on a thread of its own.
-    // Returns null rather than Unit: Expo's Function expects a value.
+    // Never refused because one is already running: the previous stream is
+    // usually still unwinding when a retry arrives, and turning the retry away
+    // silently leaves nothing to try again on.
     Function("listen") { token: String? ->
       val open = peer ?: return@Function null
-      if (streaming != null) return@Function null
-      streaming = thread(name = "botcage.p2p.events") {
+      generation += 1
+      val mine = generation
+      open.stop()
+
+      thread(name = "botcage.p2p.events") {
         val sink = object : EventSink {
           override fun onFrame(name: String, data: String) {
-            sendEvent("frame", mapOf("name" to name, "data" to data))
+            if (mine == generation) sendEvent("frame", mapOf("name" to name, "data" to data))
           }
 
           override fun onState(connected: Boolean) {
-            sendEvent("state", mapOf("connected" to connected))
+            if (mine == generation) sendEvent("state", mapOf("connected" to connected))
           }
         }
         try {
           open.listen(token, sink)
         } catch (_: Exception) {
-          sendEvent("state", mapOf("connected" to false))
-        } finally {
-          streaming = null
+          if (mine == generation) sendEvent("state", mapOf("connected" to false))
         }
       }
       null
