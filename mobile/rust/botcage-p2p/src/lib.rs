@@ -29,6 +29,12 @@ const ALPN: &[u8] = b"botcage/1";
 /// laptop that is actually asleep is reported rather than waited on.
 const TIMEOUT: Duration = Duration::from_secs(20);
 
+/// How long the address learned at pairing time gets before the key is tried
+/// instead. Short, because a stale route usually fails fast and waiting the full
+/// timeout on it would double how long a laptop that simply moved takes to
+/// answer.
+const FIRST_TRY: Duration = Duration::from_secs(6);
+
 /// Not named `message`: UniFFI maps these onto Kotlin exceptions, where a
 /// `message` field collides with the one every Throwable already has, and the
 /// generated bindings do not compile. Found by building for Android.
@@ -90,6 +96,10 @@ pub trait EventSink: Send + Sync {
 pub struct Peer {
     endpoint: iroh::Endpoint,
     address: iroh::EndpointAddr,
+    /// The laptop's public key on its own. Everything else about an address
+    /// goes stale — the port changes on every restart, the addresses when it
+    /// moves network — but this does not, so it is what the fallback dials.
+    key: iroh::EndpointId,
     listening: AtomicBool,
 }
 
@@ -113,6 +123,7 @@ impl Peer {
 
         Ok(Arc::new(Peer {
             endpoint,
+            key: address.id,
             address,
             listening: AtomicBool::new(false),
         }))
@@ -244,9 +255,24 @@ impl Peer {
     /// cheap after the first, and it means a phone that changed network between
     /// two messages simply reconnects instead of failing.
     async fn dial(&self) -> Result<iroh::endpoint::Connection, P2pError> {
+        // What was learned at pairing time: usually a direct route, and the
+        // fastest way in while it still holds.
+        let known = tokio::time::timeout(
+            FIRST_TRY,
+            self.endpoint.connect(self.address.clone(), ALPN),
+        )
+        .await;
+        if let Ok(Ok(connection)) = known {
+            return Ok(connection);
+        }
+
+        // Then by key alone. A laptop that restarted listens on a different
+        // port, one that moved network has different addresses, and one that
+        // changed relay is somewhere else entirely — none of which change the
+        // key. This is the answer to "I am out and cannot get back in".
         tokio::time::timeout(
             TIMEOUT,
-            self.endpoint.connect(self.address.clone(), ALPN),
+            self.endpoint.connect(iroh::EndpointAddr::from(self.key), ALPN),
         )
         .await
         .map_err(|_| unreachable("your laptop did not answer — is it awake?"))?
