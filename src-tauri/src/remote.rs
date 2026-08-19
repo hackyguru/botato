@@ -377,6 +377,7 @@ fn peer_of(stream: &TcpStream) -> Option<String> {
 pub fn broadcast(event: &str, payload: &Value) {
     let frame = format!("event: {event}\ndata: {payload}\n\n");
     let mut state = remote().lock().unwrap();
+
     if state.listeners.is_empty() {
         return;
     }

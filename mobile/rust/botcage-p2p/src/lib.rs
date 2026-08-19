@@ -35,6 +35,10 @@ const TIMEOUT: Duration = Duration::from_secs(20);
 /// answer.
 const FIRST_TRY: Duration = Duration::from_secs(6);
 
+/// How long an event stream may say nothing before it is presumed dead. The
+/// desktop pings every twenty seconds precisely so this can be decided.
+const SILENCE: Duration = Duration::from_secs(45);
+
 /// Not named `message`: UniFFI maps these onto Kotlin exceptions, where a
 /// `message` field collides with the one every Throwable already has, and the
 /// generated bindings do not compile. Found by building for Android.
@@ -225,7 +229,19 @@ impl Peer {
             // Frames arrive split across reads as often as not, so whole frames
             // are cut from a buffer rather than assumed per read.
             while self.listening.load(Ordering::SeqCst) {
-                match recv.read(&mut buf).await {
+                // Bounded, because a read on a laptop that went away does not
+                // fail — QUIC waits on a peer that may still come back, so the
+                // phone sat believing it was listening while nothing arrived.
+                // Requests kept working on new connections, which is what made
+                // it look like a bot thinking forever rather than a dead
+                // stream. The desktop pings every twenty seconds, so silence
+                // for more than twice that means gone.
+                let read = tokio::time::timeout(SILENCE, recv.read(&mut buf)).await;
+                let Ok(read) = read else {
+                    sink.on_state(false);
+                    return Err(failed("the laptop stopped sending"));
+                };
+                match read {
                     Ok(Some(read)) if read > 0 => {
                         pending.push_str(&String::from_utf8_lossy(&buf[..read]));
                         while let Some(at) = pending.find("\n\n") {
