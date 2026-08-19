@@ -97,10 +97,40 @@ pub trait Engine: Send + Sync {
     /// each turn — the one difference that is not cosmetic.
     fn owns_transcript(&self) -> bool;
 
-    /// Can a bot using this engine be given tools — MCP servers, plugins, a
-    /// desktop? A local model with no tool loop cannot, and the prompt should
-    /// not claim otherwise.
-    fn supports_tools(&self) -> bool;
+    /// How this engine is given a bot's connectors.
+    ///
+    /// Not *whether*: the connectors belong to botcage — that is the whole
+    /// reason claude.ai's were removed — and a bot's GitHub or Notion should
+    /// work whatever answers for it.
+    fn tools(&self) -> ToolDelivery;
+}
+
+/// How a bot's connectors reach the model.
+///
+/// MCP is how botcage implements a connector, not something an engine has to
+/// understand. An engine that speaks MCP is handed the servers directly,
+/// because it already has a tool loop and doing it twice would only add
+/// latency. Anything else gets the same connectors as ordinary function
+/// definitions, with botcage running the loop: calling the MCP server, feeding
+/// the result back, and going round again.
+///
+/// The difference is plumbing. The connectors are the same either way, which is
+/// the point — an OAuth flow a person completed once should not have to be
+/// repeated because they changed which model answers.
+// Hosted and None arrive with the second engine; they are written down now
+// because the shape of the first one is a bad guide to the rest.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ToolDelivery {
+    /// The engine speaks MCP: hand it the servers and let it run its own loop.
+    Native,
+    /// botcage runs the loop and passes tools in whatever shape the engine
+    /// takes. Everything that can call a function qualifies.
+    Hosted,
+    /// The model cannot call tools at all. A bot on such an engine is told so
+    /// rather than being given a prompt that claims abilities it lacks.
+    None,
 }
 
 /// Whether an engine can be used, and if not, what a person should do.
@@ -156,8 +186,10 @@ impl Engine for ClaudeCode {
         true
     }
 
-    fn supports_tools(&self) -> bool {
-        true
+    fn tools(&self) -> ToolDelivery {
+        // It has its own MCP client and tool loop; botcage hands over the
+        // servers and stays out of the way.
+        ToolDelivery::Native
     }
 }
 
@@ -187,7 +219,7 @@ pub struct EngineInfo {
     pub name: String,
     pub ready: Ready,
     pub owns_transcript: bool,
-    pub supports_tools: bool,
+    pub tools: ToolDelivery,
 }
 
 #[tauri::command(async)]
@@ -199,7 +231,7 @@ pub fn engines() -> Vec<EngineInfo> {
             name: engine.name().to_string(),
             ready: engine.ready(),
             owns_transcript: engine.owns_transcript(),
-            supports_tools: engine.supports_tools(),
+            tools: engine.tools(),
         })
         .collect()
 }
@@ -217,6 +249,22 @@ mod tests {
         // An engine that was removed, or a state file from a newer build, must
         // not leave a bot with nothing to answer it.
         assert_eq!(for_key(Some("something-else")).key(), DEFAULT);
+    }
+
+    #[test]
+    fn every_engine_can_carry_botcage_s_connectors() {
+        // The connectors are botcage's own — a bot's GitHub should work
+        // whatever answers for it — so an engine says how they reach the model,
+        // not whether they may. Only a model that cannot call a function at all
+        // is exempt.
+        for engine in all() {
+            assert_ne!(
+                engine.tools(),
+                ToolDelivery::None,
+                "{} claims it cannot carry connectors",
+                engine.name()
+            );
+        }
     }
 
     #[test]
