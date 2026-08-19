@@ -38,17 +38,25 @@ public class BotcageP2pModule: Module {
     Events("frame", "state")
 
     AsyncFunction("connect") { (address: String) -> String in
-      let peer = try Peer.connect(address: address)
-      self.peer = peer
-      return peer.id()
+      do {
+        let peer = try Peer.connect(address: address)
+        self.peer = peer
+        return peer.id()
+      } catch {
+        throw LinkFailed(error)
+      }
     }
 
     AsyncFunction("request") { (method: String, path: String, token: String?, body: String?) -> [String: Any] in
       guard let peer = self.peer else {
         throw NotConnected()
       }
-      let response = try peer.request(method: method, path: path, token: token, body: body)
-      return ["status": Int(response.status), "body": response.body]
+      do {
+        let response = try peer.request(method: method, path: path, token: token, body: body)
+        return ["status": Int(response.status), "body": response.body]
+      } catch {
+        throw LinkFailed(error)
+      }
     }
 
     // Not async: it returns at once and the stream runs on its own thread, so
@@ -79,4 +87,33 @@ private final class NotConnected: Exception {
   override var reason: String {
     "this phone is not connected to a botcage yet"
   }
+}
+
+/// Carries a Rust error's own words across to JavaScript.
+///
+/// Without this, Expo wraps anything it does not recognise as
+/// `UnexpectedException: BotcageP2p.P2pError.Unreachable(reason: "…")` — the
+/// sentence is in there, buried in a type name and a file position that mean
+/// nothing to whoever is holding the phone.
+private final class LinkFailed: Exception {
+  private let why: String
+
+  init(_ error: Error) {
+    if let p2p = error as? P2pError {
+      switch p2p {
+      case let .Unreachable(reason): why = reason
+      case let .Failed(reason): why = reason
+      }
+    } else {
+      why = String(describing: error)
+    }
+    super.init()
+  }
+
+  required init() {
+    why = "something went wrong"
+    super.init()
+  }
+
+  override var reason: String { why }
 }

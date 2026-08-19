@@ -2341,3 +2341,56 @@ a.detail__source:hover {
 .pairing-qr[hidden] {
   display: none;
 }
+
+/* ------------------------------------------------------------ paired phones */
+/* One row per device rather than a comma-separated sentence: a phone is a thing
+   you recognise, and its icon says at a glance which one it is. */
+.devices {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.devices:empty {
+  display: none;
+}
+
+.device {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 8px;
+  border-radius: 9px;
+}
+
+.device:hover {
+  background: var(--hover);
+}
+
+.device svg {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  color: var(--text-2);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.device__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13.5px;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device__kind {
+  font-size: 11.5px;
+  color: var(--text-3);
+}

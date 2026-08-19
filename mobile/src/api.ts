@@ -15,6 +15,7 @@
  * This file knows the transport and nothing about what botcage can do — a call
  * is POST /api/<action>, and the action names belong to the desktop.
  */
+import { Platform } from "react-native";
 import { getItem, removeItem, setItem } from "./storage";
 
 /** A paired laptop.
@@ -125,7 +126,9 @@ export async function pair(address: string, code: string, name: string): Promise
     "POST",
     "/api/pair",
     null,
-    JSON.stringify({ code: code.trim().toUpperCase(), name }),
+    // The platform travels with the name so the laptop can show this device
+    // with the right icon rather than guessing from what it calls itself.
+    JSON.stringify({ code: code.trim().toUpperCase(), name, platform: Platform.OS }),
   );
   const body = answer.body ? JSON.parse(answer.body) : {};
   if (answer.status >= 400) throw new Error(body?.error ?? "pairing was refused");

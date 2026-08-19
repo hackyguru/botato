@@ -124,12 +124,18 @@ fn hash(token: &str) -> String {
 
 /* ------------------------------------------------------------------- state */
 
-/// A phone that has been paired: what to call it, and which key it speaks from.
+/// A phone that has been paired: what to call it, which key it speaks from, and
+/// what kind of thing it is.
 #[derive(Clone, Serialize, serde::Deserialize)]
 pub struct Device {
     pub name: String,
     /// The device's public key. A token is only accepted from this key.
     pub peer: String,
+    /// "ios" or "android", as the phone reported itself. Absent for devices
+    /// paired before this was recorded, which is why nothing depends on it
+    /// beyond which icon is drawn.
+    #[serde(default)]
+    pub platform: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -140,7 +146,15 @@ pub struct RemoteStatus {
     /// The live pairing code, while one is live.
     pub code: Option<String>,
     pub code_expires_in: u64,
-    pub devices: Vec<String>,
+    pub devices: Vec<PairedDevice>,
+}
+
+/// One paired phone, as the settings panel lists it.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairedDevice {
+    pub name: String,
+    pub platform: Option<String>,
 }
 
 fn devices_file(app: &AppHandle) -> Result<PathBuf, String> {
@@ -185,7 +199,14 @@ pub fn remote_status(app: AppHandle) -> RemoteStatus {
         port: state.port,
         code,
         code_expires_in: expires,
-        devices: state.devices.values().map(|d| d.name.clone()).collect(),
+        devices: state
+            .devices
+            .values()
+            .map(|device| PairedDevice {
+                name: device.name.clone(),
+                platform: device.platform.clone(),
+            })
+            .collect(),
     }
 }
 
@@ -506,6 +527,7 @@ fn pair(app: &AppHandle, stream: &mut TcpStream, request: &Request, peer: &str) 
     let body: Value = serde_json::from_str(&request.body).unwrap_or(json!({}));
     let given = body["code"].as_str().unwrap_or("").to_uppercase();
     let name = body["name"].as_str().unwrap_or("a phone").to_string();
+    let platform = body["platform"].as_str().map(str::to_string);
 
     let mut state = remote().lock().unwrap();
     let valid = match &state.code {
@@ -544,6 +566,7 @@ fn pair(app: &AppHandle, stream: &mut TcpStream, request: &Request, peer: &str) 
         Device {
             name,
             peer: peer.to_string(),
+            platform,
         },
     );
     let devices = state.devices.clone();
@@ -674,6 +697,7 @@ mod tests {
                         Device {
                             name: "test phone".into(),
                             peer,
+                            platform: Some("ios".into()),
                         },
                     );
                     drop(state);

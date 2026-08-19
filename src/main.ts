@@ -180,6 +180,9 @@ interface AppSettings {
   awake: boolean;
   /** Setup has been walked through once. Reopenable from the account menu. */
   onboarded: boolean;
+  /** Phone access was switched on. Restored at launch: a paired phone away from
+   *  the house cannot ask anyone to flip a switch on the laptop. */
+  remoteOn: boolean;
 }
 
 const DEFAULT_APP: AppSettings = {
@@ -189,6 +192,7 @@ const DEFAULT_APP: AppSettings = {
   routinesOn: true,
   awake: false,
   onboarded: false,
+  remoteOn: false,
 };
 
 const state: Persisted = { bots: [], activeId: null, app: { ...DEFAULT_APP } };
@@ -2071,6 +2075,7 @@ function saveAppSettings(): void {
     routinesOn: appRoutines.checked,
     awake: appAwake.checked,
     onboarded: appSettings().onboarded,
+    remoteOn: appSettings().remoteOn,
   };
   save();
   verifyCatalogue();
@@ -3519,7 +3524,13 @@ interface RemoteStatus {
   port: number;
   code: string | null;
   codeExpiresIn: number;
-  devices: string[];
+  devices: PairedDevice[];
+}
+
+interface PairedDevice {
+  name: string;
+  /** "ios" or "android" — absent for devices paired before this was recorded. */
+  platform: string | null;
 }
 
 /** This machine's peer-to-peer identity — the address a phone pairs with, which
@@ -3533,6 +3544,7 @@ const remotePairing = $<HTMLDivElement>("#app-remote-pairing");
 const remoteCode = $<HTMLSpanElement>("#app-remote-code");
 const remoteHint = $<HTMLSpanElement>("#app-remote-hint");
 const remoteDevices = $<HTMLSpanElement>("#app-remote-devices");
+const remoteList = $<HTMLDivElement>("#app-remote-list");
 // Not `number`: the QR encoder's types pull in Node's, where a timer is an
 // object rather than a handle.
 let codeTimer: ReturnType<typeof setInterval> | null = null;
@@ -3553,8 +3565,9 @@ function paintRemote(status: RemoteStatus): void {
   }
 
   remoteDevices.textContent = status.devices.length
-    ? `${status.devices.length} paired: ${status.devices.join(", ")}`
+    ? `${status.devices.length} device${status.devices.length === 1 ? "" : "s"} can reach this machine.`
     : "None yet.";
+  remoteList.replaceChildren(...status.devices.map(deviceRow));
 
   if (status.code) {
     remoteCode.textContent = status.code;
@@ -3571,6 +3584,24 @@ function paintRemote(status: RemoteStatus): void {
 /** Draw the address and the code as one square, so pairing is a single scan
  *  rather than a 187-character paste. Both halves have to be there: the address
  *  says which machine, the code proves you are standing in front of it. */
+/** One paired phone. The platform comes from the device itself; for anything
+ *  paired before that was recorded, the name usually still gives it away. */
+function deviceRow(device: PairedDevice): HTMLElement {
+  const kind =
+    device.platform ??
+    (/iphone|ipad|ios/i.test(device.name) ? "ios" : /android|pixel|galaxy/i.test(device.name) ? "android" : null);
+
+  const row = document.createElement("div");
+  row.className = "device";
+  row.innerHTML =
+    `<svg><use href="#i-${kind === "android" ? "android" : "ios"}" /></svg>` +
+    `<span class="device__name"></span>` +
+    `<span class="device__kind">${kind === "android" ? "Android" : kind === "ios" ? "iPhone" : ""}</span>`;
+  // Set as text, never as markup: the name is whatever the phone called itself.
+  row.querySelector(".device__name")!.textContent = device.name;
+  return row;
+}
+
 async function paintPairingCode(code: string): Promise<void> {
   const address = await invoke<string | null>("p2p_address").catch(() => null);
   if (!address) {
@@ -3611,23 +3642,30 @@ async function refreshRemote(): Promise<void> {
   if (status) paintRemote(status);
 }
 
+/** Bring up the local server and the peer endpoint. Used by the switch and at
+ *  launch, so the two cannot drift apart. */
+async function startRemote(): Promise<void> {
+  await invoke("remote_start");
+  // Failing this is not fatal — the local server is still there — but a phone
+  // away from the house has no other way in, so it is worth saying.
+  peerId = await invoke<string>("p2p_start").catch((err) => {
+    toast(`Phone access is on, but not reachable yet: ${err}`);
+    return null;
+  });
+}
+
 appRemote.addEventListener("change", async () => {
   try {
     if (appRemote.checked) {
-      await invoke("remote_start");
-      // Bring up the peer-to-peer endpoint alongside the local server, so a
-      // phone works away from the house without anything else being set up.
-      // Failing this is not fatal: the same server still answers on the LAN.
-      peerId = await invoke<string>("p2p_start").catch((err) => {
-        toast(`Reachable on this network only: ${err}`);
-        return null;
-      });
+      await startRemote();
       // A fresh code every time it is switched on: one that was read out and
       // then abandoned should not still work later.
       await invoke<string>("remote_pairing_code");
     } else {
       await invoke("remote_stop");
     }
+    state.app = { ...appSettings(), remoteOn: appRemote.checked };
+    save();
   } catch (err) {
     appRemote.checked = false;
     toast(String(err));
@@ -3869,6 +3907,13 @@ if (appSettings().awake) void invoke("set_awake", { on: true }).catch(() => {});
 // First run walks through setup. Afterwards it only reappears when the thing
 // bots actually depend on is missing, and opens at that step rather than at the
 // welcome screen someone has already read.
+// A phone paired at the kitchen table is no use if the laptop stops answering
+// the moment botcage restarts, so phone access comes back by itself. No pairing
+// code is shown — that stays a deliberate act.
+if (appSettings().remoteOn) {
+  void startRemote().catch((err) => toast(`Phone access could not start: ${err}`));
+}
+
 void refreshClaude().then(() => {
   if (!appSettings().onboarded) void openSetup("welcome");
   else if (!claudeReady) void openSetup("claude");

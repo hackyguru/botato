@@ -90,6 +90,16 @@
         <path d="M6.5 8h11v3.2a5.5 5.5 0 0 1-5.5 5.5 5.5 5.5 0 0 1-5.5-5.5z" />
         <path d="M12 16.7V21" />
       </symbol>
+      <symbol id="i-ios" viewBox="0 0 24 24">
+        <rect x="6" y="2" width="12" height="20" rx="2.6" />
+        <path d="M10.5 18.6h3" />
+      </symbol>
+      <symbol id="i-android" viewBox="0 0 24 24">
+        <path d="M7 11a5 5 0 0 1 10 0" />
+        <path d="M7 11v5.4a1.6 1.6 0 0 0 1.6 1.6h6.8a1.6 1.6 0 0 0 1.6-1.6V11" />
+        <path d="m8.4 7.2-1.2-2M15.6 7.2l1.2-2" />
+        <path d="M9.6 9.2h.01M14.4 9.2h.01" />
+      </symbol>
       <symbol id="i-cube" viewBox="0 0 24 24">
         <path d="M12 2.7 20.5 7.4v9.2L12 21.3 3.5 16.6V7.4z" />
         <path d="M3.5 7.4 12 12l8.5-4.6M12 12v9.3" />
@@ -552,10 +562,11 @@
                 <span class="setting__label">Pairing code</span>
                 <span class="pairing-code" id="app-remote-code">------</span>
               </div>
-              <div class="setting">
+              <div class="setting setting--stack">
                 <span class="setting__label">Paired devices
                   <span class="setting__hint" id="app-remote-devices">None yet.</span>
                 </span>
+                <div class="devices" id="app-remote-list"></div>
                 <button type="button" class="chip" id="app-remote-forget"><span>Forget all</span></button>
               </div>
             </div>
