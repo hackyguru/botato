@@ -128,14 +128,43 @@ export default function App() {
 
   useEffect(() => {
     if (!pairing) return;
+    let live = true;
+    let stop = listen(pairing, apply, setConnected);
+    let retry: ReturnType<typeof setTimeout> | null = null;
     void refresh();
-    const stop = listen(pairing, apply, setConnected);
-    // A phone sleeps constantly, and a stream that died in a pocket must not
-    // leave the app showing a stale conversation.
+
+    /** Throw the stream away and open a new one. Reconnecting is cheaper than
+     *  working out whether the old one is still good — the laptop is dialled
+     *  per use anyway. */
+    const reopen = () => {
+      if (!live) return;
+      stop();
+      stop = listen(pairing, apply, (up) => {
+        setConnected(up);
+        // A stream that drops while the app is open — a change of network, a
+        // laptop that slept — comes back on its own rather than sitting on
+        // "reconnecting" until someone pulls to refresh.
+        if (!up && live && !retry) {
+          retry = setTimeout(() => {
+            retry = null;
+            if (AppState.currentState === "active") reopen();
+          }, 4000);
+        }
+      });
+    };
+
+    // iOS suspends a backgrounded app and the stream dies with it, silently —
+    // the app simply stops hearing anything. So it is rebuilt on the way back
+    // in rather than trusted.
     const subscription = AppState.addEventListener("change", (next) => {
-      if (next === "active") void refresh();
+      if (next !== "active") return;
+      void refresh();
+      reopen();
     });
+
     return () => {
+      live = false;
+      if (retry) clearTimeout(retry);
       stop();
       subscription.remove();
     };
