@@ -18,6 +18,7 @@ use tauri::{AppHandle, Emitter, Manager, RunEvent};
 
 mod connectors;
 mod engine;
+mod inference;
 mod mcp;
 mod oauth;
 mod p2p;
@@ -155,6 +156,10 @@ fn emit(app: &AppHandle, bot_id: &str, kind: &str, text: Option<String>, detail:
 #[serde(rename_all = "camelCase")]
 struct AskRequest {
     bot_id: String,
+    /// Which engine answers for this bot. Absent on every bot made before there
+    /// was a choice, which is why it falls back rather than failing.
+    #[serde(default)]
+    engine: Option<String>,
     session_id: String,
     /// False for a bot's first turn (creates the session), true afterwards.
     resume: bool,
@@ -237,6 +242,20 @@ pub(crate) fn workspace(app: &AppHandle, bot_id: &str) -> Result<PathBuf, String
 fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Result<(), String> {
     if running.0.lock().unwrap().contains_key(&req.bot_id) {
         return Err("this bot is already working on something".into());
+    }
+
+    // Through the registry rather than straight to one binary: what answers for
+    // a bot is a property of the bot, and the reason it cannot answer is worth
+    // saying precisely — "installed, but not signed in" is a different
+    // afternoon from "not installed".
+    let engine = inference::for_key(req.engine.as_deref());
+    let ready = engine.ready();
+    if !ready.usable {
+        return Err(format!(
+            "{} is {}",
+            engine.name(),
+            ready.missing.unwrap_or_else(|| "not available".into())
+        ));
     }
 
     let bin = locate_claude()
@@ -851,6 +870,7 @@ pub fn run() {
             remote::remote_forget_devices,
             remote::remote_forget_device,
             remote::remote_reply,
+            inference::engines,
             setup::claude_state,
             setup::install_claude,
             setup::claude_sign_in,
