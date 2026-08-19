@@ -2461,3 +2461,20 @@ a.detail__source:hover {
   stroke-width: 2;
   stroke-linecap: round;
 }
+
+/* This machine's key, for someone typing it into a phone. Grouped, because
+   sixty-four unbroken characters cannot be read back and forth without losing
+   your place — and monospaced so 0 and O are different shapes. */
+.machine-key {
+  align-self: stretch;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.9;
+  color: var(--text);
+  text-align: center;
+  word-spacing: 3px;
+  background: var(--field);
+  border-radius: 10px;
+  user-select: all;
+}

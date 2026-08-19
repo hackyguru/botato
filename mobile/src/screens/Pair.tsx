@@ -146,7 +146,7 @@ export default function Pair({ onPaired }: { onPaired: (pairing: Pairing) => voi
         <Text style={s.title}>Connect to your botcage</Text>
         <Text style={s.blurb}>
           On the laptop: botcage → account menu → Settings → Phone. Turn on phone access, and it
-          shows what to paste here plus a code.
+          shows this machine's name and a code. Spaces don't matter.
         </Text>
 
         <Text style={s.label}>Your laptop</Text>
@@ -163,7 +163,7 @@ export default function Pair({ onPaired }: { onPaired: (pairing: Pairing) => voi
             void check(address);
             codeField.current?.focus();
           }}
-          placeholder="paste what the laptop shows"
+          placeholder="the name your laptop shows"
           placeholderTextColor={T.text3}
           autoCapitalize="none"
           autoCorrect={false}

@@ -126,8 +126,17 @@ function link(): NativeLink {
  *  Used before pairing, when there is no token yet. The connection is already
  *  encrypted and the laptop's key already proven by then — this only asks what
  *  is on the other end. */
+/** What someone typed, as the native side wants it.
+ *
+ *  The laptop shows its key in groups of eight so it can be read aloud and
+ *  typed; the spaces are for the eye, not the protocol. A pasted address is
+ *  JSON and passes through untouched. */
+export const cleanAddress = (text: string) =>
+  text.trim().startsWith("{") ? text.trim() : text.replace(/\s+/g, "");
+
 export async function probe(address: string): Promise<{ app: string; version: string }> {
   const peer = link();
+  address = cleanAddress(address);
   try {
     await peer.connect(address);
   } catch (err) {
@@ -147,6 +156,7 @@ export async function probe(address: string): Promise<{ app: string; version: st
  *  and binds the token it hands back to this phone's key. */
 export async function pair(address: string, code: string, name: string): Promise<Pairing> {
   const peer = link();
+  address = cleanAddress(address);
   try {
     await peer.connect(address);
   } catch (err) {

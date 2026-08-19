@@ -550,12 +550,13 @@
                 <canvas class="pairing-qr" id="app-remote-qr" width="220" height="220"></canvas>
               </div>
 
-              <div class="setting">
+              <div class="setting setting--stack">
                 <span class="setting__label">Can't scan?
-                  <span class="setting__hint">Type the code into the phone by hand, and copy this
-                    machine's address for the field above it.</span>
+                  <span class="setting__hint">Enter this machine's name on the phone, then the code
+                    below. Spaces are there to be read — they can be left out.</span>
                 </span>
-                <button type="button" class="chip" id="app-remote-copy"><span>Copy address</span></button>
+                <span class="machine-key" id="app-remote-key">—</span>
+                <button type="button" class="chip" id="app-remote-copy"><span>Copy</span></button>
               </div>
 
               <div class="setting setting--stack">

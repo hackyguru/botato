@@ -3564,6 +3564,7 @@ const remotePairing = $<HTMLDivElement>("#app-remote-pairing");
 const remoteCode = $<HTMLSpanElement>("#app-remote-code");
 const remoteHint = $<HTMLSpanElement>("#app-remote-hint");
 const remoteDevices = $<HTMLSpanElement>("#app-remote-devices");
+const remoteKey = $<HTMLSpanElement>("#app-remote-key");
 const remoteList = $<HTMLDivElement>("#app-remote-list");
 // Not `number`: the QR encoder's types pull in Node's, where a timer is an
 // object rather than a handle.
@@ -3583,6 +3584,13 @@ function paintRemote(status: RemoteStatus): void {
   } else {
     remoteWhere.textContent = "Starting the connection…";
   }
+
+  // Sixty-four characters in groups of eight: still long, but a person can
+  // hold one group in their head at a time, which is the difference between
+  // typeable and not.
+  remoteKey.textContent = peerId
+    ? (peerId.match(/.{1,8}/g) ?? [peerId]).join(" ")
+    : "starting…";
 
   remoteDevices.textContent = status.devices.length
     ? `${status.devices.length} device${status.devices.length === 1 ? "" : "s"} can reach this machine.`
