@@ -3589,6 +3589,11 @@ async function paintPairingCode(code: string): Promise<void> {
       color: { dark: "#000000", light: "#ffffff" },
       errorCorrectionLevel: "M",
     });
+    // toCanvas writes its own inline width and height, which beat the
+    // stylesheet — so a square drawn at 440 for sharpness is also *displayed*
+    // at 440 and bursts a 380px sheet. Set the display size back afterwards.
+    remoteQr.style.width = "220px";
+    remoteQr.style.height = "220px";
     remoteQr.hidden = false;
   } catch {
     // A QR that will not draw is not worth an error — the code and the copy

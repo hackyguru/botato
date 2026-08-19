@@ -1114,7 +1114,13 @@ textarea {
 }
 
 .sheet {
+  display: flex;
+  flex-direction: column;
   width: min(380px, 92vw);
+  /* Never taller than the window. Settings grew a tab at a time until the
+     Phone panel — with a QR square in it — pushed the sheet past the bottom of
+     a laptop screen, taking the Done button with it. */
+  max-height: 88vh;
   background: #17171a;
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -1180,10 +1186,15 @@ textarea {
 
 .sheet__body {
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: center;
   gap: 10px;
+  /* The part that scrolls when there is more than fits: the head stays put and
+     the footer's buttons stay reachable. */
+  min-height: 0;
   padding: 8px 18px 18px;
+  overflow-y: auto;
 }
 
 .sheet__preview {
@@ -2317,8 +2328,11 @@ a.detail__source:hover {
    white quiet zone — a QR on a dark background scans badly or not at all. */
 .pairing-qr {
   align-self: center;
+  /* Never wider than the sheet, whatever size it was drawn at. */
   width: 220px;
-  height: 220px;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 1;
   padding: 10px;
   background: #fff;
   border-radius: 12px;
