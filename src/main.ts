@@ -2062,6 +2062,8 @@ async function openAppSettings(): Promise<void> {
   void invoke<boolean>("lid_awake").then((on) => (appLid.checked = on)).catch(() => {});
   void invoke<boolean>("login_launch").then((on) => (appLogin.checked = on)).catch(() => {});
 
+  void paintEngines();
+
   const [claude, docker] = await Promise.all([
     invoke<ClaudeState>("claude_state"),
     invoke<{ version: string | null }>("docker_info"),
@@ -2084,6 +2086,38 @@ async function openAppSettings(): Promise<void> {
     : "";
   $<HTMLSpanElement>("#app-usage").textContent = spent + window;
 
+}
+
+interface EngineInfo {
+  key: string;
+  name: string;
+  ready: { usable: boolean; missing: string | null };
+  ownsTranscript: boolean;
+  tools: string;
+}
+
+/** List what could answer for a bot, and what is stopping each one.
+ *
+ *  Read-only for now: bots all use Claude Code, and offering a choice botcage
+ *  cannot yet honour would be worse than not offering it. */
+async function paintEngines(): Promise<void> {
+  const engines = await invoke<EngineInfo[]>("engines").catch(() => []);
+  const list = $<HTMLDivElement>("#app-engines");
+  list.replaceChildren(
+    ...engines.map((engine) => {
+      const row = document.createElement("div");
+      row.className = "engine-row";
+      row.innerHTML =
+        `<span class="engine-row__light" data-ready="${engine.ready.usable}"></span>` +
+        `<span class="engine-row__name"></span>` +
+        `<span class="engine-row__missing"></span>`;
+      row.querySelector(".engine-row__name")!.textContent = engine.name;
+      row.querySelector(".engine-row__missing")!.textContent = engine.ready.usable
+        ? "ready"
+        : (engine.ready.missing ?? "not available");
+      return row;
+    }),
+  );
 }
 
 function saveAppSettings(): void {

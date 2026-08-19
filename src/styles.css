@@ -2498,3 +2498,49 @@ a.detail__source:hover {
     transition: none;
   }
 }
+
+/* What can answer for a bot. A dot rather than a sentence per row: the useful
+   question is which of these are usable, and that reads faster as a column of
+   lights than as a paragraph. */
+.engines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.engine-row {
+  display: flex;
+  gap: 9px;
+  align-items: baseline;
+  padding: 6px 8px;
+  border-radius: 9px;
+}
+
+.engine-row__light {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+
+.engine-row__light[data-ready="true"] {
+  background: #32d74b;
+}
+
+.engine-row__name {
+  font-size: 13.5px;
+  color: var(--text);
+}
+
+.engine-row__missing {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--text-3);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
