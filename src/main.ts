@@ -3718,6 +3718,25 @@ appRemote.addEventListener("change", async () => {
   await refreshRemote();
 });
 
+/** Make sure there is something to scan when someone is looking at this panel.
+ *
+ *  A code lasts five minutes and is spent on first use, so one that exists only
+ *  because the tab is open costs nothing — and a pairing screen that asks you
+ *  to press a button before it will pair is a step that exists for the
+ *  program's benefit rather than the person's. */
+async function ensurePairingCode(): Promise<void> {
+  const status = await invoke<RemoteStatus>("remote_status").catch(() => null);
+  if (!status?.running || status.code) return;
+  await invoke<string>("remote_pairing_code").catch(() => null);
+  await refreshRemote();
+}
+
+// Opening the Phone tab is the moment someone means to pair. Opening settings
+// on General is not, so nothing is minted until the panel is actually shown.
+$<HTMLElement>("#app-settings")
+  .querySelectorAll<HTMLButtonElement>('.tab[data-tab="phone"]')
+  .forEach((tab) => tab.addEventListener("click", () => void ensurePairingCode()));
+
 remoteNewCode.addEventListener("click", async () => {
   await invoke<string>("remote_pairing_code").catch((err) => toast(String(err)));
   await refreshRemote();
