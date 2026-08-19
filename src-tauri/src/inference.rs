@@ -193,6 +193,85 @@ impl Engine for ClaudeCode {
     }
 }
 
+/// One line of a Claude Code stream, as botcage understands it.
+///
+/// Pure: a string in, events out, no process and no app. That is the point —
+/// this is the half of a turn that genuinely differs between engines, and the
+/// half that can be checked against real output without running anything.
+///
+/// A line may carry nothing worth showing (a system frame, a heartbeat), so the
+/// answer is a list rather than an option.
+impl ClaudeCode {
+    // Not yet the parser the runner uses: lib.rs still reads the stream inline.
+    // Swapping it over is a change to the one path every bot depends on, and is
+    // worth doing where it can be watched rather than at the end of a long
+    // session. The tests below hold this to the same output meanwhile.
+    #[allow(dead_code)]
+    pub fn read_line(&self, line: &str) -> Vec<Event> {
+        let Ok(frame) = serde_json::from_str::<serde_json::Value>(line) else {
+            // A partial or malformed line loses that line, not the turn.
+            return Vec::new();
+        };
+
+        match frame["type"].as_str().unwrap_or_default() {
+            "stream_event" => {
+                let inner = &frame["event"];
+                if inner["type"] != "content_block_delta" {
+                    return Vec::new();
+                }
+                let delta = &inner["delta"];
+                let text = delta["text"]
+                    .as_str()
+                    .or_else(|| delta["thinking"].as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                match delta["type"].as_str().unwrap_or_default() {
+                    "text_delta" => vec![Event::Delta(text)],
+                    "thinking_delta" => vec![Event::Thinking(text)],
+                    _ => Vec::new(),
+                }
+            }
+
+            // A tool is announced in the assistant message that requests it,
+            // which is what lets the app say what a bot is doing before the
+            // result comes back.
+            "assistant" => frame["message"]["content"]
+                .as_array()
+                .map(|blocks| {
+                    blocks
+                        .iter()
+                        .filter(|block| block["type"] == "tool_use")
+                        .map(|block| {
+                            Event::Tool(block["name"].as_str().unwrap_or("a tool").to_string())
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+
+            "rate_limit_event" => vec![Event::RateLimit {
+                resets_at: frame["rate_limit_info"]["resetsAt"].as_u64(),
+            }],
+
+            "result" => {
+                if frame["is_error"].as_bool().unwrap_or(false) {
+                    vec![Event::Error(
+                        frame["result"]
+                            .as_str()
+                            .unwrap_or("the turn ended with an error")
+                            .to_string(),
+                    )]
+                } else {
+                    vec![Event::Done {
+                        cost_usd: frame["total_cost_usd"].as_f64(),
+                    }]
+                }
+            }
+
+            _ => Vec::new(),
+        }
+    }
+}
+
 /// Google's Gemini CLI.
 ///
 /// The second engine, and chosen deliberately as the awkward one: it streams
@@ -344,6 +423,59 @@ mod tests {
             gemini.owns_transcript(),
             "if every engine agreed, the seam would not be earning anything"
         );
+    }
+
+    /// Against the shapes the CLI actually emits. This is the half of a turn
+    /// that differs per engine, and the half that can be checked without
+    /// running anything — so it is checked.
+    #[test]
+    fn a_claude_stream_becomes_botcage_events() {
+        let claude = ClaudeCode;
+        let read = |line: &str| claude.read_line(line);
+
+        assert!(matches!(
+            read(r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Two PRs"}}}"#).as_slice(),
+            [Event::Delta(text)] if text == "Two PRs"
+        ));
+
+        // Thinking arrives under its own key, not "text".
+        assert!(matches!(
+            read(r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"weighing it up"}}}"#).as_slice(),
+            [Event::Thinking(text)] if text == "weighing it up"
+        ));
+
+        // A tool is announced when it is requested, which is what lets the app
+        // say what a bot is doing before the result exists.
+        assert!(matches!(
+            read(r#"{"type":"assistant","message":{"content":[{"type":"text","text":"one moment"},{"type":"tool_use","name":"Bash"}]}}"#).as_slice(),
+            [Event::Tool(name)] if name == "Bash"
+        ));
+
+        assert!(matches!(
+            read(r#"{"type":"result","is_error":false,"result":"done","total_cost_usd":0.0121}"#).as_slice(),
+            [Event::Done { cost_usd: Some(cost) }] if (cost - 0.0121).abs() < 1e-9
+        ));
+
+        // A failed turn is an error, not a completion with sad contents.
+        assert!(matches!(
+            read(r#"{"type":"result","is_error":true,"result":"the model refused"}"#).as_slice(),
+            [Event::Error(why)] if why == "the model refused"
+        ));
+
+        assert!(matches!(
+            read(r#"{"type":"rate_limit_event","rate_limit_info":{"resetsAt":1750000000}}"#)
+                .as_slice(),
+            [Event::RateLimit {
+                resets_at: Some(1750000000)
+            }]
+        ));
+
+        // Frames botcage has nothing to say about, and a line cut in half by a
+        // crash: both are silence rather than noise or a panic.
+        assert!(read(r#"{"type":"system","subtype":"init"}"#).is_empty());
+        assert!(read(r#"{"type":"stream_event","event":{"type":"message_start"}}"#).is_empty());
+        assert!(read(r#"{"type":"resu"#).is_empty());
+        assert!(read("").is_empty());
     }
 
     #[test]
