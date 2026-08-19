@@ -19,24 +19,41 @@ import {
 import type { Bot } from "../types";
 import { T } from "../theme";
 
-function Face({ bot, size = 40 }: { bot: Bot; size?: number }) {
-  const radius = bot.shape === "circle" ? size / 2 : bot.shape === "drop" ? size / 3 : size / 3.4;
-  const eye = Math.max(4, Math.round(size / 7));
+/** The desktop's bot face, to its own measurements: a 34px shape with two
+ *  rounded 4x6 eyes. A drop is a circle with one square-ish corner, which is
+ *  what makes the three shapes tell bots apart at a glance. */
+function Face({ bot, size = 34 }: { bot: Bot; size?: number }) {
+  const round = size / 2;
+  const shape =
+    bot.shape === "circle"
+      ? { borderRadius: round }
+      : bot.shape === "drop"
+        ? {
+            borderTopLeftRadius: round,
+            borderTopRightRadius: round,
+            borderBottomRightRadius: round,
+            borderBottomLeftRadius: size * 0.22,
+          }
+        : { borderRadius: size * 0.3 };
+
+  const eye = { width: 4, height: 6, borderRadius: 2, backgroundColor: "rgba(0,0,0,0.72)" };
   return (
     <View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: radius,
-        backgroundColor: bot.color,
-        flexDirection: "row",
-        gap: eye * 0.7,
-        alignItems: "center",
-        justifyContent: "center",
-      }}
+      style={[
+        {
+          width: size,
+          height: size,
+          backgroundColor: bot.color,
+          flexDirection: "row",
+          gap: 4,
+          alignItems: "center",
+          justifyContent: "center",
+        },
+        shape,
+      ]}
     >
-      <View style={{ width: eye, height: eye, borderRadius: eye / 2, backgroundColor: "#00000066" }} />
-      <View style={{ width: eye, height: eye, borderRadius: eye / 2, backgroundColor: "#00000066" }} />
+      <View style={eye} />
+      <View style={eye} />
     </View>
   );
 }

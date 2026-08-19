@@ -20,6 +20,7 @@ import {
   View,
 } from "react-native";
 import type { Bot, Message } from "../types";
+import Markdown from "../markdown";
 import { T } from "../theme";
 
 export default function Chat({
@@ -92,7 +93,14 @@ export default function Chat({
             key={message.id}
             style={[s.bubble, message.from === "me" ? s.mine : s.theirs]}
           >
-            <Text style={s.text}>{message.text || (bot.busy ? "…" : "")}</Text>
+            {message.from === "bot" ? (
+              // What a bot writes is markdown, and the desktop renders it. A
+              // phone showing the backticks is not a smaller app, just a worse
+              // one. What you type is left exactly as you typed it.
+              <Markdown text={message.text || (bot.busy ? "…" : "")} />
+            ) : (
+              <Text style={s.text}>{message.text}</Text>
+            )}
           </View>
         ))}
         {bot.busy ? (

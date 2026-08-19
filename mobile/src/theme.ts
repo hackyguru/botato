@@ -9,6 +9,7 @@ export const T = {
   text: "#f2f2f2",
   text2: "#8e8e93",
   text3: "#636366",
+  link: "#4a9dff",
   blue: "#0a84ff",
   red: "#ff453a",
   green: "#32d74b",
