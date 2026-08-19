@@ -347,7 +347,8 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         env: plugins::env_for(&req.plugins),
     };
 
-    let mut cmd = inference::ClaudeCode.command(&turn)?;
+    // The engine this bot chose, not a name written here.
+    let mut cmd = engine.command(&turn)?;
 
     let mut child = cmd
         .spawn()
@@ -382,6 +383,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
 
     let app_handle = app.clone();
     let bot_id = req.bot_id.clone();
+    let reader = inference::for_key(req.engine.as_deref());
     std::thread::spawn(move || {
         let mut final_text: Option<String> = None;
         let mut failure: Option<String> = None;
@@ -392,7 +394,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
             // engine's business; this loop's business is what botcage does
             // about it, and the two were the same code only because there was
             // one engine.
-            for event in inference::ClaudeCode.read_line(&line) {
+            for event in reader.read_line(&line) {
                 match event {
                     inference::Event::Delta(text) => {
                         emit(&app_handle, &bot_id, "delta", Some(text), None)

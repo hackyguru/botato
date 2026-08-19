@@ -118,6 +118,14 @@ pub trait Engine: Send + Sync {
     /// each turn — the one difference that is not cosmetic.
     fn owns_transcript(&self) -> bool;
 
+    /// The command that runs one turn.
+    fn command(&self, turn: &Turn) -> Result<std::process::Command, String>;
+
+    /// One line of that command's output, as botcage understands it. A line may
+    /// carry nothing worth showing, so the answer is a list rather than an
+    /// option.
+    fn read_line(&self, line: &str) -> Vec<Event>;
+
     /// How this engine is given a bot's connectors.
     ///
     /// Not *whether*: the connectors belong to botcage — that is the whole
@@ -186,50 +194,13 @@ impl Ready {
 pub struct ClaudeCode;
 
 impl Engine for ClaudeCode {
-    fn key(&self) -> &'static str {
-        "claude-code"
-    }
-
-    fn name(&self) -> &'static str {
-        "Claude Code"
-    }
-
-    fn ready(&self) -> Ready {
-        let state = crate::setup::claude_state();
-        match (state.path.is_some(), state.signed_in) {
-            (false, _) => Ready::no("not installed"),
-            (true, false) => Ready::no("installed, but not signed in"),
-            (true, true) => Ready::yes(),
-        }
-    }
-
-    fn owns_transcript(&self) -> bool {
-        true
-    }
-
-    fn tools(&self) -> ToolDelivery {
-        // It has its own MCP client and tool loop; botcage hands over the
-        // servers and stays out of the way.
-        ToolDelivery::Native
-    }
-}
-
-/// One line of a Claude Code stream, as botcage understands it.
-///
-/// Pure: a string in, events out, no process and no app. That is the point —
-/// this is the half of a turn that genuinely differs between engines, and the
-/// half that can be checked against real output without running anything.
-///
-/// A line may carry nothing worth showing (a system frame, a heartbeat), so the
-/// answer is a list rather than an option.
-impl ClaudeCode {
     /// The command that runs one turn.
     ///
     /// Every flag here is Claude Code's own vocabulary — what to call streaming
     /// output, how to name a denied tool, whether a conversation is continued
     /// by id — which is exactly why it belongs to the engine rather than to the
     /// runner that spawns it.
-    pub fn command(&self, turn: &Turn) -> Result<std::process::Command, String> {
+    fn command(&self, turn: &Turn) -> Result<std::process::Command, String> {
         let bin = crate::locate_claude()
             .ok_or("Claude Code CLI not found — install it, or point CLAUDE_BIN at the binary")?;
 
@@ -286,7 +257,7 @@ impl ClaudeCode {
         Ok(cmd)
     }
 
-    pub fn read_line(&self, line: &str) -> Vec<Event> {
+    fn read_line(&self, line: &str) -> Vec<Event> {
         let Ok(frame) = serde_json::from_str::<serde_json::Value>(line) else {
             // A partial or malformed line loses that line, not the turn.
             return Vec::new();
@@ -356,8 +327,36 @@ impl ClaudeCode {
             _ => Vec::new(),
         }
     }
+
+    fn key(&self) -> &'static str {
+        "claude-code"
+    }
+
+    fn name(&self) -> &'static str {
+        "Claude Code"
+    }
+
+    fn ready(&self) -> Ready {
+        let state = crate::setup::claude_state();
+        match (state.path.is_some(), state.signed_in) {
+            (false, _) => Ready::no("not installed"),
+            (true, false) => Ready::no("installed, but not signed in"),
+            (true, true) => Ready::yes(),
+        }
+    }
+
+    fn owns_transcript(&self) -> bool {
+        true
+    }
+
+    fn tools(&self) -> ToolDelivery {
+        // It has its own MCP client and tool loop; botcage hands over the
+        // servers and stays out of the way.
+        ToolDelivery::Native
+    }
 }
 
+/// One line of a Claude Code stream, as botcage understands it.
 /// Google's Gemini CLI.
 ///
 /// The second engine, and chosen deliberately as the awkward one: it streams
@@ -404,6 +403,77 @@ impl Engine for GeminiCli {
         match locate_gemini() {
             None => Ready::no("not installed — npm install -g @google/gemini-cli"),
             Some(_) => Ready::yes(),
+        }
+    }
+
+    fn command(&self, turn: &Turn) -> Result<std::process::Command, String> {
+        let bin =
+            locate_gemini().ok_or("Gemini CLI not found — npm install -g @google/gemini-cli")?;
+
+        let mut cmd = std::process::Command::new(&bin);
+        cmd.current_dir(&turn.cwd)
+            .args(["--output-format", "stream-json"])
+            .args(["--model", &turn.model])
+            .args(["--prompt", &turn.prompt])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+
+        for (var, value) in &turn.env {
+            cmd.env(var, value);
+        }
+
+        // Written against the documented flags rather than a binary: the CLI is
+        // not installed here, so this is the part to check first on a machine
+        // that has it. Two things are known to be missing — a bot's system
+        // prompt, which Gemini takes from a file rather than a flag, and its
+        // MCP servers, which it reads from settings rather than an argument.
+        // Both are why this engine is not yet offered in the picker.
+        Ok(cmd)
+    }
+
+    fn read_line(&self, line: &str) -> Vec<Event> {
+        let Ok(frame) = serde_json::from_str::<serde_json::Value>(line) else {
+            return Vec::new();
+        };
+
+        match frame["type"].as_str().unwrap_or_default() {
+            // Assistant chunks are the reply arriving; anything the user said
+            // is being echoed back and is already on screen.
+            "message" => {
+                if frame["role"].as_str() == Some("user") {
+                    return Vec::new();
+                }
+                let text = frame["content"]
+                    .as_str()
+                    .or_else(|| frame["text"].as_str())
+                    .unwrap_or_default();
+                if text.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![Event::Delta(text.to_string())]
+                }
+            }
+            "tool_use" => vec![Event::Tool(
+                frame["name"].as_str().unwrap_or("a tool").to_string(),
+            )],
+            "error" => vec![Event::Error(
+                frame["message"]
+                    .as_str()
+                    .unwrap_or("the turn ended with an error")
+                    .to_string(),
+            )],
+            "result" => vec![Event::Done {
+                text: frame["response"]
+                    .as_str()
+                    .or_else(|| frame["result"].as_str())
+                    .map(str::to_string),
+                cost_usd: None,
+                duration_ms: frame["stats"]["duration_ms"].as_u64(),
+            }],
+            // init announces the session, tool_result is the tool's own output:
+            // neither is something to show.
+            _ => Vec::new(),
         }
     }
 
@@ -651,6 +721,48 @@ mod tests {
             .collect();
         assert!(args.iter().any(|a| a == "--session-id"));
         assert!(!args.iter().any(|a| a == "--resume"));
+    }
+
+    /// Gemini's stream, mapped onto the same vocabulary.
+    ///
+    /// Written against documented event types rather than a binary — the CLI is
+    /// not installed here — so this test is a statement of what botcage expects,
+    /// and the first thing to run against a real one.
+    #[test]
+    fn a_gemini_stream_becomes_the_same_events() {
+        let gemini = GeminiCli;
+        let read = |line: &str| gemini.read_line(line);
+
+        assert!(matches!(
+            read(r#"{"type":"message","role":"assistant","content":"Two PRs"}"#).as_slice(),
+            [Event::Delta(text)] if text == "Two PRs"
+        ));
+
+        // A user message echoed back is already on screen; showing it again
+        // would duplicate what was just typed.
+        assert!(read(r#"{"type":"message","role":"user","content":"morning"}"#).is_empty());
+
+        assert!(matches!(
+            read(r#"{"type":"tool_use","name":"read_file"}"#).as_slice(),
+            [Event::Tool(name)] if name == "read_file"
+        ));
+
+        assert!(matches!(
+            read(r#"{"type":"result","response":"done","stats":{"duration_ms":4100}}"#).as_slice(),
+            [Event::Done { text: Some(text), cost_usd: None, duration_ms: Some(4100) }]
+                if text == "done"
+        ));
+
+        assert!(matches!(
+            read(r#"{"type":"error","message":"quota exhausted"}"#).as_slice(),
+            [Event::Error(why)] if why == "quota exhausted"
+        ));
+
+        // Session metadata and a tool's own output are not things to show, and
+        // a half-written line is silence rather than a panic.
+        assert!(read(r#"{"type":"init","sessionId":"x"}"#).is_empty());
+        assert!(read(r#"{"type":"tool_result","output":"…"}"#).is_empty());
+        assert!(read(r#"{"type":"mess"#).is_empty());
     }
 
     #[test]
