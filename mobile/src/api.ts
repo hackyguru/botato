@@ -92,6 +92,26 @@ try {
 
 export const hasLink = () => native !== null;
 
+/** The sentence worth showing, out of what a native call throws.
+ *
+ *  Expo wraps a module's error in its own exception and appends the Swift file
+ *  and line it came from, then chains the real cause behind "Caused by:". The
+ *  useful part is the innermost message — the Rust one, written for whoever is
+ *  holding the phone — so this takes the last cause and strips the type name
+ *  and the source position off it. */
+export function readable(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  const innermost = raw.split(/Caused by:/).pop() ?? raw;
+  const cleaned = innermost
+    // "(at ExpoModulesCore/AsyncFunctionDefinition.swift:123)"
+    .replace(/\s*\(at [^)]*\)/g, "")
+    // a leading arrow from the chain, then "LinkFailed: " or "P2pError: "
+    .replace(/^\s*[→\-]*\s*/, "")
+    .replace(/^[A-Za-z0-9_.]*(?:Exception|Error|Failed|Failure):\s*/, "")
+    .trim();
+  return cleaned || "something went wrong";
+}
+
 const NO_LINK = `botcage can't open a connection — it needs a development build${
   linkProblem ? ` (${linkProblem})` : ""
 }`;
@@ -108,8 +128,14 @@ function link(): NativeLink {
  *  is on the other end. */
 export async function probe(address: string): Promise<{ app: string; version: string }> {
   const peer = link();
-  await peer.connect(address);
-  const answer = await peer.request("GET", "/api/health", null, null);
+  try {
+    await peer.connect(address);
+  } catch (err) {
+    throw new Error(readable(err));
+  }
+  const answer = await peer.request("GET", "/api/health", null, null).catch((err) => {
+    throw new Error(readable(err));
+  });
   const body = answer.body ? JSON.parse(answer.body) : {};
   if (body?.app !== "botcage") throw new Error("something else answered at that address");
   return body;
@@ -121,7 +147,11 @@ export async function probe(address: string): Promise<{ app: string; version: st
  *  and binds the token it hands back to this phone's key. */
 export async function pair(address: string, code: string, name: string): Promise<Pairing> {
   const peer = link();
-  await peer.connect(address);
+  try {
+    await peer.connect(address);
+  } catch (err) {
+    throw new Error(readable(err));
+  }
   const answer = await peer.request(
     "POST",
     "/api/pair",
@@ -163,10 +193,10 @@ export async function call<T>(
     const peer = await connected(pairing);
     answer = await peer.request("POST", `/api/${kind}`, pairing.token, JSON.stringify(payload));
   } catch (err) {
-    // Tell "cannot reach the laptop" apart from "the laptop said no": one is
-    // something the person can fix, the other is not.
-    const why = err instanceof Error ? err.message : String(err);
-    throw new Error(why === NO_LINK ? why : `can't reach your laptop — ${why}`);
+    // The message already says what went wrong, in words meant for a person —
+    // prefixing it with "can't reach your laptop" only repeated the half of it
+    // that was already there.
+    throw new Error(readable(err));
   }
   if (answer.status === 401) throw new NotPaired("this phone is no longer paired");
   const body = answer.body ? JSON.parse(answer.body) : {};
