@@ -153,6 +153,10 @@ pub struct RemoteStatus {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PairedDevice {
+    /// How to name this device when revoking it. It is the hash the token is
+    /// already stored under — it opens nothing, cannot be reversed into a
+    /// token, and never leaves this machine.
+    pub id: String,
     pub name: String,
     pub platform: Option<String>,
 }
@@ -201,8 +205,9 @@ pub fn remote_status(app: AppHandle) -> RemoteStatus {
         code_expires_in: expires,
         devices: state
             .devices
-            .values()
-            .map(|device| PairedDevice {
+            .iter()
+            .map(|(id, device)| PairedDevice {
+                id: id.clone(),
                 name: device.name.clone(),
                 platform: device.platform.clone(),
             })
@@ -281,6 +286,17 @@ pub fn remote_pairing_code() -> Result<String, String> {
     state.code = Some((code.clone(), now() + PAIRING_SECONDS));
     state.wrong = 0;
     Ok(code)
+}
+
+/// Revoke one device. The rest keep working — a phone that was lost should not
+/// cost you every other device you own.
+#[tauri::command(async)]
+pub fn remote_forget_device(app: AppHandle, id: String) {
+    let mut state = remote().lock().unwrap();
+    state.devices.remove(&id);
+    let devices = state.devices.clone();
+    drop(state);
+    save_devices(&app, &devices);
 }
 
 #[tauri::command(async)]

@@ -2430,3 +2430,34 @@ a.detail__source:hover {
 .turn--me .bubble:has(.from-phone) .bubble__body {
   padding-right: 14px;
 }
+
+/* Revoking one device. Kept quiet until the row is hovered: it is destructive,
+   and a row of X buttons reads as a list of things to delete. */
+.device__forget {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  color: var(--text-3);
+  border-radius: 6px;
+  opacity: 0;
+}
+
+.device:hover .device__forget,
+.device__forget:focus-visible {
+  opacity: 1;
+}
+
+.device__forget:hover {
+  color: var(--red);
+  background: var(--hover);
+}
+
+.device__forget svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}

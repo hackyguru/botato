@@ -3534,6 +3534,7 @@ interface RemoteStatus {
 }
 
 interface PairedDevice {
+  id: string;
   name: string;
   /** "ios" or "android" — absent for devices paired before this was recorded. */
   platform: string | null;
@@ -3602,9 +3603,17 @@ function deviceRow(device: PairedDevice): HTMLElement {
   row.innerHTML =
     `<svg><use href="#i-${kind === "android" ? "android" : "ios"}" /></svg>` +
     `<span class="device__name"></span>` +
-    `<span class="device__kind">${kind === "android" ? "Android" : kind === "ios" ? "iPhone" : ""}</span>`;
+    `<span class="device__kind">${kind === "android" ? "Android" : kind === "ios" ? "iPhone" : ""}</span>` +
+    `<button type="button" class="device__forget" title="Forget this device">${icon("x")}</button>`;
   // Set as text, never as markup: the name is whatever the phone called itself.
   row.querySelector(".device__name")!.textContent = device.name;
+
+  // One device at a time: a phone you lost should not cost you the others.
+  row.querySelector(".device__forget")!.addEventListener("click", async () => {
+    await invoke("remote_forget_device", { id: device.id }).catch((err) => toast(String(err)));
+    await refreshRemote();
+    toast(`${device.name} can no longer reach this machine`);
+  });
   return row;
 }
 

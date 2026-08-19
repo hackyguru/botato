@@ -849,6 +849,7 @@ pub fn run() {
             remote::remote_stop,
             remote::remote_pairing_code,
             remote::remote_forget_devices,
+            remote::remote_forget_device,
             remote::remote_reply,
             setup::claude_state,
             setup::install_claude,
