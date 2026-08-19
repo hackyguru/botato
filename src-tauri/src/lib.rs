@@ -26,6 +26,7 @@ mod plugins;
 mod remote;
 mod sandbox;
 mod setup;
+mod transcript;
 
 /// Entry point for `botcage --mcp` (see main.rs). Identity arrives in the
 /// environment, set by the app when it registers this server.
