@@ -474,11 +474,24 @@ fn handle(app: AppHandle, mut stream: TcpStream) {
         return;
     }
 
+    // Phone access being off is not the same as this device being unknown. Both
+    // used to answer 401, and the phone reasonably read that as "you are no
+    // longer paired" — so it threw away its token and asked for a new code,
+    // which is a laptop switch quietly unpairing every phone you own.
+    if !remote().lock().unwrap().running {
+        send(
+            &mut stream,
+            "503 Service Unavailable",
+            &json!({ "error": "phone access is switched off on the laptop" }),
+        );
+        return;
+    }
+
     if !authorised(&request, peer.as_deref()) {
         send(
             &mut stream,
             "401 Unauthorized",
-            &json!({ "error": "pair this device in botcage's settings first" }),
+            &json!({ "error": "this phone is not paired with that laptop" }),
         );
         return;
     }

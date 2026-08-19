@@ -198,6 +198,10 @@ export async function call<T>(
     // that was already there.
     throw new Error(readable(err));
   }
+  // Only a genuine 401 means this phone was forgotten. Anything else — the
+  // laptop's phone access switched off, a laptop mid-restart — is temporary,
+  // and must not cost the token: a phone that is out of the house cannot be
+  // handed a new pairing code.
   if (answer.status === 401) throw new NotPaired("this phone is no longer paired");
   const body = answer.body ? JSON.parse(answer.body) : {};
   if (answer.status >= 400) throw new Error(body?.error ?? `the laptop answered ${answer.status}`);
