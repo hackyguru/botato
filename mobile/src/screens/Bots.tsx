@@ -5,9 +5,11 @@
  * drives a conversation also marks a bot busy here, so a routine that fires
  * while the phone is in a pocket is visible when it comes back out.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
+  Animated,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -18,6 +20,54 @@ import {
 } from "react-native";
 import type { Bot } from "../types";
 import { T } from "../theme";
+
+/** Whether the laptop is answering, as a light rather than a sentence.
+ *
+ *  It breathes while the link is up — a still dot says nothing about whether
+ *  anything is still listening. Colour alone carries no meaning, so the state
+ *  is also spoken: a screen reader still hears "connected to your laptop".
+ *  Anyone who has asked the system for less motion gets a steady dot. */
+function Light({ connected }: { connected: boolean }) {
+  const pulse = useRef(new Animated.Value(1)).current;
+  const [still, setStill] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((on) => live && setStill(on));
+    const listener = AccessibilityInfo.addEventListener("reduceMotionChanged", setStill);
+    return () => {
+      live = false;
+      listener.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!connected || still) {
+      pulse.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 0.25, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [connected, still, pulse]);
+
+  return (
+    <Animated.View
+      accessibilityRole="image"
+      accessibilityLabel={connected ? "Connected to your laptop" : "Reconnecting to your laptop"}
+      style={[
+        s.light,
+        { backgroundColor: connected ? T.green : T.amber, shadowColor: connected ? T.green : T.amber },
+        connected && !still ? { opacity: pulse } : null,
+      ]}
+    />
+  );
+}
 
 /** The desktop's bot face, to its own measurements: a 34px shape with two
  *  rounded 4x6 eyes. A drop is a circle with one square-ish corner, which is
@@ -96,11 +146,9 @@ export default function Bots({
   return (
     <View style={s.fill}>
       <View style={s.head}>
-        <View>
+        <View style={s.heading}>
           <Text style={s.title}>botcage</Text>
-          <Text style={[s.status, { color: connected ? T.text2 : T.amber }]}>
-            {connected ? "Connected to your laptop" : "Reconnecting…"}
-          </Text>
+          <Light connected={connected} />
         </View>
         <Pressable onPress={() => setAdding((on) => !on)} hitSlop={12}>
           <Text style={s.plus}>{adding ? "×" : "+"}</Text>
@@ -177,8 +225,19 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 12,
   },
+  heading: { flexDirection: "row", gap: 9, alignItems: "center" },
   title: { color: T.text, fontSize: 26, fontWeight: "700" },
-  status: { marginTop: 2, fontSize: 12.5 },
+  light: {
+    width: 8,
+    height: 8,
+    marginTop: 3,
+    borderRadius: 4,
+    // A little glow, so it reads as a lamp rather than a bullet point.
+    shadowOpacity: 0.9,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 3,
+  },
   plus: { color: T.blue, fontSize: 30, fontWeight: "300" },
   form: { paddingHorizontal: 20, paddingBottom: 12, gap: 8 },
   input: {
