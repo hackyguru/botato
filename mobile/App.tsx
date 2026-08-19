@@ -141,6 +141,13 @@ export default function App() {
       stop();
       stop = listen(pairing, apply, (up) => {
         setConnected(up);
+        // The banner reports the last failure and nothing else clears it, so a
+        // laptop that came back leaves its own error on screen. Reaching it
+        // again is proof enough that the message is stale.
+        if (up) {
+          setProblem(null);
+          void refresh();
+        }
         // A stream that drops while the app is open — a change of network, a
         // laptop that slept — comes back on its own rather than sitting on
         // "reconnecting" until someone pulls to refresh.
