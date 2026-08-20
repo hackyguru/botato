@@ -336,58 +336,165 @@ textarea {
 }
 
 /* bot faces */
+/* ------------------------------------------------------------------ faces */
+
+/* A bot's face is four traits and a mood, and both arrive as data attributes:
+   the markup is the same for every bot and never changes when a bot's
+   expression does. Everything below is either a trait (what this one looks
+   like at rest) or a mood (what it is doing this second), and the two are kept
+   apart on purpose — a new mood must never require a new element.
+
+   Sizes come from one variable so a part can be positioned once and scale
+   everywhere: --u is the face's width, and every offset is a fraction of it. */
 .face {
+  --u: 34px;
+  --ink: rgba(0, 0, 0, 0.72);
   position: relative;
-  display: grid;
-  grid-auto-flow: column;
-  gap: 4px;
-  place-content: center;
-  width: 34px;
-  height: 34px;
   flex: none;
-}
-
-.face i {
-  width: 4px;
-  height: 6px;
-  background: rgba(0, 0, 0, 0.72);
-  border-radius: 2px;
-}
-
-.face--circle {
-  border-radius: 50%;
-}
-
-.face--squircle {
-  border-radius: 30%;
-}
-
-.face--drop {
-  border-radius: 50% 50% 50% 22%;
+  width: var(--u);
+  height: var(--u);
+  background: var(--skin);
+  transform-origin: 50% 85%;
 }
 
 .face--sm {
-  width: 22px;
-  height: 22px;
-  gap: 3px;
-}
-
-.face--sm i {
-  width: 3px;
-  height: 4px;
-  border-radius: 1.5px;
+  --u: 22px;
 }
 
 .face--lg {
-  width: 54px;
-  height: 54px;
-  gap: 6px;
+  --u: 54px;
 }
 
-.face--lg i {
-  width: 6px;
-  height: 9px;
-  border-radius: 3px;
+/* ---- traits: the head */
+
+.face[data-head="circle"] {
+  border-radius: 50%;
+}
+
+.face[data-head="squircle"] {
+  border-radius: 30%;
+}
+
+.face[data-head="drop"] {
+  border-radius: 50% 50% 50% 22%;
+}
+
+.face[data-head="bean"] {
+  border-radius: 46% 54% 40% 60% / 56% 44% 56% 44%;
+}
+
+/* ---- the parts every face has, whether or not its traits show them */
+
+.face__eyes,
+.face__brows {
+  position: absolute;
+  left: 0;
+  display: flex;
+  justify-content: center;
+  gap: calc(var(--u) * 0.16);
+  width: 100%;
+}
+
+.face__eyes {
+  top: 42%;
+}
+
+.face__brows {
+  top: 27%;
+}
+
+.face__eyes i,
+.face__brows i {
+  display: block;
+  background: var(--ink);
+}
+
+/* ---- traits: eyes */
+
+.face[data-eyes="dot"] i {
+  width: calc(var(--u) * 0.12);
+  height: calc(var(--u) * 0.18);
+  border-radius: calc(var(--u) * 0.06);
+}
+
+.face[data-eyes="wide"] i {
+  width: calc(var(--u) * 0.19);
+  height: calc(var(--u) * 0.19);
+  border-radius: 50%;
+}
+
+.face[data-eyes="sleepy"] i {
+  width: calc(var(--u) * 0.17);
+  height: calc(var(--u) * 0.07);
+  border-radius: calc(var(--u) * 0.04);
+}
+
+.face[data-eyes="ring"] i {
+  width: calc(var(--u) * 0.19);
+  height: calc(var(--u) * 0.19);
+  background: transparent;
+  border: calc(var(--u) * 0.05) solid var(--ink);
+  border-radius: 50%;
+}
+
+/* ---- traits: brows */
+
+.face[data-brow="none"] .face__brows {
+  display: none;
+}
+
+.face__brows i {
+  width: calc(var(--u) * 0.17);
+  height: calc(var(--u) * 0.05);
+  border-radius: calc(var(--u) * 0.03);
+}
+
+.face[data-brow="angled"] .face__brows i:first-child {
+  transform: rotate(12deg);
+}
+
+.face[data-brow="angled"] .face__brows i:last-child {
+  transform: rotate(-12deg);
+}
+
+.face[data-brow="raised"] .face__brows {
+  top: 21%;
+}
+
+.face[data-brow="raised"] .face__brows i:first-child {
+  transform: translateY(calc(var(--u) * 0.04));
+}
+
+/* ---- traits: mouth */
+
+.face__mouth {
+  position: absolute;
+  top: 66%;
+  left: 50%;
+  width: calc(var(--u) * 0.26);
+  height: calc(var(--u) * 0.1);
+  transform: translateX(-50%);
+}
+
+.face[data-mouth="none"] .face__mouth {
+  display: none;
+}
+
+.face[data-mouth="line"] .face__mouth {
+  height: calc(var(--u) * 0.045);
+  background: var(--ink);
+  border-radius: calc(var(--u) * 0.03);
+}
+
+.face[data-mouth="smile"] .face__mouth {
+  border-bottom: calc(var(--u) * 0.05) solid var(--ink);
+  border-radius: 0 0 calc(var(--u) * 0.2) calc(var(--u) * 0.2);
+}
+
+.face[data-mouth="grin"] .face__mouth {
+  height: calc(var(--u) * 0.14);
+  background: var(--ink);
+  border-radius: 0 0 calc(var(--u) * 0.16) calc(var(--u) * 0.16);
 }
 
 /* --------------------------------------------------------- sidebar footer */
@@ -1184,30 +1291,19 @@ textarea {
 /* Named through its parent: `.empty p` below carries a line clamp and a
    pre-line for job descriptions, and beats a bare class on specificity —
    this hint is neither a description nor something to clamp. */
-/* The guide blinks. Every other bot's face is a mark; this one is a character,
-   because it is the one that talks to you before you have made anything of
-   your own. Long pauses and a fast lid: a slow blink reads as sleepy, and a
-   regular one reads as a cursor. */
-/* A lid, not a dimmer. Squashing the eye with scaleY took a six-pixel lozenge
-   down to half a pixel, which the renderer antialiases into a grey smudge —
-   so it read as fading rather than closing. This collapses the height to a
-   two-pixel line instead, which is a shape rather than a ghost, and does it
-   in about forty milliseconds each way: a blink is fast, and anything slow
-   enough to watch is not a blink. */
-/* A lid, coming down over the eye and leaving a crease — which is what an
-   eyelid does. Collapsing the eye's height instead made it shrink towards its
-   own middle from both sides at once, and that reads as the eye getting
-   smaller rather than something closing over it.
-   Sixty milliseconds down, a hundred and twenty shut, sixty back up: long
-   enough to notice, short enough not to watch. An earlier attempt did the
-   whole thing in ninety and registered as a flicker in brightness. */
-/* A lid, all the way down and back up — and lopsided, which is the part that
-   makes it read as a blink rather than a flicker: about eighty milliseconds to
-   drop, eighty shut, then two hundred and ten to lift. Eyes close faster than
-   they open, and every symmetrical version of this looked like the eye was
-   being dimmed rather than covered.
-   Fully closed, too: stopping at a crease left a shape that seemed to shrink
-   instead of something passing over it. */
+/* ---- moods
+   Everything below is keyed on data-mood, and nothing above it knows these
+   exist. To add one: name it in MOODS in main.ts, then write a block here.
+   The renderer never changes, and a mood that has no CSS simply looks like
+   rest rather than breaking.
+
+   Two rules worth keeping. Transform the parts, not the face, unless the whole
+   bot is meant to move — scaling a face scales its eyes into mush. And put the
+   keyframes' name in the mood's own namespace, because a keyframe called
+   something obvious is a keyframe two features will end up sharing. */
+
+/* Every bot blinks; it is the difference between a mark and a creature. Each
+   on its own beat, set per bot, so a roster does not blink in unison. */
 @keyframes eye-blink {
   0%,
   86%,
@@ -1220,23 +1316,143 @@ textarea {
   }
 }
 
-/* Every 2.6 seconds, which is roughly how often a person blinks and exactly
-   the cadence this was chosen at. It was on a five-and-a-half second cycle
-   first, and a blink you have to wait that long for is one you conclude is not
-   happening. */
-.face--blinks i {
-  animation: eye-blink 2.6s linear infinite;
+.face__eyes i {
+  animation: eye-blink var(--beat, 2.6s) linear infinite;
 }
 
-/* The second eye lags by a hair, which is what stops two dots looking like one
-   switch being thrown. */
-.face--blinks i:last-child {
+.face__eyes i:last-child {
   animation-delay: 0.06s;
 }
 
+/* Thinking: the eyes drift up and the brows lift, which reads as looking for
+   something rather than at you. */
+@keyframes mood-think {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(calc(var(--u) * -0.05));
+  }
+}
+
+.face[data-mood="think"] .face__eyes,
+.face[data-mood="think"] .face__brows {
+  animation: mood-think 1.9s ease-in-out infinite;
+}
+
+/* Working: a small busy nod. */
+@keyframes mood-work {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  25% {
+    transform: translateY(calc(var(--u) * 0.03)) rotate(-3deg);
+  }
+  75% {
+    transform: translateY(calc(var(--u) * -0.02)) rotate(3deg);
+  }
+}
+
+.face[data-mood="work"] {
+  animation: mood-work 0.9s ease-in-out infinite;
+}
+
+/* Done: a jump, with the mouth pulled into a grin on the way up. */
+@keyframes mood-happy {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  25% {
+    transform: translateY(calc(var(--u) * -0.22)) scale(1.04, 0.96);
+  }
+  45% {
+    transform: translateY(0) scale(1.06, 0.94);
+  }
+  65% {
+    transform: translateY(calc(var(--u) * -0.08));
+  }
+}
+
+.face[data-mood="happy"] {
+  animation: mood-happy 0.9s cubic-bezier(0.3, 0.9, 0.4, 1.3);
+}
+
+.face[data-mood="happy"] .face__mouth {
+  display: block;
+  height: calc(var(--u) * 0.14);
+  background: var(--ink);
+  border: 0;
+  border-radius: 0 0 calc(var(--u) * 0.16) calc(var(--u) * 0.16);
+}
+
+/* Failed: a slump, brows in, eyes down. */
+@keyframes mood-sad {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40%,
+  70% {
+    transform: translateY(calc(var(--u) * 0.06));
+  }
+}
+
+.face[data-mood="sad"] {
+  animation: mood-sad 1.6s ease-in-out;
+}
+
+.face[data-mood="sad"] .face__brows {
+  top: 24%;
+}
+
+.face[data-mood="sad"] .face__brows i:first-child {
+  transform: rotate(-14deg);
+}
+
+.face[data-mood="sad"] .face__brows i:last-child {
+  transform: rotate(14deg);
+}
+
+.face[data-mood="sad"] .face__mouth {
+  display: block;
+  height: calc(var(--u) * 0.09);
+  background: none;
+  border: 0;
+  border-top: calc(var(--u) * 0.05) solid var(--ink);
+  border-radius: calc(var(--u) * 0.2) calc(var(--u) * 0.2) 0 0;
+}
+
+/* Picked: a lean and a rock, which is as close to a wave as a face without
+   arms gets. */
+@keyframes mood-wave {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  20% {
+    transform: rotate(-9deg);
+  }
+  50% {
+    transform: rotate(7deg);
+  }
+  75% {
+    transform: rotate(-4deg);
+  }
+}
+
+.face[data-mood="wave"] {
+  animation: mood-wave 1.1s ease-in-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .face--blinks i {
-    animation: none;
+  .face,
+  .face__eyes,
+  .face__eyes i,
+  .face__brows {
+    animation: none !important;
   }
 }
 

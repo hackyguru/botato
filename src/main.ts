@@ -82,6 +82,9 @@ interface Bot {
   routines?: Routine[];
   /** MCP server keys this bot may use. Absent means none. */
   plugins?: string[];
+  /** What it looks like, when the user has chosen rather than accepted what
+   *  its id implied. Absent fields fall back to that. */
+  face?: { head?: string; eyes?: string; brow?: string; mouth?: string };
   /** How this bot's computer presents itself. Absent fields follow the app
    *  defaults; set ones make it a different machine from its siblings. */
   machine?: {
@@ -562,12 +565,137 @@ async function copy(text: string): Promise<void> {
   }
 }
 
+/* ------------------------------------------------------------------ faces */
+
+/** What a bot looks like.
+ *
+ *  Four traits that vary independently. Four heads, four eyes, four brows and
+ *  four mouths is 256 faces before colour, which is enough that someone can say
+ *  "the one with the heavy brows" rather than "the orange one" — and that is
+ *  the whole point of a character over a swatch.
+ *
+ *  Every trait is a name, never a drawing: the drawing lives in CSS, keyed off
+ *  a data attribute, so a new eye shape is a rule rather than a change here. */
+interface Face {
+  head: string;
+  eyes: string;
+  brow: string;
+  mouth: string;
+}
+
+const HEADS = ["circle", "squircle", "drop", "bean"];
+const EYES = ["dot", "wide", "sleepy", "ring"];
+const BROWS = ["none", "flat", "angled", "raised"];
+const MOUTHS = ["none", "smile", "line", "grin"];
+
+/** A number from a string, stable across restarts and machines.
+ *
+ *  Faces are derived rather than stored so every bot that already exists gets
+ *  one without anybody choosing it, and so two bots made a second apart do not
+ *  look like twins. */
+function seedOf(text: string): number {
+  let hash = 2166136261;
+  for (let at = 0; at < text.length; at++) {
+    hash ^= text.charCodeAt(at);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.abs(hash);
+}
+
+/** This bot's face: what it chose, or what its id implies. */
+function faceOf(bot: Bot): Face {
+  const seed = seedOf(bot.id);
+  return {
+    head: bot.face?.head ?? bot.shape ?? HEADS[seed % HEADS.length],
+    eyes: bot.face?.eyes ?? EYES[(seed >> 3) % EYES.length],
+    brow: bot.face?.brow ?? BROWS[(seed >> 6) % BROWS.length],
+    mouth: bot.face?.mouth ?? MOUTHS[(seed >> 9) % MOUTHS.length],
+  };
+}
+
+/** What a bot is doing, as its face shows it.
+ *
+ *  Adding one is an entry here and a block of CSS keyed on
+ *  `.face[data-mood="..."]`. Nothing in this file needs to know what the new
+ *  mood looks like, which is the point: the vocabulary grows without the
+ *  renderer changing.
+ *
+ *  `hold` marks a mood as an event rather than a state — a wave or a cheer
+ *  plays and hands the face back to whatever it was doing. A mood without one
+ *  stays until something else replaces it. */
+const MOODS: Record<string, { hold?: number }> = {
+  idle: {},
+  think: {},
+  work: {},
+  wave: { hold: 1300 },
+  happy: { hold: 1800 },
+  sad: { hold: 1800 },
+};
+
+/** Which mood each bot is in. Kept apart from the bot itself: it is a fact
+ *  about this minute, not about the bot, and it should not be saved. */
+const moods = new Map<string, string>();
+const moodTimers = new Map<string, number>();
+
+function setMood(botId: string, mood: string): void {
+  if (!MOODS[mood]) return;
+  moods.set(botId, mood);
+
+  const held = moodTimers.get(botId);
+  if (held) window.clearTimeout(held);
+  moodTimers.delete(botId);
+
+  // An event-shaped mood hands the face back afterwards — to whatever the bot
+  // is doing now rather than to idle, so a cheer during a long turn returns to
+  // thinking rather than to standing still.
+  const hold = MOODS[mood].hold;
+  if (hold) {
+    moodTimers.set(
+      botId,
+      window.setTimeout(() => {
+        moods.delete(botId);
+        moodTimers.delete(botId);
+        paintMoods();
+      }, hold),
+    );
+  }
+  paintMoods();
+}
+
+/** What a bot's face should be showing when nothing has been announced. */
+function restingMood(botId: string): string {
+  const pending = inflight.get(botId);
+  if (!pending) return "idle";
+  return pending.note.toLowerCase().includes("using") ? "work" : "think";
+}
+
+/** Push moods onto the faces already on screen, rather than re-rendering them.
+ *  A face is in the roster, the header, the thread and a sheet at once, and a
+ *  mood change should not cost a repaint of any of them. */
+function paintMoods(): void {
+  for (const el of document.querySelectorAll<HTMLElement>(".face[data-bot]")) {
+    const botId = el.dataset.bot!;
+    el.dataset.mood = moods.get(botId) ?? restingMood(botId);
+  }
+}
+
 function faceHtml(bot: Bot, size: "sm" | "md" | "lg" = "md"): string {
   const cls = size === "md" ? "" : ` face--${size}`;
-  const alive = bot.guide ? " face--blinks" : "";
+  const face = faceOf(bot);
+  const mood = moods.get(bot.id) ?? restingMood(bot.id);
+  // Every face carries every part, whatever its traits say — a mouth a bot does
+  // not normally show is hidden rather than absent, so a mood can still open
+  // one in surprise without the renderer knowing that mood exists.
   return (
-    `<span class="face face--${bot.shape}${cls}${alive}" style="background:${bot.color}">` +
-    `<i></i><i></i></span>`
+    `<span class="face${cls}" data-bot="${bot.id}" data-mood="${mood}"` +
+    ` data-head="${face.head}" data-eyes="${face.eyes}"` +
+    ` data-brow="${face.brow}" data-mouth="${face.mouth}"` +
+    // Its own blink rhythm, so a roster does not blink in unison.
+    ` style="--skin:${bot.color};--beat:${(seedOf(bot.id) % 1700) / 1000 + 2.2}s">` +
+    `<span class="face__brows"><i></i><i></i></span>` +
+    `<span class="face__eyes"><i></i><i></i></span>` +
+    `<span class="face__mouth"></span>` +
+    `</span>`
   );
 }
 
@@ -1005,6 +1133,13 @@ function handleBotEvent(event: BotEvent): void {
     from.started = true;
     save();
   }
+
+  // What the bot's face does about it. Everything here is already in botcage's
+  // vocabulary, so a mood costs a line rather than a new event.
+  if (event.kind === "done") setMood(event.botId, "happy");
+  else if (event.kind === "error") setMood(event.botId, "sad");
+  else if (event.kind === "thinking") setMood(event.botId, "think");
+  else if (event.kind === "tool") setMood(event.botId, "work");
 
   if (event.kind === "rate-limit") {
     const info = event.detail;
@@ -2769,6 +2904,7 @@ function deleteBot(id: string): void {
 
 function openBot(id: string): void {
   state.activeId = id;
+  setMood(id, "wave");
   save();
   renderRoster();
   if (routinesOpen) renderRoutines();
