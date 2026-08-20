@@ -23,10 +23,18 @@ generate_bindings () {
   echo "→ bindings"
   cargo build --release
   rm -rf bindings
+
+  # uniffi reads the symbols out of a library built for the host, and the host
+  # is not always a Mac: the Android half of this runs on Linux in CI, where
+  # the same crate produces a .so. Hardcoding .dylib made the script useless
+  # anywhere an Android build actually wants to happen.
+  local host="target/release/libbotcage_p2p.dylib"
+  [ -f "$host" ] || host="target/release/libbotcage_p2p.so"
+
   cargo run --release --bin uniffi-bindgen -- generate \
-    --library target/release/libbotcage_p2p.dylib --language swift --out-dir bindings/swift
+    --library "$host" --language swift --out-dir bindings/swift
   cargo run --release --bin uniffi-bindgen -- generate \
-    --library target/release/libbotcage_p2p.dylib --language kotlin --out-dir bindings/kotlin --no-format
+    --library "$host" --language kotlin --out-dir bindings/kotlin --no-format
 }
 
 build_ios () {

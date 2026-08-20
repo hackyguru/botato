@@ -149,3 +149,80 @@ jobs:
             Optional, and off by default. Switch on **Own computer** in a bot's
             settings and botcage sets up a container engine itself. The Linux
             desktop it runs is built on first use and takes a few minutes.
+
+            ## The phone app
+
+            `botcage-*.apk` is the Android client. It pairs by scanning the
+            square the laptop shows and reaches it directly over an encrypted
+            peer-to-peer connection — no account, no port to open, nothing of
+            ours in between. Android will ask you to allow an install from
+            outside the Play Store.
+
+            **iOS is not here, and cannot be.** Apple has no install path for a
+            binary attached to a release: an app has to come from the App Store
+            or TestFlight, or be signed with your own developer account. Build
+            it yourself from [`mobile/`](../mobile) — the README there is the
+            whole procedure.
+
+  # The Android client. After the desktop builds, because it attaches to the
+  # draft release those create — and because a phone app is no use without the
+  # laptop it talks to.
+  android:
+    needs: build
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mobile/rust/botcage-p2p
+          key: android
+
+      - run: cargo install cargo-ndk --locked
+
+      # Speaking QUIC is native code, so the app cannot be built from
+      # JavaScript alone: this produces the library for each Android ABI and
+      # the Kotlin bindings that match it.
+      - name: The peer-to-peer library
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+        run: bash mobile/rust/build.sh android
+
+      - name: The app
+        working-directory: mobile
+        run: |
+          pnpm install --frozen-lockfile
+          npx expo prebuild -p android --no-install
+
+      - name: Build it
+        working-directory: mobile/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      # Named for the version rather than app-release.apk, which says nothing
+      # once it is sitting in someone's downloads folder.
+      - name: Attach it to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          apk="$(find mobile/android/app/build/outputs/apk/release -name '*.apk' | head -1)"
+          [ -n "$apk" ] || { echo "no apk was produced"; exit 1; }
+          cp "$apk" "botcage-${TAG#v}.apk"
+          gh release upload "$TAG" "botcage-${TAG#v}.apk" --clobber
