@@ -2768,6 +2768,65 @@ textarea {
 
 /* Pinned to the bottom of its tile, so five tiles of different heights still
    agree on where the thing you press is. */
+/* Pinned: the same lessons, kept in reach once there is a conversation to
+   scroll past them. Sticky rather than fixed so it belongs to the thread and
+   goes away with it, and opaque because a conversation sliding under a
+   transparent bar is a mess of overlapping words. */
+.lessons--bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: none;
+  margin: -6px 0 14px;
+  padding: 8px 0 10px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+.lessons--bar .lesson,
+.lessons--bar .lesson:first-child {
+  flex: 0 0 auto;
+  grid-column: auto;
+  gap: 8px;
+  flex-direction: row;
+  align-items: center;
+  min-height: 0;
+  padding: 6px 11px 6px 8px;
+  border-radius: 999px;
+}
+
+.lessons--bar .lesson__title,
+.lessons--bar .lesson:first-child .lesson__title {
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+/* Room for a face is room a chip has not got. */
+.lessons--bar .art {
+  width: 20px;
+  height: 20px;
+}
+
+.lessons--bar .art--bot i {
+  top: 7px;
+  width: 3px;
+  height: 4px;
+}
+
+.lessons--bar .art--phone {
+  width: 13px;
+  height: 20px;
+  margin-left: 3px;
+}
+
+/* "Show me" is what the whole chip says by being pressable. */
+.lessons--bar .lesson__go {
+  display: none;
+}
+
 .lesson__go {
   margin-top: auto;
   font-size: 12.5px;

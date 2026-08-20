@@ -944,10 +944,17 @@ const ART: Record<string, string> = {
   plugins: `<span class="art art--plug"><i></i><i></i></span>`,
 };
 
-/** The lessons, as something to press. */
-function lessonsHtml(): string {
+/** The lessons, as something to press.
+ *
+ *  Two shapes, because they have two jobs. On an empty thread they are the
+ *  content — a bento, given room. Once there is a conversation they become a
+ *  strip pinned to the top of it: the same five, still one press away, but not
+ *  competing with the thing you came to read. Before this they scrolled off
+ *  the top, which left the guide's whole purpose reachable for about one
+ *  message. */
+function lessonsHtml(pinned = false): string {
   return (
-    `<div class="lessons">` +
+    `<div class="lessons${pinned ? " lessons--bar" : ""}">` +
     LESSONS.map(
       (lesson) =>
         `<button type="button" class="lesson" data-lesson="${lesson.id}">` +
@@ -1068,7 +1075,7 @@ function renderThread(): void {
   // Once it has been spoken to, the lessons move above the conversation: they
   // are not things it said, and they should not read as the last thing it did.
   if (bot.guide && bot.messages.length) {
-    thread.insertAdjacentHTML("afterbegin", lessonsHtml());
+    thread.insertAdjacentHTML("afterbegin", lessonsHtml(true));
   }
   if (bot.guide && !bot.messages.length) scroller.scrollTop = 0;
 
