@@ -274,11 +274,7 @@ export default function BotSettings({
               <View style={s.rowBody}>
                 <Text style={s.rowLabel}>{routine.name}</Text>
                 <Text style={s.rowHint} numberOfLines={1}>
-                  {routine.every === "minutes"
-                    ? `Every ${routine.minutes ?? 30} min`
-                    : routine.every === "hour"
-                      ? `Hourly at :${routine.at.slice(-2)}`
-                      : `${routine.every === "weekday" ? "Weekdays" : "Daily"} at ${routine.at}`}
+                  {describeRoutine(routine)}
                 </Text>
               </View>
               <Switch
@@ -309,6 +305,27 @@ export default function BotSettings({
       </ScrollView>
     </View>
   );
+}
+
+const DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/** The same sentence the laptop writes under a routine. Schedules are made on
+ *  the laptop's calendar; the phone shows and pauses them. */
+function describeRoutine(routine: Routine): string {
+  switch (routine.every) {
+    case "minutes":
+      return `Every ${routine.minutes ?? 30} min`;
+    case "hour":
+      return `Hourly at :${routine.at.slice(-2)}`;
+    case "week":
+      return `${DAY_FULL[routine.day ?? 1]}s at ${routine.at}`;
+    case "once":
+      return routine.date ? `Once on ${routine.date} at ${routine.at}` : `Once at ${routine.at}`;
+    case "weekday":
+      return `Weekdays at ${routine.at}`;
+    default:
+      return `Daily at ${routine.at}`;
+  }
 }
 
 /** The models this bot's engine can be asked for. */

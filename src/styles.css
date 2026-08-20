@@ -220,6 +220,7 @@ textarea {
 }
 
 .icon-btn {
+  position: relative;
   display: grid;
   place-items: center;
   width: 30px;
@@ -687,11 +688,16 @@ textarea {
   border-radius: 99px;
 }
 
+/* A bot's routines as a week, because that is the shape a schedule has. The
+   grid shows only what happens at a time of day; anything that repeats faster
+   than an hour would be a stripe through every column, so it gets a band of its
+   own above — the same bargain a calendar makes with all-day events. */
 .routines-view {
+  display: flex;
   flex: 1;
+  flex-direction: column;
   min-height: 0;
-  padding: 8px 22px 24px;
-  overflow-y: auto;
+  padding: 8px 16px 14px;
 }
 
 /* While routines are on screen the thread and composer step aside. */
@@ -700,104 +706,282 @@ textarea {
   display: none;
 }
 
-.routines__head {
+.cal__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 0 14px;
+  gap: 12px;
+  padding: 4px 0 12px;
 }
 
-.routines__title {
-  font-size: 19px;
+.cal__nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* One chevron, pointed two ways. */
+.cal__back svg {
+  transform: rotate(90deg);
+}
+
+.cal__fwd svg {
+  transform: rotate(-90deg);
+}
+
+.cal__range {
+  margin: 0 8px 0 4px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
-.routines__list:empty::after {
-  content: "No routines yet. A routine gives this bot a standing instruction on a schedule — they run while botcage is open.";
-  display: block;
-  max-width: 460px;
-  padding: 6px 0;
-  font-size: 13.5px;
-  line-height: 1.5;
-  color: var(--text-3);
-}
-
-.routine {
+.cal {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  margin-bottom: 8px;
-  background: var(--surface, rgba(255, 255, 255, 0.04));
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 14px;
 }
 
-.routine__body {
+/* The gutter width is repeated in every row so the columns line up; changing it
+   means changing it in .cal__days, .cal__often and .cal__hours together. */
+.cal__days {
+  display: grid;
+  grid-template-columns: 52px repeat(7, 1fr);
+  border-bottom: 1px solid var(--line);
+}
+
+.cal__day {
+  padding: 8px 0 7px;
+  font-size: 11.5px;
+  color: var(--text-3);
+  text-align: center;
+}
+
+.cal__day + .cal__day {
+  border-left: 1px solid var(--line);
+}
+
+.cal__day b {
+  display: block;
+  margin-top: 1px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cal__day.is-today {
+  color: var(--blue);
+}
+
+.cal__day.is-today b {
+  color: var(--blue);
+}
+
+.cal__often {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 7px 10px 7px 58px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.cal__body {
+  display: flex;
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.cal__hours {
+  flex: 0 0 52px;
+}
+
+.cal__hour {
+  height: 44px;
+  /* Just below its own line, naming the hour that starts there. Nudging it up
+     onto the line looked tidier until the grid was scrolled, at which point the
+     top label was sliced in half by the edge of the pane. */
+  padding: 3px 8px 0 0;
+  font-size: 10.5px;
+  line-height: 1;
+  color: var(--text-3);
+  text-align: right;
+}
+
+.cal__cols {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(7, 1fr);
   min-width: 0;
 }
 
-.routine__name {
+.cal__col {
+  position: relative;
+  border-left: 1px solid var(--line);
+}
+
+.cal__slot {
+  height: 44px;
+  border-top: 1px solid rgba(255, 255, 255, 0.045);
+  cursor: pointer;
+}
+
+.cal__slot:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.cal__col.is-today {
+  background: rgba(10, 132, 255, 0.045);
+}
+
+/* Where the day has got to. */
+.cal__now {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--red);
+  pointer-events: none;
+}
+
+.cal__now::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 7px;
+  height: 7px;
+  background: var(--red);
+  border-radius: 50%;
+}
+
+.cal__event {
+  position: absolute;
   overflow: hidden;
-  font-size: 15px;
-  font-weight: 500;
+  padding: 3px 6px;
+  font-size: 11px;
+  line-height: 1.25;
+  text-align: left;
+  background: var(--tint, rgba(10, 132, 255, 0.9));
+  border-radius: 6px;
+}
+
+.cal__event b {
+  display: block;
+  overflow: hidden;
+  font-weight: 600;
+  color: #fff;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.routine__what {
-  margin-top: 2px;
-  overflow: hidden;
-  font-size: 13px;
-  color: var(--text-2);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.cal__event span {
+  color: rgba(255, 255, 255, 0.78);
 }
 
-.routine__when {
-  margin-top: 4px;
-  font-size: 12.5px;
+.cal__event.is-off {
+  opacity: 0.4;
+}
+
+.cal__event:hover {
+  filter: brightness(1.12);
+}
+
+/* A routine with no place in the grid: named, timed, and out of the way. */
+.cal__chip {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 3px 9px;
+  font-size: 11.5px;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 999px;
+}
+
+.cal__chip b {
+  font-weight: 600;
+}
+
+.cal__chip span {
   color: var(--text-3);
 }
 
-.routine.is-off .routine__name,
-.routine.is-off .routine__when {
+.cal__chip.is-off {
   opacity: 0.45;
 }
 
-.routine-form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-width: 620px;
-  margin-top: 14px;
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--line);
-  border-radius: 12px;
+.cal__chip i {
+  width: 6px;
+  height: 6px;
+  background: var(--tint, var(--blue));
+  border-radius: 50%;
 }
 
-.routine-form input,
-.routine-form textarea {
+.cal__empty {
+  padding: 3px 2px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.sheet--routine textarea,
+.sheet--routine input[type="text"],
+.sheet--routine #routine-name {
   width: 100%;
-  padding: 8px 12px;
+  padding: 9px 12px;
   font-size: 13.5px;
   background: var(--field);
   border-radius: 10px;
   resize: none;
 }
 
-.routine-when {
+.sheet--routine .sheet__body {
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.routine-when .picker {
-  flex: 1;
-  height: 30px;
+.routine__next {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-3);
 }
+
+.sheet--routine .sheet__foot {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.sheet--routine .sheet__foot .btn-primary {
+  flex: 1;
+}
+
+/* The count beside the clock. Small enough to read as a badge rather than a
+   second icon, and absent entirely when nothing is scheduled. */
+.icon-btn__count {
+  position: absolute;
+  right: 1px;
+  bottom: 0;
+  min-width: 13px;
+  padding: 0 3px;
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 13px;
+  color: #fff;
+  text-align: center;
+  background: var(--blue);
+  border-radius: 999px;
+}
+
+.icon-btn__count:empty {
+  display: none;
+}
+
 
 /* Paths a bot keeps its own furniture at — memory, taught tasks, the shared
    folder — read as objects rather than strings. */

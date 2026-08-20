@@ -649,6 +649,14 @@ fn heartbeat() {
 mod tests {
     use super::*;
 
+    /// Both of the tests below drive the one piece of global state a running
+    /// desktop has — the pairing code. Cargo runs tests in parallel, so without
+    /// this they take each other's code and the socket test fails with a 403
+    /// that has nothing to do with what it is testing. Poison is stepped over:
+    /// a test that failed while holding this should fail on its own assertion,
+    /// not take the other one down with it.
+    static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
+
     #[test]
     fn tokens_are_stored_only_as_hashes() {
         let token = "a-token-that-must-not-be-recoverable";
@@ -666,6 +674,9 @@ mod tests {
     /// otherwise be discovered on a phone, which is the worst place to debug it.
     #[test]
     fn a_token_only_works_from_the_device_it_was_issued_to() {
+        let _alone = ONE_AT_A_TIME
+            .lock()
+            .unwrap_or_else(|held| held.into_inner());
         use std::io::{BufRead, BufReader, Read, Write};
         use std::net::TcpStream;
 
@@ -819,6 +830,9 @@ mod tests {
 
     #[test]
     fn a_guessed_code_burns_out() {
+        let _alone = ONE_AT_A_TIME
+            .lock()
+            .unwrap_or_else(|held| held.into_inner());
         {
             let mut state = remote().lock().unwrap();
             state.code = Some(("ZZZZZZ".into(), now() + 60));

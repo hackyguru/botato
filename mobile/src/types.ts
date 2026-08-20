@@ -13,9 +13,13 @@ export interface Routine {
   id: string;
   name: string;
   instruction: string;
-  every: "day" | "weekday" | "hour" | "minutes";
+  every: "once" | "week" | "day" | "weekday" | "hour" | "minutes";
   at: string;
   minutes?: number;
+  /** Which day, for the weekly kind. Sunday is 0. */
+  day?: number;
+  /** Which date, YYYY-MM-DD, for the one-off kind. */
+  date?: string;
   active: boolean;
   lastRunAt?: number;
 }

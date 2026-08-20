@@ -35,11 +35,17 @@ interface Routine {
   id: string;
   name: string;
   instruction: string;
-  every: "day" | "weekday" | "hour" | "minutes";
-  /** "HH:MM"; for hourly only the minutes are used. */
+  /** How often. "once" is a task rather than a routine, and switches itself
+   *  off after it has run; the rest recur until they are turned off. */
+  every: "once" | "week" | "day" | "weekday" | "hour" | "minutes";
+  /** Time of day, HH:MM. Ignored by the "every few minutes" kind. */
   at: string;
   /** Gap in minutes, for the "every few minutes" kind. */
   minutes?: number;
+  /** Which day, for the weekly kind. Sunday is 0, as in Date#getDay. */
+  day?: number;
+  /** Which date, YYYY-MM-DD, for the one-off kind. */
+  date?: string;
   active: boolean;
   lastRunAt?: number;
 }
@@ -272,13 +278,16 @@ function machineFromSheet(): Bot["machine"] {
   };
   return Object.values(chosen).some((value) => value !== undefined) ? chosen : undefined;
 }
-const routineList = $<HTMLDivElement>("#routine-list");
-const routineForm = $<HTMLDivElement>("#routine-form");
+const routineWrap = $<HTMLDivElement>("#routine-wrap");
+const routineForm = $<HTMLFormElement>("#routine-form");
 const routineName = $<HTMLInputElement>("#routine-name");
 const routineInstruction = $<HTMLTextAreaElement>("#routine-instruction");
 const routineEvery = $<HTMLSelectElement>("#routine-every");
 const routineAt = $<HTMLInputElement>("#routine-at");
 const routineInterval = $<HTMLInputElement>("#routine-interval");
+const routineDay = $<HTMLSelectElement>("#routine-day");
+const routineDate = $<HTMLInputElement>("#routine-date");
+const routineActive = $<HTMLInputElement>("#routine-active");
 
 /** Bot being edited in the sheet; null means the sheet is creating a new one. */
 let editing: Bot | null = null;
@@ -1006,25 +1015,151 @@ function renderSheetPreview(): void {
   ).join("");
 }
 
+/** One hour of the grid, in pixels. Must match .cal__slot and .cal__hour. */
+const HOUR_PX = 44;
+
+/** Sunday first, as Date#getDay counts. */
+const DAY_NAME = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/** The Monday of the week `when` falls in. Weeks start on Monday here because
+ *  weekday routines are a working-week idea, and a grid that split Saturday
+ *  from Sunday would cut the weekend in half. */
+function weekStart(when: number): Date {
+  const day = new Date(when);
+  day.setHours(0, 0, 0, 0);
+  day.setDate(day.getDate() - ((day.getDay() + 6) % 7));
+  return day;
+}
+
+/** The nth day of the shown week. Built by date arithmetic rather than by
+ *  adding milliseconds, so the clocks going back does not shift a column. */
+function dayOfWeek(from: Date, index: number): Date {
+  const day = new Date(from);
+  day.setDate(day.getDate() + index);
+  day.setHours(0, 0, 0, 0);
+  return day;
+}
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const isoDate = (day: Date) =>
+  `${day.getFullYear()}-${pad2(day.getMonth() + 1)}-${pad2(day.getDate())}`;
+
+/** Which week the calendar is showing. */
+let calAt = weekStart(Date.now());
+
+/** Does this routine land on that day? False for the kinds that repeat faster
+ *  than the grid can draw — those live in the band above it. */
+function fallsOn(routine: Routine, day: Date): boolean {
+  switch (routine.every) {
+    case "day":
+      return true;
+    case "weekday":
+      return WEEKDAY.includes(day.getDay());
+    case "week":
+      return day.getDay() === (routine.day ?? 1);
+    case "once":
+      return routine.date === isoDate(day);
+    default:
+      return false;
+  }
+}
+
 function renderRoutines(): void {
   const bot = activeBot();
-  const routines = bot?.routines ?? [];
-  routineList.innerHTML = routines
-    .map(
-      (routine) =>
-        `<div class="routine${routine.active ? "" : " is-off"}" data-routine="${routine.id}">` +
-        `<div class="routine__body">` +
-        `<div class="routine__name">${escapeHtml(routine.name)}</div>` +
-        `<div class="routine__what">${escapeHtml(routine.instruction)}</div>` +
-        `<div class="routine__when">${escapeHtml(describeRoutine(routine))}</div>` +
-        `</div>` +
-        `<input type="checkbox" class="switch" data-toggle="${routine.id}"${routine.active ? " checked" : ""} />` +
-        `<button type="button" class="icon-btn icon-btn--sm" data-run="${routine.id}" title="Run now">` +
-        `${icon("play")}</button>` +
-        `<button type="button" class="icon-btn icon-btn--sm" data-drop="${routine.id}" title="Delete">` +
-        `${icon("trash")}</button>` +
-        `</div>`,
-    )
+  if (!bot) return;
+  const routines = bot.routines ?? [];
+  const now = new Date();
+  const today = isoDate(now);
+
+  const first = dayOfWeek(calAt, 0);
+  const last = dayOfWeek(calAt, 6);
+  const month = (day: Date) => day.toLocaleDateString(undefined, { month: "long" });
+  $<HTMLSpanElement>("#cal-range").textContent =
+    first.getMonth() === last.getMonth()
+      ? `${first.getDate()}–${last.getDate()} ${month(first)}`
+      : `${first.getDate()} ${month(first)} – ${last.getDate()} ${month(last)}`;
+
+  const days = Array.from({ length: 7 }, (_, at) => dayOfWeek(calAt, at));
+
+  $<HTMLDivElement>("#cal-days").innerHTML =
+    `<div class="cal__day"></div>` +
+    days
+      .map(
+        (day) =>
+          `<div class="cal__day${isoDate(day) === today ? " is-today" : ""}">` +
+          `${DAY_NAME[day.getDay()]}<b>${day.getDate()}</b></div>`,
+      )
+      .join("");
+
+  $<HTMLDivElement>("#cal-hours").innerHTML = Array.from(
+    { length: 24 },
+    // The midnight label would sit above the grid with nothing to name, so the
+    // first hour is left blank rather than pushed off the top.
+    (_, hour) => `<div class="cal__hour">${hour ? `${pad2(hour)}:00` : ""}</div>`,
+  ).join("");
+
+  // Anything faster than an hour would be a stripe through every column.
+  const often = routines.filter((r) => r.every === "hour" || r.every === "minutes");
+  const band = $<HTMLDivElement>("#cal-often");
+  band.hidden = often.length === 0 && routines.length > 0;
+  band.innerHTML = routines.length
+    ? often
+        .map(
+          (routine) =>
+            `<button type="button" class="cal__chip${routine.active ? "" : " is-off"}" ` +
+            `data-edit="${routine.id}"><i style="--tint:${bot.color}"></i>` +
+            `<b>${escapeHtml(routine.name)}</b>` +
+            `<span>${escapeHtml(describeRoutine(routine))}</span></button>`,
+        )
+        .join("")
+    : `<div class="cal__empty">Nothing scheduled. Click any slot to give ` +
+      `${escapeHtml(bot.name)} a standing instruction — routines run while botcage is open.</div>`;
+
+  $<HTMLDivElement>("#cal-cols").innerHTML = days
+    .map((day, column) => {
+      const slots = Array.from(
+        { length: 24 },
+        (_, hour) => `<div class="cal__slot" data-col="${column}" data-hour="${hour}"></div>`,
+      ).join("");
+
+      const due = routines.filter((routine) => fallsOn(routine, day));
+
+      // Two routines in the same hour would sit exactly on top of each other,
+      // and the one underneath would be a routine nobody could see was there.
+      // They share the width of the hour instead.
+      const crowd = new Map<number, number>();
+      for (const routine of due) {
+        const hour = Number(routine.at.split(":")[0]) || 0;
+        crowd.set(hour, (crowd.get(hour) ?? 0) + 1);
+      }
+      const placed = new Map<number, number>();
+
+      const events = due
+        .map((routine) => {
+          const [hh, mm] = routine.at.split(":").map(Number);
+          const hour = hh || 0;
+          const of = crowd.get(hour) ?? 1;
+          const lane = placed.get(hour) ?? 0;
+          placed.set(hour, lane + 1);
+          const top = (hour + (mm || 0) / 60) * HOUR_PX;
+          return (
+            `<button type="button" class="cal__event${routine.active ? "" : " is-off"}" ` +
+            `data-edit="${routine.id}" style="top:${top}px;height:${HOUR_PX - 6}px;` +
+            `left:calc(${(lane * 100) / of}% + 3px);width:calc(${100 / of}% - 6px);` +
+            `--tint:${bot.color}"><b>${escapeHtml(routine.name)}</b>` +
+            `<span>${routine.at}</span></button>`
+          );
+        })
+        .join("");
+
+      const isToday = isoDate(day) === today;
+      const line = isToday
+        ? `<div class="cal__now" style="top:${((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR_PX}px"></div>`
+        : "";
+
+      return `<div class="cal__col${isToday ? " is-today" : ""}">${slots}${events}${line}</div>`;
+    })
     .join("");
 }
 
@@ -2306,6 +2441,16 @@ function nextRun(routine: Routine, from: number): number {
   }
 
   const [hh, mm] = routine.at.split(":").map(Number);
+
+  // A one-off happens at its moment and never again — the tick switches it off
+  // afterwards. One whose time has already passed runs at the next tick rather
+  // than never: a reminder that was missed is still worth delivering.
+  if (routine.every === "once") {
+    const [y, m, d] = (routine.date ?? "").split("-").map(Number);
+    if (!y) return Number.MAX_SAFE_INTEGER;
+    return new Date(y, m - 1, d, hh || 0, mm || 0, 0, 0).getTime();
+  }
+
   const at = new Date(from);
 
   if (routine.every === "hour") {
@@ -2315,7 +2460,10 @@ function nextRun(routine: Routine, from: number): number {
   }
 
   at.setHours(hh || 0, mm || 0, 0, 0);
-  while (at.getTime() <= from || (routine.every === "weekday" && !WEEKDAY.includes(at.getDay()))) {
+  const wrongDay = () =>
+    (routine.every === "weekday" && !WEEKDAY.includes(at.getDay())) ||
+    (routine.every === "week" && at.getDay() !== (routine.day ?? 1));
+  while (at.getTime() <= from || wrongDay()) {
     at.setDate(at.getDate() + 1);
     at.setHours(hh || 0, mm || 0, 0, 0);
   }
@@ -2328,21 +2476,53 @@ function describeRoutine(routine: Routine): string {
     return gap === 1 ? "Every minute" : `Every ${gap} minutes`;
   }
   if (routine.every === "hour") return `Every hour at :${routine.at.split(":")[1]}`;
+  if (routine.every === "week") return `Every ${DAY_FULL[routine.day ?? 1]} at ${routine.at}`;
+  if (routine.every === "once") {
+    const [y, m, d] = (routine.date ?? "").split("-").map(Number);
+    const when = y ? new Date(y, m - 1, d) : null;
+    return when
+      ? `Once on ${when.toLocaleDateString(undefined, { day: "numeric", month: "long" })} at ${routine.at}`
+      : `Once at ${routine.at}`;
+  }
   const when = routine.every === "weekday" ? "Every weekday" : "Every day";
   return `${when} at ${routine.at}`;
 }
 
+/** "Wed 20 Aug, 09:00" — what a schedule amounts to, spelled out, so nobody has
+ *  to work out what "every weekday" means from a Friday evening. */
+function whenNext(routine: Routine): string {
+  const at = nextRun(routine, Date.now());
+  if (at === Number.MAX_SAFE_INTEGER) return "";
+  return new Date(at).toLocaleString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 let routinesOpen = false;
 
-/** The main pane shows either the conversation or this bot's routines. */
+/** The main pane shows either the conversation or this bot's week. */
 function showRoutines(open: boolean): void {
   routinesOpen = open;
   $<HTMLElement>(".main").classList.toggle("is-routines", open);
   $<HTMLElement>("#routines").hidden = !open;
   $<HTMLButtonElement>("#btn-routines").classList.toggle("is-on", open);
-  routineForm.hidden = true;
-  if (open) renderRoutines();
-  else renderThread();
+  routineWrap.hidden = true;
+  if (!open) {
+    renderThread();
+    return;
+  }
+
+  // Opening always lands on this week, wherever it was left.
+  calAt = weekStart(Date.now());
+  renderRoutines();
+  // Start where the day is rather than at midnight, with enough above it to see
+  // what has just been and gone.
+  const body = $<HTMLDivElement>("#cal-body");
+  body.scrollTop = Math.max(0, (new Date().getHours() - 2) * HOUR_PX);
 }
 
 /** Run a routine now, from the clock or from the Run now button. */
@@ -2353,6 +2533,8 @@ function runRoutine(bot: Bot, routine: Routine): void {
   }
 
   routine.lastRunAt = Date.now();
+  // A task, not a routine: it has now happened, and should not happen again.
+  if (routine.every === "once") routine.active = false;
   const note: Message = {
     id: uid(),
     from: "me",
@@ -3303,87 +3485,167 @@ $<HTMLButtonElement>("#app-rebuild-image").addEventListener("click", () => {
   void invoke("rebuild_image").catch((err) => toast(String(err)));
 });
 
-$<HTMLButtonElement>("#routine-add").addEventListener("click", () => {
-  routineForm.hidden = !routineForm.hidden;
-  routineInterval.hidden = routineEvery.value !== "minutes";
-  routineAt.hidden = routineEvery.value === "minutes";
-  if (!routineForm.hidden) {
-    routineName.focus();
-    routineForm.scrollIntoView({ block: "nearest" });
+/* ----------------------------------------------------------- the editor */
+
+/** Which routine is being edited, or null while one is being made. */
+let editingRoutine: string | null = null;
+
+/** What the form currently describes, as a routine — used for the preview line
+ *  before anything is saved. */
+function draftRoutine(): Routine {
+  return {
+    id: editingRoutine ?? "",
+    name: routineName.value.trim(),
+    instruction: routineInstruction.value.trim(),
+    every: routineEvery.value as Routine["every"],
+    at: routineAt.value || "09:00",
+    minutes: Number(routineInterval.value) || 15,
+    day: Number(routineDay.value),
+    date: routineDate.value,
+    active: routineActive.checked,
+  };
+}
+
+/** Only the fields this kind of schedule needs. A weekly routine has no date, a
+ *  one-off has no weekday, and asking for both would make the shorter answer
+ *  look incomplete. */
+function paintRoutineForm(): void {
+  const every = routineEvery.value;
+  $<HTMLLabelElement>("#routine-day-row").hidden = every !== "week";
+  $<HTMLLabelElement>("#routine-date-row").hidden = every !== "once";
+  $<HTMLLabelElement>("#routine-at-row").hidden = every === "minutes";
+  $<HTMLLabelElement>("#routine-interval-row").hidden = every !== "minutes";
+
+  const next = whenNext(draftRoutine());
+  $<HTMLParagraphElement>("#routine-next").textContent = next ? `Next run ${next}` : "";
+}
+
+/** Open the editor: on an existing routine, or empty on a slot that was
+ *  clicked, which carries the day and hour that were pointed at. */
+function openRoutine(routine: Routine | null, seed?: { day: number; hour: number; date: string }): void {
+  editingRoutine = routine?.id ?? null;
+
+  routineName.value = routine?.name ?? "";
+  routineInstruction.value = routine?.instruction ?? "";
+  // A slot that was clicked means that day at that hour — the reading anyone
+  // makes of clicking Tuesday at three.
+  routineEvery.value = routine?.every ?? (seed ? "week" : "day");
+  routineAt.value = routine?.at ?? (seed ? `${pad2(seed.hour)}:00` : "09:00");
+  routineDay.value = String(routine?.day ?? seed?.day ?? 1);
+  routineDate.value = routine?.date ?? seed?.date ?? isoDate(new Date());
+  routineInterval.value = String(routine?.minutes ?? 15);
+  routineActive.checked = routine?.active ?? true;
+
+  $<HTMLHeadingElement>("#routine-title").textContent = routine ? "Routine" : "New routine";
+  $<HTMLButtonElement>("#routine-save").textContent = routine ? "Save" : "Add routine";
+  // Only something that exists can be run, deleted, or paused.
+  $<HTMLButtonElement>("#routine-run").hidden = !routine;
+  $<HTMLButtonElement>("#routine-delete").hidden = !routine;
+  $<HTMLLabelElement>("#routine-active-row").hidden = !routine;
+
+  paintRoutineForm();
+  routineWrap.hidden = false;
+  routineName.focus();
+}
+
+routineEvery.addEventListener("change", paintRoutineForm);
+routineAt.addEventListener("change", paintRoutineForm);
+routineDay.addEventListener("change", paintRoutineForm);
+routineDate.addEventListener("change", paintRoutineForm);
+routineInterval.addEventListener("change", paintRoutineForm);
+
+$<HTMLButtonElement>("#routine-add").addEventListener("click", () => openRoutine(null));
+$<HTMLButtonElement>("#routine-close").addEventListener("click", () => {
+  routineWrap.hidden = true;
+});
+routineWrap.addEventListener("mousedown", (e) => {
+  if (e.target === routineWrap) routineWrap.hidden = true;
+});
+
+$<HTMLButtonElement>("#cal-prev").addEventListener("click", () => {
+  calAt = dayOfWeek(calAt, -7);
+  renderRoutines();
+});
+$<HTMLButtonElement>("#cal-next").addEventListener("click", () => {
+  calAt = dayOfWeek(calAt, 7);
+  renderRoutines();
+});
+$<HTMLButtonElement>("#cal-today").addEventListener("click", () => {
+  calAt = weekStart(Date.now());
+  renderRoutines();
+});
+
+$<HTMLElement>("#routines").addEventListener("click", (e) => {
+  const bot = activeBot();
+  if (!bot) return;
+  const target = e.target as HTMLElement;
+
+  const edit = target.closest<HTMLElement>("[data-edit]");
+  if (edit) {
+    const routine = bot.routines?.find((r) => r.id === edit.dataset.edit);
+    if (routine) openRoutine(routine);
+    return;
+  }
+
+  const slot = target.closest<HTMLElement>(".cal__slot");
+  if (slot) {
+    const day = dayOfWeek(calAt, Number(slot.dataset.col));
+    openRoutine(null, {
+      day: day.getDay(),
+      hour: Number(slot.dataset.hour),
+      date: isoDate(day),
+    });
   }
 });
 
-// Minute intervals ask for a gap, everything else asks for a time.
-routineEvery.addEventListener("change", () => {
-  const byMinutes = routineEvery.value === "minutes";
-  routineInterval.hidden = !byMinutes;
-  routineAt.hidden = byMinutes;
-});
-
-$<HTMLButtonElement>("#routine-save").addEventListener("click", () => {
-  const bot = state.bots.find((b) => b.id === (screen.botId ?? state.activeId));
+routineForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const bot = activeBot();
   if (!bot) return;
-  const name = routineName.value.trim();
-  const instruction = routineInstruction.value.trim();
-  if (!name || !instruction) {
+
+  const draft = draftRoutine();
+  if (!draft.name || !draft.instruction) {
     toast("A routine needs a name and an instruction");
+    (draft.name ? routineInstruction : routineName).focus();
     return;
   }
 
   bot.routines = bot.routines ?? [];
-  bot.routines.push({
-    id: uid(),
-    name,
-    instruction,
-    every: routineEvery.value as Routine["every"],
-    at: routineAt.value || "09:00",
-    minutes: Number(routineInterval.value) || 15,
-    active: true,
-    lastRunAt: Date.now(),
-  });
+  const existing = bot.routines.find((r) => r.id === editingRoutine);
+  if (existing) {
+    Object.assign(existing, draft, { id: existing.id, lastRunAt: existing.lastRunAt });
+    // Re-timed from now, so an edited schedule cannot fire the moment it is
+    // saved because its old time had already passed.
+    existing.lastRunAt = Date.now();
+  } else {
+    bot.routines.push({ ...draft, id: uid(), active: true, lastRunAt: Date.now() });
+  }
 
-  routineName.value = "";
-  routineInstruction.value = "";
-  routineForm.hidden = true;
+  routineWrap.hidden = true;
   save();
   renderRoutines();
   renderThread();
 });
 
-routineList.addEventListener("click", (e) => {
-  const target = e.target as HTMLElement;
+$<HTMLButtonElement>("#routine-run").addEventListener("click", () => {
   const bot = activeBot();
-  if (!bot) return;
+  const routine = bot?.routines?.find((r) => r.id === editingRoutine);
+  if (!bot || !routine) return;
+  routineWrap.hidden = true;
+  showRoutines(false);
+  runRoutine(bot, routine);
+});
 
-  const toggle = target.closest<HTMLInputElement>("[data-toggle]");
-  if (toggle) {
-    const routine = bot.routines?.find((r) => r.id === toggle.dataset.toggle);
-    if (routine) {
-      routine.active = toggle.checked;
-      // Start the clock again so re-enabling doesn't fire instantly.
-      routine.lastRunAt = Date.now();
-      save();
-      renderRoutines();
-    }
-    return;
-  }
-
-  const run = target.closest<HTMLButtonElement>("[data-run]");
-  if (run) {
-    const routine = bot.routines?.find((r) => r.id === run.dataset.run);
-    if (routine) {
-      showRoutines(false);
-      runRoutine(bot, routine);
-    }
-    return;
-  }
-
-  const drop = target.closest<HTMLButtonElement>("[data-drop]");
-  if (drop && bot.routines) {
-    bot.routines = bot.routines.filter((r) => r.id !== drop.dataset.drop);
-    save();
-    renderRoutines();
-  }
+$<HTMLButtonElement>("#routine-delete").addEventListener("click", () => {
+  const bot = activeBot();
+  if (!bot?.routines) return;
+  const gone = bot.routines.find((r) => r.id === editingRoutine);
+  bot.routines = bot.routines.filter((r) => r.id !== editingRoutine);
+  routineWrap.hidden = true;
+  save();
+  renderRoutines();
+  renderThread();
+  if (gone) toast(`Deleted ${gone.name}`);
 });
 
 swatches.addEventListener("click", (e) => {
@@ -3418,7 +3680,8 @@ document.addEventListener("keydown", (e) => {
     searchEl.focus();
     searchEl.select();
   } else if (e.key === "Escape") {
-    if (!setupWrap.hidden) closeSetup();
+    if (!routineWrap.hidden) routineWrap.hidden = true;
+    else if (!setupWrap.hidden) closeSetup();
     else if (!aboutWrap.hidden) aboutWrap.hidden = true;
     else if (!appWrap.hidden) appWrap.hidden = true;
     else if (teach.arming) cancelArming();

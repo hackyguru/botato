@@ -140,8 +140,9 @@
         <header class="topbar" data-tauri-drag-region="deep">
           <div class="topbar__id" id="topbar-id"></div>
           <div class="topbar__actions">
-            <button type="button" class="chip" id="btn-routines" hidden>
-              <svg><use href="#i-clock" /></svg><span id="btn-routines-count">0</span>
+            <button class="icon-btn" id="btn-routines" title="Routines" aria-label="Routines">
+              <svg><use href="#i-clock" /></svg>
+              <span class="icon-btn__count" id="btn-routines-count"></span>
             </button>
             <button class="icon-btn" id="btn-plugins" title="Its plugins" aria-label="Its plugins">
               <svg><use href="#i-plug" /></svg>
@@ -161,29 +162,32 @@
 
 
         <section class="routines-view" id="routines" hidden>
-          <div class="routines__head">
-            <span class="routines__title">Routines</span>
+          <div class="cal__head">
+            <div class="cal__nav">
+              <button type="button" class="icon-btn icon-btn--sm cal__back" id="cal-prev"
+                      title="Previous week" aria-label="Previous week">
+                <svg><use href="#i-chev" /></svg>
+              </button>
+              <button type="button" class="icon-btn icon-btn--sm cal__fwd" id="cal-next"
+                      title="Next week" aria-label="Next week">
+                <svg><use href="#i-chev" /></svg>
+              </button>
+              <span class="cal__range" id="cal-range"></span>
+              <button type="button" class="chip" id="cal-today"><span>Today</span></button>
+            </div>
             <button type="button" class="chip" id="routine-add">
               <svg><use href="#i-plus" /></svg><span>New routine</span>
             </button>
           </div>
-          <div class="routines__list" id="routine-list"></div>
 
-          <div class="routine-form" id="routine-form" hidden>
-            <input id="routine-name" placeholder="Name this routine" spellcheck="false" maxlength="48" />
-            <textarea id="routine-instruction" rows="3"
-                      placeholder="What should it do each time it runs?"></textarea>
-            <div class="routine-when">
-              <select id="routine-every" class="picker">
-                <option value="day">Every day</option>
-                <option value="weekday">Every weekday</option>
-                <option value="hour">Every hour</option>
-                <option value="minutes">Every few minutes</option>
-              </select>
-              <input type="time" id="routine-at" class="picker" value="09:00" />
-              <input type="number" id="routine-interval" class="picker" value="15" min="1" max="720"
-                     title="Minutes between runs" hidden />
-              <button type="button" class="chip" id="routine-save"><span>Add routine</span></button>
+          <div class="cal">
+            <div class="cal__days" id="cal-days"></div>
+            <!-- Anything that repeats faster than the grid can show sits in a
+                 band of its own, the way an all-day event does. -->
+            <div class="cal__often" id="cal-often" hidden></div>
+            <div class="cal__body" id="cal-body">
+              <div class="cal__hours" id="cal-hours"></div>
+              <div class="cal__cols" id="cal-cols"></div>
             </div>
           </div>
         </section>
@@ -235,6 +239,83 @@
     </div>
 
     <div class="menu" id="menu" hidden></div>
+
+    <div class="overlay" id="routine-wrap" hidden>
+      <form class="sheet sheet--routine" id="routine-form">
+        <div class="sheet__head">
+          <h2 id="routine-title">New routine</h2>
+          <button type="button" class="icon-btn icon-btn--sm" id="routine-close" aria-label="Close">
+            <svg><use href="#i-x" /></svg>
+          </button>
+        </div>
+        <div class="sheet__body">
+          <input id="routine-name" placeholder="Name it, e.g. Morning summary"
+                 spellcheck="false" maxlength="48" />
+          <textarea id="routine-instruction" rows="4"
+                    placeholder="What should it do each time it runs?"></textarea>
+
+          <div class="settings">
+            <label class="setting">
+              <span class="setting__label">Repeats</span>
+              <select id="routine-every" class="picker">
+                <option value="once">Once</option>
+                <option value="week">Every week</option>
+                <option value="day">Every day</option>
+                <option value="weekday">Every weekday</option>
+                <option value="hour">Every hour</option>
+                <option value="minutes">Every few minutes</option>
+              </select>
+            </label>
+
+            <label class="setting" id="routine-day-row">
+              <span class="setting__label">On</span>
+              <select id="routine-day" class="picker">
+                <option value="1">Monday</option>
+                <option value="2">Tuesday</option>
+                <option value="3">Wednesday</option>
+                <option value="4">Thursday</option>
+                <option value="5">Friday</option>
+                <option value="6">Saturday</option>
+                <option value="0">Sunday</option>
+              </select>
+            </label>
+
+            <label class="setting" id="routine-date-row">
+              <span class="setting__label">Date</span>
+              <input type="date" id="routine-date" class="picker" />
+            </label>
+
+            <label class="setting" id="routine-at-row">
+              <span class="setting__label">At</span>
+              <input type="time" id="routine-at" class="picker" value="09:00" />
+            </label>
+
+            <label class="setting" id="routine-interval-row" hidden>
+              <span class="setting__label">Every
+                <span class="setting__hint">Minutes between runs.</span>
+              </span>
+              <input type="number" id="routine-interval" class="picker" value="15" min="1" max="720" />
+            </label>
+
+            <label class="setting" id="routine-active-row" hidden>
+              <span class="setting__label">Active
+                <span class="setting__hint">Off keeps it without running it.</span>
+              </span>
+              <input type="checkbox" id="routine-active" class="switch" />
+            </label>
+          </div>
+
+          <p class="routine__next" id="routine-next"></p>
+          <button type="button" class="danger" id="routine-delete" hidden>Delete routine</button>
+        </div>
+        <div class="sheet__foot">
+          <button type="button" class="chip" id="routine-run" hidden>
+            <svg><use href="#i-play" /></svg><span>Run now</span>
+          </button>
+          <button type="submit" class="btn-primary" id="routine-save">Add routine</button>
+        </div>
+      </form>
+    </div>
 
     <div class="overlay" id="sheet-wrap" hidden>
       <form class="sheet" id="sheet">

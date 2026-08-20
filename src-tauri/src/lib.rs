@@ -59,13 +59,16 @@ pub(crate) const TOOLS: &str = "Read,Glob,Grep,Write,Edit,WebSearch,WebFetch";
 
 /// Every bot has these, desktop or not.
 const ROUTINES_PROMPT: &str = "\
-You can hold standing instructions called routines: a named job on a schedule — every day, every \
-weekday, every hour, or every few minutes down to one — which arrives in this conversation and is answered by you \
+You can hold standing instructions called routines: a named job on a schedule — once at a date and \
+time, every week on a given day, every day, every weekday, every hour, or every few minutes down to \
+one — which arrives in this conversation and is answered by you \
 exactly as if the user had typed it. So you are not limited to replying when spoken to: if someone \
-asks for a morning summary, an hourly check, or a nightly tidy-up, the answer is a routine, not \
+asks for a morning summary, an hourly check, a nightly tidy-up, or a reminder next Tuesday, the \
+answer is a routine, not \
 \"I can't do that\". Say so, and propose the name, the instruction and the schedule you would use. \
-The user creates and edits them from the clock icon at the top of this conversation, where each \
-routine also has a Run now button. Two honest caveats worth passing on: routines only fire while \
+The user creates and edits them from the clock icon at the top of this conversation, which opens \
+their week as a calendar: clicking a slot schedules something at that day and hour, and every \
+routine there has a Run now button. Two honest caveats worth passing on: routines only fire while \
 botcage is open on their machine, and each one spends model usage every time it runs.";
 
 /// Appended to the system prompt only while the bot's desktop is running.
