@@ -14,8 +14,10 @@ of ours, and no telemetry.
 
 - **The Claude Code CLI**, installed and signed in. botcage drives it rather
   than shipping a model, and a Claude Pro or Max subscription covers it. The
-  app's setup screen installs it for you if it is missing. A bot can be pointed
-  at the Gemini CLI instead, per bot.
+  app's setup screen installs it for you if it is missing.
+- **Or not**: a bot can instead be pointed at the Gemini CLI, at any model on
+  models.dev with an API key you hold, or at Ollama on your own machine, which
+  needs nothing.
 - **Nothing else** for chat, memory, routines, connectors and plugins.
 - **A container engine** only if you want bots to have their own computer.
   botcage downloads and manages one itself — lima and the docker CLI on macOS,
@@ -49,12 +51,24 @@ macOS builds are signed and notarised, so they open without warnings.
 ## What answers for a bot
 
 Claude Code is the default and the one that has been used in anger, but a bot
-names its own engine and can be pointed at another in its settings. The seam is
-[`inference.rs`](src-tauri/src/inference.rs): an engine says how to run a turn,
-how to read its output, how it takes a bot's connectors, and which models it can
-be asked for. Everything else — the roster, the threads, the sandbox, the
-routines, the phone — speaks botcage's vocabulary and never learns which tool
-answered.
+names its own engine and can be pointed at another in its settings. There are
+three:
+
+- **Claude Code** and the **Gemini CLI** — programs botcage runs, each bringing
+  its own tool loop and MCP client, so a bot keeps its connectors.
+- **Any hosted model**, by way of [models.dev](https://models.dev): one file
+  describing 192 providers and 6,841 models, of which 166 providers publish an
+  API base and 5,559 models sit behind one. A base URL and a key are the whole
+  of what talking to a model takes, so botcage searches that catalogue, keeps
+  one key per provider in the keychain, and speaks the chat completions shape
+  everyone has settled on. Ollama on your own machine is offered too, and needs
+  no key at all.
+
+The seam is [`inference.rs`](src-tauri/src/inference.rs): an engine says how to
+run a turn, how to read its output, how it takes a bot's connectors, and which
+models it can be asked for. Everything else — the roster, the threads, the
+sandbox, the routines, the phone — speaks botcage's vocabulary and never learns
+which tool answered.
 
 The difference that is not cosmetic is memory. Claude Code keeps a conversation
 on disk and resumes it by id; the Gemini CLI cannot, so botcage keeps a
@@ -131,8 +145,14 @@ done rather than merely designed for.
 Android is built and runs, but has only been exercised against a stand-in
 desktop, never a real one.
 
-A bot can be pointed at the Gemini CLI, and everything botcage owes it is in
-place — instructions, connectors, and a conversation it cannot keep for itself.
-It has not been run against the real binary here, so its stream is mapped from
-Google's documentation rather than from output anyone has watched. It is offered
-where it is installed and greyed out where it is not.
+The hosted engine has answered for real — through Ollama on this machine, over
+the same API a paid provider speaks — and that test is in the repository. It
+carries no tools yet: a bot on it is told so in its prompt rather than being
+handed one describing a computer it cannot reach. Running botcage's connectors
+for an engine that has no MCP client of its own is the next piece of work, and
+the point of the whole seam.
+
+The Gemini CLI is wired up and its flags have been checked against a real
+install, but Google has since retired the free personal login for that client,
+so it now needs an API key like any other provider. Its stream mapping is
+written from documentation rather than from output anyone has watched.

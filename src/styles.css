@@ -1449,6 +1449,130 @@ textarea {
   color: var(--text-3);
 }
 
+/* Choosing from a catalogue rather than a list. */
+.sheet--models {
+  height: min(640px, 88vh);
+}
+
+.picker--open {
+  max-width: 60%;
+  overflow: hidden;
+  height: 28px;
+  padding: 0 10px;
+  color: var(--text);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--field);
+  border-radius: 8px;
+}
+
+.picker--open:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.chip--check {
+  gap: 6px;
+  cursor: pointer;
+}
+
+.models {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 2px;
+}
+
+.model-row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  width: 100%;
+  padding: 8px 10px;
+  text-align: left;
+  border-radius: 10px;
+}
+
+.model-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.model-row.is-on {
+  background: rgba(10, 132, 255, 0.16);
+}
+
+.model-row__name {
+  flex: 0 1 auto;
+  overflow: hidden;
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-row__by {
+  flex: 1;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-row__facts {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A model whose provider botcage has no key for. Shown, because knowing it
+   exists is most of the value; marked, because picking it needs one more step. */
+.model-row__locked {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  font-size: 10.5px;
+  color: var(--text-3);
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 999px;
+}
+
+.models__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.models__note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-3);
+}
+
+.models__key {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+.models__keyhead {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+.models__key input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  background: var(--field);
+  border-radius: 9px;
+}
+
 /* A sheet with tabs holds one size across all of them. Each panel has its own
    amount of content — Power is three rows, Phone is a QR square — so sizing to
    the content meant the window jumped every time a tab was clicked, moving the

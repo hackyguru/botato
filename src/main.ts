@@ -69,8 +69,11 @@ interface Bot {
    *  bot made before there was a choice, which is why everything that reads it
    *  falls back rather than failing. */
   engine?: string;
+  /** Which provider answers, for an engine that is an API rather than a
+   *  program: a models.dev id, or "ollama" for the one on this machine. */
+  provider?: string;
   /** Which of that engine's models. Named in the engine's own vocabulary, so
-   *  "opus" and "gemini-2.5-pro" both live here. */
+   *  "opus", "gemini-2.5-pro" and "anthropic/claude-sonnet-4" all live here. */
   model: string;
   routines?: Routine[];
   /** MCP server keys this bot may use. Absent means none. */
@@ -326,6 +329,32 @@ interface EngineInfo {
   ownsTranscript: boolean;
   tools: string;
   models: { key: string; name: string; hint: string }[];
+  /** True when its models are a catalogue to search, not a list to pick. */
+  searchable: boolean;
+}
+
+/** One model from models.dev, as the chooser shows it. */
+interface Listing {
+  provider: string;
+  providerName: string;
+  id: string;
+  name: string;
+  context: number | null;
+  costIn: number | null;
+  costOut: number | null;
+  tools: boolean;
+  reasoning: boolean;
+  /** Whether botcage holds a key for this model's provider. */
+  ready: boolean;
+}
+
+interface ProviderInfo {
+  id: string;
+  name: string;
+  api: string;
+  env: string[];
+  doc: string;
+  hasKey: boolean;
 }
 
 /** What botcage found, fetched at launch so a bot's settings can offer the
@@ -804,6 +833,7 @@ async function respond(bot: Bot, prompt: string): Promise<void> {
       req: {
         botId: bot.id,
         engine: bot.engine ?? DEFAULT_ENGINE,
+        provider: bot.provider,
         sessionId: bot.sessionId,
         resume: bot.started,
         prompt,
@@ -1205,6 +1235,7 @@ function paintSheetEngines(bot: Bot | null): void {
           ready: { usable: true, missing: null },
           ownsTranscript: true,
           tools: "native",
+          searchable: false,
           models: [
             { key: "opus", name: "Opus", hint: "The most capable, and the hungriest." },
             { key: "sonnet", name: "Sonnet", hint: "Easier on your usage limits." },
@@ -1248,6 +1279,19 @@ function paintSheetEngines(bot: Bot | null): void {
  *  has it, and otherwise becomes that engine's first. */
 function paintSheetModels(want?: string): void {
   const chosen = engineChoices.find((info) => info.key === sheetEngine.value);
+
+  // Six thousand models do not fit in a select, so that engine gets a button
+  // onto the catalogue instead — the same row, a different way of answering it.
+  const open = $<HTMLButtonElement>("#sheet-model-open");
+  const searchable = chosen?.searchable ?? false;
+  open.hidden = !searchable;
+  sheetModel.hidden = searchable;
+  if (searchable) {
+    open.textContent = draftModel.model || "Choose a model…";
+    paintSheetHints();
+    return;
+  }
+
   const models = chosen?.models.length
     ? chosen.models
     : [
@@ -1290,6 +1334,13 @@ function paintSheetHints(): void {
   $<HTMLSpanElement>("#sheet-engine-hint").textContent =
     lines.join(" ") || "Which installed tool runs this bot's turns.";
 
+  if (chosen?.searchable) {
+    $<HTMLSpanElement>("#sheet-model-hint").textContent = draftModel.model
+      ? `From ${draftModel.provider}. Anything on models.dev with an API.`
+      : "Anything on models.dev with an API — click to search.";
+    return;
+  }
+
   const model = chosen?.models.find((entry) => entry.key === sheetModel.value);
   $<HTMLSpanElement>("#sheet-model-hint").textContent =
     model?.hint ?? "Sonnet is easier on your usage limits.";
@@ -1297,6 +1348,180 @@ function paintSheetHints(): void {
 
 sheetEngine.addEventListener("change", () => paintSheetModels(sheetModel.value));
 sheetModel.addEventListener("change", paintSheetHints);
+
+/* ------------------------------------------------------- the model chooser */
+
+const modelsWrap = $<HTMLDivElement>("#models-wrap");
+const modelsSearch = $<HTMLInputElement>("#models-search");
+const modelsTools = $<HTMLInputElement>("#models-tools");
+const modelsList = $<HTMLDivElement>("#models-list");
+const modelsNote = $<HTMLParagraphElement>("#models-note");
+const modelsKey = $<HTMLDivElement>("#models-key");
+const modelsKeyInput = $<HTMLInputElement>("#models-key-input");
+
+/** What the chooser is currently showing, so a click can find its listing
+ *  without another round trip. */
+let shown: Listing[] = [];
+/** The model this sheet would save. Held apart from the bot because the sheet
+ *  applies on Save like everything else in it, and because a bot being created
+ *  does not exist yet to hold anything. */
+let draftModel: { provider?: string; model: string } = { model: "" };
+/** The provider whose key is being asked for, and the model that will be
+ *  chosen the moment it is given. */
+let pending: Listing | null = null;
+let providerList: ProviderInfo[] = [];
+
+/** Search is typed, and 6,000 models is a lot to re-rank on every keystroke. */
+let searchTimer = 0;
+
+function money(dollars: number | null): string {
+  if (dollars === null) return "";
+  if (dollars === 0) return "free";
+  return dollars >= 1 ? `$${dollars.toFixed(2)}` : `$${dollars.toFixed(2).replace(/^0/, "")}`;
+}
+
+function facts(model: Listing): string {
+  const bits: string[] = [];
+  if (model.context) bits.push(`${Math.round(model.context / 1000)}k`);
+  if (model.costIn !== null) bits.push(`${money(model.costIn)}/M in`);
+  if (model.tools) bits.push("tools");
+  return bits.join(" · ");
+}
+
+async function paintModels(): Promise<void> {
+  const query = modelsSearch.value.trim();
+  shown = await invoke<Listing[]>("catalogue_search", {
+    query,
+    toolsOnly: modelsTools.checked,
+    limit: 60,
+  }).catch(() => []);
+
+  if (!shown.length) {
+    const state = await invoke<{ models: number }>("catalogue_state").catch(() => ({ models: 0 }));
+    modelsList.innerHTML = state.models
+      ? `<p class="models__note">Nothing matches “${escapeHtml(query)}”.</p>`
+      : `<p class="models__note">The catalogue hasn't been fetched yet.</p>`;
+    if (!state.models) void fetchCatalogue();
+    return;
+  }
+
+  modelsList.replaceChildren(
+    ...shown.map((model, at) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "model-row";
+      row.dataset.at = String(at);
+      if (draftModel.provider === model.provider && draftModel.model === model.id) {
+        row.classList.add("is-on");
+      }
+      row.innerHTML =
+        `<span class="model-row__name"></span>` +
+        `<span class="model-row__by"></span>` +
+        `<span class="model-row__facts"></span>` +
+        (model.ready ? "" : `<span class="model-row__locked">needs a key</span>`);
+      row.querySelector(".model-row__name")!.textContent = model.name;
+      row.querySelector(".model-row__by")!.textContent = model.providerName;
+      row.querySelector(".model-row__facts")!.textContent = facts(model);
+      return row;
+    }),
+  );
+}
+
+async function fetchCatalogue(): Promise<void> {
+  modelsNote.textContent = "Fetching the catalogue from models.dev…";
+  try {
+    const count = await invoke<number>("catalogue_refresh");
+    modelsNote.textContent = `${count.toLocaleString()} models.`;
+    await paintModels();
+  } catch (err) {
+    modelsNote.textContent = String(err);
+  }
+}
+
+/** Ask for the key this provider needs, naming it the way its own
+ *  documentation does — the string someone will recognise from the page they
+ *  copied it from. */
+function askForKey(model: Listing): void {
+  pending = model;
+  const provider = providerList.find((p) => p.id === model.provider);
+  $<HTMLSpanElement>("#models-key-head").textContent = provider?.env[0] ?? "API key";
+  modelsKeyInput.value = "";
+  modelsKey.hidden = false;
+  $<HTMLButtonElement>("#models-key-forget").hidden = !provider?.hasKey;
+  modelsNote.textContent = provider?.doc
+    ? `${model.providerName} issues keys at ${provider.doc} — botcage keeps it in your keychain.`
+    : "botcage keeps the key in your keychain, and hands it to nothing but this provider.";
+  modelsKeyInput.focus();
+}
+
+function chooseModel(model: Listing): void {
+  draftModel = { provider: model.provider, model: model.id };
+  modelsWrap.hidden = true;
+  paintSheetModels(model.id);
+}
+
+async function openModels(): Promise<void> {
+  pending = null;
+  modelsKey.hidden = true;
+  modelsNote.textContent = "";
+  modelsWrap.hidden = false;
+  providerList = await invoke<ProviderInfo[]>("catalogue_providers").catch(() => []);
+  await paintModels();
+  modelsSearch.focus();
+  modelsSearch.select();
+}
+
+modelsSearch.addEventListener("input", () => {
+  window.clearTimeout(searchTimer);
+  searchTimer = window.setTimeout(() => void paintModels(), 140);
+});
+modelsTools.addEventListener("change", () => void paintModels());
+$<HTMLButtonElement>("#models-close").addEventListener("click", () => {
+  modelsWrap.hidden = true;
+});
+modelsWrap.addEventListener("mousedown", (e) => {
+  if (e.target === modelsWrap) modelsWrap.hidden = true;
+});
+$<HTMLFormElement>("#models-sheet").addEventListener("submit", (e) => e.preventDefault());
+
+modelsList.addEventListener("click", (e) => {
+  const row = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-at]");
+  if (!row) return;
+  const model = shown[Number(row.dataset.at)];
+  if (!model) return;
+  if (model.ready) chooseModel(model);
+  else askForKey(model);
+});
+
+$<HTMLButtonElement>("#models-key-save").addEventListener("click", () => {
+  if (!pending) return;
+  const key = modelsKeyInput.value.trim();
+  const model = pending;
+  invoke("provider_key_set", { provider: model.provider, key })
+    .then(async () => {
+      modelsKey.hidden = true;
+      providerList = await invoke<ProviderInfo[]>("catalogue_providers").catch(() => []);
+      chooseModel(model);
+      toast(`Key saved for ${model.providerName}`);
+    })
+    .catch((err) => {
+      modelsNote.textContent = String(err);
+    });
+});
+
+$<HTMLButtonElement>("#models-key-forget").addEventListener("click", () => {
+  if (!pending) return;
+  const gone = pending;
+  void invoke("provider_key_clear", { provider: gone.provider }).then(async () => {
+    modelsKey.hidden = true;
+    pending = null;
+    providerList = await invoke<ProviderInfo[]>("catalogue_providers").catch(() => []);
+    await paintModels();
+    toast(`Forgot the key for ${gone.providerName}`);
+  });
+});
+
+$<HTMLButtonElement>("#sheet-model-open").addEventListener("click", () => void openModels());
 
 function openSheet(bot: Bot | null = null): void {
   editing = bot;
@@ -1307,6 +1532,7 @@ function openSheet(bot: Bot | null = null): void {
   sheetRole.value = bot?.role ?? "";
   sheetComputer.checked = bot?.computer ?? false;
   sheetNetwork.value = bot?.network ?? "full";
+  draftModel = { provider: bot?.provider, model: bot?.model ?? "" };
   paintSheetEngines(bot);
   sheetBrowser.value = bot?.machine?.browser ?? "";
   sheetRendering.value = bot?.machine?.rendering ?? "";
@@ -2203,12 +2429,30 @@ sheetDelete.addEventListener("click", () => {
   toast(`Deleted ${name}`);
 });
 
+/** What this sheet would save as the model, and whether it is answerable.
+ *
+ *  An engine with a catalogue has no select to read, and a bot on one with
+ *  nothing chosen cannot be asked anything — so that is caught here rather than
+ *  on the first message. */
+function modelFromSheet(): { provider?: string; model: string } | null {
+  const chosen = engineChoices.find((info) => info.key === sheetEngine.value);
+  if (!chosen?.searchable) return { model: sheetModel.value };
+  if (!draftModel.model) {
+    toast("Choose a model for this bot");
+    void openModels();
+    return null;
+  }
+  return draftModel;
+}
+
 function saveSheet(): void {
   const name = sheetName.value.trim();
   if (!name) {
     sheetName.focus();
     return;
   }
+  const picked = modelFromSheet();
+  if (!picked) return;
 
   if (editing) {
     const before = { computer: editing.computer, network: editing.network };
@@ -2220,7 +2464,8 @@ function saveSheet(): void {
       computer: sheetComputer.checked,
       network: sheetNetwork.value as Bot["network"],
       engine: sheetEngine.value,
-      model: sheetModel.value,
+      provider: picked.provider,
+      model: picked.model,
       machine: machineFromSheet(),
     });
 
@@ -2262,6 +2507,8 @@ function saveSheet(): void {
 
 function createBot(): void {
   const name = sheetName.value.trim();
+  const picked = modelFromSheet();
+  if (!picked) return;
   const bot: Bot = {
     id: uid(),
     name,
@@ -2273,7 +2520,8 @@ function createBot(): void {
     computer: sheetComputer.checked,
     network: sheetNetwork.value as Bot["network"],
     engine: sheetEngine.value || DEFAULT_ENGINE,
-    model: sheetModel.value || appSettings().model,
+    provider: picked.provider,
+    model: picked.model || appSettings().model,
     machine: machineFromSheet(),
     plugins: [],
     routines: [],
@@ -3703,7 +3951,8 @@ document.addEventListener("keydown", (e) => {
     searchEl.focus();
     searchEl.select();
   } else if (e.key === "Escape") {
-    if (!routineWrap.hidden) routineWrap.hidden = true;
+    if (!modelsWrap.hidden) modelsWrap.hidden = true;
+    else if (!routineWrap.hidden) routineWrap.hidden = true;
     else if (!setupWrap.hidden) closeSetup();
     else if (!aboutWrap.hidden) aboutWrap.hidden = true;
     else if (!appWrap.hidden) appWrap.hidden = true;
@@ -4265,6 +4514,7 @@ function remoteSnapshot(): Record<string, unknown> {
       color: bot.color,
       shape: bot.shape,
       engine: bot.engine ?? DEFAULT_ENGINE,
+      provider: bot.provider,
       model: bot.model,
       computer: bot.computer,
       network: bot.network,

@@ -240,6 +240,41 @@
 
     <div class="menu" id="menu" hidden></div>
 
+    <div class="overlay" id="models-wrap" hidden>
+      <form class="sheet sheet--wide sheet--models" id="models-sheet">
+        <div class="sheet__head">
+          <h2 id="models-title">Choose a model</h2>
+          <button type="button" class="icon-btn icon-btn--sm" id="models-close" aria-label="Close">
+            <svg><use href="#i-x" /></svg>
+          </button>
+        </div>
+
+        <div class="market__bar">
+          <input id="models-search" class="market__search" spellcheck="false"
+                 placeholder="Search by model or provider — sonnet, llama, groq" />
+          <label class="chip chip--check">
+            <input type="checkbox" id="models-tools" />
+            <span>Can use tools</span>
+          </label>
+        </div>
+
+        <div class="sheet__body">
+          <div class="models" id="models-list"></div>
+        </div>
+
+        <div class="sheet__foot models__foot">
+          <p class="models__note" id="models-note"></p>
+          <div class="models__key" id="models-key" hidden>
+            <span class="models__keyhead" id="models-key-head"></span>
+            <input type="password" id="models-key-input" spellcheck="false"
+                   placeholder="Paste the key" autocomplete="off" />
+            <button type="button" class="chip" id="models-key-save"><span>Save key</span></button>
+            <button type="button" class="chip" id="models-key-forget" hidden><span>Forget</span></button>
+          </div>
+        </div>
+      </form>
+    </div>
+
     <div class="overlay" id="routine-wrap" hidden>
       <form class="sheet sheet--routine" id="routine-form">
         <div class="sheet__head">
@@ -351,11 +386,12 @@
               <select id="sheet-engine" class="picker"></select>
             </label>
 
-            <label class="setting">
+            <label class="setting" id="sheet-model-row">
               <span class="setting__label">Model
                 <span class="setting__hint" id="sheet-model-hint">Sonnet is easier on your usage limits.</span>
               </span>
               <select id="sheet-model" class="picker"></select>
+              <button type="button" class="picker picker--open" id="sheet-model-open" hidden></button>
             </label>
             </div>
 
