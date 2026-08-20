@@ -1199,18 +1199,23 @@ textarea {
    whole thing in ninety and registered as a flicker in brightness. */
 @keyframes blink {
   0%,
-  95.6%,
-  100% {
+  98.6% {
     clip-path: inset(0 0 0 0);
   }
-  96.7%,
-  98.9% {
-    clip-path: inset(72% 0 0 0);
+  96% {
+    clip-path: inset(62% 0 0 0);
   }
 }
 
+/* step-end, so nothing is interpolated: the lid is either up or down.
+   Every version of this before now eased between the two over sixty
+   milliseconds, and those in-between frames — an eye at seventy per cent, at
+   forty, at fifteen — are what made it look like the eye was dimming. Six
+   pixels is too small for a shape to be read halfway through changing. A
+   blink is a shutter: shut for a hundred and forty milliseconds, then open,
+   with nothing in between either way. */
 .face--blinks i {
-  animation: blink 5.5s linear infinite;
+  animation: blink 5.5s step-end infinite;
 }
 
 /* The second eye lags by a hair, which is what stops two dots looking like one
@@ -1647,19 +1652,16 @@ textarea {
    slow cycle: you have just pointed at it, and it looks back. */
 .lesson:hover .art--bot i,
 .lesson:focus-visible .art--bot i {
-  animation: blink-now 0.9s linear;
+  animation: blink-now 0.9s step-end;
 }
 
 @keyframes blink-now {
   0%,
-  15%,
-  42%,
-  100% {
+  40% {
     clip-path: inset(0 0 0 0);
   }
-  22%,
-  35% {
-    clip-path: inset(72% 0 0 0);
+  22% {
+    clip-path: inset(62% 0 0 0);
   }
 }
 
