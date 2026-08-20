@@ -84,7 +84,15 @@ interface Bot {
   plugins?: string[];
   /** What it looks like, when the user has chosen rather than accepted what
    *  its id implied. Absent fields fall back to that. */
-  face?: { head?: string; eyes?: string; brow?: string; smile?: string; mark?: string };
+  face?: {
+    head?: string;
+    eyes?: string;
+    brow?: string;
+    smile?: string;
+    mark?: string;
+    /** What it drew for itself, when the wardrobe had nothing that fit. */
+    parts?: Part[];
+  };
   /** How this bot's computer presents itself. Absent fields follow the app
    *  defaults; set ones make it a different machine from its siblings. */
   machine?: {
@@ -576,6 +584,19 @@ async function copy(text: string): Promise<void> {
  *
  *  Every trait is a name, never a drawing: the drawing lives in CSS, keyed off
  *  a data attribute, so a new eye shape is a rule rather than a change here. */
+/** One shape of a bot's own drawing. Percentages of the face box, with x and y
+ *  the centre — so the same numbers work at 22, 34 and 54 pixels. */
+interface Part {
+  shape: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  r?: number;
+  rot?: number;
+  fill?: string;
+}
+
 interface Face {
   head: string;
   eyes: string;
@@ -634,6 +655,46 @@ function faceOf(bot: Bot): Face {
     smile: bot.face?.smile ?? SMILES[(seed >> 9) % SMILES.length],
     mark: bot.face?.mark ?? MARKS[(seed >> 12) % MARKS.length],
   };
+}
+
+const SHAPES_ALLOWED = ["ellipse", "rect", "ring", "triangle", "line"];
+const FILLS: Record<string, string> = {
+  skin: "var(--skin)",
+  ink: "var(--ink)",
+  light: "#f4f4f6",
+  dark: "#2b2b2f",
+};
+
+/** A bot's own drawing, as boxes.
+ *
+ *  Checked again here even though the tool checked it: this is the step that
+ *  puts values into a style attribute, and the rule is that whatever is about
+ *  to be written is what gets validated — not whatever validated something
+ *  earlier, elsewhere, in another process. Anything unrecognised is dropped
+ *  rather than passed through. */
+function partsHtml(parts: Part[] | undefined): string {
+  if (!parts?.length) return "";
+  const num = (value: unknown, low: number, high: number, fallback: number) => {
+    const found = Number(value);
+    return Number.isFinite(found) ? Math.min(high, Math.max(low, found)) : fallback;
+  };
+
+  return parts
+    .slice(0, 6)
+    .filter((part) => SHAPES_ALLOWED.includes(part?.shape))
+    .map((part) => {
+      const fill = String(part.fill ?? "skin").toLowerCase();
+      const paint = /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/.test(fill) ? fill : (FILLS[fill] ?? "var(--skin)");
+      const style =
+        `left:${num(part.x, -60, 160, 50)}%;top:${num(part.y, -80, 160, 50)}%;` +
+        `width:${num(part.w, 1, 200, 20)}%;height:${num(part.h, 1, 200, 20)}%;` +
+        // Both, because a ring turns its fill into its edge through
+        // currentColor and has no background at all.
+        `background:${paint};color:${paint};` +
+        `--r:${num(part.r, 0, 50, 0)}%;--rot:${num(part.rot, -180, 180, 0)}deg`;
+      return `<span class="face__part" data-shape="${part.shape}" style="${style}"></span>`;
+    })
+    .join("");
 }
 
 /** What a bot is doing, as its face shows it.
@@ -718,7 +779,7 @@ function faceHtml(bot: Bot, size: "sm" | "md" | "lg" = "md"): string {
     `<span class="face__brows"><i></i><i></i></span>` +
     `<span class="face__eyes"><i></i><i></i></span>` +
     `<span class="face__mouth"></span>` +
-    `<span class="face__mark"></span>` +
+    `<span class="face__mark">${face.mark === "custom" ? partsHtml(bot.face?.parts) : ""}</span>` +
     // Empty at rest, and owned by no trait: whatever a mood wants to put above
     // a bot's head lives here — a thought cloud today, a spark or a "zzz"
     // later, without another element being added for each.
@@ -1173,7 +1234,10 @@ function handleBotEvent(event: BotEvent): void {
         const bot = state.bots.find((b) => b.id === event.botId);
         if (!bot || !wanted) return;
         const { colour, ...traits } = wanted;
+        // A new drawing replaces the old one rather than merging with it: two
+        // hats stacked is nobody's intention.
         bot.face = { ...bot.face, ...traits };
+        if (traits.mark && traits.mark !== "custom") delete bot.face.parts;
         if (colour) bot.color = colour;
         save();
         renderRoster();

@@ -583,6 +583,39 @@ textarea {
   display: none;
 }
 
+/* ---- a bot's own drawing
+   Shapes it composed itself, positioned by percentages of the face so the same
+   numbers work at every size. x and y are the centre, which is how anyone
+   thinks about placing a thing, and the translate is what makes that true. */
+.face__part {
+  position: absolute;
+  display: block;
+  transform: translate(-50%, -50%) rotate(var(--rot, 0deg));
+}
+
+.face__part[data-shape="ellipse"] {
+  border-radius: 50%;
+}
+
+.face__part[data-shape="rect"] {
+  border-radius: var(--r, 0);
+}
+
+.face__part[data-shape="line"] {
+  border-radius: 999px;
+}
+
+.face__part[data-shape="triangle"] {
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+/* A ring is a hole, so its fill becomes its edge. */
+.face__part[data-shape="ring"] {
+  background: transparent !important;
+  border: max(1px, 0.28em) solid currentColor;
+  border-radius: 50%;
+}
+
 .face[data-mark="antenna"] .face__mark::before {
   content: "";
   position: absolute;

@@ -132,6 +132,144 @@ const LOOKS: &[(&str, &[&str])] = &[
     ),
 ];
 
+/// The shapes a bot may compose when the wardrobe has nothing that fits.
+///
+/// Numbers and an enum, never markup: a model that can emit SVG into the app's
+/// own chrome is a sanitiser to maintain forever, and one that can emit a
+/// rectangle is a rectangle. Anything anyone asks for — a monocle, a scarf, a
+/// crown — is three or four of these.
+const SHAPES: &[&str] = &["ellipse", "rect", "ring", "triangle", "line"];
+
+/// Colours a part may take. A bot's own colour and its ink are named rather
+/// than spelled, so an invention still looks like it belongs to this app
+/// rather than to whichever model drew it.
+const FILLS: &[&str] = &["skin", "ink", "light", "dark"];
+
+/// At most this many shapes in one mark. A hat is two; a face wearing nine is
+/// not wearing anything, it is covered.
+const MOST_PARTS: usize = 6;
+
+fn number(
+    value: &Value,
+    name: &str,
+    low: f64,
+    high: f64,
+    refused: &mut Vec<String>,
+) -> Option<f64> {
+    let Some(found) = value.as_f64() else {
+        refused.push(format!("{name} must be a number"));
+        return None;
+    };
+    if found < low || found > high {
+        refused.push(format!(
+            "{name} must be between {low} and {high}, not {found}"
+        ));
+        return None;
+    }
+    Some(found)
+}
+
+/// Check a bot's drawing, shape by shape, and say precisely what is wrong.
+///
+/// Precisely, because the reader is a model that will try again: "parts[1].w
+/// must be between 1 and 200" is a fixable complaint and "invalid input" is
+/// another round trip.
+fn check_parts(parts: &Value) -> Result<Value, String> {
+    let Some(list) = parts.as_array() else {
+        return Err("parts must be a list of shapes".into());
+    };
+    if list.is_empty() {
+        return Err("parts is empty — give at least one shape, or use a mark from the list".into());
+    }
+    if list.len() > MOST_PARTS {
+        return Err(format!(
+            "{} shapes is too many; {MOST_PARTS} is the most a face can carry",
+            list.len()
+        ));
+    }
+
+    let mut refused = Vec::new();
+    let mut clean = Vec::new();
+    for (at, part) in list.iter().enumerate() {
+        let mut one = serde_json::Map::new();
+        let where_ = format!("parts[{at}]");
+
+        match part["shape"].as_str() {
+            Some(shape) if SHAPES.contains(&shape) => {
+                one.insert("shape".into(), Value::String(shape.into()));
+            }
+            other => refused.push(format!(
+                "{where_}.shape is {:?}; pick one of: {}",
+                other.unwrap_or("missing"),
+                SHAPES.join(", ")
+            )),
+        }
+
+        // Percentages of the face box, and outside it is allowed: a hat sits
+        // above the head, which is what negative y is for.
+        for (name, low, high) in [("x", -60.0, 160.0), ("y", -80.0, 160.0)] {
+            if let Some(found) = number(
+                &part[name],
+                &format!("{where_}.{name}"),
+                low,
+                high,
+                &mut refused,
+            ) {
+                one.insert(name.into(), Value::from(found));
+            }
+        }
+        for name in ["w", "h"] {
+            if let Some(found) = number(
+                &part[name],
+                &format!("{where_}.{name}"),
+                1.0,
+                200.0,
+                &mut refused,
+            ) {
+                one.insert(name.into(), Value::from(found));
+            }
+        }
+        for (name, low, high) in [("r", 0.0, 50.0), ("rot", -180.0, 180.0)] {
+            if part.get(name).is_some() {
+                if let Some(found) = number(
+                    &part[name],
+                    &format!("{where_}.{name}"),
+                    low,
+                    high,
+                    &mut refused,
+                ) {
+                    one.insert(name.into(), Value::from(found));
+                }
+            }
+        }
+
+        let fill = part["fill"]
+            .as_str()
+            .unwrap_or("skin")
+            .trim()
+            .to_lowercase();
+        let hex = fill.starts_with('#')
+            && (fill.len() == 7 || fill.len() == 4)
+            && fill[1..].chars().all(|c| c.is_ascii_hexdigit());
+        if hex || FILLS.contains(&fill.as_str()) {
+            one.insert("fill".into(), Value::String(fill));
+        } else {
+            refused.push(format!(
+                "{where_}.fill is \"{fill}\"; use a hex value like #b07d4a, or one of: {}",
+                FILLS.join(", ")
+            ));
+        }
+
+        clean.push(Value::Object(one));
+    }
+
+    if refused.is_empty() {
+        Ok(Value::Array(clean))
+    } else {
+        Err(refused.join("\n"))
+    }
+}
+
 /// What a bot writes when it changes its own appearance.
 ///
 /// A file rather than a call back into the app: this server is a separate
@@ -173,6 +311,17 @@ fn set_look(bot: &Bot, args: &Value) -> Value {
         }
     }
 
+    // A drawing of its own, when nothing in the wardrobe fits.
+    if let Some(parts) = args.get("parts").filter(|p| !p.is_null()) {
+        match check_parts(parts) {
+            Err(why) => return text_result(why, true),
+            Ok(clean) => {
+                chosen.insert("mark".into(), Value::String("custom".into()));
+                chosen.insert("parts".into(), clean);
+            }
+        }
+    }
+
     if !refused.is_empty() {
         return text_result(refused.join("\n"), true);
     }
@@ -207,7 +356,7 @@ fn tool_specs(bot: &Bot) -> Value {
         {
             "name": "set_appearance",
             "description": format!(
-                "Change how you look. You are drawn as a face in botcage: a head, eyes, brows, a                  resting smile, an optional mark, and a colour. Call this when the user asks you                  to change your appearance, or when you want to — you own your own face. Every                  field is optional; the ones you leave out stay as they are.\n\n                 head: {}\neyes: {}\nbrow: {}\nsmile: {}\nmark: {}\n                 colour: a hex value like #30d158.\n\n                 The smile is only how your mouth rests — your expression still follows what you                  are doing, so you will grin when a task lands whatever you set here. Nothing                  outside these words exists: pick the closest thing that does,                  say what you picked, and name what was not available rather than inventing it.                  Hats do exist — cowboy is a cowboy hat, cap is a peaked cap, and halo and bow                  are what they sound like.",
+                "Change how you look. You are drawn as a face in botcage: a head, eyes, brows, a                  resting smile, an optional mark, and a colour. Call this when the user asks you                  to change your appearance, or when you want to — you own your own face. Every                  field is optional; the ones you leave out stay as they are.\n\n                 head: {}\neyes: {}\nbrow: {}\nsmile: {}\nmark: {}\n                 colour: a hex value like #30d158.\n\n                 The smile is only how your mouth rests — your expression still follows what you                  are doing, so you will grin when a task lands whatever you set here. Nothing                  outside these words exists: pick the closest thing that does,                  say what you picked, and name what was not available rather than inventing it.                  Hats do exist — cowboy is a cowboy hat, cap is a peaked cap, and halo and bow                  are what they sound like. And if the list genuinely has nothing for what was                  asked, draw it yourself with `parts`: a few shapes will make a monocle, a                  scarf or a crown. Prefer the named marks when one fits — they are tuned to                  read at small sizes — and reach for shapes when none does.",
                 LOOKS[0].1.join(", "), LOOKS[1].1.join(", "), LOOKS[2].1.join(", "),
                 LOOKS[3].1.join(", "), LOOKS[4].1.join(", ")
             ),
@@ -219,7 +368,42 @@ fn tool_specs(bot: &Bot) -> Value {
                     "brow": { "type": "string" },
                     "smile": { "type": "string" },
                     "mark": { "type": "string" },
-                    "colour": { "type": "string" }
+                    "colour": { "type": "string" },
+                    "parts": {
+                        "type": "array",
+                        "description":
+                            "Draw something the mark list has not got — a monocle, a scarf, a \
+                             crown. Up to six shapes, and giving this sets your mark to your own \
+                             drawing.\n\n\
+                             Coordinates are percentages of your face, and x and y are the \
+                             centre of the shape: 0,0 is your top-left corner, 50,50 is the \
+                             middle of your face, 100,100 is bottom-right. Negative y is above \
+                             your head, which is where a hat goes. w and h are percentages of \
+                             your face too, so w:100 is exactly as wide as you are.\n\n\
+                             shape: ellipse, rect, ring, triangle or line. r rounds a rect's \
+                             corners (0-50). rot turns a shape in degrees. fill takes a hex \
+                             value, or skin (your own colour), ink (your features), light or \
+                             dark.\n\n\
+                             A cowboy hat is two shapes: an ellipse at x50 y-4 w100 h15 for the \
+                             brim, and a rect at x50 y-19 w46 h27 r40 for the crown, both in a \
+                             leather colour. Build outward from that: the brim goes behind the \
+                             crown because it is listed first, and things listed later are drawn \
+                             on top.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "shape": { "type": "string" },
+                                "x": { "type": "number" },
+                                "y": { "type": "number" },
+                                "w": { "type": "number" },
+                                "h": { "type": "number" },
+                                "r": { "type": "number" },
+                                "rot": { "type": "number" },
+                                "fill": { "type": "string" }
+                            },
+                            "required": ["shape", "x", "y", "w", "h"]
+                        }
+                    }
                 }
             }
         },
@@ -633,5 +817,96 @@ mod tests {
     fn asking_for_nothing_says_so() {
         let bot = a_bot("empty");
         assert_eq!(set_look(&bot, &json!({}))["isError"], true);
+    }
+}
+
+#[cfg(test)]
+mod drawing_tests {
+    use super::*;
+
+    /// The case the shape language exists for: something nobody put in the
+    /// wardrobe, composed out of two rectangles and an ellipse.
+    #[test]
+    fn a_bot_can_draw_what_the_wardrobe_has_not_got() {
+        let bot = {
+            let dir = std::env::temp_dir().join("botcage-face-draw");
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            Bot {
+                id: "b1".into(),
+                workspace: dir,
+                brand: Default::default(),
+            }
+        };
+
+        let said = set_look(
+            &bot,
+            &json!({ "parts": [
+                { "shape": "ellipse", "x": 50, "y": -4,  "w": 100, "h": 15, "fill": "#b07d4a" },
+                { "shape": "rect",    "x": 50, "y": -19, "w": 46,  "h": 27, "r": 40, "fill": "#b07d4a" }
+            ]}),
+        );
+        assert_ne!(said["isError"], true, "{said}");
+
+        let written: Value = serde_json::from_str(
+            &std::fs::read_to_string(bot.workspace.join("face.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            written["mark"], "custom",
+            "drawing something sets the mark to it"
+        );
+        assert_eq!(written["parts"].as_array().unwrap().len(), 2);
+        assert_eq!(written["parts"][1]["r"], 40.0);
+    }
+
+    /// The reader of a refusal is a model that will try again, so it has to say
+    /// which shape and which field — not "invalid input".
+    #[test]
+    fn a_bad_shape_is_refused_where_it_went_wrong() {
+        let why = check_parts(&json!([
+            { "shape": "ellipse", "x": 50, "y": 0, "w": 40, "h": 20 },
+            { "shape": "hexagon", "x": 50, "y": 0, "w": 999, "h": 20, "fill": "puce" }
+        ]))
+        .unwrap_err();
+
+        assert!(why.contains("parts[1].shape"), "{why}");
+        assert!(
+            why.contains("hexagon") && why.contains("ellipse"),
+            "names what was asked and what exists: {why}"
+        );
+        assert!(
+            why.contains("parts[1].w"),
+            "and the out-of-range size: {why}"
+        );
+        assert!(why.contains("parts[1].fill"), "and the colour: {why}");
+        assert!(
+            !why.contains("parts[0]"),
+            "but says nothing about the shape that was fine"
+        );
+    }
+
+    #[test]
+    fn a_face_cannot_be_covered_in_shapes() {
+        let many: Vec<Value> = (0..7)
+            .map(|_| json!({ "shape": "rect", "x": 50, "y": 50, "w": 10, "h": 10 }))
+            .collect();
+        assert!(check_parts(&Value::Array(many))
+            .unwrap_err()
+            .contains("too many"));
+        assert!(check_parts(&json!([])).unwrap_err().contains("empty"));
+    }
+
+    /// Above the head is where a hat goes, so negative y has to be allowed —
+    /// and somewhere far off the canvas must not be.
+    #[test]
+    fn a_shape_may_sit_above_the_head_but_not_in_the_next_county() {
+        assert!(
+            check_parts(&json!([{ "shape": "rect", "x": 50, "y": -30, "w": 40, "h": 20 }])).is_ok()
+        );
+        assert!(
+            check_parts(&json!([{ "shape": "rect", "x": 50, "y": -400, "w": 40, "h": 20 }]))
+                .is_err()
+        );
     }
 }
