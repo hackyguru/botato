@@ -1210,18 +1210,22 @@ textarea {
    instead of something passing over it. */
 @keyframes eye-blink {
   0%,
-  93.4%,
+  86%,
   100% {
     clip-path: inset(0 0 0 0);
   }
-  94.8%,
-  96.2% {
+  89%,
+  92% {
     clip-path: inset(96% 0 0 0);
   }
 }
 
+/* Every 2.6 seconds, which is roughly how often a person blinks and exactly
+   the cadence this was chosen at. It was on a five-and-a-half second cycle
+   first, and a blink you have to wait that long for is one you conclude is not
+   happening. */
 .face--blinks i {
-  animation: eye-blink 5.5s linear infinite;
+  animation: eye-blink 2.6s linear infinite;
 }
 
 /* The second eye lags by a hair, which is what stops two dots looking like one
