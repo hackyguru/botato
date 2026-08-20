@@ -1152,6 +1152,22 @@ fn urldecode(raw: &str) -> String {
 
 /* ------------------------------------------------------------ credentials */
 
+// The same store, for anything else that holds a credential on the user's
+// behalf — a model provider's API key is the same kind of secret as a
+// connector's token, and inventing a second place to put one would mean two
+// things to get wrong.
+pub(crate) fn write_secret(key: &str, secret: &str) -> Result<(), String> {
+    store_token(key, secret)
+}
+
+pub(crate) fn read_secret(key: &str) -> Option<String> {
+    read_token(key)
+}
+
+pub(crate) fn forget_secret(key: &str) {
+    delete_token(key);
+}
+
 // Only the keychain path names a service; the file fallback elsewhere does not,
 // which makes this dead code on Linux and a hard error under `-D warnings`.
 #[cfg(target_os = "macos")]

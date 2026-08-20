@@ -52,6 +52,10 @@ pub struct Turn {
     pub mcp_servers: serde_json::Value,
     /// Secrets a plugin needs in the environment.
     pub env: Vec<(String, String)>,
+    /// Where to send this turn, for an engine that is an API rather than a
+    /// program. Resolved by the caller, because which provider a bot uses and
+    /// what key botcage holds for it are botcage's business, not the engine's.
+    pub api: Option<Api>,
     /// What was said before this, oldest first.
     ///
     /// Empty for an engine that keeps its own conversation and is being asked
@@ -59,6 +63,18 @@ pub struct Turn {
     /// double every exchange. Filled for anything that cannot, which is what
     /// makes a bot on such an engine a bot rather than a series of strangers.
     pub history: Vec<crate::transcript::Entry>,
+}
+
+/// One provider, resolved: somewhere to send a request and, usually, the
+/// credential for it.
+#[derive(Debug, Clone)]
+pub struct Api {
+    pub provider: String,
+    /// The base URL, no trailing slash — models.dev publishes one per provider.
+    pub base: String,
+    /// None for a provider that needs no key, which in practice means one
+    /// running on this machine.
+    pub key: Option<String>,
 }
 
 /// A prompt with the conversation in front of it, for an engine that cannot
@@ -166,6 +182,14 @@ pub trait Engine: Send + Sync {
     /// reason claude.ai's were removed — and a bot's GitHub or Notion should
     /// work whatever answers for it.
     fn tools(&self) -> ToolDelivery;
+
+    /// Are this engine's models a list to pick from, or a catalogue to search?
+    ///
+    /// Two entries fit in a select; six thousand do not. An engine that reaches
+    /// models.dev says so here, and the sheet offers a search instead.
+    fn searchable(&self) -> bool {
+        false
+    }
 
     /// Which models it can be asked for, the one to default to first.
     ///
@@ -694,10 +718,207 @@ impl Engine for GeminiCli {
     }
 }
 
+/// Any model with an OpenAI-shaped API — which, by way of models.dev, is most
+/// of them.
+///
+/// The other two engines are programs botcage runs. This one is a request:
+/// a base URL from the catalogue, a key from the keychain, and the chat
+/// completions shape that every provider worth reaching has settled on. That
+/// is what makes "all of them" a reasonable claim rather than a hundred
+/// integrations.
+///
+/// It is still spawned rather than called, because curl is already how this app
+/// talks to the network and because a turn that can be killed is a turn the
+/// stop button can stop. The engine seam does not care which it is.
+pub struct OpenAiCompatible;
+
+/// What the request needs from botcage: the conversation, as the API wants it.
+///
+/// The system prompt is a message rather than a preamble, and the history is
+/// turns rather than a transcript pasted into one — this is the one engine that
+/// can be given the conversation in the shape it actually has.
+fn messages(turn: &Turn) -> serde_json::Value {
+    let mut out = vec![serde_json::json!({
+        "role": "system",
+        "content": turn.system_prompt,
+    })];
+    for entry in &turn.history {
+        out.push(serde_json::json!({
+            "role": match entry.voice {
+                crate::transcript::Voice::User => "user",
+                crate::transcript::Voice::Bot => "assistant",
+            },
+            "content": entry.text,
+        }));
+    }
+    out.push(serde_json::json!({ "role": "user", "content": turn.prompt }));
+    serde_json::Value::Array(out)
+}
+
+impl Engine for OpenAiCompatible {
+    fn key(&self) -> &'static str {
+        "openai-compatible"
+    }
+
+    fn name(&self) -> &'static str {
+        "Any hosted model"
+    }
+
+    fn ready(&self) -> Ready {
+        // Whether a particular provider can be reached depends on the bot, not
+        // the machine: one bot may have a key for Groq and another none at all.
+        // The engine itself needs nothing installed.
+        Ready::yes()
+    }
+
+    fn searchable(&self) -> bool {
+        true
+    }
+
+    fn models(&self) -> Vec<Model> {
+        // Six thousand of them, and they change weekly. The catalogue answers
+        // this, not a list compiled into the binary.
+        Vec::new()
+    }
+
+    fn owns_transcript(&self) -> bool {
+        // An API remembers nothing between requests. This is the case the
+        // transcript was written for.
+        false
+    }
+
+    fn tools(&self) -> ToolDelivery {
+        // Honest rather than aspirational: the request this builds carries no
+        // tools, so a bot on this engine has none. Handing over botcage's
+        // connectors means running the tool loop here — asking, executing,
+        // asking again — which is the next piece of work, not this one.
+        ToolDelivery::None
+    }
+
+    fn command(&self, turn: &Turn) -> Result<std::process::Command, String> {
+        let api = turn
+            .api
+            .as_ref()
+            .ok_or("this bot has no provider chosen — pick a model in its settings")?;
+        if api.key.is_none() && !api.base.starts_with("http://localhost") {
+            return Err(format!(
+                "botcage has no API key for {} — add one in the bot's settings",
+                api.provider
+            ));
+        }
+
+        // The body goes to a file rather than an argument: a prompt on a command
+        // line is visible to every process on the machine through `ps`. It holds
+        // nothing the transcript in the same directory does not.
+        let body = serde_json::json!({
+            "model": turn.model,
+            "stream": true,
+            "messages": messages(turn),
+        });
+        let request = turn.cwd.join(".botcage-request.json");
+        std::fs::write(&request, body.to_string())
+            .map_err(|e| format!("could not write this turn's request: {e}"))?;
+
+        let mut cmd = std::process::Command::new("curl");
+        cmd.current_dir(&turn.cwd)
+            .args(["-sS", "--no-buffer", "-X", "POST"])
+            .arg(format!("{}/chat/completions", api.base))
+            .args(["-H", "content-type: application/json"])
+            .arg("--data-binary")
+            .arg(format!("@{}", request.display()))
+            // The prompt is in the body; there is nothing to send on stdin, and
+            // saying so is how the runner knows not to write to it.
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+
+        if let Some(key) = &api.key {
+            // Through the environment and curl's own expansion, so the key is
+            // in neither the command line nor a file. `ps` shows the variable's
+            // name; only this process and curl ever see its contents.
+            cmd.env("BOTCAGE_KEY", key)
+                .args(["--variable", "%BOTCAGE_KEY"])
+                .args(["--expand-header", "authorization: Bearer {{BOTCAGE_KEY}}"]);
+        }
+
+        for (var, value) in &turn.env {
+            cmd.env(var, value);
+        }
+
+        Ok(cmd)
+    }
+
+    fn read_line(&self, line: &str) -> Vec<Event> {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with(':') {
+            return Vec::new();
+        }
+
+        // A failed request is not a stream: it is one JSON object, unprefixed.
+        // Reading it is the difference between telling someone their key is
+        // wrong and telling them the turn ended for no reason.
+        let Some(data) = line.strip_prefix("data:") else {
+            return match serde_json::from_str::<serde_json::Value>(line) {
+                Ok(frame) if !frame["error"].is_null() => vec![Event::Error(
+                    frame["error"]["message"]
+                        .as_str()
+                        .or_else(|| frame["error"].as_str())
+                        .unwrap_or("the provider refused the request")
+                        .to_string(),
+                )],
+                _ => Vec::new(),
+            };
+        };
+
+        let data = data.trim();
+        if data == "[DONE]" {
+            // The stream is over; what was said is what was streamed.
+            return vec![Event::Done {
+                text: None,
+                cost_usd: None,
+                duration_ms: None,
+            }];
+        }
+
+        let Ok(frame) = serde_json::from_str::<serde_json::Value>(data) else {
+            return Vec::new();
+        };
+        if !frame["error"].is_null() {
+            return vec![Event::Error(
+                frame["error"]["message"]
+                    .as_str()
+                    .unwrap_or("the provider stopped the reply")
+                    .to_string(),
+            )];
+        }
+
+        let delta = &frame["choices"][0]["delta"];
+        let mut events = Vec::new();
+
+        // Reasoning goes by two names depending on whose gateway it came
+        // through, and neither is the one in the specification.
+        if let Some(thought) = delta["reasoning_content"]
+            .as_str()
+            .or_else(|| delta["reasoning"].as_str())
+            .filter(|t| !t.is_empty())
+        {
+            events.push(Event::Thinking(thought.to_string()));
+        }
+        if let Some(text) = delta["content"].as_str().filter(|t| !t.is_empty()) {
+            events.push(Event::Delta(text.to_string()));
+        }
+        events
+    }
+}
+
 /// Every engine botcage knows about. A list rather than a constant, so adding
 /// one is a line here and an implementation beside it.
 pub fn all() -> Vec<Box<dyn Engine>> {
-    vec![Box::new(ClaudeCode), Box::new(GeminiCli)]
+    vec![
+        Box::new(ClaudeCode),
+        Box::new(GeminiCli),
+        Box::new(OpenAiCompatible),
+    ]
 }
 
 /// The engine a bot asked for, or the default when it named none — every bot
@@ -722,6 +943,9 @@ pub struct EngineInfo {
     pub owns_transcript: bool,
     pub tools: ToolDelivery,
     pub models: Vec<Model>,
+    /// True when the models come from models.dev, and the sheet should offer a
+    /// search rather than a list.
+    pub searchable: bool,
 }
 
 #[tauri::command(async)]
@@ -735,6 +959,7 @@ pub fn engines() -> Vec<EngineInfo> {
             owns_transcript: engine.owns_transcript(),
             tools: engine.tools(),
             models: engine.models(),
+            searchable: engine.searchable(),
         })
         .collect()
 }
@@ -754,20 +979,29 @@ mod tests {
         assert_eq!(for_key(Some("something-else")).key(), DEFAULT);
     }
 
+    /// The connectors are botcage's own — a bot's GitHub should work whatever
+    /// answers for it — so an engine declares how they reach the model.
+    ///
+    /// An engine that runs its own tool loop must carry them: an MCP client is
+    /// right there, and not handing the servers over would mean a bot losing
+    /// its connections by changing model, which is what this seam exists to
+    /// prevent. An engine may answer None, but only as a statement about what
+    /// it can do today, and the app has to be able to see that it said so.
     #[test]
-    fn every_engine_can_carry_botcage_s_connectors() {
-        // The connectors are botcage's own — a bot's GitHub should work
-        // whatever answers for it — so an engine says how they reach the model,
-        // not whether they may. Only a model that cannot call a function at all
-        // is exempt.
-        for engine in all() {
-            assert_ne!(
-                engine.tools(),
-                ToolDelivery::None,
-                "{} claims it cannot carry connectors",
-                engine.name()
-            );
-        }
+    fn an_engine_says_how_botcage_s_connectors_reach_it() {
+        // The two that bring their own MCP client are handed the servers. If
+        // either of these changes, a bot has quietly lost its connections.
+        assert_eq!(for_key(Some("claude-code")).tools(), ToolDelivery::Native);
+        assert_eq!(for_key(Some("gemini-cli")).tools(), ToolDelivery::Native);
+
+        // And the hosted engine admits it has none yet rather than claiming
+        // tools the request it builds does not carry. When the tool loop lands
+        // this becomes Hosted, and this line is how anyone notices.
+        assert_eq!(
+            for_key(Some("openai-compatible")).tools(),
+            ToolDelivery::None,
+            "if this carries tools now, the bot's prompt must stop saying it cannot"
+        );
     }
 
     /// The reason for adding a second engine at all: to find out what botcage
@@ -862,6 +1096,7 @@ mod tests {
             mcp_servers: serde_json::json!({ "github": { "command": "x" } }),
             env: vec![("GITHUB_TOKEN".into(), "secret".into())],
             history: Vec::new(),
+            api: None,
         };
 
         let Ok(cmd) = ClaudeCode.command(&turn) else {
@@ -992,6 +1227,7 @@ mod tests {
             mcp_servers: serde_json::json!({ "github": { "command": "gh-mcp" } }),
             env: vec![],
             history: vec![],
+            api: None,
         }
     }
 
@@ -1138,6 +1374,132 @@ mod tests {
         );
     }
 
+    /// Against the shapes a streaming chat API sends. Written from real ones,
+    /// including the two names reasoning goes by.
+    #[test]
+    fn a_chat_stream_becomes_botcage_events() {
+        let api = OpenAiCompatible;
+        let read = |line: &str| api.read_line(line);
+
+        assert!(matches!(
+            read(r#"data: {"choices":[{"delta":{"content":"Two PRs"}}]}"#).as_slice(),
+            [Event::Delta(text)] if text == "Two PRs"
+        ));
+
+        // Neither of these is in the specification; both are in the wild.
+        assert!(matches!(
+            read(r#"data: {"choices":[{"delta":{"reasoning_content":"weighing it"}}]}"#).as_slice(),
+            [Event::Thinking(text)] if text == "weighing it"
+        ));
+        assert!(matches!(
+            read(r#"data: {"choices":[{"delta":{"reasoning":"weighing it"}}]}"#).as_slice(),
+            [Event::Thinking(text)] if text == "weighing it"
+        ));
+
+        assert!(matches!(
+            read("data: [DONE]").as_slice(),
+            [Event::Done { text: None, .. }]
+        ));
+
+        // A refused request is one JSON object with no data: prefix. Reading it
+        // is the difference between "your key is wrong" and a turn that ended
+        // for no stated reason.
+        assert!(matches!(
+            read(r#"{"error":{"message":"Incorrect API key provided","type":"invalid_request_error"}}"#).as_slice(),
+            [Event::Error(why)] if why == "Incorrect API key provided"
+        ));
+        assert!(matches!(
+            read(r#"data: {"error":{"message":"context length exceeded"}}"#).as_slice(),
+            [Event::Error(why)] if why == "context length exceeded"
+        ));
+
+        // Keep-alives, blank lines between frames, the empty first delta that
+        // only carries a role, and a line cut in half: all silence.
+        assert!(read(": ping").is_empty());
+        assert!(read("").is_empty());
+        assert!(read(r#"data: {"choices":[{"delta":{"role":"assistant"}}]}"#).is_empty());
+        assert!(read(r#"data: {"choices":[{"del"#).is_empty());
+    }
+
+    /// The conversation, in the shape an API expects rather than pasted into
+    /// one string — the one engine that can be given it properly.
+    #[test]
+    fn a_request_carries_the_conversation_as_turns() {
+        let mut turn = a_turn(std::env::temp_dir());
+        turn.history = vec![
+            entry(crate::transcript::Voice::User, "morning"),
+            entry(crate::transcript::Voice::Bot, "two PRs need review"),
+        ];
+
+        let body = messages(&turn);
+        let roles: Vec<&str> = body
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| m["role"].as_str().unwrap())
+            .collect();
+        assert_eq!(roles, vec!["system", "user", "assistant", "user"]);
+        assert_eq!(body[0]["content"], turn.system_prompt);
+        assert_eq!(body[3]["content"], "which ones?", "the question comes last");
+    }
+
+    #[test]
+    fn a_hosted_bot_with_no_provider_is_told_so() {
+        // Rather than a request to nowhere, or a key of someone else's.
+        let turn = a_turn(std::env::temp_dir());
+        let refused = OpenAiCompatible.command(&turn).unwrap_err();
+        assert!(refused.contains("provider"), "unhelpful: {refused}");
+    }
+
+    /// The whole path against something real: a model on this machine, over the
+    /// same API every provider in the catalogue speaks. No key, no account, and
+    /// no way for it to pass by accident — if the request shape is wrong,
+    /// nothing comes back.
+    #[test]
+    #[ignore = "talks to Ollama on this machine; run explicitly"]
+    fn a_local_model_answers_through_the_hosted_engine() {
+        use std::io::{BufRead, BufReader};
+
+        let dir = std::env::temp_dir().join("botcage-hosted-turn");
+        std::fs::create_dir_all(&dir).expect("workspace");
+
+        let mut turn = a_turn(dir);
+        turn.model = "tinyllama:latest".into();
+        turn.system_prompt = "You answer in one short sentence.".into();
+        turn.prompt = "Say hello.".into();
+        turn.api = Some(Api {
+            provider: "Ollama".into(),
+            base: "http://localhost:11434/v1".into(),
+            key: None,
+        });
+
+        let engine = OpenAiCompatible;
+        let mut child = engine
+            .command(&turn)
+            .expect("command")
+            .spawn()
+            .expect("curl");
+        let stdout = child.stdout.take().expect("stdout");
+
+        let mut said = String::new();
+        let mut finished = false;
+        for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+            for event in engine.read_line(&line) {
+                match event {
+                    Event::Delta(text) => said.push_str(&text),
+                    Event::Done { .. } => finished = true,
+                    Event::Error(why) => panic!("the model refused: {why}"),
+                    _ => {}
+                }
+            }
+        }
+        let _ = child.wait();
+
+        assert!(!said.trim().is_empty(), "nothing was said");
+        assert!(finished, "the stream never announced its end");
+        println!("tinyllama said: {}", said.trim());
+    }
+
     #[test]
     fn the_registry_describes_itself() {
         let listed = engines();
@@ -1150,9 +1512,14 @@ mod tests {
             assert!(!engine.name.is_empty());
             // Not usable is fine; not saying why is not.
             assert!(engine.ready.usable || engine.ready.missing.is_some());
-            // An engine with no model to ask for cannot be picked, and a picker
-            // that offers it is a picker that produces a broken bot.
-            assert!(!engine.models.is_empty(), "{} offers no model", engine.name);
+            // An engine has to answer "which model?" somehow: a short list to
+            // pick from, or a catalogue to search. Neither means a picker that
+            // produces a bot nobody can ask anything.
+            assert!(
+                !engine.models.is_empty() || engine.searchable,
+                "{} offers no model and no way to find one",
+                engine.name
+            );
             for model in &engine.models {
                 assert!(!model.key.is_empty() && !model.hint.is_empty());
             }

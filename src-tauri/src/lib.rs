@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, RunEvent};
 
+mod catalogue;
 mod connectors;
 mod engine;
 mod inference;
@@ -167,6 +168,10 @@ struct AskRequest {
     /// was a choice, which is why it falls back rather than failing.
     #[serde(default)]
     engine: Option<String>,
+    /// Which provider, for an engine that is an API. A models.dev id, or
+    /// "ollama" for the one on this machine.
+    #[serde(default)]
+    provider: Option<String>,
     session_id: String,
     /// False for a bot's first turn (creates the session), true afterwards.
     resume: bool,
@@ -291,8 +296,15 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     // Permission, not container state, decides this: a bot allowed a computer
     // is told it has one and can switch it on itself, so its account of what it
     // can do doesn't change with whether something happens to be running.
+    // Some engines cannot call a tool at all — a bare chat API has no way to
+    // read a file or drive a browser. A bot on one is told that plainly rather
+    // than being handed a prompt describing abilities it does not have, which
+    // is the difference between a bot that says "I can't reach that" and one
+    // that claims to have looked.
+    let carries_tools = engine.tools() != inference::ToolDelivery::None;
+
     let base = format!("{}\n\n{}", req.system_prompt, ROUTINES_PROMPT);
-    let (mut allowed, mut system_prompt) = if req.computer {
+    let (mut allowed, mut system_prompt) = if req.computer && carries_tools {
         sandbox::touch(&req.bot_id);
         (
             format!("{TOOLS},{DESKTOP_TOOLS}"),
@@ -304,16 +316,25 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
 
     // A bare `mcp__<server>` rule covers every tool that server offers, so a
     // connector gaining tools later needs no change here.
-    for key in &req.plugins {
-        allowed.push_str(&format!(",mcp__{key}"));
-    }
-    if !req.plugins.is_empty() {
-        system_prompt.push_str(&format!("\n\n{}", plugins_prompt(&req.plugins)));
+    if carries_tools {
+        for key in &req.plugins {
+            allowed.push_str(&format!(",mcp__{key}"));
+        }
+        if !req.plugins.is_empty() {
+            system_prompt.push_str(&format!("\n\n{}", plugins_prompt(&req.plugins)));
+        }
+    } else {
+        system_prompt.push_str(
+            "\n\nYou have no tools in this conversation: no files, no web, no computer, and none \
+             of the user's connected accounts. Answer from what you know and what is in this \
+             conversation, and when something would need a tool, say so plainly rather than \
+             describing what you would have found.",
+        );
     }
 
     // The connector's tools cannot check out a repo or run a build, so a bot
     // with both a desktop and GitHub is told about the CLI that can.
-    if req.computer && req.plugins.iter().any(|key| key == "github") {
+    if req.computer && carries_tools && req.plugins.iter().any(|key| key == "github") {
         system_prompt.push_str(
             "\n\nOn your desktop, `gh` and `git` are installed and already signed in as the \
              user — clone, branch, commit, push and open pull requests there when a task needs \
@@ -328,7 +349,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     // be configured on the machine.
     let mut servers = serde_json::Map::new();
 
-    if req.computer {
+    if req.computer && carries_tools {
         let exe = std::env::current_exe().map_err(|e| format!("cannot find my own binary: {e}"))?;
         servers.insert(
             "desktop".into(),
@@ -344,9 +365,11 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         );
     }
 
-    for key in &req.plugins {
-        if let Some(entry) = connectors::server_entry(key, Some(&req.bot_id)) {
-            servers.insert(key.clone(), entry);
+    if carries_tools {
+        for key in &req.plugins {
+            if let Some(entry) = connectors::server_entry(key, Some(&req.bot_id)) {
+                servers.insert(key.clone(), entry);
+            }
         }
     }
 
@@ -364,6 +387,16 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         mcp_servers: serde_json::Value::Object(servers),
         env: plugins::env_for(&req.plugins),
         history,
+        // Resolved here, not in the engine: which provider a bot uses is the
+        // app's business, and the key belongs to the keychain rather than to
+        // anything that builds a command line.
+        api: req.provider.as_deref().and_then(|id| {
+            catalogue::provider(&app, id).map(|found| inference::Api {
+                key: catalogue::key_for(id),
+                provider: found.name,
+                base: found.api,
+            })
+        }),
     };
 
     // The engine this bot chose, not a name written here.
@@ -503,7 +536,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
                     let stderr = errors.lock().unwrap().trim().to_string();
                     let tail = stderr.lines().rev().take(4).collect::<Vec<_>>().join(" ");
                     let message = if tail.is_empty() {
-                        "claude exited before finishing the reply".to_string()
+                        format!("{} stopped before finishing the reply", reader.name())
                     } else {
                         tail
                     };
@@ -886,6 +919,12 @@ pub fn run() {
             remote::remote_forget_device,
             remote::remote_reply,
             inference::engines,
+            catalogue::catalogue_state,
+            catalogue::catalogue_refresh,
+            catalogue::catalogue_search,
+            catalogue::catalogue_providers,
+            catalogue::provider_key_set,
+            catalogue::provider_key_clear,
             setup::claude_state,
             setup::install_claude,
             setup::claude_sign_in,
