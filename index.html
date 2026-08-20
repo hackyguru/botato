@@ -572,6 +572,14 @@
           <div class="settings-panel" data-tab="general" role="tabpanel">
             <div class="settings">
               <label class="setting">
+                <span class="setting__label">Your name
+                  <span class="setting__hint">What your bots call you, and what shows at the bottom of the list.</span>
+                </span>
+                <input id="app-name" class="picker picker--text" placeholder="Your name"
+                       spellcheck="false" maxlength="40" />
+              </label>
+
+              <label class="setting">
                 <span class="setting__label">Model for new bots
                   <span class="setting__hint">Existing bots keep their own choice.</span>
                 </span>
@@ -808,7 +816,12 @@
               <li><b>Connectors</b> hand it your GitHub, Notion or Calendar, scoped per bot.</li>
               <li><b>Your phone</b> reaches this machine directly, from anywhere.</li>
             </ul>
-            <p class="setup__blurb setup__blurb--dim">Two things to settle first — it takes a minute.</p>
+            <label class="prose setup__name" for="setup-name">
+              <span class="prose__label">What should your bots call you?</span>
+              <input id="setup-name" placeholder="Your name" spellcheck="false" maxlength="40"
+                     autocomplete="name" />
+            </label>
+            <p class="setup__blurb setup__blurb--dim">Two more things to settle — it takes a minute.</p>
           </section>
 
           <section class="setup__step" data-step="answers" hidden>

@@ -216,6 +216,9 @@ interface AppSettings {
   routinesOn: boolean;
   /** Hold a power assertion so the machine doesn't idle-sleep. */
   awake: boolean;
+  /** What the user asked to be called. Absent until setup asks, and absent
+   *  again if they clear it — at which point the login name stands in. */
+  name?: string;
   /** Setup has been walked through once. Reopenable from the account menu. */
   onboarded: boolean;
   /** The tour has been given once. Also reopenable from the account menu. */
@@ -1109,6 +1112,10 @@ function waitingHtml(msgId: string, note: string): void {
 function systemPromptFor(bot: Bot): string {
   return [
     `You are "${bot.name}", one of several bots the user keeps in botcage, a desktop app where each bot is a persistent chat.`,
+    // Bots have been talking to "the user", who is nobody. If this person has
+    // said what they are called, say it — once, plainly, without instructing
+    // anyone to use it in every sentence.
+    userName() ? `The person you are talking to is called ${userName()}.` : "",
     // In the user's own words, whole. This used to be a one-line "what it does"
     // that read as a subtitle; it is now where someone describes a job, so it
     // is passed through rather than dressed up as a sentence.
@@ -3139,6 +3146,7 @@ const showSheetTab = wireTabs($<HTMLElement>("#sheet-wrap"));
 async function openAppSettings(): Promise<void> {
   showSettingsTab("general");
   const settings = appSettings();
+  $<HTMLInputElement>("#app-name").value = settings.name ?? "";
   appModel.value = settings.model;
   appScreen.value = settings.screen;
   appIdle.value = String(settings.idleMinutes);
@@ -3210,6 +3218,29 @@ async function paintEngines(): Promise<void> {
   );
 }
 
+/** The login name, which stands in until somebody says otherwise. Asked once
+ *  and kept, because a name is not worth a round trip per render. */
+let loginName = "";
+
+/** What this person is called: what they told setup, or failing that whatever
+ *  the operating system calls them. */
+function userName(): string {
+  return appSettings().name?.trim() || loginName;
+}
+
+function paintAccount(): void {
+  const name = userName();
+  $<HTMLSpanElement>("#account-name").textContent = name || "botcage";
+  $<HTMLSpanElement>("#account-initial").textContent = (name || "b").slice(0, 1).toUpperCase();
+}
+
+void invoke<string>("user_name")
+  .then((name) => {
+    loginName = name;
+    paintAccount();
+  })
+  .catch(() => {});
+
 function saveAppSettings(): void {
   state.app = {
     model: appModel.value,
@@ -3217,10 +3248,15 @@ function saveAppSettings(): void {
     idleMinutes: Number(appIdle.value),
     routinesOn: appRoutines.checked,
     awake: appAwake.checked,
+    name: $<HTMLInputElement>("#app-name").value.trim() || undefined,
+    engine: appSettings().engine,
+    provider: appSettings().provider,
+    toured: appSettings().toured,
     onboarded: appSettings().onboarded,
     remoteOn: appSettings().remoteOn,
   };
   save();
+  paintAccount();
   verifyCatalogue();
 
 void invoke("set_idle_limit", { minutes: state.app.idleMinutes }).catch(() => {});
@@ -4244,6 +4280,11 @@ for (const control of [appModel, appScreen, appIdle, appRoutines, appAwake]) {
   control.addEventListener("change", saveAppSettings);
 }
 
+// A name is typed rather than picked, so it saves as it is typed — a change
+// event on a text field only fires when focus leaves it, and a settings panel
+// closed with a click somewhere else would have dropped the last edit.
+$<HTMLInputElement>("#app-name").addEventListener("input", saveAppSettings);
+
 $<HTMLButtonElement>("#about-close").addEventListener("click", () => {
   aboutWrap.hidden = true;
 });
@@ -4556,6 +4597,7 @@ void listen<string>("claude-setup", (event) => {
 
 async function openSetup(at: SetupStep = "welcome"): Promise<void> {
   setupAt = at;
+  $<HTMLInputElement>("#setup-name").value = appSettings().name ?? "";
   // Start on whatever this app is already set up to use, so reopening setup
   // shows the arrangement someone made rather than the one botcage prefers.
   const chosen = appSettings().engine ?? DEFAULT_ENGINE;
@@ -5309,7 +5351,15 @@ function goTo(step: SetupStep): void {
 /** The primary button does whatever the step still needs, and only moves on
  *  once there is nothing left to do. */
 async function setupAdvance(): Promise<void> {
-  if (setupAt === "welcome") return goTo("answers");
+  if (setupAt === "welcome") {
+    const called = $<HTMLInputElement>("#setup-name").value.trim();
+    if (called) {
+      state.app = { ...appSettings(), name: called };
+      save();
+      paintAccount();
+    }
+    return goTo("answers");
+  }
   if (setupAt === "done") return closeSetup();
 
   if (setupAt === "answers") {
@@ -5877,13 +5927,7 @@ window.setInterval(() => {
 
 void listen<BotEvent>("bot-event", (event) => handleBotEvent(event.payload));
 void listen<SandboxEvent>("sandbox-event", (event) => handleSandboxEvent(event.payload));
-void invoke<string>("user_name")
-  .then((name) => {
-    if (!name) return;
-    $<HTMLSpanElement>("#account-name").textContent = name;
-    $<HTMLSpanElement>("#account-initial").textContent = name.slice(0, 1).toUpperCase();
-  })
-  .catch(() => {});
+paintAccount();
 
 verifyCatalogue();
 
