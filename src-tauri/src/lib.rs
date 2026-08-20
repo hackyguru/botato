@@ -54,6 +54,15 @@ const DESKTOP_TOOLS: &str = "mcp__desktop__screenshot,mcp__desktop__exec,mcp__de
 mcp__desktop__move,mcp__desktop__type,mcp__desktop__key,mcp__desktop__scroll,mcp__desktop__replay,\
 mcp__desktop__start_desktop";
 
+/// The one tool every bot has, computer or not: its own appearance.
+const FACE_TOOL: &str = "mcp__desktop__set_appearance";
+
+/// A bot that can change its face should know it can, or it will apologise for
+/// being unable to do something it is holding the tool for. Which is exactly
+/// what happened when the tool existed and nothing said so.
+const FACE_PROMPT: &str = "\
+You are drawn in botcage as a face — a head, eyes, brows, a resting smile, an optional mark and a colour — and `set_appearance` changes it. It is yours: change it when the user asks, and feel free to suggest one that suits the work you do. The vocabulary is fixed and the tool lists it, so anything outside it (a hat, a moustache, a monocle) does not exist; pick the nearest thing that does and say plainly what is not available rather than inventing it.";
+
 /// Built-in tools a bot may use. Deliberately no Bash — shell access belongs in
 /// the sandboxed desktop, not on the user's machine.
 pub(crate) const TOOLS: &str = "Read,Glob,Grep,Write,Edit,WebSearch,WebFetch";
@@ -307,8 +316,13 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     let (mut allowed, mut system_prompt) = if req.computer && carries_tools {
         sandbox::touch(&req.bot_id);
         (
-            format!("{TOOLS},{DESKTOP_TOOLS}"),
-            format!("{base}\n\n{DESKTOP_PROMPT}"),
+            format!("{TOOLS},{DESKTOP_TOOLS},{FACE_TOOL}"),
+            format!("{base}\n\n{DESKTOP_PROMPT}\n\n{FACE_PROMPT}"),
+        )
+    } else if carries_tools {
+        (
+            format!("{TOOLS},{FACE_TOOL}"),
+            format!("{base}\n\n{FACE_PROMPT}"),
         )
     } else {
         (TOOLS.to_string(), base)
@@ -349,7 +363,12 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     // be configured on the machine.
     let mut servers = serde_json::Map::new();
 
-    if req.computer && carries_tools {
+    // Every bot that can call a tool gets botcage's own server, whether or not
+    // it has a computer: it is where a bot reaches its own face, and a face is
+    // not a feature of owning a machine. The desktop tools inside it report
+    // that there is no desktop when there isn't one, which is the same answer
+    // they give when one is merely switched off.
+    if carries_tools {
         let exe = std::env::current_exe().map_err(|e| format!("cannot find my own binary: {e}"))?;
         servers.insert(
             "desktop".into(),
@@ -557,6 +576,20 @@ fn cancel(app: AppHandle, running: tauri::State<Running>, bot_id: String) {
         let _ = child.wait();
         emit(&app, &bot_id, "cancelled", None, None);
     }
+}
+
+/// What a bot decided it should look like, if it changed its face this turn.
+///
+/// Read once and removed: the file is a message from a process that has since
+/// exited, not a record of anything. Returning it rather than storing it keeps
+/// a bot's appearance where the rest of a bot lives — in the window's own
+/// state, saved with everything else about it.
+#[tauri::command]
+fn take_face(app: AppHandle, bot_id: String) -> Option<Value> {
+    let path = workspace(&app, &bot_id).ok()?.join("face.json");
+    let raw = fs::read_to_string(&path).ok()?;
+    let _ = fs::remove_file(&path);
+    serde_json::from_str(&raw).ok()
 }
 
 /// Forget the conversation, keeping the bot.
@@ -879,6 +912,7 @@ pub fn run() {
             cancel,
             forget_bot,
             clear_thread,
+            take_face,
             bots_dir,
             app_version,
             user_name,

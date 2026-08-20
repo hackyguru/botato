@@ -105,9 +105,119 @@ fn base64(bytes: &[u8]) -> String {
 
 /* ------------------------------------------------------------------- tools */
 
+/// The face a bot may give itself, in the vocabulary the app draws.
+///
+/// Named here as well as in the UI because this is what a bot reads: the words
+/// are the whole palette, and a tool that accepts anything would produce a bot
+/// asking for a wizard hat and getting nothing.
+const LOOKS: &[(&str, &[&str])] = &[
+    (
+        "head",
+        &["circle", "squircle", "drop", "bean", "egg", "shield"],
+    ),
+    ("eyes", &["dot", "wide", "sleepy", "ring", "tall", "wink"]),
+    (
+        "brow",
+        &["none", "flat", "angled", "raised", "thick", "quirk"],
+    ),
+    ("smile", &["soft", "wide", "curl", "flat", "open", "tiny"]),
+    (
+        "mark",
+        &["none", "antenna", "tuft", "cheeks", "band", "bolt"],
+    ),
+];
+
+/// What a bot writes when it changes its own appearance.
+///
+/// A file rather than a call back into the app: this server is a separate
+/// process, spawned per turn, and it already has the one thing it needs — the
+/// bot's own workspace. The window picks it up when the turn ends. No socket,
+/// no port, and nothing to be running for it to work.
+fn set_look(bot: &Bot, args: &Value) -> Value {
+    let mut chosen = serde_json::Map::new();
+    let mut refused = Vec::new();
+
+    for (trait_name, allowed) in LOOKS {
+        let Some(want) = args[*trait_name].as_str() else {
+            continue;
+        };
+        let want = want.trim().to_lowercase();
+        if allowed.contains(&want.as_str()) {
+            chosen.insert((*trait_name).to_string(), Value::String(want));
+        } else {
+            refused.push(format!(
+                "{trait_name} cannot be \"{want}\" — pick one of: {}",
+                allowed.join(", ")
+            ));
+        }
+    }
+
+    // A colour is anything the app can paint, so it is checked for shape
+    // rather than membership.
+    if let Some(colour) = args["colour"].as_str().or_else(|| args["color"].as_str()) {
+        let colour = colour.trim();
+        let ok = colour.starts_with('#')
+            && (colour.len() == 7 || colour.len() == 4)
+            && colour[1..].chars().all(|c| c.is_ascii_hexdigit());
+        if ok {
+            chosen.insert("colour".into(), Value::String(colour.to_string()));
+        } else {
+            refused.push(format!(
+                "colour must be a hex value like #30d158, not \"{colour}\""
+            ));
+        }
+    }
+
+    if !refused.is_empty() {
+        return text_result(refused.join("\n"), true);
+    }
+    if chosen.is_empty() {
+        return text_result(
+            "nothing to change — name at least one of head, eyes, brow, smile, mark or colour"
+                .to_string(),
+            true,
+        );
+    }
+
+    let path = bot.workspace.join("face.json");
+    match std::fs::write(&path, Value::Object(chosen.clone()).to_string()) {
+        Err(e) => text_result(format!("could not write the new face: {e}"), true),
+        Ok(()) => text_result(
+            format!(
+                "done — {}. It changes on screen when this turn ends.",
+                chosen
+                    .iter()
+                    .map(|(k, v)| format!("{k} {}", v.as_str().unwrap_or_default()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            false,
+        ),
+    }
+}
+
 fn tool_specs(bot: &Bot) -> Value {
     let (w, h) = screen_of(bot);
     json!([
+        {
+            "name": "set_appearance",
+            "description": format!(
+                "Change how you look. You are drawn as a face in botcage: a head, eyes, brows, a                  resting smile, an optional mark, and a colour. Call this when the user asks you                  to change your appearance, or when you want to — you own your own face. Every                  field is optional; the ones you leave out stay as they are.\n\n                 head: {}\neyes: {}\nbrow: {}\nsmile: {}\nmark: {}\n                 colour: a hex value like #30d158.\n\n                 The smile is only how your mouth rests — your expression still follows what you                  are doing, so you will grin when a task lands whatever you set here. Nothing                  outside these words exists, so a hat is not available: pick the closest thing,                  say what you picked, and say plainly that a hat is not one of the options.",
+                LOOKS[0].1.join(", "), LOOKS[1].1.join(", "), LOOKS[2].1.join(", "),
+                LOOKS[3].1.join(", "), LOOKS[4].1.join(", ")
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "head": { "type": "string" },
+                    "eyes": { "type": "string" },
+                    "brow": { "type": "string" },
+                    "smile": { "type": "string" },
+                    "mark": { "type": "string" },
+                    "colour": { "type": "string" }
+                }
+            }
+        },
         {
             "name": "start_desktop",
             "description":
@@ -306,6 +416,12 @@ fn text_result(text: String, is_error: bool) -> Value {
 
 fn call_tool(bot: &Bot, params: &Value) -> Value {
     let name = params["name"].as_str().unwrap_or_default();
+
+    // Answered before the desktop is consulted: a bot's face is its own, and
+    // has nothing to do with whether it has a computer.
+    if name == "set_appearance" {
+        return set_look(bot, &params["arguments"]);
+    }
     let args = params
         .get("arguments")
         .cloned()
@@ -434,5 +550,83 @@ pub fn serve(bot: Bot) {
         if writeln!(stdout, "{reply}").is_err() || stdout.flush().is_err() {
             break;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn a_bot(name: &str) -> Bot {
+        let dir = std::env::temp_dir().join(format!("botcage-face-{name}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("workspace");
+        Bot {
+            id: "b1".into(),
+            workspace: dir,
+            brand: Default::default(),
+        }
+    }
+
+    /// A bot asked for a hat is the case this tool exists to handle well: it
+    /// cannot have one, and the answer has to say so rather than fail silently
+    /// or write a face nobody can draw.
+    #[test]
+    fn a_look_outside_the_vocabulary_is_refused_by_name() {
+        let bot = a_bot("refuse");
+        let said = set_look(&bot, &json!({ "mark": "hat" }));
+
+        assert_eq!(said["isError"], true);
+        let text = said["content"][0]["text"].as_str().unwrap_or_default();
+        assert!(
+            text.contains("hat"),
+            "the refusal must name what was asked for"
+        );
+        assert!(
+            text.contains("antenna"),
+            "and list what is available instead: {text}"
+        );
+        assert!(
+            !bot.workspace.join("face.json").exists(),
+            "nothing may be written when nothing was valid"
+        );
+    }
+
+    #[test]
+    fn a_face_a_bot_can_have_is_written_for_the_window_to_pick_up() {
+        let bot = a_bot("accept");
+        let said = set_look(
+            &bot,
+            &json!({ "head": "bean", "mark": "antenna", "colour": "#30d158" }),
+        );
+        assert_ne!(said["isError"], true, "{said}");
+
+        let written: Value = serde_json::from_str(
+            &std::fs::read_to_string(bot.workspace.join("face.json")).unwrap(),
+        )
+        .expect("valid json");
+        assert_eq!(written["head"], "bean");
+        assert_eq!(written["mark"], "antenna");
+        assert_eq!(written["colour"], "#30d158");
+        assert!(
+            written.get("eyes").is_none(),
+            "a trait not mentioned must be left alone rather than reset"
+        );
+    }
+
+    #[test]
+    fn a_colour_has_to_be_one() {
+        let bot = a_bot("colour");
+        assert_eq!(
+            set_look(&bot, &json!({ "colour": "greenish" }))["isError"],
+            true
+        );
+        assert_ne!(set_look(&bot, &json!({ "color": "#fff" }))["isError"], true);
+    }
+
+    #[test]
+    fn asking_for_nothing_says_so() {
+        let bot = a_bot("empty");
+        assert_eq!(set_look(&bot, &json!({}))["isError"], true);
     }
 }

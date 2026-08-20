@@ -1151,6 +1151,25 @@ function handleBotEvent(event: BotEvent): void {
 
   // What the bot's face does about it. Everything here is already in botcage's
   // vocabulary, so a mood costs a line rather than a new event.
+  // A bot may have changed its own face this turn. Checked at the end rather
+  // than watched for: the tool writes a file, the window reads it once, and
+  // nothing has to be listening while a turn runs.
+  if (event.kind === "done" || event.kind === "error" || event.kind === "cancelled") {
+    void invoke<(Partial<Face> & { colour?: string }) | null>("take_face", { botId: event.botId })
+      .then((wanted) => {
+        const bot = state.bots.find((b) => b.id === event.botId);
+        if (!bot || !wanted) return;
+        const { colour, ...traits } = wanted;
+        bot.face = { ...bot.face, ...traits };
+        if (colour) bot.color = colour;
+        save();
+        renderRoster();
+        renderThread();
+        toast(`${bot.name} changed how it looks`);
+      })
+      .catch(() => {});
+  }
+
   if (event.kind === "done") setMood(event.botId, "happy");
   else if (event.kind === "error") setMood(event.botId, "sad");
   else if (event.kind === "thinking") setMood(event.botId, "think");
