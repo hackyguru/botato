@@ -4417,7 +4417,23 @@ function rememberRoute(): void {
       model: setupPick.id,
     };
   }
+
+  // The bots a fresh install starts with were made before anyone was asked
+  // this, and were therefore all pointed at Claude Code. Any of them nobody has
+  // spoken to yet should use what was just chosen — otherwise someone who picks
+  // Ollama gets five bots that fail on their first message, which is a poor
+  // reward for having answered the question. A bot with a conversation keeps
+  // whatever has been answering it.
+  const chosen = appSettings();
+  for (const bot of state.bots) {
+    if (bot.messages.length || bot.started) continue;
+    bot.engine = chosen.engine ?? DEFAULT_ENGINE;
+    bot.provider = chosen.provider;
+    bot.model = chosen.model;
+  }
+
   save();
+  renderRoster();
 }
 
 function goTo(step: SetupStep): void {
