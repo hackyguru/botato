@@ -595,7 +595,20 @@ const HEADS = ["circle", "squircle", "drop", "bean", "egg", "shield"];
 const EYES = ["dot", "wide", "sleepy", "ring", "tall", "wink"];
 const BROWS = ["none", "flat", "angled", "raised", "thick", "quirk"];
 const SMILES = ["soft", "wide", "curl", "flat", "open", "tiny"];
-const MARKS = ["none", "antenna", "tuft", "cheeks", "band", "bolt"];
+const MARKS = [
+  "none",
+  "antenna",
+  "tuft",
+  "cheeks",
+  "band",
+  "bolt",
+  // Things worn rather than grown. Asked for a cowboy hat, a bot could only
+  // say the menu had none — which was honest and useless.
+  "cowboy",
+  "cap",
+  "bow",
+  "halo",
+];
 
 /** A number from a string, stable across restarts and machines.
  *

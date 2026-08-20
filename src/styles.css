@@ -649,6 +649,107 @@ textarea {
   background: color-mix(in srgb, var(--ink) 55%, transparent);
 }
 
+/* ---- headwear
+   Worn things, drawn from the same two pseudo-elements as everything else:
+   a crown and a brim, a cap and its peak, two lobes of a bow, a ring. They sit
+   above the head and are allowed to overlap it, which is what makes a hat read
+   as resting on something rather than floating. */
+.face__mark {
+  --hat: #b07d4a;
+  --hat-dark: #7d5731;
+}
+
+.face[data-mark="cowboy"] .face__mark::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--u) * -0.3);
+  left: 50%;
+  width: calc(var(--u) * 0.46);
+  height: calc(var(--u) * 0.27);
+  background: var(--hat);
+  border-radius: calc(var(--u) * 0.2) calc(var(--u) * 0.2) calc(var(--u) * 0.05)
+    calc(var(--u) * 0.05);
+  transform: translateX(-50%);
+  opacity: 1;
+}
+
+/* The brim, wider than the head and drawn after the crown so it sits in front
+   of it — which is the whole reason a hat looks worn. */
+.face[data-mark="cowboy"] .face__mark::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--u) * -0.1);
+  left: 50%;
+  width: calc(var(--u) * 1.02);
+  height: calc(var(--u) * 0.15);
+  background: var(--hat);
+  border-radius: 50%;
+  box-shadow: inset 0 calc(var(--u) * -0.03) 0 var(--hat-dark);
+  transform: translateX(-50%);
+  opacity: 1;
+}
+
+.face[data-mark="cap"] .face__mark::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--u) * -0.22);
+  left: 50%;
+  width: calc(var(--u) * 0.56);
+  height: calc(var(--u) * 0.28);
+  background: var(--hat);
+  border-radius: calc(var(--u) * 0.28) calc(var(--u) * 0.28) 0 0;
+  transform: translateX(-50%);
+  opacity: 1;
+}
+
+.face[data-mark="cap"] .face__mark::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--u) * -0.02);
+  left: 52%;
+  width: calc(var(--u) * 0.4);
+  height: calc(var(--u) * 0.1);
+  background: var(--hat-dark);
+  border-radius: 0 50% 50% 0;
+  transform: rotate(-5deg);
+  opacity: 1;
+}
+
+.face[data-mark="bow"] .face__mark::before,
+.face[data-mark="bow"] .face__mark::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--u) * -0.12);
+  width: calc(var(--u) * 0.2);
+  height: calc(var(--u) * 0.17);
+  background: color-mix(in srgb, var(--skin) 40%, #f2f2f2);
+  opacity: 1;
+}
+
+.face[data-mark="bow"] .face__mark::before {
+  left: 26%;
+  border-radius: 60% 20% 60% 20%;
+}
+
+.face[data-mark="bow"] .face__mark::after {
+  right: 26%;
+  border-radius: 20% 60% 20% 60%;
+}
+
+.face[data-mark="halo"] .face__mark::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--u) * -0.24);
+  left: 50%;
+  width: calc(var(--u) * 0.52);
+  height: calc(var(--u) * 0.16);
+  background: transparent;
+  border: calc(var(--u) * 0.05) solid #ffd166;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  opacity: 1;
+}
+
 .face[data-mark="bolt"] .face__mark::before {
   content: "";
   position: absolute;
