@@ -1018,6 +1018,10 @@ function renderSheetPreview(): void {
 /** One hour of the grid, in pixels. Must match .cal__slot and .cal__hour. */
 const HOUR_PX = 44;
 
+/** How much of an hour is kept clear of events, so the hour itself can still be
+ *  clicked when something is already scheduled in it. */
+const FREE_PX = 22;
+
 /** Sunday first, as Date#getDay counts. */
 const DAY_NAME = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -1128,6 +1132,12 @@ function renderRoutines(): void {
       // Two routines in the same hour would sit exactly on top of each other,
       // and the one underneath would be a routine nobody could see was there.
       // They share the width of the hour instead.
+      //
+      // And they never take all of it: an event that filled its hour would be
+      // the only thing there to click, so that hour could never be given a
+      // second routine — clicking it would open the first one, and saving would
+      // edit it rather than add to it. The strip down the right stays empty and
+      // clickable, which is what makes an hour able to hold two.
       const crowd = new Map<number, number>();
       for (const routine of due) {
         const hour = Number(routine.at.split(":")[0]) || 0;
@@ -1143,12 +1153,22 @@ function renderRoutines(): void {
           const lane = placed.get(hour) ?? 0;
           placed.set(hour, lane + 1);
           const top = (hour + (mm || 0) / 60) * HOUR_PX;
+          // Stacked within the hour rather than side by side. A calendar
+          // splits the width when two things overlap because both last an
+          // hour; a routine is a moment, not a span, so splitting only makes
+          // two unreadable slivers where the names should be.
+          const slice = (HOUR_PX - 6) / of;
+          const solo = of === 1;
           return (
-            `<button type="button" class="cal__event${routine.active ? "" : " is-off"}" ` +
-            `data-edit="${routine.id}" style="top:${top}px;height:${HOUR_PX - 6}px;` +
-            `left:calc(${(lane * 100) / of}% + 3px);width:calc(${100 / of}% - 6px);` +
-            `--tint:${bot.color}"><b>${escapeHtml(routine.name)}</b>` +
-            `<span>${routine.at}</span></button>`
+            `<button type="button" class="cal__event${solo ? "" : " cal__event--tight"}` +
+            `${routine.active ? "" : " is-off"}" data-edit="${routine.id}" ` +
+            `style="top:${top + lane * slice}px;height:${slice - (solo ? 0 : 2)}px;` +
+            `right:${FREE_PX}px;--tint:${bot.color}">` +
+            `<b>${escapeHtml(routine.name)}</b>` +
+            // The time only when there is room for it; when there is not, it is
+            // the one thing already obvious from where the block is.
+            (solo ? `<span>${routine.at}</span>` : "") +
+            `</button>`
           );
         })
         .join("");

@@ -862,6 +862,7 @@ textarea {
 
 .cal__event {
   position: absolute;
+  left: 3px;
   overflow: hidden;
   padding: 3px 6px;
   font-size: 11px;
@@ -882,6 +883,12 @@ textarea {
 
 .cal__event span {
   color: rgba(255, 255, 255, 0.78);
+}
+
+/* Sharing an hour: no room for anything but the name. */
+.cal__event--tight {
+  padding: 1px 6px;
+  font-size: 10.5px;
 }
 
 .cal__event.is-off {
