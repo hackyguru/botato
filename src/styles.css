@@ -350,7 +350,13 @@ textarea {
   --u: 34px;
   --ink: rgba(0, 0, 0, 0.72);
   position: relative;
+  /* A span is inline until told otherwise, and an inline box ignores width and
+     height — so without this every face is zero by zero and the whole roster
+     renders as nothing. The version before this was a grid, which is
+     block-level; dropping the grid dropped the display with it. */
+  display: inline-block;
   flex: none;
+  vertical-align: middle;
   width: var(--u);
   height: var(--u);
   background: var(--skin);
