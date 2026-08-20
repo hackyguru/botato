@@ -515,47 +515,59 @@ textarea {
 
 /* ---- traits: mouth */
 
+/* ---- the mouth is an expression, not a trait
+   What varies per bot is only *how* it smiles at rest — never whether it does.
+   A mouth in the trait table meant bots born frowning, wearing that frown
+   through every success they ever had. Moods below override all of this. */
 .face__mouth {
   position: absolute;
-  top: 66%;
+  top: 64%;
   left: 50%;
   width: calc(var(--u) * 0.26);
   height: calc(var(--u) * 0.1);
   transform: translateX(-50%);
 }
 
-.face[data-mouth="none"] .face__mouth {
-  display: none;
+.face[data-smile="soft"] .face__mouth {
+  width: calc(var(--u) * 0.24);
+  border-bottom: calc(var(--u) * 0.05) solid var(--ink);
+  border-radius: 0 0 calc(var(--u) * 0.18) calc(var(--u) * 0.18);
 }
 
-.face[data-mouth="line"] .face__mouth {
+.face[data-smile="wide"] .face__mouth {
+  width: calc(var(--u) * 0.34);
+  border-bottom: calc(var(--u) * 0.055) solid var(--ink);
+  border-radius: 0 0 calc(var(--u) * 0.24) calc(var(--u) * 0.24);
+}
+
+/* Up at one corner only — a face that finds something faintly funny. */
+.face[data-smile="curl"] .face__mouth {
+  width: calc(var(--u) * 0.22);
+  border-bottom: calc(var(--u) * 0.05) solid var(--ink);
+  border-radius: 0 0 calc(var(--u) * 0.2) calc(var(--u) * 0.05);
+  transform: translateX(-50%) rotate(-7deg);
+}
+
+/* Level, not downturned: the resting face of somebody waiting to be asked. */
+.face[data-smile="flat"] .face__mouth {
+  width: calc(var(--u) * 0.2);
   height: calc(var(--u) * 0.045);
   background: var(--ink);
   border-radius: calc(var(--u) * 0.03);
 }
 
-.face[data-mouth="smile"] .face__mouth {
-  border-bottom: calc(var(--u) * 0.05) solid var(--ink);
-  border-radius: 0 0 calc(var(--u) * 0.2) calc(var(--u) * 0.2);
-}
-
-.face[data-mouth="grin"] .face__mouth {
-  height: calc(var(--u) * 0.14);
-  background: var(--ink);
-  border-radius: 0 0 calc(var(--u) * 0.16) calc(var(--u) * 0.16);
-}
-
-.face[data-mouth="frown"] .face__mouth {
-  height: calc(var(--u) * 0.09);
-  border-top: calc(var(--u) * 0.05) solid var(--ink);
-  border-radius: calc(var(--u) * 0.2) calc(var(--u) * 0.2) 0 0;
-}
-
-.face[data-mouth="oh"] .face__mouth {
-  width: calc(var(--u) * 0.13);
+.face[data-smile="open"] .face__mouth {
+  width: calc(var(--u) * 0.2);
   height: calc(var(--u) * 0.13);
   background: var(--ink);
-  border-radius: 50%;
+  border-radius: calc(var(--u) * 0.06) calc(var(--u) * 0.06) calc(var(--u) * 0.14)
+    calc(var(--u) * 0.14);
+}
+
+.face[data-smile="tiny"] .face__mouth {
+  width: calc(var(--u) * 0.14);
+  border-bottom: calc(var(--u) * 0.045) solid var(--ink);
+  border-radius: 0 0 calc(var(--u) * 0.12) calc(var(--u) * 0.12);
 }
 
 /* ---- traits: the mark
@@ -1531,9 +1543,41 @@ textarea {
   animation: mood-happy 0.9s cubic-bezier(0.3, 0.9, 0.4, 1.3);
 }
 
+/* Every mood sets the mouth, because that is what a mouth is for. Written
+   with all four sides declared so a mood never inherits half of a trait's
+   shape — the commonest way an expression comes out looking like neither. */
 .face[data-mood="happy"] .face__mouth {
-  display: block;
-  height: calc(var(--u) * 0.14);
+  width: calc(var(--u) * 0.32);
+  height: calc(var(--u) * 0.16);
+  background: var(--ink);
+  border: 0;
+  border-radius: 0 0 calc(var(--u) * 0.18) calc(var(--u) * 0.18);
+}
+
+/* Thinking: pushed to one side, the way a mouth goes when someone is working
+   something out. */
+.face[data-mood="think"] .face__mouth {
+  width: calc(var(--u) * 0.16);
+  height: calc(var(--u) * 0.045);
+  background: var(--ink);
+  border: 0;
+  border-radius: calc(var(--u) * 0.03);
+  transform: translateX(-90%) rotate(-6deg);
+}
+
+/* Working: level and unbothered. */
+.face[data-mood="work"] .face__mouth {
+  width: calc(var(--u) * 0.2);
+  height: calc(var(--u) * 0.045);
+  background: var(--ink);
+  border: 0;
+  border-radius: calc(var(--u) * 0.03);
+}
+
+/* Being picked: the widest it gets. */
+.face[data-mood="wave"] .face__mouth {
+  width: calc(var(--u) * 0.3);
+  height: calc(var(--u) * 0.12);
   background: var(--ink);
   border: 0;
   border-radius: 0 0 calc(var(--u) * 0.16) calc(var(--u) * 0.16);
@@ -1567,8 +1611,9 @@ textarea {
   transform: rotate(14deg);
 }
 
+/* The only frown in the app, and it lasts under two seconds. */
 .face[data-mood="sad"] .face__mouth {
-  display: block;
+  width: calc(var(--u) * 0.24);
   height: calc(var(--u) * 0.09);
   background: none;
   border: 0;
