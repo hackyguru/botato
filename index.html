@@ -258,13 +258,17 @@
 
             <div class="settings">
             <label class="setting">
-              <span class="setting__label">Model
-                <span class="setting__hint">Sonnet is easier on your usage limits.</span>
+              <span class="setting__label">Answered by
+                <span class="setting__hint" id="sheet-engine-hint">Which installed tool runs this bot's turns.</span>
               </span>
-              <select id="sheet-model" class="picker">
-                <option value="opus">Opus</option>
-                <option value="sonnet">Sonnet</option>
-              </select>
+              <select id="sheet-engine" class="picker"></select>
+            </label>
+
+            <label class="setting">
+              <span class="setting__label">Model
+                <span class="setting__hint" id="sheet-model-hint">Sonnet is easier on your usage limits.</span>
+              </span>
+              <select id="sheet-model" class="picker"></select>
             </label>
             </div>
 

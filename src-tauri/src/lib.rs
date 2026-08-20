@@ -1,9 +1,12 @@
-//! Bridge between the botcage UI and the local Claude Code CLI.
+//! Bridge between the botcage UI and whatever answers for a bot.
 //!
-//! Each turn spawns `claude -p --output-format stream-json` in the bot's own
-//! workspace directory and relays the parsed stream to the webview as
-//! `bot-event` events. Auth comes from the user's own `claude` login, so no
-//! API key ever passes through this process.
+//! Each turn spawns the engine that bot chose — see [`inference`] — in its own
+//! workspace directory, and relays the stream to the webview as `bot-event`
+//! events. Which flags, which stream format and which model belong to the
+//! engine; what botcage does about any of it belongs here.
+//!
+//! Auth comes from the user's own CLI login, so no API key ever passes through
+//! this process.
 
 use std::collections::HashMap;
 use std::fs;
@@ -259,10 +262,23 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         ));
     }
 
-    let bin = locate_claude()
-        .ok_or("Claude Code CLI not found — install it, or point CLAUDE_BIN at the binary")?;
     let cwd = workspace(&app, &req.bot_id)?;
     ensure_memory(&cwd, &req.bot_name, &req.bot_role);
+
+    // What was said before, for an engine that cannot pick a conversation back
+    // up. Read before the new prompt is recorded, so this turn's question is
+    // asked once rather than appearing twice.
+    //
+    // An engine that is resuming its own session gets nothing: it already has
+    // the conversation, and handing it over again would double every exchange.
+    // Note the `resume` — a bot that changed engines has a session id its new
+    // engine never created, so its first turn there is not a resumption, and
+    // the history botcage kept is exactly what stops the thread starting over.
+    let history = if engine.owns_transcript() && req.resume {
+        Vec::new()
+    } else {
+        transcript::recent(&cwd, transcript::BUDGET)
+    };
 
     // A running desktop earns the bot a second set of tools, pointed at that
     // bot's container. No desktop, no tools — nothing to explain away in the
@@ -334,7 +350,6 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     // What tools, which connectors, which secrets: botcage's decisions. How any
     // of it is spelled on a command line: the engine's.
     let turn = inference::Turn {
-        bot_id: req.bot_id.clone(),
         session_id: req.session_id.clone(),
         resume: req.resume,
         prompt: req.prompt.clone(),
@@ -345,6 +360,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         denied_plugins: req.blocked_plugins.clone(),
         mcp_servers: serde_json::Value::Object(servers),
         env: plugins::env_for(&req.plugins),
+        history,
     };
 
     // The engine this bot chose, not a name written here.
@@ -352,14 +368,21 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
 
     let mut child = cmd
         .spawn()
-        .map_err(|e| format!("could not start {}: {e}", bin.display()))?;
+        .map_err(|e| format!("could not start {}: {e}", engine.name()))?;
 
-    // The prompt goes in on stdin; closing it is what tells claude to start.
+    // A pipe means the engine is waiting to be told; an engine that took the
+    // prompt as an argument closed stdin instead, and there is nothing to send.
+    // Closing the pipe afterwards is what starts the turn.
     if let Some(mut stdin) = child.stdin.take() {
         stdin
-            .write_all(req.prompt.as_bytes())
+            .write_all(inference::with_history(&turn).as_bytes())
             .map_err(|e| format!("could not send the prompt: {e}"))?;
     }
+
+    // Kept for every engine, not only the ones that need it read back. It costs
+    // a line per message, and it is what lets a bot keep its thread when the
+    // thing answering for it changes.
+    let _ = transcript::append(&cwd, transcript::Voice::User, &req.prompt);
 
     let stdout = child
         .stdout
@@ -384,10 +407,15 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     let app_handle = app.clone();
     let bot_id = req.bot_id.clone();
     let reader = inference::for_key(req.engine.as_deref());
+    let workspace = cwd.clone();
     std::thread::spawn(move || {
         let mut final_text: Option<String> = None;
         let mut failure: Option<String> = None;
         let mut spend: Option<Value> = None;
+        // What the bot has actually said so far, for the transcript. An engine
+        // that reports a finished answer is believed over this; one that only
+        // streams still has to be remembered.
+        let mut spoken = String::new();
 
         for line in BufReader::new(stdout).lines().map_while(Result::ok) {
             // Read by the engine rather than here. What a stream means is the
@@ -397,6 +425,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
             for event in reader.read_line(&line) {
                 match event {
                     inference::Event::Delta(text) => {
+                        spoken.push_str(&text);
                         emit(&app_handle, &bot_id, "delta", Some(text), None)
                     }
                     inference::Event::Thinking(text) => {
@@ -438,6 +467,16 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
                 }
             }
         }
+
+        // Whatever was said, including by a turn that was stopped halfway: the
+        // app keeps that text on screen, and a transcript that disagreed with
+        // the screen would be worse than no transcript. The finished answer
+        // wins when there is one, on the same grounds the app prefers it.
+        let said = match &final_text {
+            Some(text) if text.len() >= spoken.len() => text.clone(),
+            _ => spoken.clone(),
+        };
+        let _ = transcript::append(&workspace, transcript::Voice::Bot, &said);
 
         // stdout is closed, so the process is finished or was killed.
         let status = app_handle
@@ -482,6 +521,17 @@ fn cancel(app: AppHandle, running: tauri::State<Running>, bot_id: String) {
         let _ = child.wait();
         emit(&app, &bot_id, "cancelled", None, None);
     }
+}
+
+/// Forget the conversation, keeping the bot.
+///
+/// The app starts a new session id at the same moment, which is what ends the
+/// thread for an engine that keeps its own. For one that does not, the thread
+/// is this file — so clearing on screen has to clear it here, or a "cleared"
+/// bot would carry on referring to what was just deleted.
+#[tauri::command]
+fn clear_thread(app: AppHandle, bot_id: String) -> Result<(), String> {
+    transcript::clear(&workspace(&app, &bot_id)?)
 }
 
 /// Forget a bot for good: kill any turn in flight, drop its Claude Code
@@ -792,6 +842,7 @@ pub fn run() {
             ask,
             cancel,
             forget_bot,
+            clear_thread,
             bots_dir,
             app_version,
             user_name,

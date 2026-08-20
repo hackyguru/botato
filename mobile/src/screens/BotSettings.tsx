@@ -18,10 +18,15 @@ import {
   TextInput,
   View,
 } from "react-native";
-import type { Bot, Routine } from "../types";
+import type { Bot, EngineInfo, Routine } from "../types";
 import { T } from "../theme";
 
-const MODELS = ["opus", "sonnet"];
+/** Used only against a laptop running a build from before engines were a
+ *  choice, which still answers every bot with Claude Code. */
+const FALLBACK_MODELS = [
+  { key: "opus", name: "Opus", hint: "" },
+  { key: "sonnet", name: "Sonnet", hint: "" },
+];
 const NETWORKS: Bot["network"][] = ["full", "no-lan", "offline"];
 const NETWORK_LABEL: Record<Bot["network"], string> = {
   full: "Everything",
@@ -31,6 +36,7 @@ const NETWORK_LABEL: Record<Bot["network"], string> = {
 
 export default function BotSettings({
   bot,
+  engines,
   onBack,
   onUpdate,
   onDelete,
@@ -39,6 +45,8 @@ export default function BotSettings({
   onDesktop,
 }: {
   bot: Bot;
+  /** What the laptop says can answer for a bot. Empty from an older desktop. */
+  engines: EngineInfo[];
   onBack: () => void;
   onUpdate: (patch: Record<string, unknown>) => Promise<void>;
   onDelete: () => void;
@@ -106,17 +114,64 @@ export default function BotSettings({
           />
         </View>
 
+        {engines.length ? (
+          <>
+            <Text style={s.group}>Answered by</Text>
+            <View style={s.card}>
+              <View style={s.segment}>
+                {engines.map((info) => (
+                  <Pressable
+                    key={info.key}
+                    // An engine the laptop hasn't got is shown, and dimmed,
+                    // with the reason underneath: the fix is on the laptop, and
+                    // whoever is holding the phone may not be near it.
+                    disabled={!info.ready.usable}
+                    style={[
+                      s.choice,
+                      bot.engine === info.key && s.choiceOn,
+                      !info.ready.usable && s.choiceOut,
+                    ]}
+                    onPress={() =>
+                      onUpdate({
+                        engine: info.key,
+                        // Sent together, because "opus" means nothing to Gemini:
+                        // the model is kept only if the new engine has it.
+                        model: info.models.some((m) => m.key === bot.model)
+                          ? bot.model
+                          : (info.models[0]?.key ?? bot.model),
+                      })
+                    }
+                  >
+                    <Text
+                      style={[
+                        s.choiceText,
+                        bot.engine === info.key && s.choiceTextOn,
+                        !info.ready.usable && s.choiceTextOut,
+                      ]}
+                    >
+                      {info.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              {engineNote(bot, engines) ? (
+                <Text style={s.fine}>{engineNote(bot, engines)}</Text>
+              ) : null}
+            </View>
+          </>
+        ) : null}
+
         <Text style={s.group}>Model</Text>
         <View style={s.card}>
           <View style={s.segment}>
-            {MODELS.map((model) => (
+            {modelsFor(bot, engines).map((model) => (
               <Pressable
-                key={model}
-                style={[s.choice, bot.model === model && s.choiceOn]}
-                onPress={() => onUpdate({ model })}
+                key={model.key}
+                style={[s.choice, bot.model === model.key && s.choiceOn]}
+                onPress={() => onUpdate({ model: model.key })}
               >
-                <Text style={[s.choiceText, bot.model === model && s.choiceTextOn]}>
-                  {model[0].toUpperCase() + model.slice(1)}
+                <Text style={[s.choiceText, bot.model === model.key && s.choiceTextOn]}>
+                  {model.name}
                 </Text>
               </Pressable>
             ))}
@@ -256,6 +311,26 @@ export default function BotSettings({
   );
 }
 
+/** The models this bot's engine can be asked for. */
+function modelsFor(bot: Bot, engines: EngineInfo[]) {
+  const chosen = engines.find((info) => info.key === bot.engine);
+  return chosen?.models.length ? chosen.models : FALLBACK_MODELS;
+}
+
+/** Who keeps the conversation, and anything the laptop is missing. Both are
+ *  things a person can act on; the rest of an engine's nature is not. */
+function engineNote(bot: Bot, engines: EngineInfo[]): string {
+  const chosen = engines.find((info) => info.key === bot.engine);
+  const lines: string[] = [];
+  if (chosen && !chosen.ownsTranscript) {
+    lines.push(`${chosen.name} can't resume a conversation, so botcage keeps this thread on the laptop and sends it each turn.`);
+  }
+  for (const info of engines) {
+    if (!info.ready.usable) lines.push(`${info.name}: ${info.ready.missing ?? "not available"}`);
+  }
+  return lines.join("\n");
+}
+
 const s = StyleSheet.create({
   fill: { flex: 1, backgroundColor: T.bg },
   head: {
@@ -295,6 +370,9 @@ const s = StyleSheet.create({
     borderRadius: 10,
   },
   choiceOn: { backgroundColor: T.blue },
+  // Present, and plainly not available: the reason is under the segment.
+  choiceOut: { opacity: 0.45 },
+  choiceTextOut: { textDecorationLine: "line-through" },
   choiceText: { color: T.text2, fontSize: 13.5 },
   choiceTextOn: { color: "#fff", fontWeight: "600" },
   pair: { flexDirection: "row", gap: 8 },

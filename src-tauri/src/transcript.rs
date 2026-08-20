@@ -15,12 +15,6 @@
 //! else that belongs to it: readable by a person, appendable without rewriting,
 //! and removed with the bot.
 
-// Written before its first caller: the engine that needs it — one that cannot
-// resume a conversation of its own — arrives with the runner move, and the
-// decisions here are worth making deliberately rather than in the middle of
-// that. The tests exercise every path meanwhile.
-#![allow(dead_code)]
-
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};

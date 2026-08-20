@@ -59,7 +59,12 @@ interface Bot {
   computer: boolean;
   /** What that desktop may reach. */
   network: "full" | "no-lan" | "offline";
-  /** Which Claude model answers for this bot. */
+  /** Which tool answers for this bot: a key from `engines`. Absent on every
+   *  bot made before there was a choice, which is why everything that reads it
+   *  falls back rather than failing. */
+  engine?: string;
+  /** Which of that engine's models. Named in the engine's own vocabulary, so
+   *  "opus" and "gemini-2.5-pro" both live here. */
   model: string;
   routines?: Routine[];
   /** MCP server keys this bot may use. Absent means none. */
@@ -243,6 +248,7 @@ const sheetDelete = $<HTMLButtonElement>("#sheet-delete");
 
 const sheetComputer = $<HTMLInputElement>("#sheet-computer");
 const sheetNetwork = $<HTMLSelectElement>("#sheet-network");
+const sheetEngine = $<HTMLSelectElement>("#sheet-engine");
 const sheetModel = $<HTMLSelectElement>("#sheet-model");
 const sheetBrowser = $<HTMLSelectElement>("#sheet-browser");
 const sheetRendering = $<HTMLSelectElement>("#sheet-rendering");
@@ -299,6 +305,32 @@ interface EngineStatus {
 }
 let engine: EngineStatus | null = null;
 let engineStep = "";
+
+/** One thing that can answer for a bot — a CLI, and one day an API or a model
+ *  on this machine. Not to be confused with the container engine above; the
+ *  Rust side keeps them in separate files for the same reason. */
+interface EngineInfo {
+  key: string;
+  name: string;
+  ready: { usable: boolean; missing: string | null };
+  /** False when botcage has to hold this bot's conversation itself. */
+  ownsTranscript: boolean;
+  tools: string;
+  models: { key: string; name: string; hint: string }[];
+}
+
+/** What botcage found, fetched at launch so a bot's settings can offer the
+ *  choice without waiting on a round trip. */
+let engineChoices: EngineInfo[] = [];
+
+/** Used when the list cannot be fetched, and by every bot made before engines
+ *  existed. */
+const DEFAULT_ENGINE = "claude-code";
+
+async function loadEngineChoices(): Promise<EngineInfo[]> {
+  engineChoices = await invoke<EngineInfo[]>("engines").catch(() => []);
+  return engineChoices;
+}
 let installing = false;
 
 // The install is minutes of downloading, so its progress replaces the pane's
@@ -759,6 +791,7 @@ async function respond(bot: Bot, prompt: string): Promise<void> {
     await invoke("ask", {
       req: {
         botId: bot.id,
+        engine: bot.engine ?? DEFAULT_ENGINE,
         sessionId: bot.sessionId,
         resume: bot.started,
         prompt,
@@ -995,6 +1028,118 @@ function renderRoutines(): void {
     .join("");
 }
 
+/** What could answer for this bot, and what is stopping the rest.
+ *
+ *  An engine that is missing is still listed, greyed, with the reason on it: a
+ *  choice that quietly disappears is harder to understand than one that says
+ *  "not installed". And a bot keeps the engine it was given even when that
+ *  engine has since gone missing — silently moving a bot to something else
+ *  would change what answers for it without asking. */
+function paintSheetEngines(bot: Bot | null): void {
+  const list: EngineInfo[] = engineChoices.length
+    ? engineChoices
+    : [
+        // The list could not be fetched. Offering nothing would make the sheet
+        // unusable, and Claude Code is what every bot used before this existed.
+        {
+          key: DEFAULT_ENGINE,
+          name: "Claude Code",
+          ready: { usable: true, missing: null },
+          ownsTranscript: true,
+          tools: "native",
+          models: [
+            { key: "opus", name: "Opus", hint: "The most capable, and the hungriest." },
+            { key: "sonnet", name: "Sonnet", hint: "Easier on your usage limits." },
+          ],
+        },
+      ];
+
+  const options = list.map((info) => {
+    const option = document.createElement("option");
+    option.value = info.key;
+    // The name alone. What is wrong with an engine goes in the hint below,
+    // where there is room for a sentence — a select is only as wide as its
+    // widest option, and "not installed — npm install …" is a paragraph.
+    option.textContent = info.name;
+    option.disabled = !info.ready.usable;
+    return option;
+  });
+
+  // A bot pointed at something this build has never heard of: name it rather
+  // than showing the wrong engine as selected.
+  const known = bot?.engine ? list.some((info) => info.key === bot.engine) : true;
+  if (bot?.engine && !known) {
+    const option = document.createElement("option");
+    option.value = bot.engine;
+    option.textContent = `${bot.engine} — unknown to this version`;
+    option.disabled = true;
+    options.push(option);
+  }
+
+  sheetEngine.replaceChildren(...options);
+  sheetEngine.value =
+    bot?.engine ?? list.find((info) => info.ready.usable)?.key ?? DEFAULT_ENGINE;
+  paintSheetModels(bot?.model ?? appSettings().model);
+}
+
+/** The models the chosen engine can be asked for.
+ *
+ *  Repainted whenever the engine changes, because "opus" means nothing to
+ *  Gemini: a bot that kept its old model would ask for one that does not exist
+ *  and fail on its next message. The model is kept when the new engine also
+ *  has it, and otherwise becomes that engine's first. */
+function paintSheetModels(want?: string): void {
+  const chosen = engineChoices.find((info) => info.key === sheetEngine.value);
+  const models = chosen?.models.length
+    ? chosen.models
+    : [
+        { key: "opus", name: "Opus", hint: "The most capable, and the hungriest." },
+        { key: "sonnet", name: "Sonnet", hint: "Easier on your usage limits." },
+      ];
+
+  sheetModel.replaceChildren(
+    ...models.map((model) => {
+      const option = document.createElement("option");
+      option.value = model.key;
+      option.textContent = model.name;
+      return option;
+    }),
+  );
+  sheetModel.value = models.some((model) => model.key === want) ? want! : models[0].key;
+  paintSheetHints();
+}
+
+/** The sentence under each picker. The engine's says who keeps the
+ *  conversation, because that is the one difference a person can feel: a bot
+ *  whose engine cannot resume one is remembered by botcage instead. */
+function paintSheetHints(): void {
+  const chosen = engineChoices.find((info) => info.key === sheetEngine.value);
+  // Two things worth saying, in the order they matter: what picking this one
+  // means, and why the others are greyed out.
+  const lines: string[] = [];
+  if (chosen) {
+    lines.push(
+      chosen.ownsTranscript
+        ? `${chosen.name} keeps this bot's conversation itself.`
+        : `${chosen.name} can't resume a conversation, so botcage keeps this bot's thread and sends it each turn.`,
+    );
+  }
+  for (const info of engineChoices) {
+    // A colon, not a dash: the reason may itself contain one ("not installed —
+    // npm install …"), and two dashes in a sentence read as a mistake.
+    if (!info.ready.usable) lines.push(`${info.name}: ${info.ready.missing ?? "not available"}`);
+  }
+  $<HTMLSpanElement>("#sheet-engine-hint").textContent =
+    lines.join(" ") || "Which installed tool runs this bot's turns.";
+
+  const model = chosen?.models.find((entry) => entry.key === sheetModel.value);
+  $<HTMLSpanElement>("#sheet-model-hint").textContent =
+    model?.hint ?? "Sonnet is easier on your usage limits.";
+}
+
+sheetEngine.addEventListener("change", () => paintSheetModels(sheetModel.value));
+sheetModel.addEventListener("change", paintSheetHints);
+
 function openSheet(bot: Bot | null = null): void {
   editing = bot;
   draftColor = bot?.color ?? COLORS[state.bots.length % COLORS.length];
@@ -1004,7 +1149,7 @@ function openSheet(bot: Bot | null = null): void {
   sheetRole.value = bot?.role ?? "";
   sheetComputer.checked = bot?.computer ?? false;
   sheetNetwork.value = bot?.network ?? "full";
-  sheetModel.value = bot?.model ?? appSettings().model;
+  paintSheetEngines(bot);
   sheetBrowser.value = bot?.machine?.browser ?? "";
   sheetRendering.value = bot?.machine?.rendering ?? "";
   // Say what "Automatic" resolved to, or the tab reads as though nothing is set
@@ -1909,15 +2054,27 @@ function saveSheet(): void {
 
   if (editing) {
     const before = { computer: editing.computer, network: editing.network };
+    const swapped = (editing.engine ?? DEFAULT_ENGINE) !== sheetEngine.value;
     Object.assign(editing, {
       name,
       role: sheetRole.value.trim(),
       color: draftColor,
       computer: sheetComputer.checked,
       network: sheetNetwork.value as Bot["network"],
+      engine: sheetEngine.value,
       model: sheetModel.value,
       machine: machineFromSheet(),
     });
+
+    // A session id belongs to the engine that made it, so a bot that changed
+    // engines starts a fresh one. The conversation is not lost with it: botcage
+    // keeps its own transcript of every bot, and hands it to whatever answers
+    // next — which is the whole reason it keeps one.
+    if (swapped) {
+      if (inflight.has(editing.id)) cancelTurn(editing.id);
+      editing.sessionId = newSessionId();
+      editing.started = false;
+    }
     sheetWrap.hidden = true;
     editing = null;
     save();
@@ -1927,6 +2084,11 @@ function saveSheet(): void {
 
     // Network is baked into the container at creation, and a revoked computer
     // should actually stop running.
+    if (swapped) {
+      const named = engineChoices.find((info) => info.key === sheetEngine.value);
+      toast(`${name} is answered by ${named?.name ?? sheetEngine.value} from now on`);
+    }
+
     if (before.network !== sheetNetwork.value || (before.computer && !sheetComputer.checked)) {
       toast(
         sheetComputer.checked
@@ -1952,6 +2114,7 @@ function createBot(): void {
     started: false,
     computer: sheetComputer.checked,
     network: sheetNetwork.value as Bot["network"],
+    engine: sheetEngine.value || DEFAULT_ENGINE,
     model: sheetModel.value || appSettings().model,
     machine: machineFromSheet(),
     plugins: [],
@@ -2088,20 +2251,10 @@ async function openAppSettings(): Promise<void> {
 
 }
 
-interface EngineInfo {
-  key: string;
-  name: string;
-  ready: { usable: boolean; missing: string | null };
-  ownsTranscript: boolean;
-  tools: string;
-}
-
-/** List what could answer for a bot, and what is stopping each one.
- *
- *  Read-only for now: bots all use Claude Code, and offering a choice botcage
- *  cannot yet honour would be worse than not offering it. */
+/** List what could answer for a bot, and what is stopping each one. Each bot
+ *  picks from the same list in its own settings; this is the overview. */
 async function paintEngines(): Promise<void> {
-  const engines = await invoke<EngineInfo[]>("engines").catch(() => []);
+  const engines = await loadEngineChoices();
   const list = $<HTMLDivElement>("#app-engines");
   list.replaceChildren(
     ...engines.map((engine) => {
@@ -3033,9 +3186,12 @@ menu.addEventListener("click", (e) => {
     if (target2) {
       if (inflight.has(target2.id)) cancelTurn(target2.id);
       target2.messages = [];
-      // A cleared thread starts a fresh Claude Code session.
+      // A fresh session for an engine that keeps its own conversation, and the
+      // transcript dropped for one that does not. Both, because a bot may have
+      // changed engines since: clearing has to mean cleared either way.
       target2.sessionId = newSessionId();
       target2.started = false;
+      void invoke("clear_thread", { botId: target2.id }).catch(() => {});
       save();
       renderRoster();
       renderThread();
@@ -3813,12 +3969,16 @@ function remoteSnapshot(): Record<string, unknown> {
     activeId: state.activeId,
     settings: appSettings(),
     claudeReady,
+    // What could answer for a bot, so the phone offers the same choice as the
+    // laptop rather than a list of its own that drifts.
+    engines: engineChoices,
     bots: state.bots.map((bot) => ({
       id: bot.id,
       name: bot.name,
       role: bot.role,
       color: bot.color,
       shape: bot.shape,
+      engine: bot.engine ?? DEFAULT_ENGINE,
       model: bot.model,
       computer: bot.computer,
       network: bot.network,
@@ -3838,7 +3998,17 @@ function remoteSend(botId: string, text: string): Record<string, unknown> {
   const bot = state.bots.find((b) => b.id === botId);
   if (!bot) throw new Error("no such bot");
   if (inflight.has(bot.id)) throw new Error("this bot is already working on something");
-  if (!claudeReady) throw new Error("Claude Code isn't installed or signed in on the desktop");
+
+  // Whatever answers for *this* bot, which is not necessarily Claude Code —
+  // and the reason it cannot answer is worth carrying to the phone, since the
+  // fix is on the laptop and the person holding the phone may not be near it.
+  const answering = engineChoices.find((info) => info.key === (bot.engine ?? DEFAULT_ENGINE));
+  if (answering && !answering.ready.usable) {
+    throw new Error(`${answering.name} is ${answering.ready.missing ?? "not available"} on the desktop`);
+  }
+  if (!answering && !claudeReady) {
+    throw new Error("Claude Code isn't installed or signed in on the desktop");
+  }
 
   const clean = text.trim();
   if (!clean) throw new Error("nothing to send");
@@ -3883,6 +4053,7 @@ const REMOTE_ACTIONS: Record<string, (payload: Record<string, unknown>) => unkno
       started: false,
       computer: false,
       network: "full",
+      engine: engineChoices.find((info) => info.ready.usable)?.key ?? DEFAULT_ENGINE,
       model: appSettings().model,
       plugins: [],
       routines: [],
@@ -3902,6 +4073,17 @@ const REMOTE_ACTIONS: Record<string, (payload: Record<string, unknown>) => unkno
     if (typeof p.name === "string") bot.name = p.name.slice(0, 40);
     if (typeof p.role === "string") bot.role = p.role;
     if (typeof p.model === "string") bot.model = p.model;
+    // Only an engine this desktop actually has: a phone from a newer build must
+    // not leave a bot pointed at something that cannot answer it.
+    if (typeof p.engine === "string" && engineChoices.some((info) => info.key === p.engine)) {
+      if (p.engine !== (bot.engine ?? DEFAULT_ENGINE)) {
+        // Same reasoning as the sheet: the session id belonged to the old
+        // engine, and the transcript botcage keeps carries the thread over.
+        bot.engine = p.engine;
+        bot.sessionId = newSessionId();
+        bot.started = false;
+      }
+    }
     if (p.network === "full" || p.network === "no-lan" || p.network === "offline") {
       bot.network = p.network;
     }
@@ -4003,6 +4185,10 @@ void invoke<string>("user_name")
   .catch(() => {});
 
 verifyCatalogue();
+
+// What can answer for a bot, so the first sheet opened already offers the
+// choice rather than showing one option and correcting itself.
+void loadEngineChoices();
 
 void invoke("set_idle_limit", { minutes: appSettings().idleMinutes }).catch(() => {});
 // Re-assert on launch: the assertion belongs to the process that took it.

@@ -1712,6 +1712,10 @@ a.detail__source:hover {
 
 .picker {
   height: 28px;
+  /* A select is as wide as its widest option, so one long entry — an engine
+     with a long name — would squeeze the label beside it into a column of
+     single words. Half the row, and the option can ellipsise. */
+  max-width: 46%;
   padding: 0 8px;
   font: inherit;
   font-size: 12.5px;

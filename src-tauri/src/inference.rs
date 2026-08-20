@@ -24,17 +24,10 @@ use serde::Serialize;
 
 /// One turn's work, in botcage's terms.
 ///
-/// Not built yet: the Claude Code runner still assembles its own command in
-/// `lib.rs`. Moving it behind this is the next step, and this is the shape it
-/// moves into — written down now so a second engine has something to implement
-/// against rather than a shape inferred from the first one.
-#[allow(dead_code)]
-///
 /// Deliberately not a command line: what an engine is *given* is a prompt, who
 /// the bot is, what it may use and where it works. How that becomes a process,
 /// a request, or a local inference loop is the engine's business.
 pub struct Turn {
-    pub bot_id: String,
     /// The conversation this turn belongs to. An engine that owns its own
     /// transcript treats this as a handle to resume; one that does not uses it
     /// only to tell conversations apart.
@@ -59,13 +52,54 @@ pub struct Turn {
     pub mcp_servers: serde_json::Value,
     /// Secrets a plugin needs in the environment.
     pub env: Vec<(String, String)>,
+    /// What was said before this, oldest first.
+    ///
+    /// Empty for an engine that keeps its own conversation and is being asked
+    /// to continue it — sending history to something that already has it would
+    /// double every exchange. Filled for anything that cannot, which is what
+    /// makes a bot on such an engine a bot rather than a series of strangers.
+    pub history: Vec<crate::transcript::Entry>,
+}
+
+/// A prompt with the conversation in front of it, for an engine that cannot
+/// resume one.
+///
+/// Plain prose rather than a chat array on purpose: this is going to a CLI that
+/// takes a single string, and the shapes those accept differ. What every model
+/// understands is a transcript that reads like one.
+pub fn with_history(turn: &Turn) -> String {
+    if turn.history.is_empty() {
+        return turn.prompt.clone();
+    }
+
+    // A turn that failed still recorded the question, so a retry would find it
+    // sitting at the end of the history and ask it twice — once as something
+    // that already happened, once as the thing being asked. Drop it.
+    let mut history = turn.history.as_slice();
+    if let Some(last) = history.last() {
+        if last.voice == crate::transcript::Voice::User && last.text == turn.prompt {
+            history = &history[..history.len() - 1];
+        }
+    }
+    if history.is_empty() {
+        return turn.prompt.clone();
+    }
+
+    let mut out = String::from("Earlier in this conversation, oldest first:\n\n");
+    for entry in history {
+        let who = match entry.voice {
+            crate::transcript::Voice::User => "User",
+            // Addressed to the model, because it is the model's own past words.
+            crate::transcript::Voice::Bot => "You",
+        };
+        out.push_str(&format!("{who}: {}\n\n", entry.text.trim()));
+    }
+    out.push_str("The user now says:\n\n");
+    out.push_str(&turn.prompt);
+    out
 }
 
 /// What botcage understands, whatever produced it.
-///
-/// The desktop's runner still emits these as loose strings; this is the same
-/// vocabulary, typed, ready for the move.
-#[allow(dead_code)]
 ///
 /// The desktop, the phone and the relay all render these; an engine's own
 /// stream format never reaches them.
@@ -132,6 +166,25 @@ pub trait Engine: Send + Sync {
     /// reason claude.ai's were removed — and a bot's GitHub or Notion should
     /// work whatever answers for it.
     fn tools(&self) -> ToolDelivery;
+
+    /// Which models it can be asked for, the one to default to first.
+    ///
+    /// Here rather than in the UI because "opus" means nothing to Gemini and a
+    /// bot switched between the two must not keep asking for a model that does
+    /// not exist. A short curated list, not a catalogue: an engine that can
+    /// reach hundreds will need somewhere to search, and that is a different
+    /// screen from a picker with two entries.
+    fn models(&self) -> Vec<Model>;
+}
+
+/// One model an engine can be asked for.
+#[derive(Debug, Clone, Serialize)]
+pub struct Model {
+    /// Exactly what goes on the command line.
+    pub key: &'static str,
+    pub name: &'static str,
+    /// The one sentence that decides it for someone.
+    pub hint: &'static str,
 }
 
 /// How a bot's connectors reach the model.
@@ -354,6 +407,21 @@ impl Engine for ClaudeCode {
         // servers and stays out of the way.
         ToolDelivery::Native
     }
+
+    fn models(&self) -> Vec<Model> {
+        vec![
+            Model {
+                key: "opus",
+                name: "Opus",
+                hint: "The most capable, and the hungriest.",
+            },
+            Model {
+                key: "sonnet",
+                name: "Sonnet",
+                hint: "Easier on your usage limits.",
+            },
+        ]
+    }
 }
 
 /// One line of a Claude Code stream, as botcage understands it.
@@ -390,6 +458,46 @@ pub fn locate_gemini() -> Option<std::path::PathBuf> {
     candidates.into_iter().find(|candidate| candidate.is_file())
 }
 
+/// The file Gemini reads in place of a system-prompt flag.
+///
+/// Rewritten every turn and labelled as ours, because the bot can see it and
+/// will otherwise mistake it for something worth maintaining. Its own notes go
+/// in MEMORY.md, which botcage never overwrites.
+fn write_instructions(cwd: &std::path::Path, system_prompt: &str) -> Result<(), String> {
+    let body = format!(
+        "<!-- Written by botcage before every turn, and replaced each time. \
+         Your own notes belong in MEMORY.md. -->\n\n{system_prompt}\n"
+    );
+    std::fs::write(cwd.join("GEMINI.md"), body)
+        .map_err(|e| format!("could not write this bot's instructions: {e}"))
+}
+
+/// The bot's connectors, where Gemini looks for them.
+///
+/// Merged rather than replaced: only `mcpServers` is botcage's to decide, and a
+/// bot that edited its own settings for some other reason should keep what it
+/// wrote. The key is always set, including to nothing — a revoked connector has
+/// to actually disappear.
+fn write_settings(cwd: &std::path::Path, servers: &serde_json::Value) -> Result<(), String> {
+    let dir = cwd.join(".gemini");
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| format!("could not create {}: {e}", dir.display()))?;
+
+    let file = dir.join("settings.json");
+    let mut settings = std::fs::read_to_string(&file)
+        .ok()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+        .filter(serde_json::Value::is_object)
+        .unwrap_or_else(|| serde_json::json!({}));
+    settings["mcpServers"] = servers.clone();
+
+    std::fs::write(
+        &file,
+        serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| format!("could not write this bot's connectors: {e}"))
+}
+
 impl Engine for GeminiCli {
     fn key(&self) -> &'static str {
         "gemini-cli"
@@ -410,12 +518,29 @@ impl Engine for GeminiCli {
         let bin =
             locate_gemini().ok_or("Gemini CLI not found — npm install -g @google/gemini-cli")?;
 
+        // Two things Claude Code takes as arguments, Gemini reads from the
+        // working directory. Writing them is therefore part of building the
+        // command, and both are rewritten every turn: a bot whose connectors
+        // were revoked, or whose role was edited, must not be answered by
+        // yesterday's file.
+        write_instructions(&turn.cwd, &turn.system_prompt)?;
+        write_settings(&turn.cwd, &turn.mcp_servers)?;
+
         let mut cmd = std::process::Command::new(&bin);
         cmd.current_dir(&turn.cwd)
             .args(["--output-format", "stream-json"])
             .args(["--model", &turn.model])
-            .args(["--prompt", &turn.prompt])
-            .stdin(std::process::Stdio::piped())
+            // Nothing is watching to answer a prompt, so a turn that stops to
+            // ask permission is a turn that hangs. Edits go through; this is
+            // the same bargain the Claude Code runner strikes with
+            // `--permission-mode acceptEdits`.
+            .args(["--approval-mode", "auto_edit"])
+            // The conversation, because there is no session to resume.
+            .args(["--prompt", &with_history(turn)])
+            // Closed rather than piped, and that is how the runner knows the
+            // prompt has already been delivered: an engine that wants it on
+            // stdin asks for a pipe, and this one has taken it as an argument.
+            .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
 
@@ -423,12 +548,11 @@ impl Engine for GeminiCli {
             cmd.env(var, value);
         }
 
-        // Written against the documented flags rather than a binary: the CLI is
-        // not installed here, so this is the part to check first on a machine
-        // that has it. Two things are known to be missing — a bot's system
-        // prompt, which Gemini takes from a file rather than a flag, and its
-        // MCP servers, which it reads from settings rather than an argument.
-        // Both are why this engine is not yet offered in the picker.
+        // Nothing here denies a plugin by name, and that is not an omission:
+        // botcage writes the settings file itself, so a bot is only offered the
+        // servers it was granted. Claude Code has to be told what to subtract
+        // because an installed plugin reaches every session; here the list is
+        // built from nothing each turn, so `denied_plugins` has nothing to do.
         Ok(cmd)
     }
 
@@ -488,6 +612,21 @@ impl Engine for GeminiCli {
         // servers rather than rebuilt as function definitions.
         ToolDelivery::Native
     }
+
+    fn models(&self) -> Vec<Model> {
+        vec![
+            Model {
+                key: "gemini-2.5-pro",
+                name: "Gemini 2.5 Pro",
+                hint: "The capable one, and the slower one.",
+            },
+            Model {
+                key: "gemini-2.5-flash",
+                name: "Gemini 2.5 Flash",
+                hint: "Quick, and cheap enough to leave running.",
+            },
+        ]
+    }
 }
 
 /// Every engine botcage knows about. A list rather than a constant, so adding
@@ -517,6 +656,7 @@ pub struct EngineInfo {
     pub ready: Ready,
     pub owns_transcript: bool,
     pub tools: ToolDelivery,
+    pub models: Vec<Model>,
 }
 
 #[tauri::command(async)]
@@ -529,6 +669,7 @@ pub fn engines() -> Vec<EngineInfo> {
             ready: engine.ready(),
             owns_transcript: engine.owns_transcript(),
             tools: engine.tools(),
+            models: engine.models(),
         })
         .collect()
 }
@@ -645,7 +786,6 @@ mod tests {
     #[test]
     fn a_turn_asks_for_everything_it_used_to() {
         let turn = Turn {
-            bot_id: "b1".into(),
             session_id: "11111111-1111-4111-8111-111111111111".into(),
             resume: true,
             prompt: "morning".into(),
@@ -656,6 +796,7 @@ mod tests {
             denied_plugins: vec!["notion".into()],
             mcp_servers: serde_json::json!({ "github": { "command": "x" } }),
             env: vec![("GITHUB_TOKEN".into(), "secret".into())],
+            history: Vec::new(),
         };
 
         let Ok(cmd) = ClaudeCode.command(&turn) else {
@@ -765,6 +906,173 @@ mod tests {
         assert!(read(r#"{"type":"mess"#).is_empty());
     }
 
+    fn entry(voice: crate::transcript::Voice, text: &str) -> crate::transcript::Entry {
+        crate::transcript::Entry {
+            voice,
+            text: text.to_string(),
+            at: 0,
+        }
+    }
+
+    fn a_turn(cwd: std::path::PathBuf) -> Turn {
+        Turn {
+            session_id: "s1".into(),
+            resume: false,
+            prompt: "which ones?".into(),
+            system_prompt: "You are Engineer, and you review pull requests.".into(),
+            model: "gemini-2.5-pro".into(),
+            cwd,
+            allowed_tools: "Read,Glob".into(),
+            denied_plugins: vec!["notion".into()],
+            mcp_servers: serde_json::json!({ "github": { "command": "gh-mcp" } }),
+            env: vec![],
+            history: vec![],
+        }
+    }
+
+    /// The whole point of keeping a transcript: a reply that follows from the
+    /// one before it, on an engine that cannot remember either.
+    #[test]
+    fn a_conversation_reaches_an_engine_that_cannot_remember_one() {
+        let mut turn = a_turn(std::env::temp_dir());
+
+        // With nothing behind it, a prompt is sent exactly as typed — no
+        // preamble explaining that there is no preamble.
+        assert_eq!(with_history(&turn), "which ones?");
+
+        turn.history = vec![
+            entry(crate::transcript::Voice::User, "morning"),
+            entry(
+                crate::transcript::Voice::Bot,
+                "morning — two PRs need review",
+            ),
+        ];
+        let sent = with_history(&turn);
+        assert!(sent.contains("morning — two PRs need review"));
+        assert!(
+            sent.ends_with("which ones?"),
+            "the question being asked must come last: {sent}"
+        );
+        assert!(
+            sent.find("morning").unwrap() < sent.find("which ones?").unwrap(),
+            "oldest first, or the model reads the conversation backwards"
+        );
+        assert_eq!(
+            sent.matches("which ones?").count(),
+            1,
+            "the new prompt must not also appear as history"
+        );
+
+        // A turn that failed recorded its question before it failed. Asking it
+        // again must not read as though it had already been asked and answered.
+        turn.history
+            .push(entry(crate::transcript::Voice::User, "which ones?"));
+        let retried = with_history(&turn);
+        assert_eq!(
+            retried.matches("which ones?").count(),
+            1,
+            "a retried question appears twice: {retried}"
+        );
+        assert!(retried.contains("two PRs need review"), "and loses nothing");
+
+        // The same, on a bot whose only recorded turn is the one that failed:
+        // nothing is left, so the prompt goes as typed.
+        turn.history = vec![entry(crate::transcript::Voice::User, "which ones?")];
+        assert_eq!(with_history(&turn), "which ones?");
+    }
+
+    /// What Claude Code takes as flags, Gemini reads from the working
+    /// directory — so building its command writes files, and this is the part
+    /// that can be checked without the binary.
+    #[test]
+    fn gemini_leaves_the_bot_s_instructions_and_connectors_where_it_looks() {
+        let cwd = std::env::temp_dir().join("botcage-gemini-files");
+        let _ = std::fs::remove_dir_all(&cwd);
+        std::fs::create_dir_all(&cwd).expect("workspace");
+
+        let mut turn = a_turn(cwd.clone());
+        // A file the bot wrote itself, which botcage has no business dropping.
+        std::fs::create_dir_all(cwd.join(".gemini")).unwrap();
+        std::fs::write(
+            cwd.join(".gemini/settings.json"),
+            r#"{"theme":"Dracula","mcpServers":{"stale":{"command":"gone"}}}"#,
+        )
+        .unwrap();
+
+        write_instructions(&cwd, &turn.system_prompt).expect("instructions");
+        write_settings(&cwd, &turn.mcp_servers).expect("settings");
+
+        let md = std::fs::read_to_string(cwd.join("GEMINI.md")).expect("GEMINI.md");
+        assert!(
+            md.contains("You are Engineer"),
+            "a bot with no role is a different bot"
+        );
+        assert!(
+            md.contains("botcage"),
+            "the bot can see this file; it must say who owns it"
+        );
+
+        let settings: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(cwd.join(".gemini/settings.json")).unwrap(),
+        )
+        .expect("settings are still valid JSON");
+        assert!(
+            settings["mcpServers"]["github"].is_object(),
+            "the bot's connectors never reached it: {settings}"
+        );
+        assert!(
+            settings["mcpServers"]["stale"].is_null(),
+            "a connector that was revoked has to actually disappear"
+        );
+        assert_eq!(
+            settings["theme"], "Dracula",
+            "only mcpServers is botcage's to decide"
+        );
+
+        // And a bot granted nothing is offered nothing, rather than keeping
+        // what it had last turn.
+        turn.mcp_servers = serde_json::json!({});
+        write_settings(&cwd, &turn.mcp_servers).expect("settings");
+        let settings: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(cwd.join(".gemini/settings.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(settings["mcpServers"], serde_json::json!({}));
+    }
+
+    /// Which of the two ways an engine takes its prompt, declared by whether it
+    /// asks for a pipe. The runner writes to stdin when there is one, so an
+    /// engine that also took the prompt as an argument would be asked twice.
+    #[test]
+    fn an_engine_that_took_the_prompt_as_an_argument_is_not_told_it_twice() {
+        let cwd = std::env::temp_dir().join("botcage-gemini-stdin");
+        let _ = std::fs::remove_dir_all(&cwd);
+        std::fs::create_dir_all(&cwd).expect("workspace");
+
+        let Ok(cmd) = GeminiCli.command(&a_turn(cwd)) else {
+            // No CLI here, which is a fact about the machine.
+            return;
+        };
+        let args: Vec<String> = cmd
+            .get_args()
+            .map(|a| a.to_string_lossy().to_string())
+            .collect();
+        assert!(
+            args.windows(2)
+                .any(|pair| pair[0] == "--prompt" && pair[1] == "which ones?"),
+            "the prompt never reached the command: {args:?}"
+        );
+        assert!(
+            args.windows(2)
+                .any(|pair| pair[0] == "--output-format" && pair[1] == "stream-json"),
+            "not streaming, so nothing would appear until the turn ended"
+        );
+        assert!(
+            !args.iter().any(|a| a == "--resume"),
+            "there is no session to resume; the conversation is in the prompt"
+        );
+    }
+
     #[test]
     fn the_registry_describes_itself() {
         let listed = engines();
@@ -777,6 +1085,20 @@ mod tests {
             assert!(!engine.name.is_empty());
             // Not usable is fine; not saying why is not.
             assert!(engine.ready.usable || engine.ready.missing.is_some());
+            // An engine with no model to ask for cannot be picked, and a picker
+            // that offers it is a picker that produces a broken bot.
+            assert!(!engine.models.is_empty(), "{} offers no model", engine.name);
+            for model in &engine.models {
+                assert!(!model.key.is_empty() && !model.hint.is_empty());
+            }
         }
+
+        // No two engines may claim the same key: a bot stores one, and the
+        // wrong match would answer as the wrong thing.
+        let mut keys: Vec<&str> = listed.iter().map(|e| e.key.as_str()).collect();
+        keys.sort_unstable();
+        let count = keys.len();
+        keys.dedup();
+        assert_eq!(keys.len(), count, "two engines share a key");
     }
 }

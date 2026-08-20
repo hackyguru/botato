@@ -2,7 +2,7 @@
 
 Bots that live on your own machine.
 
-Each bot is a persistent Claude Code session with its own memory and workspace,
+Each bot is a persistent session with its own memory and workspace,
 and — if you give it one — its own sandboxed Linux desktop with a browser and a
 terminal, which you can watch it use. There is a desktop app and a phone app;
 the phone reaches the laptop directly, from anywhere, with nothing in between.
@@ -14,7 +14,8 @@ of ours, and no telemetry.
 
 - **The Claude Code CLI**, installed and signed in. botcage drives it rather
   than shipping a model, and a Claude Pro or Max subscription covers it. The
-  app's setup screen installs it for you if it is missing.
+  app's setup screen installs it for you if it is missing. A bot can be pointed
+  at the Gemini CLI instead, per bot.
 - **Nothing else** for chat, memory, routines, connectors and plugins.
 - **A container engine** only if you want bots to have their own computer.
   botcage downloads and manages one itself — lima and the docker CLI on macOS,
@@ -32,8 +33,9 @@ macOS builds are signed and notarised, so they open without warnings.
 
 ## What a bot is
 
-- **A conversation that persists.** Each bot owns a Claude Code session and a
-  workspace on disk, and remembers across restarts.
+- **A conversation that persists.** Each bot owns a session and a workspace on
+  disk, and remembers across restarts.
+- **An engine**: which tool answers for it, chosen per bot.
 - **A memory file** it maintains itself, seeded from its name and role.
 - **Optionally, a computer**: a Linux desktop in a container with Firefox or
   Chromium, a terminal, and a screen you can watch and take over. Each one has
@@ -43,6 +45,22 @@ macOS builds are signed and notarised, so they open without warnings.
 - **Routines**: things it does on a schedule.
 - **Connectors and plugins**: GitHub, Gmail, Calendar, Notion, Stripe, Vercel
   and others, connected once and scoped per bot.
+
+## What answers for a bot
+
+Claude Code is the default and the one that has been used in anger, but a bot
+names its own engine and can be pointed at another in its settings. The seam is
+[`inference.rs`](src-tauri/src/inference.rs): an engine says how to run a turn,
+how to read its output, how it takes a bot's connectors, and which models it can
+be asked for. Everything else — the roster, the threads, the sandbox, the
+routines, the phone — speaks botcage's vocabulary and never learns which tool
+answered.
+
+The difference that is not cosmetic is memory. Claude Code keeps a conversation
+on disk and resumes it by id; the Gemini CLI cannot, so botcage keeps a
+transcript of every bot itself and replays what fits. That is also why a bot can
+change engine mid-conversation and carry the thread across: the transcript
+belongs to botcage, not to whatever last answered.
 
 ## Connectors are botcage's own
 
@@ -113,5 +131,8 @@ done rather than merely designed for.
 Android is built and runs, but has only been exercised against a stand-in
 desktop, never a real one.
 
-Support for engines other than Claude Code is a seam, not a feature: the shape
-is defined and every turn goes through it, but only one engine exists so far.
+A bot can be pointed at the Gemini CLI, and everything botcage owes it is in
+place — instructions, connectors, and a conversation it cannot keep for itself.
+It has not been run against the real binary here, so its stream is mapped from
+Google's documentation rather than from output anyone has watched. It is offered
+where it is installed and greyed out where it is not.
