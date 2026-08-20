@@ -251,15 +251,22 @@
 
         <div class="market__bar">
           <input id="models-search" class="market__search" spellcheck="false"
-                 placeholder="Search by model or provider — sonnet, llama, groq" />
+                 placeholder="Search every model — sonnet, llama, gpt" />
           <label class="chip chip--check">
             <input type="checkbox" id="models-tools" />
             <span>Can use tools</span>
           </label>
         </div>
 
-        <div class="sheet__body">
-          <div class="models" id="models-list"></div>
+        <div class="chooser">
+          <div class="chooser__side">
+            <div class="chooser__label">Where from</div>
+            <div class="chooser__providers" id="models-providers"></div>
+          </div>
+          <div class="chooser__main">
+            <div class="chooser__label" id="models-heading">Models</div>
+            <div class="models" id="models-list"></div>
+          </div>
         </div>
 
         <div class="sheet__foot models__foot">

@@ -355,6 +355,9 @@ interface ProviderInfo {
   env: string[];
   doc: string;
   hasKey: boolean;
+  models: number;
+  /** Runs on this machine: no key, no account, no cost. */
+  local: boolean;
 }
 
 /** What botcage found, fetched at launch so a bot's settings can offer the
@@ -1319,11 +1322,15 @@ function paintSheetHints(): void {
   // Two things worth saying, in the order they matter: what picking this one
   // means, and why the others are greyed out.
   const lines: string[] = [];
-  if (chosen) {
+  if (chosen?.searchable) {
+    // What it is, rather than how it remembers: someone choosing this is
+    // choosing reach, and the transcript is botcage's problem either way.
+    lines.push("Any model on models.dev, and Ollama on this machine.");
+  } else if (chosen) {
     lines.push(
       chosen.ownsTranscript
         ? `${chosen.name} keeps this bot's conversation itself.`
-        : `${chosen.name} can't resume a conversation, so botcage keeps this bot's thread and sends it each turn.`,
+        : `${chosen.name} can't resume a conversation, so botcage keeps the thread.`,
     );
   }
   for (const info of engineChoices) {
@@ -1335,9 +1342,22 @@ function paintSheetHints(): void {
     lines.join(" ") || "Which installed tool runs this bot's turns.";
 
   if (chosen?.searchable) {
+    // The provider's name, not the id it is keyed by: "From ollama" is a
+    // database row, "From Ollama · this machine" is an answer.
+    const from = providerList.find((p) => p.id === draftModel.provider);
+    if (draftModel.provider && !from && !providerList.length) {
+      // Nobody has opened the chooser yet this session, so the names have not
+      // been fetched. Get them, then say it properly.
+      void invoke<ProviderInfo[]>("catalogue_providers")
+        .then((all) => {
+          providerList = all;
+          paintSheetHints();
+        })
+        .catch(() => {});
+    }
     $<HTMLSpanElement>("#sheet-model-hint").textContent = draftModel.model
-      ? `From ${draftModel.provider}. Anything on models.dev with an API.`
-      : "Anything on models.dev with an API — click to search.";
+      ? `From ${from?.name ?? draftModel.provider}.`
+      : "Anything on models.dev, or Ollama on this machine — click to search.";
     return;
   }
 
@@ -1373,6 +1393,9 @@ let providerList: ProviderInfo[] = [];
 
 /** Search is typed, and 6,000 models is a lot to re-rank on every keystroke. */
 let searchTimer = 0;
+/** Which provider's models are being shown. Null means every provider, which
+ *  is what a search across all of them wants. */
+let onlyProvider: string | null = null;
 
 function money(dollars: number | null): string {
   if (dollars === null) return "";
@@ -1383,24 +1406,83 @@ function money(dollars: number | null): string {
 function facts(model: Listing): string {
   const bits: string[] = [];
   if (model.context) bits.push(`${Math.round(model.context / 1000)}k`);
-  if (model.costIn !== null) bits.push(`${money(model.costIn)}/M in`);
+  // "free/M in" is not a price. Something that costs nothing is just free.
+  if (model.costIn === 0) bits.push("free");
+  else if (model.costIn !== null) bits.push(`${money(model.costIn)}/M in`);
   if (model.tools) bits.push("tools");
   return bits.join(" · ");
 }
 
+/** The left column: whose models these are.
+ *
+ *  Ordered by what you can use — the one on this machine, then the ones botcage
+ *  holds a key for, then the rest by how much they offer. A green dot means it
+ *  will answer right now; a dim one means it needs a key first. */
+function paintProviders(): void {
+  const list = $<HTMLDivElement>("#models-providers");
+  const all = document.createElement("button");
+  all.type = "button";
+  all.className = `provider-row${onlyProvider === null ? " is-on" : ""}`;
+  all.dataset.provider = "";
+  all.innerHTML =
+    `<span class="provider-row__dot" data-ready="true"></span>` +
+    `<span class="provider-row__name">Everything</span>` +
+    `<span class="provider-row__count"></span>`;
+  all.querySelector(".provider-row__count")!.textContent = String(
+    providerList.reduce((sum, p) => sum + p.models, 0) || "",
+  );
+
+  list.replaceChildren(
+    all,
+    ...providerList.map((provider) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = `provider-row${onlyProvider === provider.id ? " is-on" : ""}`;
+      row.dataset.provider = provider.id;
+      row.innerHTML =
+        `<span class="provider-row__dot" data-ready="${provider.hasKey}"></span>` +
+        `<span class="provider-row__name"></span>` +
+        `<span class="provider-row__count"></span>`;
+      row.querySelector(".provider-row__name")!.textContent = provider.name;
+      row.querySelector(".provider-row__count")!.textContent = provider.local
+        ? "free"
+        : provider.models
+          ? String(provider.models)
+          : "";
+      return row;
+    }),
+  );
+}
+
 async function paintModels(): Promise<void> {
   const query = modelsSearch.value.trim();
+  // Typing searches everywhere: nobody who types "sonnet" means "sonnet, but
+  // only from the provider I happened to have selected".
+  if (query) onlyProvider = null;
+  paintProviders();
+
+  const from = providerList.find((p) => p.id === onlyProvider);
+  $<HTMLDivElement>("#models-heading").textContent = query
+    ? `Matching “${query}”`
+    : from
+      ? from.name
+      : "Every model";
+
   shown = await invoke<Listing[]>("catalogue_search", {
     query,
     toolsOnly: modelsTools.checked,
+    provider: onlyProvider,
     limit: 60,
   }).catch(() => []);
 
   if (!shown.length) {
     const state = await invoke<{ models: number }>("catalogue_state").catch(() => ({ models: 0 }));
-    modelsList.innerHTML = state.models
-      ? `<p class="models__note">Nothing matches “${escapeHtml(query)}”.</p>`
-      : `<p class="models__note">The catalogue hasn't been fetched yet.</p>`;
+    modelsList.innerHTML = !state.models
+      ? `<p class="models__note">The catalogue hasn't been fetched yet.</p>`
+      : from?.local
+        ? `<p class="models__note">Ollama isn't running, or has no models pulled. ` +
+          `<code>ollama pull llama3</code> gives this bot something to answer with, for nothing.</p>`
+        : `<p class="models__note">Nothing matches “${escapeHtml(query)}”.</p>`;
     if (!state.models) void fetchCatalogue();
     return;
   }
@@ -1420,7 +1502,10 @@ async function paintModels(): Promise<void> {
         `<span class="model-row__facts"></span>` +
         (model.ready ? "" : `<span class="model-row__locked">needs a key</span>`);
       row.querySelector(".model-row__name")!.textContent = model.name;
-      row.querySelector(".model-row__by")!.textContent = model.providerName;
+      // Whose model it is, unless that is the question already answered by the
+      // column on the left — a provider's name on every one of its own rows is
+      // just the heading, repeated.
+      row.querySelector(".model-row__by")!.textContent = onlyProvider ? "" : model.providerName;
       row.querySelector(".model-row__facts")!.textContent = facts(model);
       return row;
     }),
@@ -1463,12 +1548,25 @@ function chooseModel(model: Listing): void {
 async function openModels(): Promise<void> {
   pending = null;
   modelsKey.hidden = true;
-  modelsNote.textContent = "";
   modelsWrap.hidden = false;
+  modelsSearch.value = "";
   providerList = await invoke<ProviderInfo[]>("catalogue_providers").catch(() => []);
+
+  // Open where this bot already is, or on something that will answer without a
+  // key. Landing on six thousand strangers is not a starting point.
+  onlyProvider =
+    draftModel.provider ??
+    providerList.find((p) => p.local)?.id ??
+    providerList.find((p) => p.hasKey)?.id ??
+    null;
+
+  const usable = providerList.filter((p) => p.hasKey).length;
+  modelsNote.textContent =
+    `${providerList.length} providers, ${usable} you can use now. ` +
+    `Pick one on the left, or search every model at once.`;
+
   await paintModels();
   modelsSearch.focus();
-  modelsSearch.select();
 }
 
 modelsSearch.addEventListener("input", () => {
@@ -1483,6 +1581,16 @@ modelsWrap.addEventListener("mousedown", (e) => {
   if (e.target === modelsWrap) modelsWrap.hidden = true;
 });
 $<HTMLFormElement>("#models-sheet").addEventListener("submit", (e) => e.preventDefault());
+
+$<HTMLDivElement>("#models-providers").addEventListener("click", (e) => {
+  const row = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-provider]");
+  if (!row) return;
+  onlyProvider = row.dataset.provider || null;
+  // A provider chosen is a narrowing, and a search term is a widening: keeping
+  // both would show one provider's matches while looking like all of them.
+  modelsSearch.value = "";
+  void paintModels();
+});
 
 modelsList.addEventListener("click", (e) => {
   const row = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-at]");

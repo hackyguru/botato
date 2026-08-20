@@ -112,6 +112,13 @@ pub struct Provider {
     pub doc: String,
     /// Whether botcage is holding a key for it.
     pub has_key: bool,
+    /// How many models it offers, so a list of providers can be ordered by
+    /// something more useful than the alphabet.
+    pub models: usize,
+    /// True for a provider running on this machine: no key, no account, no
+    /// cost. Worth saying out loud, because for some people it is the only
+    /// model they can use.
+    pub local: bool,
 }
 
 /// Providers reachable over an OpenAI-shaped API, plus anything local.
@@ -137,6 +144,8 @@ pub fn providers(app: &AppHandle) -> Vec<Provider> {
                             })
                             .unwrap_or_default(),
                         doc: entry["doc"].as_str().unwrap_or_default().to_string(),
+                        models: entry["models"].as_object().map(|m| m.len()).unwrap_or(0),
+                        local: false,
                         id,
                         api,
                         has_key,
@@ -147,7 +156,24 @@ pub fn providers(app: &AppHandle) -> Vec<Provider> {
         .unwrap_or_default();
 
     out.push(ollama());
-    out.sort_by_key(|p| p.name.to_lowercase());
+
+    // Ordered the way someone chooses: what you can use now, then the ones with
+    // the most to offer. Alphabetical would put a provider you have never heard
+    // of above the one running on your own machine.
+    out.sort_by(|a, b| {
+        (
+            !a.local,
+            !a.has_key,
+            std::cmp::Reverse(a.models),
+            a.name.to_lowercase(),
+        )
+            .cmp(&(
+                !b.local,
+                !b.has_key,
+                std::cmp::Reverse(b.models),
+                b.name.to_lowercase(),
+            ))
+    });
     out
 }
 
@@ -159,12 +185,65 @@ pub fn providers(app: &AppHandle) -> Vec<Provider> {
 fn ollama() -> Provider {
     Provider {
         id: "ollama".into(),
-        name: "Ollama (on this machine)".into(),
+        // Named apart from "Ollama Cloud", which is a different thing in the
+        // catalogue and would otherwise sit next to this one looking identical.
+        name: "Ollama · this machine".into(),
         api: "http://localhost:11434/v1".into(),
         env: Vec::new(),
         doc: "https://ollama.com".into(),
         has_key: true, // Nothing to hold: it is not on anyone else's computer.
+        models: 0,     // However many have been pulled; the catalogue cannot know.
+        local: true,
     }
+}
+
+/// What Ollama has actually pulled on this machine.
+///
+/// No catalogue can answer this: the models are whatever someone chose to
+/// download, named however they named them. The daemon can, and if it is not
+/// running the honest answer is none rather than a list of things that would
+/// fail.
+fn ollama_models(query: &str) -> Vec<Listing> {
+    let out = std::process::Command::new("curl")
+        .args(["-sS", "--max-time", "2", "http://localhost:11434/api/tags"])
+        .output();
+    let Ok(out) = out else {
+        return Vec::new();
+    };
+    let Ok(body) = serde_json::from_slice::<serde_json::Value>(&out.stdout) else {
+        return Vec::new();
+    };
+
+    let needle = query.trim().to_lowercase();
+    body["models"]
+        .as_array()
+        .map(|models| {
+            models
+                .iter()
+                .filter_map(|model| {
+                    let id = model["name"].as_str()?.to_string();
+                    if !needle.is_empty() && !id.to_lowercase().contains(&needle) {
+                        return None;
+                    }
+                    Some(Listing {
+                        provider: "ollama".into(),
+                        provider_name: "Ollama · this machine".into(),
+                        context: model["details"]["parameter_size"].as_str().and(None),
+                        cost_in: Some(0.0),
+                        cost_out: Some(0.0),
+                        // Whether a local model can call a tool depends on the
+                        // model, and the daemon does not say. Claiming either
+                        // way would be a guess.
+                        tools: false,
+                        reasoning: false,
+                        ready: true,
+                        name: id.clone(),
+                        id,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 pub fn provider(app: &AppHandle, id: &str) -> Option<Provider> {
@@ -196,7 +275,24 @@ pub struct Listing {
 /// three things anyone actually types. Ranked by where the match landed, so
 /// searching "sonnet" puts Sonnet above something merely made by a provider
 /// with sonnet in the name.
-pub fn search(app: &AppHandle, query: &str, tools_only: bool, limit: usize) -> Vec<Listing> {
+pub fn search(
+    app: &AppHandle,
+    query: &str,
+    tools_only: bool,
+    only: Option<&str>,
+    limit: usize,
+) -> Vec<Listing> {
+    // The one provider that is not in the catalogue, because what it offers is
+    // on this disk rather than on a price list.
+    if only == Some("ollama") {
+        let mut local = ollama_models(query);
+        if tools_only {
+            local.clear();
+        }
+        local.truncate(limit);
+        return local;
+    }
+
     let Some(catalogue) = catalogue(app) else {
         return Vec::new();
     };
@@ -222,6 +318,9 @@ pub fn search(app: &AppHandle, query: &str, tools_only: bool, limit: usize) -> V
             continue;
         }
         let provider = entry["id"].as_str().unwrap_or_default().to_string();
+        if only.is_some_and(|wanted| wanted != provider) {
+            continue;
+        }
         let provider_name = entry["name"].as_str().unwrap_or(&provider).to_string();
         let Some(models) = entry["models"].as_object() else {
             continue;
@@ -339,9 +438,16 @@ pub fn catalogue_search(
     app: AppHandle,
     query: String,
     tools_only: bool,
+    provider: Option<String>,
     limit: Option<usize>,
 ) -> Vec<Listing> {
-    search(&app, &query, tools_only, limit.unwrap_or(40))
+    search(
+        &app,
+        &query,
+        tools_only,
+        provider.as_deref(),
+        limit.unwrap_or(60),
+    )
 }
 
 #[tauri::command(async)]

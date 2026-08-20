@@ -1449,9 +1449,113 @@ textarea {
   color: var(--text-3);
 }
 
-/* Choosing from a catalogue rather than a list. */
+/* Choosing from a catalogue rather than a list. Opened from the bot sheet, so
+   it has to sit above it — same overlay class, one layer up. */
+#models-wrap {
+  z-index: 60;
+}
+
 .sheet--models {
   height: min(640px, 88vh);
+}
+
+/* Two questions, in the order anyone asks them: whose model, then which. Six
+   thousand names in one flat list is not a choice, it is a phone book. */
+.chooser {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid var(--line);
+}
+
+.chooser__side {
+  display: flex;
+  flex: 0 0 220px;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+}
+
+.chooser__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.chooser__label {
+  padding: 10px 14px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.chooser__providers {
+  flex: 1;
+  min-height: 0;
+  padding: 0 8px 10px;
+  overflow-y: auto;
+}
+
+.chooser__main .models {
+  flex: 1;
+  min-height: 0;
+  padding: 0 10px 12px;
+  overflow-y: auto;
+}
+
+.provider-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  padding: 7px 10px;
+  text-align: left;
+  border-radius: 9px;
+}
+
+.provider-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.provider-row.is-on {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.provider-row__name {
+  flex: 1;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-row__count {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A dot rather than a word: which of these you can use right now is the thing
+   the eye should be able to answer without reading. */
+.provider-row__dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  background: var(--text-3);
+  border-radius: 50%;
+  opacity: 0.35;
+}
+
+.provider-row__dot[data-ready="true"] {
+  /* The same green as every other "this is on" light in the app. There is no
+     --green token; the others spell it out too. */
+  background: #30d158;
+  opacity: 1;
 }
 
 .picker--open {
