@@ -1141,6 +1141,14 @@ input.addEventListener("input", () => {
   if (state.activeId && input.value.trim()) setMood(state.activeId, "listen");
 });
 
+// Click a bot's face anywhere it appears — the list, the header, the top of
+// its own thread — and it waves back. Bound to the face rather than to each
+// place one shows up, so a face added to a new screen tomorrow waves too.
+document.addEventListener("click", (e) => {
+  const face = (e.target as HTMLElement).closest<HTMLElement>(".face[data-bot]");
+  if (face?.dataset.bot) setMood(face.dataset.bot, "wave");
+});
+
 // A bot leans over when you point at it in the list.
 botsEl.addEventListener("mouseover", (e) => {
   const row = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-bot]");
