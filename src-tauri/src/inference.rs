@@ -449,13 +449,63 @@ pub fn locate_gemini() -> Option<std::path::PathBuf> {
     let mut candidates = vec![
         crate::home().join(".local/bin/gemini"),
         crate::home().join(".npm-global/bin/gemini"),
+        crate::home().join(".bun/bin/gemini"),
         std::path::PathBuf::from("/opt/homebrew/bin/gemini"),
         std::path::PathBuf::from("/usr/local/bin/gemini"),
     ];
+
+    // Where npm actually put it on this machine: node under nvm, which installs
+    // globals per version and is on nobody's PATH but the shell's. An app
+    // launched from Finder would otherwise report a CLI that is plainly
+    // installed as missing — which is what happened the first time this was
+    // tried against a real one.
+    if let Ok(versions) = std::fs::read_dir(crate::home().join(".nvm/versions/node")) {
+        candidates.extend(
+            versions
+                .filter_map(Result::ok)
+                .map(|entry| entry.path().join("bin/gemini")),
+        );
+    }
+
     if let Some(path) = std::env::var_os("PATH") {
         candidates.extend(std::env::split_paths(&path).map(|dir| dir.join("gemini")));
     }
     candidates.into_iter().find(|candidate| candidate.is_file())
+}
+
+/// Has the CLI been given a way to authenticate?
+///
+/// The same rule the CLI states when it refuses to run: an auth method in its
+/// settings, or one of the environment variables it names. Worth checking
+/// separately from whether it is installed, because "not signed in" and "not
+/// installed" are different afternoons — and because an app launched from
+/// Finder inherits no shell environment, so a key exported in a profile is
+/// invisible here even though it works in a terminal.
+fn gemini_signed_in() -> bool {
+    for key in [
+        "GEMINI_API_KEY",
+        "GOOGLE_GENAI_USE_VERTEXAI",
+        "GOOGLE_GENAI_USE_GCA",
+    ] {
+        if std::env::var_os(key).is_some_and(|value| !value.is_empty()) {
+            return true;
+        }
+    }
+
+    // Signing in with a Google account leaves credentials on disk, which is the
+    // path that survives having no environment at all.
+    if crate::home().join(".gemini/oauth_creds.json").is_file() {
+        return true;
+    }
+
+    std::fs::read_to_string(crate::home().join(".gemini/settings.json"))
+        .ok()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+        .is_some_and(|settings| {
+            // Named one way in older builds and another in newer ones.
+            !settings["selectedAuthType"].is_null()
+                || !settings["security"]["auth"]["selectedType"].is_null()
+        })
 }
 
 /// The file Gemini reads in place of a system-prompt flag.
@@ -508,9 +558,12 @@ impl Engine for GeminiCli {
     }
 
     fn ready(&self) -> Ready {
-        match locate_gemini() {
-            None => Ready::no("not installed — npm install -g @google/gemini-cli"),
-            Some(_) => Ready::yes(),
+        match (locate_gemini().is_some(), gemini_signed_in()) {
+            (false, _) => Ready::no("not installed — npm install -g @google/gemini-cli"),
+            (true, false) => {
+                Ready::no("installed, but not signed in — run gemini once in a terminal")
+            }
+            (true, true) => Ready::yes(),
         }
     }
 
