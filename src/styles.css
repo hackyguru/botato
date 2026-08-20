@@ -1495,6 +1495,85 @@ textarea {
   color: var(--text);
 }
 
+/* ------------------------------------------------------------------- tour */
+
+/* Everything except the thing being explained, blurred. Four panes rather than
+   one overlay with a hole punched in it: a hole made by clip-path takes the
+   backdrop filter with it, and a hole made by a huge box-shadow can dim but
+   cannot blur. Four rectangles around the target can do both. */
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+}
+
+.tour__pane {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+  transition: all 0.22s ease;
+}
+
+.tour__ring {
+  position: absolute;
+  border: 2px solid var(--blue);
+  border-radius: 12px;
+  box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.22);
+  pointer-events: none;
+  transition: all 0.22s ease;
+}
+
+.tour__card {
+  position: absolute;
+  width: 300px;
+  padding: 16px 18px 14px;
+  background: #17171a;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  transition: top 0.22s ease, left 0.22s ease;
+}
+
+.tour__count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+}
+
+.tour__title {
+  margin: 6px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.tour__body {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+.tour__foot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.tour__gap {
+  flex: 1;
+}
+
+.tour__next {
+  width: auto;
+  min-width: 76px;
+  height: 30px;
+  padding: 0 14px;
+  font-size: 13px;
+  border-radius: 9px;
+}
+
 /* One decision, three ways to make it. */
 .picks {
   display: flex;

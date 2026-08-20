@@ -240,6 +240,27 @@
 
     <div class="menu" id="menu" hidden></div>
 
+    <!-- The tour: four panes that blur everything except the thing being
+         talked about, a ring around it, and a card saying what it is for. -->
+    <div class="tour" id="tour" hidden>
+      <div class="tour__pane" data-edge="top"></div>
+      <div class="tour__pane" data-edge="right"></div>
+      <div class="tour__pane" data-edge="bottom"></div>
+      <div class="tour__pane" data-edge="left"></div>
+      <div class="tour__ring" id="tour-ring"></div>
+      <div class="tour__card" id="tour-card">
+        <span class="tour__count" id="tour-count"></span>
+        <h3 class="tour__title" id="tour-title"></h3>
+        <p class="tour__body" id="tour-body"></p>
+        <div class="tour__foot">
+          <button type="button" class="chip" id="tour-skip"><span>Skip</span></button>
+          <span class="tour__gap"></span>
+          <button type="button" class="chip" id="tour-back"><span>Back</span></button>
+          <button type="button" class="btn-primary tour__next" id="tour-next">Next</button>
+        </div>
+      </div>
+    </div>
+
     <div class="overlay" id="models-wrap" hidden>
       <form class="sheet sheet--wide sheet--models" id="models-sheet">
         <div class="sheet__head">

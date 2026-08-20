@@ -203,6 +203,8 @@ interface AppSettings {
   awake: boolean;
   /** Setup has been walked through once. Reopenable from the account menu. */
   onboarded: boolean;
+  /** The tour has been given once. Also reopenable from the account menu. */
+  toured?: boolean;
   /** Phone access was switched on. Restored at launch: a paired phone away from
    *  the house cannot ask anyone to flip a switch on the laptop. */
   remoteOn: boolean;
@@ -3654,6 +3656,8 @@ $<HTMLButtonElement>("#btn-account").addEventListener("click", (event) => {
     event.currentTarget as HTMLElement,
       `<button type="button" class="menu-item" data-app="settings">${icon("gear")}` +
       `<span class="menu-item__body"><span class="menu-item__name">Settings</span></span></button>` +
+      `<button type="button" class="menu-item" data-app="tour">${icon("eye")}` +
+      `<span>Show me around</span></button>` +
       `<button type="button" class="menu-item" data-app="setup">${icon("hand")}` +
       `<span class="menu-item__body"><span class="menu-item__name">Setup</span></span></button>` +
       `<button type="button" class="menu-item" data-app="about">${icon("cube")}` +
@@ -3764,6 +3768,7 @@ menu.addEventListener("click", (e) => {
   if (app) {
     closeMenu();
     if (app === "settings") void openAppSettings();
+    else if (app === "tour") startTour();
     else if (app === "setup") void openSetup(appSettings().onboarded ? "answers" : "welcome");
     else void openAbout();
     return;
@@ -4114,7 +4119,8 @@ document.addEventListener("keydown", (e) => {
     searchEl.focus();
     searchEl.select();
   } else if (e.key === "Escape") {
-    if (!modelsWrap.hidden) modelsWrap.hidden = true;
+    if (!tourWrap().hidden) endTour();
+    else if (!modelsWrap.hidden) modelsWrap.hidden = true;
     else if (!routineWrap.hidden) routineWrap.hidden = true;
     else if (!setupWrap.hidden) closeSetup();
     else if (!aboutWrap.hidden) aboutWrap.hidden = true;
@@ -4200,11 +4206,160 @@ function closeSetup(): void {
   stopSignInWatch();
   // Shown once. Someone who skipped a step can reopen it from the account menu,
   // and a missing CLI still warns on its own.
-  if (!appSettings().onboarded) {
+  const first = !appSettings().onboarded;
+  if (first) {
     state.app = { ...appSettings(), onboarded: true };
     save();
   }
+  // Setup arranges what botcage needs; the tour says what the app is. They are
+  // different jobs, so they are different screens, one after the other.
+  if (first && !appSettings().toured) window.setTimeout(startTour, 260);
 }
+
+/* --------------------------------------------------------------------- tour */
+
+/** One thing worth pointing at, and why it is there. */
+interface Stop {
+  /** What to ring. Missing from the page means the stop is skipped rather than
+   *  the tour breaking — the composer is absent while a screen pane is open,
+   *  and a build may drop a button entirely. */
+  target: string;
+  title: string;
+  body: string;
+}
+
+const TOUR: Stop[] = [
+  {
+    target: "#bots",
+    title: "Your bots",
+    body: "Each one is a separate conversation with its own memory, its own folder on this machine, and its own idea of what it is for. They do not share anything unless you say so.",
+  },
+  {
+    target: "#btn-new",
+    title: "Make one per job",
+    body: "A bot is cheap. Give each real job its own — the one that reviews code should not be the one that plans your week, because they remember different things.",
+  },
+  {
+    target: "#dock",
+    title: "Just talk to it",
+    body: "Say what you want in plain words. A bot answers here, and remembers this conversation the next time you open the app.",
+  },
+  {
+    target: "#btn-routines",
+    title: "Standing work",
+    body: "A bot can hold instructions on a schedule: every morning, every hour, or once next Tuesday. This opens its week as a calendar — click any slot to add one.",
+  },
+  {
+    target: "#btn-plugins",
+    title: "Its connections",
+    body: "GitHub, Gmail, Calendar, Notion and the rest. You connect an account once and choose which bots may reach it — the credential stays in your keychain, never in a bot.",
+  },
+  {
+    target: "#btn-settings",
+    title: "What it is, and what answers it",
+    body: "A bot's name, its job description, and which model replies for it — Claude Code, the Gemini CLI, or any of thousands on models.dev. Different bots can use different ones.",
+  },
+  {
+    target: "#btn-monitor",
+    title: "Its own computer",
+    body: "Give a bot a private Linux desktop in a container, with a browser and a terminal. You can watch it work and take the mouse back whenever you like.",
+  },
+  {
+    target: "#btn-account",
+    title: "Everything else",
+    body: "Settings for this machine, and the Phone panel — pair a phone by scanning a square, and reach these bots from anywhere without opening a port.",
+  },
+];
+
+let tourAt = 0;
+const tourWrap = () => $<HTMLDivElement>("#tour");
+
+function startTour(): void {
+  tourAt = 0;
+  tourWrap().hidden = false;
+  paintTour();
+}
+
+function endTour(): void {
+  tourWrap().hidden = true;
+  if (!appSettings().toured) {
+    state.app = { ...appSettings(), toured: true };
+    save();
+  }
+}
+
+/** Move to the next stop that is actually on screen. */
+function tourGo(by: number): void {
+  for (let at = tourAt + by; at >= 0 && at < TOUR.length; at += by) {
+    if (document.querySelector(TOUR[at].target)) {
+      tourAt = at;
+      paintTour();
+      return;
+    }
+  }
+  endTour();
+}
+
+function paintTour(): void {
+  const stop = TOUR[tourAt];
+  const target = document.querySelector(stop.target);
+  if (!target) return tourGo(1);
+
+  // A margin around the target, so the ring frames it rather than tracing it.
+  const pad = 6;
+  const box = target.getBoundingClientRect();
+  const top = Math.max(0, box.top - pad);
+  const left = Math.max(0, box.left - pad);
+  const right = Math.min(window.innerWidth, box.right + pad);
+  const bottom = Math.min(window.innerHeight, box.bottom + pad);
+
+  const pane = (edge: string, style: Partial<CSSStyleDeclaration>) =>
+    Object.assign($<HTMLDivElement>(`.tour__pane[data-edge="${edge}"]`).style, style);
+  const px = (n: number) => `${n}px`;
+
+  pane("top", { top: "0", left: "0", right: "0", height: px(top) });
+  pane("bottom", { top: px(bottom), left: "0", right: "0", bottom: "0", height: "auto" });
+  pane("left", { top: px(top), left: "0", width: px(left), height: px(bottom - top) });
+  pane("right", { top: px(top), left: px(right), right: "0", width: "auto", height: px(bottom - top) });
+
+  Object.assign($<HTMLDivElement>("#tour-ring").style, {
+    top: px(top),
+    left: px(left),
+    width: px(right - left),
+    height: px(bottom - top),
+  });
+
+  $<HTMLSpanElement>("#tour-count").textContent = `${tourAt + 1} of ${TOUR.length}`;
+  $<HTMLHeadingElement>("#tour-title").textContent = stop.title;
+  $<HTMLParagraphElement>("#tour-body").textContent = stop.body;
+  $<HTMLButtonElement>("#tour-back").hidden = tourAt === 0;
+  $<HTMLButtonElement>("#tour-next").textContent =
+    tourAt === TOUR.length - 1 ? "Done" : "Next";
+
+  // Beside the target if there is room, otherwise under it, and never off the
+  // edge of the window.
+  const card = $<HTMLDivElement>("#tour-card");
+  const size = card.getBoundingClientRect();
+  const gap = 14;
+  let cardLeft = right + gap;
+  if (cardLeft + size.width > window.innerWidth - 12) cardLeft = left - size.width - gap;
+  if (cardLeft < 12) cardLeft = Math.min(left, window.innerWidth - size.width - 12);
+  let cardTop = top;
+  if (cardTop + size.height > window.innerHeight - 12) {
+    cardTop = Math.max(12, window.innerHeight - size.height - 12);
+  }
+  Object.assign(card.style, { left: px(Math.max(12, cardLeft)), top: px(cardTop) });
+}
+
+$<HTMLButtonElement>("#tour-next").addEventListener("click", () => {
+  if (tourAt === TOUR.length - 1) return endTour();
+  tourGo(1);
+});
+$<HTMLButtonElement>("#tour-back").addEventListener("click", () => tourGo(-1));
+$<HTMLButtonElement>("#tour-skip").addEventListener("click", endTour);
+window.addEventListener("resize", () => {
+  if (!tourWrap().hidden) paintTour();
+});
 
 async function refreshClaude(): Promise<void> {
   claudeState = await invoke<ClaudeState>("claude_state").catch(() => null);
