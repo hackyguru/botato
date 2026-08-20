@@ -1192,16 +1192,20 @@ textarea {
    two-pixel line instead, which is a shape rather than a ghost, and does it
    in about forty milliseconds each way: a blink is fast, and anything slow
    enough to watch is not a blink. */
+/* Sixty milliseconds down, a hundred and twenty shut, sixty back up. The first
+   attempt did the whole thing in ninety and it read as a flicker in
+   brightness rather than a lid: too fast to see the shape change, so all the
+   eye appears to do is dim. A real blink is long enough to notice and short
+   enough not to watch. */
 @keyframes blink {
   0%,
-  96%,
-  98.4%,
+  95.6%,
   100% {
     height: var(--eye-h);
     border-radius: var(--eye-r);
   }
-  96.8%,
-  97.6% {
+  96.7%,
+  98.9% {
     height: 2px;
     border-radius: 1px;
   }
@@ -1652,14 +1656,14 @@ textarea {
 
 @keyframes blink-now {
   0%,
-  22%,
-  38%,
+  15%,
+  42%,
   100% {
     height: var(--eye-h);
     border-radius: var(--eye-r);
   }
-  27%,
-  33% {
+  22%,
+  35% {
     height: 2px;
     border-radius: 1px;
   }
