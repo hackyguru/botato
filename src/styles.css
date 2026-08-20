@@ -1467,6 +1467,34 @@ textarea {
   color: var(--text-3);
 }
 
+/* What the app is, on the screen that has room for it. The step is sized for
+   the tallest one in the flow, so filling this with something useful beats
+   floating a paragraph in the middle of it. */
+.setup__points {
+  width: 100%;
+  margin: 20px 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.setup__points li {
+  padding: 9px 0 9px 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+  text-align: left;
+  border-left: 2px solid rgba(255, 255, 255, 0.09);
+}
+
+.setup__points li + li {
+  margin-top: 6px;
+}
+
+.setup__points b {
+  font-weight: 600;
+  color: var(--text);
+}
+
 /* One decision, three ways to make it. */
 .picks {
   display: flex;
