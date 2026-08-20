@@ -348,10 +348,12 @@ textarea {
 }
 
 .face i {
+  --eye-h: 6px;
+  --eye-r: 2px;
   width: 4px;
-  height: 6px;
+  height: var(--eye-h);
   background: rgba(0, 0, 0, 0.72);
-  border-radius: 2px;
+  border-radius: var(--eye-r);
 }
 
 .face--circle {
@@ -373,9 +375,9 @@ textarea {
 }
 
 .face--sm i {
+  --eye-h: 4px;
+  --eye-r: 1.5px;
   width: 3px;
-  height: 4px;
-  border-radius: 1.5px;
 }
 
 .face--lg {
@@ -385,9 +387,9 @@ textarea {
 }
 
 .face--lg i {
+  --eye-h: 9px;
+  --eye-r: 3px;
   width: 6px;
-  height: 9px;
-  border-radius: 3px;
 }
 
 /* --------------------------------------------------------- sidebar footer */
@@ -1184,21 +1186,29 @@ textarea {
    because it is the one that talks to you before you have made anything of
    your own. Long pauses and a fast lid: a slow blink reads as sleepy, and a
    regular one reads as a cursor. */
+/* A lid, not a dimmer. Squashing the eye with scaleY took a six-pixel lozenge
+   down to half a pixel, which the renderer antialiases into a grey smudge —
+   so it read as fading rather than closing. This collapses the height to a
+   two-pixel line instead, which is a shape rather than a ghost, and does it
+   in about forty milliseconds each way: a blink is fast, and anything slow
+   enough to watch is not a blink. */
 @keyframes blink {
   0%,
-  92%,
+  96%,
+  98.4%,
   100% {
-    transform: scaleY(1);
+    height: var(--eye-h);
+    border-radius: var(--eye-r);
   }
-  95%,
-  97% {
-    transform: scaleY(0.12);
+  96.8%,
+  97.6% {
+    height: 2px;
+    border-radius: 1px;
   }
 }
 
 .face--blinks i {
-  animation: blink 5.5s infinite;
-  transform-origin: center;
+  animation: blink 5.5s linear infinite;
 }
 
 /* The second eye lags by a hair, which is what stops two dots looking like one
@@ -1616,11 +1626,13 @@ textarea {
 }
 
 .art--bot i {
-  top: 11px;
-  width: 5px;
-  height: 5px;
+  --eye-h: 6px;
+  --eye-r: 2px;
+  top: 10px;
+  width: 4px;
+  height: var(--eye-h);
   background: #04203f;
-  border-radius: 50%;
+  border-radius: var(--eye-r);
 }
 
 .art--bot i:first-child {
@@ -1631,9 +1643,26 @@ textarea {
   right: 7px;
 }
 
+/* On the card, the blink happens straight away rather than on the face's own
+   slow cycle: you have just pointed at it, and it looks back. */
 .lesson:hover .art--bot i,
 .lesson:focus-visible .art--bot i {
-  animation: blink 1.4s ease-in-out;
+  animation: blink-now 0.9s linear;
+}
+
+@keyframes blink-now {
+  0%,
+  22%,
+  38%,
+  100% {
+    height: var(--eye-h);
+    border-radius: var(--eye-r);
+  }
+  27%,
+  33% {
+    height: 2px;
+    border-radius: 1px;
+  }
 }
 
 /* Four days, and something landing in one of them. */
