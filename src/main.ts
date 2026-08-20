@@ -52,6 +52,10 @@ interface Routine {
 
 interface Bot {
   id: string;
+  /** The one bot botcage makes for you, which teaches the app. It blinks, and
+   *  its thread carries lessons rather than a blank page. Delete it whenever it
+   *  has served its purpose — nothing else depends on it existing. */
+  guide?: boolean;
   name: string;
   role: string;
   color: string;
@@ -560,8 +564,9 @@ async function copy(text: string): Promise<void> {
 
 function faceHtml(bot: Bot, size: "sm" | "md" | "lg" = "md"): string {
   const cls = size === "md" ? "" : ` face--${size}`;
+  const alive = bot.guide ? " face--blinks" : "";
   return (
-    `<span class="face face--${bot.shape}${cls}" style="background:${bot.color}">` +
+    `<span class="face face--${bot.shape}${cls}${alive}" style="background:${bot.color}">` +
     `<i></i><i></i></span>`
   );
 }
@@ -597,14 +602,17 @@ function seed(): void {
   // whichever of the five you were never going to use is clutter you have to
   // delete before the app is yours.
   state.bots = [
-    make(
+    {
+      ...make(
       "Guide",
       "Shows you around botcage. Ask it what a bot is, what routines and " +
         "connectors do, how to give a bot its own computer, or what to make next — " +
         "and when you know, make that bot and leave this one behind.",
       "#0a84ff",
       "circle",
-    ),
+      ),
+      guide: true,
+    },
   ];
   state.activeId = state.bots[0].id;
 }
@@ -620,6 +628,12 @@ function load(): void {
     if (!Array.isArray(data.bots) || !data.bots.length) return seed();
     state.bots = data.bots.map((bot) => ({
       ...bot,
+      // A Guide made before the flag existed is still the guide: one bot, that
+      // name, nothing said to it yet. Anything else was made by a person and is
+      // left exactly as they made it.
+      guide:
+        bot.guide ??
+        (data.bots?.length === 1 && bot.name === "Guide" && !bot.messages?.length),
       sessionId: bot.sessionId || newSessionId(),
       started: Boolean(bot.started),
       computer: Boolean(bot.computer),
@@ -695,6 +709,22 @@ function renderRoster(): void {
       );
     })
     .join("");
+}
+
+/** The lessons, as something to press. */
+function lessonsHtml(): string {
+  return (
+    `<div class="lessons">` +
+    LESSONS.map(
+      (lesson, at) =>
+        `<button type="button" class="lesson" data-lesson="${lesson.id}">` +
+        `<span class="lesson__no">${at + 1}</span>` +
+        `<span class="lesson__body"><span class="lesson__title">${escapeHtml(lesson.title)}</span>` +
+        `<span class="lesson__blurb">${escapeHtml(lesson.blurb)}</span></span>` +
+        `<span class="lesson__go">Show me</span></button>`,
+    ).join("") +
+    `</div>`
+  );
 }
 
 /* ------------------------------------------------------------------- thread */
@@ -787,17 +817,28 @@ function renderThread(): void {
     const alone = state.bots.length === 1;
     thread.innerHTML =
       `<div class="empty">${faceHtml(bot, "lg")}<h2>${escapeHtml(bot.name)}</h2>` +
-      `<p>${escapeHtml(bot.role || "Say hello to get started.")}</p>` +
-      (alone
+      (bot.guide ? "" : `<p>${escapeHtml(bot.role || "Say hello to get started.")}</p>`) +
+      (alone && !bot.guide
         ? `<p class="empty__hint">Say hello. When you know what you want, ` +
           `make a bot for it with the <b>+</b> above the list — each one keeps ` +
           `its own memory, and can be answered by a different model.</p>`
         : "") +
-      `</div>`;
+      `</div>` +
+      // Under the guide's own face rather than above it: this is what it is
+      // offering, and a stack of cards over the top of an introduction reads
+      // as though the introduction were an afterthought.
+      (bot.guide ? lessonsHtml() : "");
   } else {
     thread.innerHTML = "";
     for (const msg of bot.messages) thread.append(turnEl(msg));
   }
+
+  // Once it has been spoken to, the lessons move above the conversation: they
+  // are not things it said, and they should not read as the last thing it did.
+  if (bot.guide && bot.messages.length) {
+    thread.insertAdjacentHTML("afterbegin", lessonsHtml());
+  }
+  if (bot.guide && !bot.messages.length) scroller.scrollTop = 0;
 
   // Re-attach the waiting indicator if this bot is mid-turn.
   const pending = inflight.get(bot.id);
@@ -3700,6 +3741,16 @@ botsEl.addEventListener("contextmenu", (e) => {
   );
 });
 
+// The guide's lessons, which sit in the thread. This was briefly wired to the
+// account menu's listener, where it was a handler for a click that could never
+// arrive there.
+thread.addEventListener("click", (e) => {
+  const lesson = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-lesson]");
+  if (!lesson) return;
+  const found = LESSONS.find((l) => l.id === lesson.dataset.lesson);
+  if (found) startTour(found.stops);
+});
+
 thread.addEventListener("click", (e) => {
   const target = e.target as HTMLElement;
 
@@ -4226,6 +4277,13 @@ interface Stop {
   target: string;
   title: string;
   body: string;
+  /** Put the app where this stop can be seen: open the sheet, switch to a tab,
+   *  show the calendar. A lesson about scheduling is useless pointing at a
+   *  clock icon and describing what would happen if you pressed it.
+   *
+   *  Run before the target is measured, and again on Back, so stepping through
+   *  a lesson in either direction arrives at the same screen. */
+  open?: () => void;
 }
 
 const TOUR: Stop[] = [
@@ -4271,11 +4329,184 @@ const TOUR: Stop[] = [
   },
 ];
 
+/** What botcage can teach, each one a walk through the thing itself rather than
+ *  a description of it. Reached from the guide's thread. */
+interface Lesson {
+  id: string;
+  title: string;
+  blurb: string;
+  stops: Stop[];
+}
+
+const LESSONS: Lesson[] = [
+  {
+    id: "new-bot",
+    title: "Make a bot",
+    blurb: "Name it, say what it is for, choose what answers it.",
+    stops: [
+      {
+        target: "#btn-new",
+        title: "One bot per job",
+        body: "This makes one. A bot is cheap, and two jobs in one bot means one memory holding both.",
+      },
+      {
+        target: "#sheet-name",
+        title: "Give it a name",
+        body: "You will be talking to it by name, so pick one you would use out loud.",
+        open: () => openSheet(null),
+      },
+      {
+        target: "#sheet-role",
+        title: "Say what it is responsible for",
+        body: "The work it owns, how you want it approached, anything it must always or never do. This goes into every conversation with it, so it is worth being specific.",
+        open: () => openSheet(null),
+      },
+      {
+        target: "#sheet-engine",
+        title: "Choose what answers it",
+        body: "Claude Code, the Gemini CLI, or any of thousands of hosted models. Different bots can use different ones — and you can change this later without losing the conversation.",
+        open: () => openSheet(null),
+      },
+      {
+        target: "#sheet-submit",
+        title: "That is the whole thing",
+        body: "Fill those in and press this. The bot appears in the list with its own memory and its own folder on this machine.",
+        open: () => openSheet(null),
+      },
+    ],
+  },
+  {
+    id: "routines",
+    title: "Put work on the calendar",
+    blurb: "Standing instructions: every morning, every hour, once next Tuesday.",
+    stops: [
+      {
+        target: "#btn-routines",
+        title: "The clock",
+        body: "Every bot has a week of its own behind this.",
+      },
+      {
+        target: "#cal-cols",
+        title: "Click a slot",
+        body: "That day, that hour. It opens a routine already filled in with when you clicked — you supply the name and the instruction.",
+        open: () => showRoutines(true),
+      },
+      {
+        target: "#routine-add",
+        title: "Or start from the schedule",
+        body: "Once, every week, every day, every weekday, every hour, or every few minutes. A one-off switches itself off after it runs.",
+        open: () => showRoutines(true),
+      },
+      {
+        target: "#cal-often",
+        title: "The fast ones live up here",
+        body: "Anything repeating faster than an hour would be a stripe through all seven days, so it sits in a band above the grid instead.",
+        open: () => showRoutines(true),
+      },
+    ],
+  },
+  {
+    id: "computer",
+    title: "Give a bot a computer",
+    blurb: "A private Linux desktop it can use, and you can watch.",
+    stops: [
+      {
+        target: "#sheet-computer",
+        title: "Its own machine",
+        body: "A Linux desktop in a container: a browser, a terminal, a file manager. Nobody else's files are on it, and nothing it does there touches yours.",
+        open: () => {
+          openSheet(activeBot());
+          showSheetTab("computer");
+        },
+      },
+      {
+        target: "#sheet-network",
+        title: "What it may reach",
+        body: "The internet and your home network, the internet only, or nothing at all. Baked in when the container is built.",
+        open: () => {
+          openSheet(activeBot());
+          showSheetTab("computer");
+        },
+      },
+      {
+        target: "#btn-monitor",
+        title: "Watch it work",
+        body: "This opens the screen. You can take the mouse back at any point, and hand it over again when you are done.",
+        open: () => {
+          sheetWrap.hidden = true;
+        },
+      },
+    ],
+  },
+  {
+    id: "phone",
+    title: "Reach your bots from your phone",
+    blurb: "Pair once by scanning a square. Works away from the house.",
+    stops: [
+      {
+        target: "#app-remote",
+        title: "Switch on phone access",
+        body: "The laptop opens no port. Your phone reaches it directly over an encrypted connection, at home or on mobile data.",
+        open: () => {
+          void openAppSettings();
+          showSettingsTab("phone");
+        },
+      },
+      {
+        target: "#app-remote-qr",
+        title: "Scan this with the app",
+        body: "The square carries this machine's identity and a six-character code that lasts five minutes and works once.",
+        open: () => {
+          void openAppSettings();
+          showSettingsTab("phone");
+        },
+      },
+      {
+        target: "#app-remote-list",
+        title: "What you have paired",
+        body: "Every phone that has been let in, and a way to revoke any of them. The key each one holds is bound to that phone and refused from anywhere else.",
+        open: () => {
+          void openAppSettings();
+          showSettingsTab("phone");
+        },
+      },
+    ],
+  },
+  {
+    id: "plugins",
+    title: "Connect it to your accounts",
+    blurb: "GitHub, Gmail, Calendar, Notion — connected once, scoped per bot.",
+    stops: [
+      {
+        target: "#btn-plugins",
+        title: "A bot's connections",
+        body: "Everything this bot may reach beyond its own folder.",
+      },
+      {
+        target: "#plugins-search",
+        title: "Find one",
+        body: "botcage runs its own connections rather than claude.ai's, so an account you connect here works whatever model answers the bot.",
+        open: () => void openPlugins(),
+      },
+      {
+        target: "#plugins-body",
+        title: "Connect once, choose per bot",
+        body: "You sign in to an account once and the credential stays in your keychain. Which bots may use it is a separate decision, made here.",
+        open: () => void openPlugins(),
+      },
+    ],
+  },
+];
+
 let tourAt = 0;
+/** The tour being given. The tour of the app itself when nobody asked for a
+ *  particular lesson. */
+let tourStops: Stop[] = TOUR;
 const tourWrap = () => $<HTMLDivElement>("#tour");
 
-function startTour(): void {
+function startTour(stops: Stop[] = TOUR): void {
   tourAt = 0;
+  tourStops = stops;
   tourWrap().hidden = false;
   paintTour();
 }
@@ -4290,8 +4521,9 @@ function endTour(): void {
 
 /** Move to the next stop that is actually on screen. */
 function tourGo(by: number): void {
-  for (let at = tourAt + by; at >= 0 && at < TOUR.length; at += by) {
-    if (document.querySelector(TOUR[at].target)) {
+  for (let at = tourAt + by; at >= 0 && at < tourStops.length; at += by) {
+    tourStops[at].open?.();
+    if (document.querySelector(tourStops[at].target)) {
       tourAt = at;
       paintTour();
       return;
@@ -4301,7 +4533,8 @@ function tourGo(by: number): void {
 }
 
 function paintTour(): void {
-  const stop = TOUR[tourAt];
+  const stop = tourStops[tourAt];
+  stop.open?.();
   const target = document.querySelector(stop.target);
   if (!target) return tourGo(1);
 
@@ -4329,12 +4562,12 @@ function paintTour(): void {
     height: px(bottom - top),
   });
 
-  $<HTMLSpanElement>("#tour-count").textContent = `${tourAt + 1} of ${TOUR.length}`;
+  $<HTMLSpanElement>("#tour-count").textContent = `${tourAt + 1} of ${tourStops.length}`;
   $<HTMLHeadingElement>("#tour-title").textContent = stop.title;
   $<HTMLParagraphElement>("#tour-body").textContent = stop.body;
   $<HTMLButtonElement>("#tour-back").hidden = tourAt === 0;
   $<HTMLButtonElement>("#tour-next").textContent =
-    tourAt === TOUR.length - 1 ? "Done" : "Next";
+    tourAt === tourStops.length - 1 ? "Done" : "Next";
 
   // Beside the target if there is room, otherwise under it, and never off the
   // edge of the window.
@@ -4352,7 +4585,7 @@ function paintTour(): void {
 }
 
 $<HTMLButtonElement>("#tour-next").addEventListener("click", () => {
-  if (tourAt === TOUR.length - 1) return endTour();
+  if (tourAt === tourStops.length - 1) return endTour();
   tourGo(1);
 });
 $<HTMLButtonElement>("#tour-back").addEventListener("click", () => tourGo(-1));

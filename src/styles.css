@@ -1178,7 +1178,40 @@ textarea {
 /* Named through its parent: `.empty p` below carries a line clamp and a
    pre-line for job descriptions, and beats a bare class on specificity —
    this hint is neither a description nor something to clamp. */
-.empty .empty__hint {
+.empty /* The guide blinks. Every other bot's face is a mark; this one is a character,
+   because it is the one that talks to you before you have made anything of
+   your own. Long pauses and a fast lid: a slow blink reads as sleepy, and a
+   regular one reads as a cursor. */
+@keyframes blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95%,
+  97% {
+    transform: scaleY(0.12);
+  }
+}
+
+.face--blinks i {
+  animation: blink 5.5s infinite;
+  transform-origin: center;
+}
+
+/* The second eye lags by a hair, which is what stops two dots looking like one
+   switch being thrown. */
+.face--blinks i:last-child {
+  animation-delay: 0.06s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .face--blinks i {
+    animation: none;
+  }
+}
+
+.empty__hint {
   max-width: 380px;
   margin: 16px 0 0;
   font-size: 13px;
@@ -1493,6 +1526,79 @@ textarea {
 .setup__points b {
   font-weight: 600;
   color: var(--text);
+}
+
+/* The guide's lessons. Cards rather than a list of links: each one is a thing
+   that happens when pressed, and it should look like a thing that happens. */
+.lessons {
+  width: 100%;
+  max-width: 620px;
+  margin: 18px auto;
+}
+
+.lesson {
+  display: flex;
+  gap: 13px;
+  align-items: center;
+  width: 100%;
+  padding: 12px 14px;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+}
+
+.lesson + .lesson {
+  margin-top: 8px;
+}
+
+.lesson:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.lesson__no {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 24px;
+  color: var(--text-2);
+  text-align: center;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 50%;
+}
+
+.lesson__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lesson__title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.lesson__blurb {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.lesson__go {
+  flex: 0 0 auto;
+  font-size: 12.5px;
+  color: var(--blue);
+  opacity: 0;
+  transition: opacity 0.13s;
+}
+
+.lesson:hover .lesson__go {
+  opacity: 1;
 }
 
 /* ------------------------------------------------------------------- tour */
