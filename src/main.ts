@@ -732,8 +732,7 @@ function lessonsHtml(): string {
       (lesson) =>
         `<button type="button" class="lesson" data-lesson="${lesson.id}">` +
         ART[lesson.id] +
-        `<span class="lesson__body"><span class="lesson__title">${escapeHtml(lesson.title)}</span>` +
-        `<span class="lesson__blurb">${escapeHtml(lesson.blurb)}</span></span>` +
+        `<span class="lesson__title">${escapeHtml(lesson.title)}</span>` +
         `<span class="lesson__go">Show me</span></button>`,
     ).join("") +
     `</div>`
@@ -4347,7 +4346,6 @@ const TOUR: Stop[] = [
 interface Lesson {
   id: string;
   title: string;
-  blurb: string;
   stops: Stop[];
 }
 
@@ -4355,7 +4353,6 @@ const LESSONS: Lesson[] = [
   {
     id: "new-bot",
     title: "Make a bot",
-    blurb: "Name it, say what it is for, choose what answers it.",
     stops: [
       {
         target: "#btn-new",
@@ -4394,7 +4391,6 @@ const LESSONS: Lesson[] = [
   {
     id: "routines",
     title: "Put work on the calendar",
-    blurb: "Standing instructions: every morning, every hour, once next Tuesday.",
     stops: [
       {
         target: "#btn-routines",
@@ -4425,7 +4421,6 @@ const LESSONS: Lesson[] = [
   {
     id: "computer",
     title: "Give a bot a computer",
-    blurb: "A private Linux desktop it can use, and you can watch.",
     stops: [
       {
         target: "#btn-settings",
@@ -4478,7 +4473,6 @@ const LESSONS: Lesson[] = [
   {
     id: "phone",
     title: "Reach your bots from your phone",
-    blurb: "Pair once by scanning a square. Works away from the house.",
     stops: [
       {
         target: "#btn-account",
@@ -4529,7 +4523,6 @@ const LESSONS: Lesson[] = [
   {
     id: "plugins",
     title: "Connect it to your accounts",
-    blurb: "GitHub, Gmail, Calendar, Notion — connected once, scoped per bot.",
     stops: [
       {
         target: "#btn-plugins",

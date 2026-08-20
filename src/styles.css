@@ -1549,7 +1549,7 @@ textarea {
    the size of a door with four words in the top corner. */
 .lessons .lesson:first-child {
   grid-column: span 2;
-  min-height: 88px;
+  min-height: 92px;
 }
 
 /* The guide leads with its lessons, so its face does not need a third of the
@@ -1563,7 +1563,7 @@ textarea {
   flex-direction: column;
   gap: 7px;
   align-items: flex-start;
-  min-height: 104px;
+  min-height: 92px;
   padding: 13px 15px;
   text-align: left;
   background: rgba(255, 255, 255, 0.035);
@@ -1806,23 +1806,9 @@ textarea {
   }
 }
 
-.lesson__body {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 100%;
-  min-width: 0;
-}
-
 .lesson__title {
   font-size: 14px;
   font-weight: 500;
-}
-
-.lesson__blurb {
-  font-size: 12.5px;
-  line-height: 1.45;
-  color: var(--text-2);
 }
 
 /* Pinned to the bottom of its tile, so five tiles of different heights still
