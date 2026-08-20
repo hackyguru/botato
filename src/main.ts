@@ -939,6 +939,8 @@ function renderRoster(): void {
  *  phone, a plug going in — and none of those needs more than a few boxes. */
 const ART: Record<string, string> = {
   "new-bot": `<span class="art art--bot"><i></i><i></i></span>`,
+  engine: `<span class="art art--engine"><i></i><i></i><i></i></span>`,
+  teach: `<span class="art art--teach"><i></i><i></i></span>`,
   routines: `<span class="art art--cal"><i></i><i></i><i></i><i></i></span>`,
   computer: `<span class="art art--screen"><i></i></span>`,
   phone: `<span class="art art--phone"><i></i><i></i></span>`,
@@ -4834,6 +4836,83 @@ const LESSONS: Lesson[] = [
     ],
   },
   {
+    id: "engine",
+    title: "Choose what answers it",
+    stops: [
+      {
+        target: "#btn-settings",
+        title: "Nothing here ships a model",
+        body: "botcage drives something else, and which something is a property of each bot rather than of the app. It lives in the bot's own settings.",
+        open: () => {
+          sheetWrap.hidden = true;
+        },
+      },
+      {
+        target: "#sheet-engine",
+        title: "Answered by",
+        body: "Claude Code, the Gemini CLI, or any hosted model. Different bots can use different ones, and changing this does not lose the conversation — botcage keeps the thread and hands it to whatever answers next.",
+        open: () => {
+          openSheet(activeBot());
+          showSheetTab("general");
+        },
+      },
+      {
+        target: "#sheet-model-row",
+        title: "And which model",
+        body: "Two or three for a CLI. For a hosted one it is a search over every model on models.dev — 5,559 of them, with what each costs and whether it can use tools — plus Ollama on this machine, which needs no key and costs nothing.",
+        open: () => {
+          openSheet(activeBot());
+          showSheetTab("general");
+        },
+      },
+      {
+        target: "#bots",
+        title: "One roster, several engines",
+        body: "A bot on your Claude subscription can sit beside one on a local model that costs nothing, and a third on something you are only trying out. They do not know about each other.",
+        open: () => {
+          sheetWrap.hidden = true;
+        },
+      },
+    ],
+  },
+  {
+    id: "teach",
+    title: "Show it how, once",
+    stops: [
+      {
+        target: "#btn-monitor",
+        title: "It has to be watching",
+        body: "Teaching happens on a bot's own computer, so this is where it starts. The bot needs one, and it needs to be switched on.",
+        open: () => {
+          sheetWrap.hidden = true;
+        },
+      },
+      {
+        target: "#screen-pane",
+        title: "Its screen",
+        body: "A Linux desktop nobody else uses. You can watch what the bot does on it, and you can reach in.",
+        open: () => void openScreen(),
+      },
+      {
+        target: "#btn-control",
+        title: "Take the mouse",
+        body: "The bot stops driving and you do. This is how you show it something rather than describe it.",
+        open: () => void openScreen(),
+      },
+      {
+        target: "#btn-teach",
+        title: "Record what you do",
+        body: "Name the task, press record, do it once, press stop. botcage keeps every click, every key and a picture of each step — as a demonstration, not a video.",
+        open: () => void openScreen(),
+      },
+      {
+        target: "#dock",
+        title: "Then just ask for it",
+        body: "Ask the bot to do that task by name and it replays what you did, adapting as it goes. Put it on the calendar and it does it every morning without being asked.",
+      },
+    ],
+  },
+  {
     id: "plugins",
     title: "Connect it to your accounts",
     stops: [
@@ -4882,11 +4961,24 @@ function endTour(): void {
   }
 }
 
+/** Is this stop's target actually on screen?
+ *
+ *  Present in the document is not the same as visible: the teach button exists
+ *  whenever the app does but is hidden until a bot's desktop is running, and a
+ *  ring around something with no rectangle is a ring around the top-left
+ *  corner of the window. */
+function onScreen(target: string): boolean {
+  const found = document.querySelector<HTMLElement>(target);
+  if (!found) return false;
+  const box = found.getBoundingClientRect();
+  return box.width > 0 && box.height > 0;
+}
+
 /** Move to the next stop that is actually on screen. */
 function tourGo(by: number): void {
   for (let at = tourAt + by; at >= 0 && at < tourStops.length; at += by) {
     tourStops[at].open?.();
-    if (document.querySelector(tourStops[at].target)) {
+    if (onScreen(tourStops[at].target)) {
       tourAt = at;
       paintTour();
       return;
@@ -4898,8 +4990,8 @@ function tourGo(by: number): void {
 function paintTour(): void {
   const stop = tourStops[tourAt];
   stop.open?.();
-  const target = document.querySelector(stop.target);
-  if (!target) return tourGo(1);
+  if (!onScreen(stop.target)) return tourGo(1);
+  const target = document.querySelector(stop.target)!;
 
   // A margin around the target, so the ring frames it rather than tracing it.
   const pad = 6;
