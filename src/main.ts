@@ -706,6 +706,10 @@ function faceHtml(bot: Bot, size: "sm" | "md" | "lg" = "md"): string {
     `<span class="face__eyes"><i></i><i></i></span>` +
     `<span class="face__mouth"></span>` +
     `<span class="face__mark"></span>` +
+    // Empty at rest, and owned by no trait: whatever a mood wants to put above
+    // a bot's head lives here — a thought cloud today, a spark or a "zzz"
+    // later, without another element being added for each.
+    `<span class="face__aura"></span>` +
     `</span>`
   );
 }

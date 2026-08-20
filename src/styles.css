@@ -1487,6 +1487,75 @@ textarea {
   animation-delay: 0.06s;
 }
 
+/* ---- the aura: what a mood puts above a bot's head
+   One element, empty until a mood fills it. Both pseudo-elements are declared
+   here so a mood only has to say what they look like. */
+.face__aura {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.face__aura::before,
+.face__aura::after {
+  content: "";
+  position: absolute;
+  opacity: 0;
+  border-radius: 50%;
+  /* Tinted from the bot rather than plain white, so the cloud belongs to the
+     creature having the thought. */
+  background: color-mix(in srgb, var(--skin) 26%, #f4f4f6);
+}
+
+/* A cloud made of one element and two box-shadows, because three overlapping
+   circles is what a thought bubble is and three elements is two too many. */
+.face[data-mood="think"] .face__aura::before {
+  top: calc(var(--u) * -0.3);
+  right: calc(var(--u) * -0.14);
+  width: calc(var(--u) * 0.36);
+  height: calc(var(--u) * 0.24);
+  box-shadow:
+    calc(var(--u) * -0.14) calc(var(--u) * 0.04) 0 calc(var(--u) * -0.04)
+      color-mix(in srgb, var(--skin) 26%, #f4f4f6),
+    calc(var(--u) * 0.1) calc(var(--u) * 0.05) 0 calc(var(--u) * -0.06)
+      color-mix(in srgb, var(--skin) 26%, #f4f4f6);
+  opacity: 1;
+  animation: think-cloud 2.4s ease-in-out infinite;
+}
+
+/* The little one trailing behind it, which is what makes a cloud read as a
+   thought rather than as weather. */
+.face[data-mood="think"] .face__aura::after {
+  top: calc(var(--u) * -0.09);
+  right: calc(var(--u) * 0.04);
+  width: calc(var(--u) * 0.1);
+  height: calc(var(--u) * 0.1);
+  opacity: 1;
+  animation: think-tail 2.4s ease-in-out infinite;
+}
+
+@keyframes think-cloud {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(calc(var(--u) * -0.05)) scale(1.06);
+  }
+}
+
+@keyframes think-tail {
+  0%,
+  100% {
+    transform: scale(0.8);
+    opacity: 0.55;
+  }
+  45% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 /* Thinking: the eyes drift up and the brows lift, which reads as looking for
    something rather than at you. */
 @keyframes mood-think {
@@ -1647,7 +1716,9 @@ textarea {
   .face,
   .face__eyes,
   .face__eyes i,
-  .face__brows {
+  .face__brows,
+  .face__aura::before,
+  .face__aura::after {
     animation: none !important;
   }
 }
