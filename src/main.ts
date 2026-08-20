@@ -711,14 +711,27 @@ function renderRoster(): void {
     .join("");
 }
 
+/** A small drawing per lesson, which moves when the card is hovered or
+ *  focused. Made of two or three elements and some CSS rather than an icon
+ *  font or an SVG each: what is being animated is the idea — a face appearing,
+ *  a block landing on a calendar, a screen coming on, a signal leaving a
+ *  phone, a plug going in — and none of those needs more than a few boxes. */
+const ART: Record<string, string> = {
+  "new-bot": `<span class="art art--bot"><i></i><i></i></span>`,
+  routines: `<span class="art art--cal"><i></i><i></i><i></i><i></i></span>`,
+  computer: `<span class="art art--screen"><i></i></span>`,
+  phone: `<span class="art art--phone"><i></i><i></i></span>`,
+  plugins: `<span class="art art--plug"><i></i><i></i></span>`,
+};
+
 /** The lessons, as something to press. */
 function lessonsHtml(): string {
   return (
     `<div class="lessons">` +
     LESSONS.map(
-      (lesson, at) =>
+      (lesson) =>
         `<button type="button" class="lesson" data-lesson="${lesson.id}">` +
-        `<span class="lesson__no">${at + 1}</span>` +
+        ART[lesson.id] +
         `<span class="lesson__body"><span class="lesson__title">${escapeHtml(lesson.title)}</span>` +
         `<span class="lesson__blurb">${escapeHtml(lesson.blurb)}</span></span>` +
         `<span class="lesson__go">Show me</span></button>`,

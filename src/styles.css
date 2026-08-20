@@ -1163,6 +1163,8 @@ textarea {
   flex-direction: column;
   align-items: center;
   gap: 12px;
+  /* Less of a drop when something follows it: the guide's lessons sit
+     underneath, and 14vh of nothing pushed the last two off the fold. */
   padding: 14vh 20px 0;
   color: var(--text-2);
   text-align: center;
@@ -1530,51 +1532,285 @@ textarea {
 
 /* The guide's lessons. Cards rather than a list of links: each one is a thing
    that happens when pressed, and it should look like a thing that happens. */
+/* Five tiles, unequal on purpose. A list of five identical rows says these are
+   five of a kind and you should read them in order; a bento says here is the
+   shape of the place, start with the big one. */
 .lessons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 9px;
   width: 100%;
-  max-width: 620px;
-  margin: 18px auto;
+  max-width: 640px;
+  margin: 20px auto;
+}
+
+/* Making a bot is the one everything else assumes you have done, so it runs
+   the full width. Not the full height as well: spanning two rows made a tile
+   the size of a door with four words in the top corner. */
+.lessons .lesson:first-child {
+  grid-column: span 2;
+  min-height: 88px;
+}
+
+/* The guide leads with its lessons, so its face does not need a third of the
+   window above it. */
+.empty:has(+ .lessons) {
+  padding-top: 7vh;
 }
 
 .lesson {
   display: flex;
-  gap: 13px;
-  align-items: center;
-  width: 100%;
-  padding: 12px 14px;
+  flex-direction: column;
+  gap: 7px;
+  align-items: flex-start;
+  min-height: 104px;
+  padding: 13px 15px;
   text-align: left;
   background: rgba(255, 255, 255, 0.035);
   border: 1px solid var(--line);
-  border-radius: 13px;
-}
-
-.lesson + .lesson {
-  margin-top: 8px;
+  border-radius: 15px;
+  transition: background 0.14s, border-color 0.14s, transform 0.14s;
 }
 
 .lesson:hover {
   background: rgba(255, 255, 255, 0.07);
   border-color: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
 }
 
-.lesson__no {
+.lessons .lesson:first-child .lesson__title {
+  font-size: 17px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lesson {
+    transition: none;
+  }
+
+  .lesson:hover {
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------- the lessons' little marks */
+
+/* One per lesson, still while you read and moving once you mean it. Everything
+   here is two or three boxes: the point is the idea, not the illustration. */
+.art {
+  position: relative;
   flex: 0 0 auto;
-  width: 24px;
-  height: 24px;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 24px;
-  color: var(--text-2);
-  text-align: center;
-  background: rgba(255, 255, 255, 0.07);
+  width: 30px;
+  height: 30px;
+}
+
+.art i {
+  position: absolute;
+  display: block;
+  transition: all 0.28s cubic-bezier(0.3, 0.9, 0.3, 1.4);
+}
+
+/* A face, which blinks when you look at it. */
+.art--bot {
+  background: var(--blue);
+  border-radius: 9px;
+}
+
+.art--bot i {
+  top: 11px;
+  width: 5px;
+  height: 5px;
+  background: #04203f;
   border-radius: 50%;
+}
+
+.art--bot i:first-child {
+  left: 7px;
+}
+
+.art--bot i:last-child {
+  right: 7px;
+}
+
+.lesson:hover .art--bot i,
+.lesson:focus-visible .art--bot i {
+  animation: blink 1.4s ease-in-out;
+}
+
+/* Four days, and something landing in one of them. */
+.art--cal {
+  border: 1.5px solid var(--text-3);
+  border-radius: 7px;
+}
+
+.art--cal i {
+  width: 8px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 2px;
+}
+
+.art--cal i:nth-child(1) {
+  top: 4px;
+  left: 4px;
+}
+
+.art--cal i:nth-child(2) {
+  top: 4px;
+  right: 4px;
+}
+
+.art--cal i:nth-child(3) {
+  bottom: 4px;
+  left: 4px;
+}
+
+.art--cal i:nth-child(4) {
+  right: 4px;
+  bottom: 4px;
+}
+
+.lesson:hover .art--cal i:nth-child(4),
+.lesson:focus-visible .art--cal i:nth-child(4) {
+  background: var(--blue);
+  transform: scale(1.15);
+}
+
+.lesson:hover .art--cal i:nth-child(2),
+.lesson:focus-visible .art--cal i:nth-child(2) {
+  transform: translateY(9px);
+  opacity: 0.35;
+}
+
+/* A screen, coming on. */
+.art--screen {
+  border: 1.5px solid var(--text-3);
+  border-radius: 6px;
+}
+
+.art--screen::after {
+  content: "";
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  width: 12px;
+  height: 2px;
+  background: var(--text-3);
+  border-radius: 1px;
+  transform: translateX(-50%);
+}
+
+.art--screen i {
+  inset: 4px;
+  background: var(--blue);
+  border-radius: 3px;
+  opacity: 0;
+  transform: scaleY(0.1);
+}
+
+.lesson:hover .art--screen i,
+.lesson:focus-visible .art--screen i {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+/* A phone, and a signal leaving it. */
+.art--phone {
+  width: 20px;
+  height: 30px;
+  margin-left: 5px;
+  border: 1.5px solid var(--text-3);
+  border-radius: 5px;
+}
+
+.art--phone i {
+  top: 7px;
+  right: -9px;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--blue);
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+  border-radius: 0 6px 0 0;
+  opacity: 0;
+}
+
+.art--phone i:last-child {
+  top: 3px;
+  right: -14px;
+  width: 14px;
+  height: 14px;
+  border-radius: 0 9px 0 0;
+}
+
+.lesson:hover .art--phone i,
+.lesson:focus-visible .art--phone i {
+  opacity: 1;
+  animation: signal 1.6s ease-out infinite;
+}
+
+.lesson:hover .art--phone i:last-child,
+.lesson:focus-visible .art--phone i:last-child {
+  animation-delay: 0.22s;
+}
+
+@keyframes signal {
+  0% {
+    opacity: 0;
+    transform: translateX(-3px);
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(2px);
+  }
+}
+
+/* Two halves of a connection, which meet. */
+.art--plug i {
+  top: 9px;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--text-3);
+}
+
+.art--plug i:first-child {
+  left: 0;
+  border-right: 0;
+  border-radius: 6px 0 0 6px;
+}
+
+.art--plug i:last-child {
+  right: 0;
+  border-left: 0;
+  border-radius: 0 6px 6px 0;
+}
+
+.lesson:hover .art--plug i:first-child,
+.lesson:focus-visible .art--plug i:first-child {
+  border-color: var(--blue);
+  transform: translateX(3px);
+}
+
+.lesson:hover .art--plug i:last-child,
+.lesson:focus-visible .art--plug i:last-child {
+  border-color: var(--blue);
+  transform: translateX(-3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .art i {
+    transition: none;
+    animation: none !important;
+  }
 }
 
 .lesson__body {
   display: flex;
-  flex: 1;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  width: 100%;
   min-width: 0;
 }
 
@@ -1589,8 +1825,10 @@ textarea {
   color: var(--text-2);
 }
 
+/* Pinned to the bottom of its tile, so five tiles of different heights still
+   agree on where the thing you press is. */
 .lesson__go {
-  flex: 0 0 auto;
+  margin-top: auto;
   font-size: 12.5px;
   color: var(--blue);
   opacity: 0;
