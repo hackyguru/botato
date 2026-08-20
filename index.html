@@ -772,18 +772,47 @@
             <span class="face face--squircle face--lg" style="background:#0a84ff"><i></i><i></i></span>
             <h2 class="setup__title">Welcome to botcage</h2>
             <p class="setup__blurb">
-              Bots live on this machine. Each one is a Claude Code session that keeps its own
-              memory, and can be given a private Linux desktop to work on.
+              Bots live on this machine. Each one keeps its own memory and workspace, and can be
+              given a private Linux desktop to work on.
             </p>
-            <p class="setup__blurb setup__blurb--dim">Two things to check first — it takes a minute.</p>
+            <p class="setup__blurb setup__blurb--dim">Two things to settle first — it takes a minute.</p>
           </section>
 
-          <section class="setup__step" data-step="claude" hidden>
-            <h2 class="setup__title">Claude Code</h2>
+          <section class="setup__step" data-step="answers" hidden>
+            <h2 class="setup__title">What answers your bots</h2>
             <p class="setup__blurb">
-              botcage drives the Claude Code CLI rather than shipping a model of its own, so bots
-              can't reply without it. A Claude Pro or Max subscription covers it.
+              botcage ships no model of its own. Pick one way to start — any bot can be changed
+              later, and different bots can use different ones.
             </p>
+
+            <div class="picks" id="setup-picks">
+              <label class="pick">
+                <input type="radio" name="setup-route" value="claude-code" checked />
+                <span class="pick__body">
+                  <span class="pick__name">Claude Code</span>
+                  <span class="pick__what">Anthropic's CLI. A Pro or Max subscription covers it,
+                    and bots get files, the web, connectors and a computer.</span>
+                </span>
+              </label>
+
+              <label class="pick">
+                <input type="radio" name="setup-route" value="ollama" />
+                <span class="pick__body">
+                  <span class="pick__name">Ollama, on this machine</span>
+                  <span class="pick__what">Free and private, no account. Chat only — no tools yet.</span>
+                </span>
+              </label>
+
+              <label class="pick">
+                <input type="radio" name="setup-route" value="hosted" />
+                <span class="pick__body">
+                  <span class="pick__name">A hosted model</span>
+                  <span class="pick__what">Any of thousands on models.dev, with your own API key.
+                    Chat only — no tools yet.</span>
+                </span>
+              </label>
+            </div>
+
             <div class="setup__check" id="setup-claude-check">
               <span class="setup__dot" data-state="wait"></span>
               <span class="setup__check-text" id="setup-claude-text">Checking…</span>

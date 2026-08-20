@@ -190,6 +190,11 @@ interface Persisted {
 
 /** Settings that belong to botcage rather than to one bot. */
 interface AppSettings {
+  /** How a new bot is answered by default — the choice made in setup. Absent on
+   *  a settings file written before there was one, which means Claude Code. */
+  engine?: string;
+  /** With which provider, for the hosted engine. */
+  provider?: string;
   model: string;
   screen: string;
   idleMinutes: number;
@@ -1269,8 +1274,12 @@ function paintSheetEngines(bot: Bot | null): void {
   }
 
   sheetEngine.replaceChildren(...options);
+  // An existing bot keeps its own; a new one starts from what setup arranged.
   sheetEngine.value =
-    bot?.engine ?? list.find((info) => info.ready.usable)?.key ?? DEFAULT_ENGINE;
+    bot?.engine ??
+    appSettings().engine ??
+    list.find((info) => info.ready.usable)?.key ??
+    DEFAULT_ENGINE;
   paintSheetModels(bot?.model ?? appSettings().model);
 }
 
@@ -1539,13 +1548,25 @@ function askForKey(model: Listing): void {
   modelsKeyInput.focus();
 }
 
-function chooseModel(model: Listing): void {
+/** What to do with the model that gets picked. The bot sheet is one caller;
+ *  setup is another, and it is choosing a default rather than editing a bot. */
+let onPick: (model: Listing) => void = (model) => {
   draftModel = { provider: model.provider, model: model.id };
-  modelsWrap.hidden = true;
   paintSheetModels(model.id);
+};
+
+function chooseModel(model: Listing): void {
+  modelsWrap.hidden = true;
+  onPick(model);
 }
 
-async function openModels(): Promise<void> {
+async function openModels(pick?: (model: Listing) => void): Promise<void> {
+  onPick =
+    pick ??
+    ((model) => {
+      draftModel = { provider: model.provider, model: model.id };
+      paintSheetModels(model.id);
+    });
   pending = null;
   modelsKey.hidden = true;
   modelsWrap.hidden = false;
@@ -1631,6 +1652,16 @@ $<HTMLButtonElement>("#models-key-forget").addEventListener("click", () => {
 
 $<HTMLButtonElement>("#sheet-model-open").addEventListener("click", () => void openModels());
 
+$<HTMLDivElement>("#setup-picks").addEventListener("change", (e) => {
+  const chosen = (e.target as HTMLInputElement).value;
+  if (chosen !== "claude-code" && chosen !== "ollama" && chosen !== "hosted") return;
+  setupRoute = chosen;
+  // A model picked for one route means nothing to another.
+  setupPick = null;
+  paintSetup();
+});
+
+
 function openSheet(bot: Bot | null = null): void {
   editing = bot;
   draftColor = bot?.color ?? COLORS[state.bots.length % COLORS.length];
@@ -1640,7 +1671,10 @@ function openSheet(bot: Bot | null = null): void {
   sheetRole.value = bot?.role ?? "";
   sheetComputer.checked = bot?.computer ?? false;
   sheetNetwork.value = bot?.network ?? "full";
-  draftModel = { provider: bot?.provider, model: bot?.model ?? "" };
+  draftModel = {
+    provider: bot?.provider ?? (bot ? undefined : appSettings().provider),
+    model: bot?.model ?? (appSettings().engine ? appSettings().model : ""),
+  };
   paintSheetEngines(bot);
   sheetBrowser.value = bot?.machine?.browser ?? "";
   sheetRendering.value = bot?.machine?.rendering ?? "";
@@ -3709,7 +3743,7 @@ menu.addEventListener("click", (e) => {
   if (app) {
     closeMenu();
     if (app === "settings") void openAppSettings();
-    else if (app === "setup") void openSetup(appSettings().onboarded ? "claude" : "welcome");
+    else if (app === "setup") void openSetup(appSettings().onboarded ? "answers" : "welcome");
     else void openAbout();
     return;
   }
@@ -4089,7 +4123,7 @@ interface ClaudeState {
   trouble: string | null;
 }
 
-const SETUP_STEPS = ["welcome", "claude", "engine", "done"] as const;
+const SETUP_STEPS = ["welcome", "answers", "engine", "done"] as const;
 type SetupStep = (typeof SETUP_STEPS)[number];
 
 const setupWrap = $<HTMLDivElement>("#setup");
@@ -4117,6 +4151,22 @@ void listen<string>("claude-setup", (event) => {
 
 async function openSetup(at: SetupStep = "welcome"): Promise<void> {
   setupAt = at;
+  // Start on whatever this app is already set up to use, so reopening setup
+  // shows the arrangement someone made rather than the one botcage prefers.
+  const chosen = appSettings().engine ?? DEFAULT_ENGINE;
+  setupRoute =
+    chosen === DEFAULT_ENGINE
+      ? "claude-code"
+      : appSettings().provider === "ollama"
+        ? "ollama"
+        : "hosted";
+  ollamaModels = null;
+  setupPick = null;
+  $<HTMLDivElement>("#setup-picks")
+    .querySelectorAll<HTMLInputElement>("input")
+    .forEach((radio) => {
+      radio.checked = radio.value === setupRoute;
+    });
   setupLog = [];
   setupWrap.hidden = false;
   paintSetup();
@@ -4146,10 +4196,32 @@ async function refreshEngine(): Promise<void> {
 
 /** Is this step's work done? Used for the button label and for skipping past
  *  steps that need nothing. */
+/** Which way of answering setup is currently offering to arrange. */
+let setupRoute: "claude-code" | "ollama" | "hosted" = "claude-code";
+/** What the hosted route has been pointed at, if anything. */
+let setupPick: Listing | null = null;
+/** How many models Ollama has pulled — null until asked. */
+let ollamaModels: number | null = null;
+
 function stepSatisfied(step: SetupStep): boolean {
-  if (step === "claude") return Boolean(claudeState?.path && claudeState.signedIn);
+  if (step === "answers") {
+    // Whatever route is showing has to actually work. A bot cannot be answered
+    // by a plan.
+    if (setupRoute === "claude-code") return Boolean(claudeState?.path && claudeState.signedIn);
+    if (setupRoute === "ollama") return (ollamaModels ?? 0) > 0;
+    return setupPick !== null;
+  }
   if (step === "engine") return Boolean(engine?.installed) || engine?.supported === false;
   return true;
+}
+
+/** Is there any way at all to answer a bot? Used at launch to decide whether
+ *  setup needs reopening — which used to mean "is Claude Code signed in", and
+ *  would now drag someone who chose Ollama back through a step they settled. */
+function somethingCanAnswer(): boolean {
+  const settings = appSettings();
+  if ((settings.engine ?? DEFAULT_ENGINE) === DEFAULT_ENGINE) return claudeReady;
+  return Boolean(settings.model);
 }
 
 function paintSetup(): void {
@@ -4168,9 +4240,76 @@ function paintSetup(): void {
   setupNext.textContent = "Continue";
 
   if (setupAt === "welcome") setupNext.textContent = "Get started";
-  if (setupAt === "claude") paintClaudeStep();
+  if (setupAt === "answers") paintAnswersStep();
   if (setupAt === "engine") paintEngineStep();
   if (setupAt === "done") paintDoneStep();
+}
+
+/** The step that decides what answers a bot, and arranges whichever was
+ *  chosen. Three routes share one screen because they are one decision, and
+ *  showing three separate steps would imply all three were needed. */
+function paintAnswersStep(): void {
+  const claudeCheck = $<HTMLDivElement>("#setup-claude-check");
+  const text = $<HTMLSpanElement>("#setup-claude-text");
+  const dot = $<HTMLSpanElement>("#setup-claude-check .setup__dot");
+  const log = $<HTMLPreElement>("#setup-claude-log");
+  const fine = $<HTMLParagraphElement>("#setup-claude-fine");
+
+  claudeCheck.hidden = false;
+  if (setupRoute === "claude-code") {
+    paintClaudeStep();
+    return;
+  }
+
+  log.hidden = true;
+  fine.hidden = true;
+
+  if (setupRoute === "ollama") {
+    if (ollamaModels === null) {
+      dot.dataset.state = "wait";
+      text.textContent = "Looking for Ollama…";
+      void invoke<Listing[]>("catalogue_search", {
+        query: "",
+        toolsOnly: false,
+        provider: "ollama",
+        limit: 60,
+      })
+        .then((models) => {
+          ollamaModels = models.length;
+          if (models.length && !setupPick) setupPick = models[0];
+          paintSetup();
+        })
+        .catch(() => {
+          ollamaModels = 0;
+          paintSetup();
+        });
+      return;
+    }
+    if (!ollamaModels) {
+      dot.dataset.state = "missing";
+      text.textContent = "Ollama isn't running, or has nothing pulled.";
+      fine.hidden = false;
+      fine.textContent =
+        "Install it from ollama.com, then run `ollama pull llama3`. Nothing leaves this machine, and there is nothing to pay for.";
+      setupNext.textContent = "Look again";
+      setupSkip.hidden = false;
+      return;
+    }
+    dot.dataset.state = "ok";
+    text.textContent = `${setupPick?.id ?? "a local model"} — ready, on this machine.`;
+    return;
+  }
+
+  // Hosted.
+  if (!setupPick) {
+    dot.dataset.state = "missing";
+    text.textContent = "No model chosen yet.";
+    setupNext.textContent = "Choose a model";
+    setupSkip.hidden = false;
+    return;
+  }
+  dot.dataset.state = "ok";
+  text.textContent = `${setupPick.name} — from ${setupPick.providerName}.`;
 }
 
 function paintClaudeStep(): void {
@@ -4255,13 +4394,30 @@ function paintEngineStep(): void {
 
 function paintDoneStep(): void {
   const blurb = $<HTMLParagraphElement>("#setup-done-blurb");
-  if (stepSatisfied("claude")) {
+  if (stepSatisfied("answers")) {
     blurb.textContent = "Everything botcage needs is in place.";
   } else {
     blurb.textContent =
-      "Bots can't reply until Claude Code is installed and signed in. Reopen this from the account menu when you're ready.";
+      "Nothing can answer a bot yet. Reopen this from the account menu when you're ready, or change what answers in any bot's settings.";
   }
   setupNext.textContent = "Start using botcage";
+}
+
+/** Keep what was chosen, so the first bot is made with it rather than with
+ *  whatever the app happened to default to before anyone was asked. */
+function rememberRoute(): void {
+  const settings = appSettings();
+  if (setupRoute === "claude-code") {
+    state.app = { ...settings, engine: DEFAULT_ENGINE, provider: undefined, model: settings.model };
+  } else if (setupPick) {
+    state.app = {
+      ...settings,
+      engine: "openai-compatible",
+      provider: setupPick.provider,
+      model: setupPick.id,
+    };
+  }
+  save();
 }
 
 function goTo(step: SetupStep): void {
@@ -4273,11 +4429,31 @@ function goTo(step: SetupStep): void {
 /** The primary button does whatever the step still needs, and only moves on
  *  once there is nothing left to do. */
 async function setupAdvance(): Promise<void> {
-  if (setupAt === "welcome") return goTo("claude");
+  if (setupAt === "welcome") return goTo("answers");
   if (setupAt === "done") return closeSetup();
 
-  if (setupAt === "claude") {
-    if (stepSatisfied("claude")) return goTo("engine");
+  if (setupAt === "answers") {
+    if (stepSatisfied("answers")) {
+      rememberRoute();
+      return goTo("engine");
+    }
+
+    if (setupRoute === "ollama") {
+      // Ask again: someone who just installed Ollama in another window should
+      // not have to restart botcage to be believed.
+      ollamaModels = null;
+      paintSetup();
+      return;
+    }
+
+    if (setupRoute === "hosted") {
+      await openModels((model) => {
+        setupPick = model;
+        paintSetup();
+      });
+      return;
+    }
+
     if (signInWaiting) {
       await refreshClaude();
       if (claudeState?.signedIn) stopSignInWatch();
@@ -4697,7 +4873,8 @@ const REMOTE_ACTIONS: Record<string, (payload: Record<string, unknown>) => unkno
       started: false,
       computer: false,
       network: "full",
-      engine: engineChoices.find((info) => info.ready.usable)?.key ?? DEFAULT_ENGINE,
+      engine: appSettings().engine ?? engineChoices.find((info) => info.ready.usable)?.key ?? DEFAULT_ENGINE,
+      provider: appSettings().provider,
       model: appSettings().model,
       plugins: [],
       routines: [],
@@ -4849,6 +5026,9 @@ if (appSettings().remoteOn) {
 }
 
 void refreshClaude().then(() => {
+  // Reopened only when nothing at all can answer a bot. Someone who chose
+  // Ollama or a hosted key should not be dragged back through a Claude Code
+  // step they deliberately walked past.
   if (!appSettings().onboarded) void openSetup("welcome");
-  else if (!claudeReady) void openSetup("claude");
+  else if (!somethingCanAnswer()) void openSetup("answers");
 });
