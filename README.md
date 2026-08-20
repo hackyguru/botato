@@ -104,10 +104,14 @@ itself is a fraction of it.
 ## Status
 
 Version 0.1.0, and honest about what that means. The desktop app and its
-sandboxes have been used daily. The phone client is new: it runs on iOS and
-Android, pairs, streams replies and survives restarts, but reaching a laptop
-over mobile data from outside the house has not yet been tested, and neither has
-a camera reading the QR on a physical device.
+sandboxes have been used daily. The phone client runs on iOS and Android, pairs
+by scanning the square on the laptop, streams replies, survives restarts, and
+has reached a laptop at home from a phone on mobile data — which is the claim
+the whole transport rests on, so it is worth saying that it has actually been
+done rather than merely designed for.
+
+Android is built and runs, but has only been exercised against a stand-in
+desktop, never a real one.
 
 Support for engines other than Claude Code is a seam, not a feature: the shape
 is defined and every turn goes through it, but only one engine exists so far.
