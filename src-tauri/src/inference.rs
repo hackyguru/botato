@@ -498,6 +498,18 @@ fn gemini_signed_in() -> bool {
         return true;
     }
 
+    // So does a key in the file the CLI looks for by itself. Its own
+    // `findEnvFile` walks up from the working directory for `.gemini/.env` and
+    // `.env`, and falls back to this one — which is the only arrangement that
+    // works for an app launched from Finder, where a key exported in a shell
+    // profile does not exist. botcage never reads the key, only notices that
+    // one is there to be found.
+    if std::fs::read_to_string(crate::home().join(".gemini/.env"))
+        .is_ok_and(|env| env.contains("GEMINI_API_KEY") || env.contains("GOOGLE_API_KEY"))
+    {
+        return true;
+    }
+
     std::fs::read_to_string(crate::home().join(".gemini/settings.json"))
         .ok()
         .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
