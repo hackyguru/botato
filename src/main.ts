@@ -245,7 +245,7 @@ const menu = $<HTMLDivElement>("#menu");
 const sheetWrap = $<HTMLDivElement>("#sheet-wrap");
 const sheet = $<HTMLFormElement>("#sheet");
 const sheetName = $<HTMLInputElement>("#sheet-name");
-const sheetRole = $<HTMLInputElement>("#sheet-role");
+const sheetRole = $<HTMLTextAreaElement>("#sheet-role");
 const sheetPreview = $<HTMLDivElement>("#sheet-preview");
 const swatches = $<HTMLDivElement>("#swatches");
 const sheetTitle = $<HTMLHeadingElement>("#sheet-title");
@@ -766,7 +766,10 @@ function waitingHtml(msgId: string, note: string): void {
 function systemPromptFor(bot: Bot): string {
   return [
     `You are "${bot.name}", one of several bots the user keeps in botcage, a desktop app where each bot is a persistent chat.`,
-    bot.role ? `Your remit: ${bot.role}.` : "",
+    // In the user's own words, whole. This used to be a one-line "what it does"
+    // that read as a subtitle; it is now where someone describes a job, so it
+    // is passed through rather than dressed up as a sentence.
+    bot.role ? `What you are here to do, as the user described it:\n\n${bot.role}` : "",
     `You are talking in a chat window, so reply conversationally and keep it tight — a couple of short paragraphs unless depth is asked for. Markdown is rendered: bold, lists, and fenced code blocks all display properly.`,
     `Your working directory is a private scratch folder for this bot. You can read and write files there, and search the web, but you have no shell access and no access to the rest of the machine.`,
     `CLAUDE.md in that folder is loaded automatically at the start of every turn — it is your memory across sessions. When you learn something that will still matter next time (a decision, a preference, context that took work to establish), add it to the Memory section with the Edit tool. Don't record what the chat already shows.`,

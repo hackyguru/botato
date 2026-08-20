@@ -104,13 +104,16 @@ export default function BotSettings({
             placeholder="Name"
             placeholderTextColor={T.text3}
           />
+          <Text style={s.fieldLabel}>Role and job description</Text>
           <TextInput
-            style={s.input}
+            style={[s.input, s.prose]}
             value={role}
             onChangeText={setRole}
             onBlur={() => role !== bot.role && onUpdate({ role })}
-            placeholder="What it does"
+            placeholder="What this bot is responsible for: the work it owns, how you want it approached, anything it should always or never do."
             placeholderTextColor={T.text3}
+            multiline
+            textAlignVertical="top"
           />
         </View>
 
@@ -402,6 +405,9 @@ const s = StyleSheet.create({
   },
   chipText: { color: T.text, fontSize: 13.5 },
   fine: { color: T.text3, fontSize: 12, lineHeight: 18 },
+  fieldLabel: { paddingHorizontal: 14, paddingTop: 10, color: T.text2, fontSize: 12.5 },
+  // Room to describe a job rather than name one.
+  prose: { minHeight: 108, paddingTop: 10, paddingBottom: 10, lineHeight: 20 },
   none: { color: T.text2, fontSize: 13.5 },
   save: {
     alignItems: "center",

@@ -169,7 +169,9 @@ export default function Bots({
             style={s.input}
             value={role}
             onChangeText={setRole}
-            placeholder="What it does"
+            // The short version here; the full job description is a field of
+            // its own in the bot's settings, on both screens.
+            placeholder="Role, e.g. ships and reviews code"
             placeholderTextColor={T.text3}
             onSubmitEditing={create}
           />

@@ -1176,9 +1176,17 @@ textarea {
 }
 
 .empty p {
-  max-width: 320px;
+  max-width: 380px;
   margin: 0;
   font-size: 14px;
+  line-height: 1.5;
+  /* A job description can be several lines, written as lines. Honour them here,
+     and keep it to the first few — this is a greeting, not the whole brief. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+  white-space: pre-line;
 }
 
 /* ----------------------------------------------------------------- composer */
@@ -1401,6 +1409,44 @@ textarea {
   padding: 0 12px;
   background: var(--field);
   border-radius: 10px;
+}
+
+/* A field with something to say about itself. The name above it needs no label
+   — a box with "Name" in it is a box that says Name twice — but a paragraph
+   about what a bot is for does, or an empty one reads as an optional afterthought. */
+.prose {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.prose__label {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.prose textarea {
+  width: 100%;
+  /* Enough to invite a few sentences, not so much that the pickers below it
+     fall off the fold of a sheet that holds one height across every tab. */
+  min-height: 78px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.45;
+  background: var(--field);
+  border-radius: 10px;
+  resize: vertical;
+}
+
+.prose__note {
+  width: 100%;
+  margin: -2px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-3);
 }
 
 /* A sheet with tabs holds one size across all of them. Each panel has its own

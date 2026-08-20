@@ -334,8 +334,14 @@
           <div class="settings-panel" data-tab="general" role="tabpanel">
             <div class="sheet__preview" id="sheet-preview"></div>
             <input id="sheet-name" placeholder="Name, e.g. Engineer" spellcheck="false" />
-            <input id="sheet-role" placeholder="What it does (optional)" spellcheck="false" />
             <div class="swatches" id="swatches"></div>
+
+            <label class="prose" for="sheet-role">
+              <span class="prose__label">Role and job description</span>
+              <textarea id="sheet-role" rows="4"
+                        placeholder="What this bot is responsible for: the work it owns, how you want it approached, anything it should always or never do."></textarea>
+            </label>
+            <p class="prose__note">Written into every conversation with it.</p>
 
             <div class="settings">
             <label class="setting">
