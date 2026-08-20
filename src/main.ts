@@ -4348,6 +4348,9 @@ const LESSONS: Lesson[] = [
         target: "#btn-new",
         title: "One bot per job",
         body: "This makes one. A bot is cheap, and two jobs in one bot means one memory holding both.",
+        open: () => {
+          sheetWrap.hidden = true;
+        },
       },
       {
         target: "#sheet-name",
@@ -4383,7 +4386,8 @@ const LESSONS: Lesson[] = [
       {
         target: "#btn-routines",
         title: "The clock",
-        body: "Every bot has a week of its own behind this.",
+        body: "Every bot has a week of its own behind this, in the top bar.",
+        open: () => showRoutines(false),
       },
       {
         target: "#cal-cols",
@@ -4410,6 +4414,26 @@ const LESSONS: Lesson[] = [
     title: "Give a bot a computer",
     blurb: "A private Linux desktop it can use, and you can watch.",
     stops: [
+      {
+        target: "#btn-settings",
+        title: "Start here",
+        body: "Everything about the bot you are looking at lives behind this: its name, what it is for, what answers it, and whether it has a computer.",
+        // Closing it again matters on the way back: the gear is underneath the
+        // sheet, and a ring around something covered by a modal points at
+        // nothing.
+        open: () => {
+          sheetWrap.hidden = true;
+        },
+      },
+      {
+        target: '#sheet-wrap [data-tab="computer"]',
+        title: "The Computer tab",
+        body: "Off by default. Nothing is downloaded and no container exists until you switch it on here.",
+        open: () => {
+          openSheet(activeBot());
+          showSheetTab("computer");
+        },
+      },
       {
         target: "#sheet-computer",
         title: "Its own machine",
@@ -4443,6 +4467,23 @@ const LESSONS: Lesson[] = [
     title: "Reach your bots from your phone",
     blurb: "Pair once by scanning a square. Works away from the house.",
     stops: [
+      {
+        target: "#btn-account",
+        title: "Settings live here",
+        body: "This machine's own settings, rather than one bot's — the account menu at the bottom of the list, then Settings.",
+        open: () => {
+          appWrap.hidden = true;
+        },
+      },
+      {
+        target: '#app-settings [data-tab="phone"]',
+        title: "The Phone tab",
+        body: "Everything about reaching this machine from a phone is on this one panel.",
+        open: () => {
+          void openAppSettings();
+          showSettingsTab("phone");
+        },
+      },
       {
         target: "#app-remote",
         title: "Switch on phone access",
@@ -4480,7 +4521,10 @@ const LESSONS: Lesson[] = [
       {
         target: "#btn-plugins",
         title: "A bot's connections",
-        body: "Everything this bot may reach beyond its own folder.",
+        body: "Everything this bot may reach beyond its own folder, in the top bar beside its settings.",
+        open: () => {
+          pluginsWrap.hidden = true;
+        },
       },
       {
         target: "#plugins-search",
