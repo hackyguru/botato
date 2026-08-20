@@ -348,12 +348,10 @@ textarea {
 }
 
 .face i {
-  --eye-h: 6px;
-  --eye-r: 2px;
   width: 4px;
-  height: var(--eye-h);
+  height: 6px;
   background: rgba(0, 0, 0, 0.72);
-  border-radius: var(--eye-r);
+  border-radius: 2px;
 }
 
 .face--circle {
@@ -375,9 +373,9 @@ textarea {
 }
 
 .face--sm i {
-  --eye-h: 4px;
-  --eye-r: 1.5px;
   width: 3px;
+  height: 4px;
+  border-radius: 1.5px;
 }
 
 .face--lg {
@@ -387,9 +385,9 @@ textarea {
 }
 
 .face--lg i {
-  --eye-h: 9px;
-  --eye-r: 3px;
   width: 6px;
+  height: 9px;
+  border-radius: 3px;
 }
 
 /* --------------------------------------------------------- sidebar footer */
@@ -1192,22 +1190,22 @@ textarea {
    two-pixel line instead, which is a shape rather than a ghost, and does it
    in about forty milliseconds each way: a blink is fast, and anything slow
    enough to watch is not a blink. */
-/* Sixty milliseconds down, a hundred and twenty shut, sixty back up. The first
-   attempt did the whole thing in ninety and it read as a flicker in
-   brightness rather than a lid: too fast to see the shape change, so all the
-   eye appears to do is dim. A real blink is long enough to notice and short
-   enough not to watch. */
+/* A lid, coming down over the eye and leaving a crease — which is what an
+   eyelid does. Collapsing the eye's height instead made it shrink towards its
+   own middle from both sides at once, and that reads as the eye getting
+   smaller rather than something closing over it.
+   Sixty milliseconds down, a hundred and twenty shut, sixty back up: long
+   enough to notice, short enough not to watch. An earlier attempt did the
+   whole thing in ninety and registered as a flicker in brightness. */
 @keyframes blink {
   0%,
   95.6%,
   100% {
-    height: var(--eye-h);
-    border-radius: var(--eye-r);
+    clip-path: inset(0 0 0 0);
   }
   96.7%,
   98.9% {
-    height: 2px;
-    border-radius: 1px;
+    clip-path: inset(72% 0 0 0);
   }
 }
 
@@ -1630,13 +1628,11 @@ textarea {
 }
 
 .art--bot i {
-  --eye-h: 6px;
-  --eye-r: 2px;
   top: 10px;
   width: 4px;
-  height: var(--eye-h);
+  height: 6px;
   background: #04203f;
-  border-radius: var(--eye-r);
+  border-radius: 2px;
 }
 
 .art--bot i:first-child {
@@ -1659,13 +1655,11 @@ textarea {
   15%,
   42%,
   100% {
-    height: var(--eye-h);
-    border-radius: var(--eye-r);
+    clip-path: inset(0 0 0 0);
   }
   22%,
   35% {
-    height: 2px;
-    border-radius: 1px;
+    clip-path: inset(72% 0 0 0);
   }
 }
 
