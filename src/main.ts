@@ -590,12 +590,19 @@ function seed(): void {
     messages: [],
   });
 
+  // One bot, not a roster. Five strangers with jobs nobody asked for is a
+  // worse first screen than a single one that can explain the place — and
+  // whichever of the five you were never going to use is clutter you have to
+  // delete before the app is yours.
   state.bots = [
-    make("Engineer", "Ships and reviews code", "#0a84ff", "circle"),
-    make("Doctor", "Health and training", "#8e8e93", "drop"),
-    make("Chief of Staff", "Keeps the week on rails", "#e0393e", "squircle"),
-    make("Ops", "Infra and on-call", "#ff5a00", "drop"),
-    make("Research & Writing", "Drafts and digs", "#ffb020", "squircle"),
+    make(
+      "Guide",
+      "Shows you around botcage. Ask it what a bot is, what routines and " +
+        "connectors do, how to give a bot its own computer, or what to make next — " +
+        "and when you know, make that bot and leave this one behind.",
+      "#0a84ff",
+      "circle",
+    ),
   ];
   state.activeId = state.bots[0].id;
 }
@@ -768,9 +775,19 @@ function renderThread(): void {
   $<HTMLSpanElement>("#btn-routines-count").textContent = live ? String(live) : "";
 
   if (!bot.messages.length) {
+    // On a fresh install this is the whole app: one bot, nothing said yet. Say
+    // where more come from, because a plus icon in a corner is not an answer to
+    // "what now".
+    const alone = state.bots.length === 1;
     thread.innerHTML =
       `<div class="empty">${faceHtml(bot, "lg")}<h2>${escapeHtml(bot.name)}</h2>` +
-      `<p>${escapeHtml(bot.role || "Say hello to get started.")}</p></div>`;
+      `<p>${escapeHtml(bot.role || "Say hello to get started.")}</p>` +
+      (alone
+        ? `<p class="empty__hint">Say hello. When you know what you want, ` +
+          `make a bot for it with the <b>+</b> above the list — each one keeps ` +
+          `its own memory, and can be answered by a different model.</p>`
+        : "") +
+      `</div>`;
   } else {
     thread.innerHTML = "";
     for (const msg of bot.messages) thread.append(turnEl(msg));
