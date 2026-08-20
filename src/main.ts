@@ -895,13 +895,6 @@ const activeBot = () => state.bots.find((b) => b.id === state.activeId) ?? null;
 
 const lastOf = (bot: Bot): Message | undefined => bot.messages[bot.messages.length - 1];
 
-function preview(text: string): string {
-  return text
-    .replace(/```[\s\S]*?```/g, " code ")
-    .replace(/[*_#`>]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 function renderRoster(): void {
   const q = searchEl.value.trim().toLowerCase();
@@ -921,27 +914,17 @@ function renderRoster(): void {
   botsEl.innerHTML = hits
     .map((bot) => {
       const last = lastOf(bot);
-      const busy = inflight.has(bot.id);
-      const sub = busy
-        ? "Typing…"
-        : last?.kind === "routine"
-          ? `Routine · ${last.meta?.name ?? ""}`
-          : last?.kind === "teach"
-            ? "Learned from demonstration"
-          : last
-            ? preview(last.text)
-            // Nothing said yet, and the second line is for what was said. A job
-            // description is a paragraph about what a bot is for, and the first
-            // forty characters of one — which is all that fits — say less than
-            // the empty space does.
-            : "";
       return (
         `<button class="bot-row${bot.id === state.activeId ? " is-active" : ""}" data-bot="${bot.id}">` +
         faceHtml(bot) +
         `<span class="bot-row__body">` +
+        // Name and time, and nothing else. The second line used to carry the
+        // last thing said, which is a chat app's habit rather than this app's
+        // need: the bots are down the side, the conversation is in front of
+        // you, and what a bot is doing this second is on its face — a thought
+        // cloud says "typing" better than the word does.
         `<span class="bot-row__top"><span class="bot-row__name">${escapeHtml(bot.name)}</span>` +
         `<span class="bot-row__time">${last ? clock(last.at) : ""}</span></span>` +
-        (sub ? `<span class="bot-row__last">${escapeHtml(sub)}</span>` : "") +
         `</span></button>`
       );
     })
