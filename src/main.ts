@@ -677,14 +677,18 @@ function renderRoster(): void {
             ? "Learned from demonstration"
           : last
             ? preview(last.text)
-            : bot.role;
+            // Nothing said yet, and the second line is for what was said. A job
+            // description is a paragraph about what a bot is for, and the first
+            // forty characters of one — which is all that fits — say less than
+            // the empty space does.
+            : "";
       return (
         `<button class="bot-row${bot.id === state.activeId ? " is-active" : ""}" data-bot="${bot.id}">` +
         faceHtml(bot) +
         `<span class="bot-row__body">` +
         `<span class="bot-row__top"><span class="bot-row__name">${escapeHtml(bot.name)}</span>` +
         `<span class="bot-row__time">${last ? clock(last.at) : ""}</span></span>` +
-        `<span class="bot-row__last">${escapeHtml(sub)}</span>` +
+        (sub ? `<span class="bot-row__last">${escapeHtml(sub)}</span>` : "") +
         `</span></button>`
       );
     })
