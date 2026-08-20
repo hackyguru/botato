@@ -1184,7 +1184,7 @@ textarea {
 /* Named through its parent: `.empty p` below carries a line clamp and a
    pre-line for job descriptions, and beats a bare class on specificity —
    this hint is neither a description nor something to clamp. */
-.empty /* The guide blinks. Every other bot's face is a mark; this one is a character,
+/* The guide blinks. Every other bot's face is a mark; this one is a character,
    because it is the one that talks to you before you have made anything of
    your own. Long pauses and a fast lid: a slow blink reads as sleepy, and a
    regular one reads as a cursor. */
@@ -1240,7 +1240,7 @@ textarea {
   }
 }
 
-.empty__hint {
+.empty .empty__hint {
   max-width: 380px;
   margin: 16px 0 0;
   font-size: 13px;
