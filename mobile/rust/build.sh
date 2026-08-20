@@ -21,7 +21,13 @@ cd "$crate"
 
 generate_bindings () {
   echo "→ bindings"
-  cargo build --release
+  # Not stripped, unlike everything else this crate builds. uniffi reads its
+  # metadata out of the library's symbol table, and `strip = true` in the
+  # release profile takes that table with it on Linux — where the error is
+  # "No UniFFI metadata found", which names the symptom and not the cause.
+  # macOS keeps enough of the table for it to work, which is why this only
+  # ever failed in CI.
+  cargo build --release --config profile.release.strip=false
   rm -rf bindings
 
   # uniffi reads the symbols out of a library built for the host, and the host
