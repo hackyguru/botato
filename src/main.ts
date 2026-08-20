@@ -708,13 +708,26 @@ function partsHtml(parts: Part[] | undefined): string {
  *  plays and hands the face back to whatever it was doing. A mood without one
  *  stays until something else replaces it. */
 const MOODS: Record<string, { hold?: number }> = {
+  // States: they last until something else replaces them.
   idle: {},
   think: {},
   work: {},
+  sleep: {},
+  // Events: they play and hand the face back to whatever the bot is doing.
   wave: { hold: 1300 },
   happy: { hold: 1800 },
   sad: { hold: 1800 },
+  shrug: { hold: 1700 },
+  alert: { hold: 1500 },
+  dizzy: { hold: 1600 },
+  peek: { hold: 900 },
+  listen: { hold: 1400 },
+  stretch: { hold: 1500 },
 };
+
+/** How long a bot has to go unspoken to before it dozes off. Long enough that
+ *  it means neglect rather than a lunch break. */
+const SLEEP_AFTER = 3 * 24 * 60 * 60 * 1000;
 
 /** Which mood each bot is in. Kept apart from the bot itself: it is a fact
  *  about this minute, not about the bot, and it should not be saved. */
@@ -749,8 +762,15 @@ function setMood(botId: string, mood: string): void {
 /** What a bot's face should be showing when nothing has been announced. */
 function restingMood(botId: string): string {
   const pending = inflight.get(botId);
-  if (!pending) return "idle";
-  return pending.note.toLowerCase().includes("using") ? "work" : "think";
+  if (pending) return pending.note.toLowerCase().includes("using") ? "work" : "think";
+
+  // A bot nobody has spoken to in days is asleep rather than merely idle.
+  // Judged on the conversation rather than on a timestamp of its own, because
+  // that is the thing that actually stopped.
+  const bot = state.bots.find((b) => b.id === botId);
+  const last = bot?.messages[bot.messages.length - 1]?.at ?? 0;
+  if (last && Date.now() - last > SLEEP_AFTER) return "sleep";
+  return "idle";
 }
 
 /** Push moods onto the faces already on screen, rather than re-rendering them.
@@ -1116,6 +1136,30 @@ function setStreaming(on: boolean): void {
 
 const syncSend = () => setStreaming(inflight.has(state.activeId ?? ""));
 
+// It knows you are talking to it before you have finished the sentence.
+input.addEventListener("input", () => {
+  if (state.activeId && input.value.trim()) setMood(state.activeId, "listen");
+});
+
+// A bot leans over when you point at it in the list.
+botsEl.addEventListener("mouseover", (e) => {
+  const row = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-bot]");
+  const botId = row?.dataset.bot;
+  if (botId && !moods.has(botId)) setMood(botId, "peek");
+});
+
+// And every so often, one of the idle ones stretches. Not on a schedule anyone
+// could predict — a roster of statues is the thing this is meant to avoid, and
+// a roster that all moves at once is the same problem wearing a different hat.
+window.setInterval(() => {
+  if (document.hidden) return;
+  const resting = state.bots.filter(
+    (bot) => !inflight.has(bot.id) && !moods.has(bot.id) && restingMood(bot.id) === "idle",
+  );
+  if (!resting.length) return;
+  setMood(resting[Math.floor(Math.random() * resting.length)].id, "stretch");
+}, 24_000);
+
 async function respond(bot: Bot, prompt: string): Promise<void> {
   const message: Message = { id: uid(), from: "bot", text: "", at: Date.now() };
   bot.messages.push(message);
@@ -1251,6 +1295,10 @@ function handleBotEvent(event: BotEvent): void {
   else if (event.kind === "error") setMood(event.botId, "sad");
   else if (event.kind === "thinking") setMood(event.botId, "think");
   else if (event.kind === "tool") setMood(event.botId, "work");
+  else if (event.kind === "cancelled") setMood(event.botId, "dizzy");
+  // A usage limit is not a failure, and a bot should not look like it failed:
+  // it is being told to wait, which is a shrug.
+  else if (event.kind === "rate-limit") setMood(event.botId, "shrug");
 
   if (event.kind === "rate-limit") {
     const info = event.detail;
@@ -3269,6 +3317,8 @@ function runRoutine(bot: Bot, routine: Routine): void {
   }
 
   routine.lastRunAt = Date.now();
+  // Something arrived that nobody typed, so the bot says so before it starts.
+  setMood(bot.id, "alert");
   // A task, not a routine: it has now happened, and should not happen again.
   if (routine.every === "once") routine.active = false;
   const note: Message = {

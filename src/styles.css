@@ -1846,6 +1846,263 @@ textarea {
   animation: mood-wave 1.1s ease-in-out;
 }
 
+/* Asleep: eyes shut, breathing, and a z or two overhead. A state rather than
+   an event — it lasts until somebody says something. */
+.face[data-mood="sleep"] .face__eyes i {
+  clip-path: inset(78% 0 0 0);
+  animation: none;
+}
+
+.face[data-mood="sleep"] .face__mouth {
+  width: calc(var(--u) * 0.12);
+  height: calc(var(--u) * 0.045);
+  background: var(--ink);
+  border: 0;
+  border-radius: calc(var(--u) * 0.03);
+}
+
+.face[data-mood="sleep"] {
+  animation: mood-breathe 4.2s ease-in-out infinite;
+}
+
+@keyframes mood-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03, 0.97);
+  }
+}
+
+.face[data-mood="sleep"] .face__aura::before {
+  content: "z";
+  top: calc(var(--u) * -0.3);
+  right: calc(var(--u) * -0.06);
+  width: auto;
+  height: auto;
+  color: color-mix(in srgb, var(--skin) 40%, #f4f4f6);
+  font: 600 calc(var(--u) * 0.3) / 1 var(--font);
+  background: none;
+  opacity: 1;
+  animation: mood-drift 3.4s ease-out infinite;
+}
+
+.face[data-mood="sleep"] .face__aura::after {
+  content: "z";
+  top: calc(var(--u) * -0.14);
+  right: calc(var(--u) * -0.2);
+  width: auto;
+  height: auto;
+  color: color-mix(in srgb, var(--skin) 40%, #f4f4f6);
+  font: 600 calc(var(--u) * 0.2) / 1 var(--font);
+  background: none;
+  opacity: 1;
+  animation: mood-drift 3.4s ease-out 1.1s infinite;
+}
+
+@keyframes mood-drift {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.7);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--u) * 0.14), calc(var(--u) * -0.3)) scale(1.1);
+  }
+}
+
+/* Told to wait rather than told no: brows up, mouth level, a lean each way. */
+.face[data-mood="shrug"] {
+  animation: mood-shrug 1.7s ease-in-out;
+}
+
+@keyframes mood-shrug {
+  0%,
+  100% {
+    transform: rotate(0) translateY(0);
+  }
+  30% {
+    transform: rotate(-7deg) translateY(calc(var(--u) * -0.04));
+  }
+  60% {
+    transform: rotate(6deg) translateY(calc(var(--u) * -0.04));
+  }
+}
+
+.face[data-mood="shrug"] .face__brows {
+  top: 24%;
+}
+
+.face[data-mood="shrug"] .face__mouth {
+  width: calc(var(--u) * 0.18);
+  height: calc(var(--u) * 0.045);
+  background: var(--ink);
+  border: 0;
+  border-radius: calc(var(--u) * 0.03);
+  transform: translateX(-50%) rotate(-8deg);
+}
+
+/* Something arrived that nobody typed. */
+.face[data-mood="alert"] {
+  animation: mood-alert 1.5s cubic-bezier(0.3, 0.9, 0.4, 1.3);
+}
+
+@keyframes mood-alert {
+  0%,
+  55%,
+  100% {
+    transform: translateY(0);
+  }
+  12% {
+    transform: translateY(calc(var(--u) * -0.16));
+  }
+  30% {
+    transform: translateY(0);
+  }
+  42% {
+    transform: translateY(calc(var(--u) * -0.07));
+  }
+}
+
+.face[data-mood="alert"] .face__aura::before {
+  content: "!";
+  top: calc(var(--u) * -0.34);
+  right: calc(var(--u) * 0.34);
+  width: auto;
+  height: auto;
+  color: #ffd166;
+  font: 700 calc(var(--u) * 0.34) / 1 var(--font);
+  background: none;
+  opacity: 1;
+  animation: mood-pop 1.5s ease-out;
+}
+
+@keyframes mood-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  40% {
+    transform: scale(1);
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Stopped halfway: crossed eyes and a wobble. */
+.face[data-mood="dizzy"] {
+  animation: mood-dizzy 1.6s ease-in-out;
+}
+
+@keyframes mood-dizzy {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  20% {
+    transform: rotate(9deg);
+  }
+  45% {
+    transform: rotate(-8deg);
+  }
+  70% {
+    transform: rotate(5deg);
+  }
+}
+
+.face[data-mood="dizzy"] .face__eyes i {
+  width: calc(var(--u) * 0.16);
+  height: calc(var(--u) * 0.05);
+  border-radius: calc(var(--u) * 0.03);
+  animation: none;
+}
+
+.face[data-mood="dizzy"] .face__eyes i:first-child {
+  transform: rotate(38deg);
+  box-shadow: 0 0 0 0 transparent;
+}
+
+.face[data-mood="dizzy"] .face__eyes i:last-child {
+  transform: rotate(-38deg);
+}
+
+.face[data-mood="dizzy"] .face__mouth {
+  width: calc(var(--u) * 0.12);
+  height: calc(var(--u) * 0.12);
+  background: var(--ink);
+  border: 0;
+  border-radius: 50%;
+}
+
+/* Pointed at in the list: a lean towards you, eyes a little wider. */
+.face[data-mood="peek"] {
+  animation: mood-peek 0.9s ease-in-out;
+}
+
+@keyframes mood-peek {
+  0%,
+  100% {
+    transform: rotate(0) scale(1);
+  }
+  40% {
+    transform: rotate(-5deg) scale(1.06);
+  }
+}
+
+/* Being typed at: attention, held while the sentence is still arriving. */
+.face[data-mood="listen"] .face__brows {
+  top: 26%;
+}
+
+.face[data-mood="listen"] {
+  animation: mood-listen 1.4s ease-in-out;
+}
+
+@keyframes mood-listen {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  35% {
+    transform: translateY(calc(var(--u) * -0.03)) rotate(3deg);
+  }
+}
+
+/* Nothing has happened for a while and a body gets stiff. */
+.face[data-mood="stretch"] {
+  animation: mood-stretch 1.5s ease-in-out;
+}
+
+@keyframes mood-stretch {
+  0%,
+  100% {
+    transform: scale(1, 1) translateY(0);
+  }
+  35% {
+    transform: scale(0.94, 1.1) translateY(calc(var(--u) * -0.05));
+  }
+  70% {
+    transform: scale(1.05, 0.95) translateY(0);
+  }
+}
+
+.face[data-mood="stretch"] .face__eyes i {
+  animation: none;
+  clip-path: inset(70% 0 0 0);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .face,
   .face__eyes,
