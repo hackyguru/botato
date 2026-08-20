@@ -389,6 +389,14 @@ textarea {
   border-radius: 46% 54% 40% 60% / 56% 44% 56% 44%;
 }
 
+.face[data-head="egg"] {
+  border-radius: 50% 50% 46% 46% / 60% 60% 40% 40%;
+}
+
+.face[data-head="shield"] {
+  border-radius: 34% 34% 50% 50% / 26% 26% 62% 62%;
+}
+
 /* ---- the parts every face has, whether or not its traits show them */
 
 .face__eyes,
@@ -406,7 +414,7 @@ textarea {
 }
 
 .face__brows {
-  top: 27%;
+  top: 31%;
 }
 
 .face__eyes i,
@@ -417,25 +425,46 @@ textarea {
 
 /* ---- traits: eyes */
 
-.face[data-eyes="dot"] i {
+.face[data-eyes="dot"] .face__eyes i {
   width: calc(var(--u) * 0.12);
   height: calc(var(--u) * 0.18);
   border-radius: calc(var(--u) * 0.06);
 }
 
-.face[data-eyes="wide"] i {
+.face[data-eyes="wide"] .face__eyes i {
   width: calc(var(--u) * 0.19);
   height: calc(var(--u) * 0.19);
   border-radius: 50%;
 }
 
-.face[data-eyes="sleepy"] i {
+.face[data-eyes="sleepy"] .face__eyes i {
   width: calc(var(--u) * 0.17);
   height: calc(var(--u) * 0.07);
   border-radius: calc(var(--u) * 0.04);
 }
 
-.face[data-eyes="ring"] i {
+.face[data-eyes="tall"] .face__eyes i {
+  width: calc(var(--u) * 0.1);
+  height: calc(var(--u) * 0.26);
+  border-radius: calc(var(--u) * 0.05);
+}
+
+/* One open, one shut. Asymmetry is the most memorable thing a face this small
+   can do. */
+.face[data-eyes="wink"] .face__eyes i {
+  width: calc(var(--u) * 0.15);
+  height: calc(var(--u) * 0.19);
+  border-radius: 50%;
+}
+
+.face[data-eyes="wink"] .face__eyes i:last-child {
+  height: calc(var(--u) * 0.055);
+  border-radius: calc(var(--u) * 0.03);
+  /* It is already closed, so it has nothing to blink with. */
+  animation: none;
+}
+
+.face[data-eyes="ring"] .face__eyes i {
   width: calc(var(--u) * 0.19);
   height: calc(var(--u) * 0.19);
   background: transparent;
@@ -450,8 +479,11 @@ textarea {
 }
 
 .face__brows i {
-  width: calc(var(--u) * 0.17);
-  height: calc(var(--u) * 0.05);
+  width: calc(var(--u) * 0.2);
+  height: calc(var(--u) * 0.045);
+  /* Subordinate to the eyes on purpose: a brow as dark as an eye is read as
+     an eye, which is how these ended up looking like they had four. */
+  background: color-mix(in srgb, var(--ink) 78%, transparent);
   border-radius: calc(var(--u) * 0.03);
 }
 
@@ -464,11 +496,21 @@ textarea {
 }
 
 .face[data-brow="raised"] .face__brows {
-  top: 21%;
+  top: 25%;
 }
 
 .face[data-brow="raised"] .face__brows i:first-child {
   transform: translateY(calc(var(--u) * 0.04));
+}
+
+.face[data-brow="thick"] .face__brows i {
+  height: calc(var(--u) * 0.085);
+  background: var(--ink);
+}
+
+/* One up, one level: a face caught mid-question. */
+.face[data-brow="quirk"] .face__brows i:first-child {
+  transform: translateY(calc(var(--u) * -0.05)) rotate(-8deg);
 }
 
 /* ---- traits: mouth */
@@ -501,6 +543,109 @@ textarea {
   height: calc(var(--u) * 0.14);
   background: var(--ink);
   border-radius: 0 0 calc(var(--u) * 0.16) calc(var(--u) * 0.16);
+}
+
+.face[data-mouth="frown"] .face__mouth {
+  height: calc(var(--u) * 0.09);
+  border-top: calc(var(--u) * 0.05) solid var(--ink);
+  border-radius: calc(var(--u) * 0.2) calc(var(--u) * 0.2) 0 0;
+}
+
+.face[data-mouth="oh"] .face__mouth {
+  width: calc(var(--u) * 0.13);
+  height: calc(var(--u) * 0.13);
+  background: var(--ink);
+  border-radius: 50%;
+}
+
+/* ---- traits: the mark
+   Not part of a face — an antenna, a tuft, a pair of cheeks. This is the trait
+   that makes a bot describable to somebody else in three words. */
+.face__mark {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.face[data-mark="none"] .face__mark {
+  display: none;
+}
+
+.face[data-mark="antenna"] .face__mark::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--u) * -0.2);
+  left: 50%;
+  width: calc(var(--u) * 0.045);
+  height: calc(var(--u) * 0.22);
+  background: var(--skin);
+  border-radius: calc(var(--u) * 0.03);
+  transform: translateX(-50%);
+}
+
+.face[data-mark="antenna"] .face__mark::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--u) * -0.28);
+  left: 50%;
+  width: calc(var(--u) * 0.14);
+  height: calc(var(--u) * 0.14);
+  background: var(--skin);
+  border-radius: 50%;
+  transform: translateX(-50%);
+}
+
+.face[data-mark="tuft"] .face__mark::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--u) * -0.13);
+  left: 46%;
+  width: calc(var(--u) * 0.2);
+  height: calc(var(--u) * 0.2);
+  background: var(--skin);
+  border-radius: 60% 10% 60% 10%;
+  transform: rotate(-14deg);
+}
+
+.face[data-mark="cheeks"] .face__mark::before,
+.face[data-mark="cheeks"] .face__mark::after {
+  content: "";
+  position: absolute;
+  top: 56%;
+  width: calc(var(--u) * 0.15);
+  height: calc(var(--u) * 0.09);
+  background: color-mix(in srgb, var(--ink) 22%, transparent);
+  border-radius: 50%;
+}
+
+.face[data-mark="cheeks"] .face__mark::before {
+  left: 8%;
+}
+
+.face[data-mark="cheeks"] .face__mark::after {
+  right: 8%;
+}
+
+/* A band across the brow, like something worn rather than something grown. */
+.face[data-mark="band"] .face__mark::before {
+  content: "";
+  position: absolute;
+  top: 12%;
+  left: -2%;
+  width: 104%;
+  height: calc(var(--u) * 0.1);
+  background: color-mix(in srgb, var(--ink) 55%, transparent);
+}
+
+.face[data-mark="bolt"] .face__mark::before {
+  content: "";
+  position: absolute;
+  top: 14%;
+  right: 12%;
+  width: calc(var(--u) * 0.1);
+  height: calc(var(--u) * 0.2);
+  background: color-mix(in srgb, var(--ink) 45%, transparent);
+  clip-path: polygon(60% 0, 0 55%, 42% 55%, 30% 100%, 100% 40%, 55% 40%);
 }
 
 /* --------------------------------------------------------- sidebar footer */

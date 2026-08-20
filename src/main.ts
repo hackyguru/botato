@@ -84,7 +84,7 @@ interface Bot {
   plugins?: string[];
   /** What it looks like, when the user has chosen rather than accepted what
    *  its id implied. Absent fields fall back to that. */
-  face?: { head?: string; eyes?: string; brow?: string; mouth?: string };
+  face?: { head?: string; eyes?: string; brow?: string; mouth?: string; mark?: string };
   /** How this bot's computer presents itself. Absent fields follow the app
    *  defaults; set ones make it a different machine from its siblings. */
   machine?: {
@@ -581,12 +581,18 @@ interface Face {
   eyes: string;
   brow: string;
   mouth: string;
+  mark: string;
 }
 
-const HEADS = ["circle", "squircle", "drop", "bean"];
-const EYES = ["dot", "wide", "sleepy", "ring"];
-const BROWS = ["none", "flat", "angled", "raised"];
-const MOUTHS = ["none", "smile", "line", "grin"];
+/* Six of everything, and a fifth trait for things that are not part of a face
+   at all — an antenna, a tuft, a pair of cheeks. Six to the fifth is 7,776
+   before colour, and the mark is what makes a bot describable in three words:
+   "the green one with the antenna". */
+const HEADS = ["circle", "squircle", "drop", "bean", "egg", "shield"];
+const EYES = ["dot", "wide", "sleepy", "ring", "tall", "wink"];
+const BROWS = ["none", "flat", "angled", "raised", "thick", "quirk"];
+const MOUTHS = ["none", "smile", "line", "grin", "frown", "oh"];
+const MARKS = ["none", "antenna", "tuft", "cheeks", "band", "bolt"];
 
 /** A number from a string, stable across restarts and machines.
  *
@@ -610,6 +616,7 @@ function faceOf(bot: Bot): Face {
     eyes: bot.face?.eyes ?? EYES[(seed >> 3) % EYES.length],
     brow: bot.face?.brow ?? BROWS[(seed >> 6) % BROWS.length],
     mouth: bot.face?.mouth ?? MOUTHS[(seed >> 9) % MOUTHS.length],
+    mark: bot.face?.mark ?? MARKS[(seed >> 12) % MARKS.length],
   };
 }
 
@@ -689,12 +696,13 @@ function faceHtml(bot: Bot, size: "sm" | "md" | "lg" = "md"): string {
   return (
     `<span class="face${cls}" data-bot="${bot.id}" data-mood="${mood}"` +
     ` data-head="${face.head}" data-eyes="${face.eyes}"` +
-    ` data-brow="${face.brow}" data-mouth="${face.mouth}"` +
+    ` data-brow="${face.brow}" data-mouth="${face.mouth}" data-mark="${face.mark}"` +
     // Its own blink rhythm, so a roster does not blink in unison.
     ` style="--skin:${bot.color};--beat:${(seedOf(bot.id) % 1700) / 1000 + 2.2}s">` +
     `<span class="face__brows"><i></i><i></i></span>` +
     `<span class="face__eyes"><i></i><i></i></span>` +
     `<span class="face__mouth"></span>` +
+    `<span class="face__mark"></span>` +
     `</span>`
   );
 }
