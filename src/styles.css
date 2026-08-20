@@ -1372,6 +1372,13 @@ textarea {
   flex: 1;
 }
 
+.sheet--routine .sheet__foot .chip {
+  height: 40px;
+  padding: 0 16px;
+  font-size: 15px;
+  border-radius: 12px;
+}
+
 /* The count beside the clock. Small enough to read as a badge rather than a
    second icon, and absent entirely when nothing is scheduled. */
 .icon-btn__count {
@@ -3290,6 +3297,12 @@ textarea {
   color: var(--text-2);
 }
 
+.models__key .chip {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 9px;
+}
+
 .models__key input {
   flex: 1;
   min-width: 0;
@@ -4401,13 +4414,20 @@ a.detail__source:hover {
   align-items: center;
 }
 
-/* The primary action takes the room; Back and Skip stay label-sized. */
+/* The primary action takes the room, but everything in the row is the same
+   height and shape. A 28-pixel Back beside a 40-pixel Continue reads as two
+   different kinds of thing, and they are the same kind of thing: the buttons
+   at the bottom of a dialog. */
 .setup__foot .btn-primary {
   flex: 1;
 }
 
 .setup__foot .chip {
   flex: 0 0 auto;
+  height: 40px;
+  padding: 0 18px;
+  font-size: 15px;
+  border-radius: 12px;
 }
 
 /* ------------------------------------------------------------- phone access */
