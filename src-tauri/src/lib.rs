@@ -810,12 +810,44 @@ fn set_login_launch(on: bool) -> Result<(), String> {
     Ok(())
 }
 
-/// Whoever is logged in — the sidebar used to show a hardcoded name.
+/// Who is logged in, in the order the answers are likely to be there.
+///
+/// Separated from the environment so the order can be tested, which is the
+/// only part worth testing: every variable here is set on some systems and
+/// missing on others, and the bug this prevents is a blank name on somebody
+/// else's machine rather than on this one.
+fn name_from(env: impl Fn(&str) -> Option<String>, ask: impl Fn() -> Option<String>) -> String {
+    // USER is set by login shells and by launchd for a Mac app opened from the
+    // Dock. LOGNAME is the POSIX one, and is what some Linux desktops set when
+    // USER is absent — a session started by systemd rather than by a shell has
+    // often had one and not the other. USERNAME is Windows.
+    for name in ["USER", "LOGNAME", "USERNAME"] {
+        if let Some(found) = env(name)
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+        {
+            return found;
+        }
+    }
+    // Nothing in the environment, so ask the system. `id -un` reads the passwd
+    // database, which is the actual answer rather than a variable somebody may
+    // have unset, and exists on macOS and Linux alike.
+    ask().map(|v| v.trim().to_string()).unwrap_or_default()
+}
+
 #[tauri::command]
 fn user_name() -> String {
-    std::env::var("USER")
-        .or_else(|_| std::env::var("USERNAME"))
-        .unwrap_or_default()
+    name_from(
+        |name| std::env::var(name).ok(),
+        || {
+            Command::new("id")
+                .arg("-un")
+                .output()
+                .ok()
+                .filter(|out| out.status.success())
+                .map(|out| String::from_utf8_lossy(&out.stdout).into_owned())
+        },
+    )
 }
 
 #[tauri::command]
@@ -1001,4 +1033,43 @@ pub fn run() {
                 sandbox::stop_all();
             }
         });
+}
+
+#[cfg(test)]
+mod who_tests {
+    use super::name_from;
+
+    /// The order matters more than any single variable: each of these is set
+    /// on some systems and missing on others, and the failure it prevents
+    /// happens on a machine that is not this one.
+    #[test]
+    fn every_platform_has_something_to_answer_with() {
+        let only = |have: &'static str, value: &'static str| {
+            move |name: &str| (name == have).then(|| value.to_string())
+        };
+        let never = || None;
+
+        // A Mac app opened from the Dock, and a login shell anywhere.
+        assert_eq!(name_from(only("USER", "ada"), never), "ada");
+        // A Linux session started by systemd rather than by a shell.
+        assert_eq!(name_from(only("LOGNAME", "ada"), never), "ada");
+        // Windows.
+        assert_eq!(name_from(only("USERNAME", "ada"), never), "ada");
+    }
+
+    #[test]
+    fn an_empty_variable_is_not_an_answer() {
+        // Set-but-blank is commoner than unset, and reads as a user with no
+        // name rather than as a missing one.
+        let blank_user = |name: &str| (name == "USER").then(|| "   ".to_string());
+        assert_eq!(name_from(blank_user, || Some("ada\n".into())), "ada");
+    }
+
+    #[test]
+    fn the_system_is_asked_when_the_environment_is_bare() {
+        assert_eq!(name_from(|_| None, || Some("ada\n".into())), "ada");
+        // And when even that fails, nothing — the window shows a placeholder
+        // rather than the word "undefined".
+        assert_eq!(name_from(|_| None, || None), "");
+    }
 }
