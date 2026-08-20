@@ -879,6 +879,7 @@ function load(): void {
       routines: bot.routines ?? [],
     }));
     state.activeId = data.activeId ?? state.bots[0].id;
+    for (const bot of state.bots) freshenGuide(bot);
     state.screenOpen = Boolean(data.screenOpen);
     state.screenWidth = data.screenWidth;
     state.screenHeight = data.screenHeight;
@@ -3059,7 +3060,24 @@ function deleteBot(id: string): void {
   renderThread();
 }
 
+/** Wipe a guide's conversation — the messages, the session its engine resumes,
+ *  and the transcript botcage keeps for engines that cannot.
+ *
+ *  The guide is a tutorial, not a correspondent. Coming back to it should show
+ *  the five things it can teach, not the tail of a chat about cowboy hats —
+ *  and a fresh page is only fresh if the model has also forgotten, or the
+ *  first thing it does is pick up where you left off. */
+function freshenGuide(bot: Bot): void {
+  if (!bot.guide || inflight.has(bot.id) || !bot.messages.length) return;
+  bot.messages = [];
+  bot.sessionId = newSessionId();
+  bot.started = false;
+  void invoke("clear_thread", { botId: bot.id }).catch(() => {});
+}
+
 function openBot(id: string): void {
+  const opening = state.bots.find((bot) => bot.id === id);
+  if (opening) freshenGuide(opening);
   state.activeId = id;
   setMood(id, "wave");
   save();
