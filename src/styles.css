@@ -2463,6 +2463,542 @@ textarea {
   color: var(--text-3);
 }
 
+/* The guide's lessons. Cards rather than a list of links: each one is a thing
+   that happens when pressed, and it should look like a thing that happens. */
+/* Five tiles, unequal on purpose. A list of five identical rows says these are
+   five of a kind and you should read them in order; a bento says here is the
+   shape of the place, start with the big one. */
+.lessons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 9px;
+  width: 100%;
+  max-width: 640px;
+  margin: 20px auto;
+}
+
+/* Making a bot is the one everything else assumes you have done, so it runs
+   the full width. Not the full height as well: spanning two rows made a tile
+   the size of a door with four words in the top corner. */
+.lessons .lesson:first-child {
+  grid-column: span 2;
+  min-height: 92px;
+}
+
+/* The guide leads with its lessons, so its face does not need a third of the
+   window above it. */
+.empty:has(+ .lessons) {
+  padding-top: 7vh;
+}
+
+.lesson {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  align-items: flex-start;
+  min-height: 92px;
+  padding: 13px 15px;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  transition: background 0.14s, border-color 0.14s, transform 0.14s;
+}
+
+.lesson:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
+}
+
+.lessons .lesson:first-child .lesson__title {
+  font-size: 17px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lesson {
+    transition: none;
+  }
+
+  .lesson:hover {
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------- the lessons' little marks */
+
+/* One per lesson, still while you read and moving once you mean it. Everything
+   here is two or three boxes: the point is the idea, not the illustration. */
+.art {
+  position: relative;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+}
+
+.art i {
+  position: absolute;
+  display: block;
+  transition: all 0.28s cubic-bezier(0.3, 0.9, 0.3, 1.4);
+}
+
+/* A face, which blinks when you look at it. */
+.art--bot {
+  background: var(--blue);
+  border-radius: 9px;
+}
+
+.art--bot i {
+  top: 10px;
+  width: 4px;
+  height: 6px;
+  background: #04203f;
+  border-radius: 2px;
+}
+
+.art--bot i:first-child {
+  left: 7px;
+}
+
+.art--bot i:last-child {
+  right: 7px;
+}
+
+/* On the card, the blink happens straight away rather than on the face's own
+   slow cycle: you have just pointed at it, and it looks back. */
+.lesson:hover .art--bot i,
+.lesson:focus-visible .art--bot i {
+  animation: eye-blink-now 0.9s linear;
+}
+
+/* The same shape at the same speed, just sooner: on a card the face blinks as
+   you point at it rather than waiting for its own cycle. */
+@keyframes eye-blink-now {
+  0%,
+  10%,
+  50.4%,
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+  18.7%,
+  27.4% {
+    clip-path: inset(96% 0 0 0);
+  }
+}
+
+/* Four days, and something landing in one of them. */
+.art--cal {
+  border: 1.5px solid var(--text-3);
+  border-radius: 7px;
+}
+
+.art--cal i {
+  width: 8px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 2px;
+}
+
+.art--cal i:nth-child(1) {
+  top: 4px;
+  left: 4px;
+}
+
+.art--cal i:nth-child(2) {
+  top: 4px;
+  right: 4px;
+}
+
+.art--cal i:nth-child(3) {
+  bottom: 4px;
+  left: 4px;
+}
+
+.art--cal i:nth-child(4) {
+  right: 4px;
+  bottom: 4px;
+}
+
+.lesson:hover .art--cal i:nth-child(4),
+.lesson:focus-visible .art--cal i:nth-child(4) {
+  background: var(--blue);
+  transform: scale(1.15);
+}
+
+.lesson:hover .art--cal i:nth-child(2),
+.lesson:focus-visible .art--cal i:nth-child(2) {
+  transform: translateY(9px);
+  opacity: 0.35;
+}
+
+/* A screen, coming on. */
+.art--screen {
+  border: 1.5px solid var(--text-3);
+  border-radius: 6px;
+}
+
+.art--screen::after {
+  content: "";
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  width: 12px;
+  height: 2px;
+  background: var(--text-3);
+  border-radius: 1px;
+  transform: translateX(-50%);
+}
+
+.art--screen i {
+  inset: 4px;
+  background: var(--blue);
+  border-radius: 3px;
+  opacity: 0;
+  transform: scaleY(0.1);
+}
+
+.lesson:hover .art--screen i,
+.lesson:focus-visible .art--screen i {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+/* A phone, and a signal leaving it. */
+.art--phone {
+  width: 20px;
+  height: 30px;
+  margin-left: 5px;
+  border: 1.5px solid var(--text-3);
+  border-radius: 5px;
+}
+
+.art--phone i {
+  top: 7px;
+  right: -9px;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--blue);
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+  border-radius: 0 6px 0 0;
+  opacity: 0;
+}
+
+.art--phone i:last-child {
+  top: 3px;
+  right: -14px;
+  width: 14px;
+  height: 14px;
+  border-radius: 0 9px 0 0;
+}
+
+.lesson:hover .art--phone i,
+.lesson:focus-visible .art--phone i {
+  opacity: 1;
+  animation: signal 1.6s ease-out infinite;
+}
+
+.lesson:hover .art--phone i:last-child,
+.lesson:focus-visible .art--phone i:last-child {
+  animation-delay: 0.22s;
+}
+
+@keyframes signal {
+  0% {
+    opacity: 0;
+    transform: translateX(-3px);
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(2px);
+  }
+}
+
+/* Three bars of different heights that swap places: something being chosen
+   between, rather than one thing running. */
+.art--engine i {
+  bottom: 4px;
+  width: calc(var(--u, 30px) * 0.18);
+  background: var(--text-3);
+  border-radius: 1.5px;
+}
+
+.art--engine i:nth-child(1) {
+  left: 2px;
+  height: 12px;
+}
+
+.art--engine i:nth-child(2) {
+  left: 11px;
+  height: 20px;
+  background: var(--blue);
+}
+
+.art--engine i:nth-child(3) {
+  left: 20px;
+  height: 8px;
+}
+
+.lesson:hover .art--engine i:nth-child(1),
+.lesson:focus-visible .art--engine i:nth-child(1) {
+  height: 20px;
+  background: var(--blue);
+}
+
+.lesson:hover .art--engine i:nth-child(2),
+.lesson:focus-visible .art--engine i:nth-child(2) {
+  height: 10px;
+  background: var(--text-3);
+}
+
+.lesson:hover .art--engine i:nth-child(3),
+.lesson:focus-visible .art--engine i:nth-child(3) {
+  height: 15px;
+}
+
+/* A cursor, and the record light that follows it. */
+.art--teach i:first-child {
+  top: 5px;
+  left: 7px;
+  width: 0;
+  height: 0;
+  background: none;
+  border-top: 11px solid var(--text-2);
+  border-right: 8px solid transparent;
+  transform: rotate(-18deg);
+}
+
+.art--teach i:last-child {
+  right: 4px;
+  bottom: 5px;
+  width: 8px;
+  height: 8px;
+  background: var(--red);
+  border-radius: 50%;
+  opacity: 0.4;
+}
+
+.lesson:hover .art--teach i:first-child,
+.lesson:focus-visible .art--teach i:first-child {
+  transform: rotate(-18deg) translate(5px, 4px);
+}
+
+.lesson:hover .art--teach i:last-child,
+.lesson:focus-visible .art--teach i:last-child {
+  opacity: 1;
+  animation: teach-rec 1.1s ease-in-out infinite;
+}
+
+@keyframes teach-rec {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.35);
+  }
+}
+
+/* Two halves of a connection, which meet. */
+.art--plug i {
+  top: 9px;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--text-3);
+}
+
+.art--plug i:first-child {
+  left: 0;
+  border-right: 0;
+  border-radius: 6px 0 0 6px;
+}
+
+.art--plug i:last-child {
+  right: 0;
+  border-left: 0;
+  border-radius: 0 6px 6px 0;
+}
+
+.lesson:hover .art--plug i:first-child,
+.lesson:focus-visible .art--plug i:first-child {
+  border-color: var(--blue);
+  transform: translateX(3px);
+}
+
+.lesson:hover .art--plug i:last-child,
+.lesson:focus-visible .art--plug i:last-child {
+  border-color: var(--blue);
+  transform: translateX(-3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .art i {
+    transition: none;
+    animation: none !important;
+  }
+}
+
+.lesson__title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Pinned to the bottom of its tile, so five tiles of different heights still
+   agree on where the thing you press is. */
+/* Pinned: the same lessons, kept in reach once there is a conversation to
+   scroll past them. Sticky rather than fixed so it belongs to the thread and
+   goes away with it, and opaque because a conversation sliding under a
+   transparent bar is a mess of overlapping words. */
+.lessons--bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: none;
+  margin: -6px 0 14px;
+  padding: 8px 0 10px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+.lessons--bar .lesson,
+.lessons--bar .lesson:first-child {
+  flex: 0 0 auto;
+  grid-column: auto;
+  gap: 8px;
+  flex-direction: row;
+  align-items: center;
+  min-height: 0;
+  padding: 6px 11px 6px 8px;
+  border-radius: 999px;
+}
+
+.lessons--bar .lesson__title,
+.lessons--bar .lesson:first-child .lesson__title {
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+/* Room for a face is room a chip has not got. */
+.lessons--bar .art {
+  width: 20px;
+  height: 20px;
+}
+
+.lessons--bar .art--bot i {
+  top: 7px;
+  width: 3px;
+  height: 4px;
+}
+
+.lessons--bar .art--phone {
+  width: 13px;
+  height: 20px;
+  margin-left: 3px;
+}
+
+/* "Show me" is what the whole chip says by being pressable. */
+.lessons--bar .lesson__go {
+  display: none;
+}
+
+.lesson__go {
+  margin-top: auto;
+  font-size: 12.5px;
+  color: var(--blue);
+  opacity: 0;
+  transition: opacity 0.13s;
+}
+
+.lesson:hover .lesson__go {
+  opacity: 1;
+}
+
+/* ------------------------------------------------------------------- tour */
+
+/* Everything except the thing being explained, blurred. Four panes rather than
+   one overlay with a hole punched in it: a hole made by clip-path takes the
+   backdrop filter with it, and a hole made by a huge box-shadow can dim but
+   cannot blur. Four rectangles around the target can do both. */
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+}
+
+.tour__pane {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+  transition: all 0.22s ease;
+}
+
+.tour__ring {
+  position: absolute;
+  border: 2px solid var(--blue);
+  border-radius: 12px;
+  box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.22);
+  pointer-events: none;
+  transition: all 0.22s ease;
+}
+
+.tour__card {
+  position: absolute;
+  width: 300px;
+  padding: 16px 18px 14px;
+  background: #17171a;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  transition: top 0.22s ease, left 0.22s ease;
+}
+
+.tour__count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+}
+
+.tour__title {
+  margin: 6px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.tour__body {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+.tour__foot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.tour__gap {
+  flex: 1;
+}
+
+.tour__next {
+  width: auto;
+  min-width: 76px;
+  height: 30px;
+  padding: 0 14px;
+  font-size: 13px;
+  border-radius: 9px;
+}
+
+
 /* One decision, three ways to make it. */
 .picks {
   display: flex;
