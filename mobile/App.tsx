@@ -39,9 +39,12 @@ import Pair from "./src/screens/Pair";
 import Bots from "./src/screens/Bots";
 import Chat from "./src/screens/Chat";
 import BotSettings from "./src/screens/BotSettings";
+import Phone from "./src/screens/Phone";
 import { T } from "./src/theme";
 
-type Screen = "bots" | "chat" | "settings";
+// "settings" is one bot's; "phone" is this device's own — the link to the
+// laptop, and the one destructive thing a phone can do.
+type Screen = "bots" | "chat" | "settings" | "phone";
 
 export default function App() {
   const [pairing, setPairing] = useState<Pairing | null>(null);
@@ -238,6 +241,10 @@ export default function App() {
         setScreen("chat");
         return true;
       }
+      if (screen === "phone") {
+        setScreen("bots");
+        return true;
+      }
       if (screen === "chat") {
         setScreen("bots");
         return true;
@@ -304,10 +311,18 @@ export default function App() {
           onCreate={async (name, role) => {
             await act("bot/create", { name, role });
           }}
+          onSettings={() => setScreen("phone")}
+        />
+      ) : screen === "phone" ? (
+        <Phone
+          pairing={pairing}
+          connected={connected}
+          onBack={() => setScreen("bots")}
           onDisconnect={async () => {
             await clearPairing();
             setPairing(null);
             setSnapshot(null);
+            setScreen("bots");
           }}
         />
       ) : screen === "chat" ? (

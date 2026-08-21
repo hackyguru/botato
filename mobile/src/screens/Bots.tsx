@@ -78,7 +78,7 @@ export default function Bots({
   onRefresh,
   onOpen,
   onCreate,
-  onDisconnect,
+  onSettings,
 }: {
   bots: Bot[];
   connected: boolean;
@@ -86,7 +86,7 @@ export default function Bots({
   onRefresh: () => void;
   onOpen: (bot: Bot) => void;
   onCreate: (name: string, role: string) => Promise<void>;
-  onDisconnect: () => void;
+  onSettings: () => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
@@ -113,9 +113,14 @@ export default function Bots({
           <Text style={s.title}>botcage</Text>
           <Light connected={connected} />
         </View>
-        <Pressable onPress={() => setAdding((on) => !on)} hitSlop={12}>
-          <Text style={s.plus}>{adding ? "×" : "+"}</Text>
-        </Pressable>
+        <View style={s.actions}>
+          <Pressable onPress={onSettings} hitSlop={12}>
+            <Text style={s.gear}>⚙</Text>
+          </Pressable>
+          <Pressable onPress={() => setAdding((on) => !on)} hitSlop={12}>
+            <Text style={s.plus}>{adding ? "×" : "+"}</Text>
+          </Pressable>
+        </View>
       </View>
 
       {adding ? (
@@ -172,9 +177,6 @@ export default function Bots({
           );
         })}
 
-        <Pressable style={s.disconnect} onPress={onDisconnect}>
-          <Text style={s.disconnectText}>Disconnect this phone</Text>
-        </Pressable>
       </ScrollView>
     </View>
   );
@@ -204,6 +206,8 @@ const s = StyleSheet.create({
     elevation: 3,
   },
   plus: { color: T.blue, fontSize: 30, fontWeight: "300" },
+  actions: { flexDirection: "row", gap: 18, alignItems: "center" },
+  gear: { color: T.text2, fontSize: 21 },
   form: { paddingHorizontal: 20, paddingBottom: 12, gap: 8 },
   input: {
     height: 44,
@@ -235,6 +239,4 @@ const s = StyleSheet.create({
   name: { color: T.text, fontSize: 16, fontWeight: "600" },
   preview: { marginTop: 2, color: T.text2, fontSize: 13.5 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: T.blue },
-  disconnect: { alignItems: "center", marginTop: 30, padding: 12 },
-  disconnectText: { color: T.text3, fontSize: 13 },
 });
