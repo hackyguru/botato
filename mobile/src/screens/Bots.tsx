@@ -115,7 +115,12 @@ export default function Bots({
         </View>
         <View style={s.actions}>
           <Pressable onPress={onSettings} hitSlop={12}>
-            <Text style={s.gear}>⚙</Text>
+            {/* The same glyph a bot's chat header uses, in the same font as
+                the plus beside it. A gear is an emoji on iOS however it is
+                coaxed, and sat next to a typographic plus looking like
+                something that fell in from another app. Both places now mean
+                one thing — settings for whatever you are looking at. */}
+            <Text style={s.gear}>⋯</Text>
           </Pressable>
           <Pressable onPress={() => setAdding((on) => !on)} hitSlop={12}>
             <Text style={s.plus}>{adding ? "×" : "+"}</Text>
@@ -207,7 +212,7 @@ const s = StyleSheet.create({
   },
   plus: { color: T.blue, fontSize: 30, fontWeight: "300" },
   actions: { flexDirection: "row", gap: 18, alignItems: "center" },
-  gear: { color: T.text2, fontSize: 21 },
+  gear: { color: T.text2, fontSize: 24, lineHeight: 30 },
   form: { paddingHorizontal: 20, paddingBottom: 12, gap: 8 },
   input: {
     height: 44,
