@@ -12,13 +12,25 @@
  * than the whole app.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, AppState, BackHandler, StatusBar, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  AppState,
+  BackHandler,
+  Linking,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import * as Device from "expo-device";
 import {
   call,
   clearPairing,
   listen,
   loadPairing,
   NotPaired,
+  pair,
   type BotEvent,
   type Pairing,
 } from "./src/api";
@@ -51,6 +63,37 @@ export default function App() {
       setPairing(saved);
       setReady(true);
     });
+  }, []);
+
+  // Pairing by link, for the times there is no camera pointed at a laptop: a
+  // simulator, a phone the square will not focus on, a laptop being described
+  // over a call. The link carries what the square carries and nothing more —
+  // the machine's public key and a code that lasts five minutes, works once,
+  // and is burned after five wrong guesses. Handing it to somebody else buys
+  // them the same five minutes, which is the bargain the square already makes.
+  //
+  //   botcage://pair?peer=<the laptop>&code=ABC123
+  useEffect(() => {
+    const take = async (url: string | null) => {
+      if (!url) return;
+      const at = url.indexOf("?");
+      if (!url.includes("pair") || at < 0) return;
+      const asked = new URLSearchParams(url.slice(at + 1));
+      const peer = asked.get("peer");
+      const code = asked.get("code");
+      if (!peer || !code) return;
+      try {
+        const name = Device.deviceName ?? (Platform.OS === "ios" ? "an iPhone" : "an Android phone");
+        setPairing(await pair(peer, code, name));
+        setProblem(null);
+      } catch (err) {
+        setProblem(err instanceof Error ? err.message : String(err));
+      }
+    };
+
+    void Linking.getInitialURL().then(take);
+    const open = Linking.addEventListener("url", (event) => void take(event.url));
+    return () => open.remove();
   }, []);
 
   const refresh = useCallback(async () => {
