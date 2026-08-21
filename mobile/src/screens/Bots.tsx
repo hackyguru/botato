@@ -19,6 +19,7 @@ import {
   View,
 } from "react-native";
 import type { Bot } from "../types";
+import Face from "../face";
 import { T } from "../theme";
 
 /** Whether the laptop is answering, as a light rather than a sentence.
@@ -69,44 +70,6 @@ function Light({ connected }: { connected: boolean }) {
   );
 }
 
-/** The desktop's bot face, to its own measurements: a 34px shape with two
- *  rounded 4x6 eyes. A drop is a circle with one square-ish corner, which is
- *  what makes the three shapes tell bots apart at a glance. */
-function Face({ bot, size = 34 }: { bot: Bot; size?: number }) {
-  const round = size / 2;
-  const shape =
-    bot.shape === "circle"
-      ? { borderRadius: round }
-      : bot.shape === "drop"
-        ? {
-            borderTopLeftRadius: round,
-            borderTopRightRadius: round,
-            borderBottomRightRadius: round,
-            borderBottomLeftRadius: size * 0.22,
-          }
-        : { borderRadius: size * 0.3 };
-
-  const eye = { width: 4, height: 6, borderRadius: 2, backgroundColor: "rgba(0,0,0,0.72)" };
-  return (
-    <View
-      style={[
-        {
-          width: size,
-          height: size,
-          backgroundColor: bot.color,
-          flexDirection: "row",
-          gap: 4,
-          alignItems: "center",
-          justifyContent: "center",
-        },
-        shape,
-      ]}
-    >
-      <View style={eye} />
-      <View style={eye} />
-    </View>
-  );
-}
 
 export default function Bots({
   bots,

@@ -20,6 +20,7 @@ import {
   View,
 } from "react-native";
 import type { Bot, Message } from "../types";
+import Face from "../face";
 import Markdown from "../markdown";
 import { T } from "../theme";
 
@@ -71,6 +72,7 @@ export default function Chat({
         <Pressable onPress={onBack} hitSlop={14}>
           <Text style={s.back}>‹</Text>
         </Pressable>
+        <Face bot={bot} size={30} />
         <View style={s.headBody}>
           <Text style={s.name} numberOfLines={1}>
             {bot.name}

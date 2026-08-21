@@ -30,6 +30,27 @@ export interface Bot {
   role: string;
   color: string;
   shape: string;
+  /** What it looks like, when the user or the bot has chosen rather than
+   *  accepting what its id implied. Absent fields fall back to that, derived
+   *  from the id on this side exactly as they are on the laptop. */
+  face?: {
+    head?: string;
+    eyes?: string;
+    brow?: string;
+    smile?: string;
+    mark?: string;
+    /** Shapes a bot drew for itself when the wardrobe had nothing that fit. */
+    parts?: {
+      shape: string;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      r?: number;
+      rot?: number;
+      fill?: string;
+    }[];
+  };
   /** Which of the laptop's engines answers for this bot. Absent from a laptop
    *  running a build from before there was a choice. */
   engine?: string;

@@ -5727,6 +5727,10 @@ function remoteSnapshot(): Record<string, unknown> {
       role: bot.role,
       color: bot.color,
       shape: bot.shape,
+      // What it looks like, so the phone can draw the same creature rather
+      // than a coloured circle. Only the overrides travel: the rest is derived
+      // from the id, which the phone already has.
+      face: bot.face,
       engine: bot.engine ?? DEFAULT_ENGINE,
       provider: bot.provider,
       model: bot.model,

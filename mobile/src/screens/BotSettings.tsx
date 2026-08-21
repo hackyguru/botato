@@ -19,6 +19,7 @@ import {
   View,
 } from "react-native";
 import type { Bot, EngineInfo, Routine } from "../types";
+import Face from "../face";
 import { T } from "../theme";
 
 /** Used only against a laptop running a build from before engines were a
@@ -89,6 +90,7 @@ export default function BotSettings({
         <Pressable onPress={onBack} hitSlop={14}>
           <Text style={s.back}>‹</Text>
         </Pressable>
+        <Face bot={bot} size={26} />
         <Text style={s.title}>{bot.name}</Text>
         <View style={s.spacer} />
       </View>
@@ -355,6 +357,7 @@ const s = StyleSheet.create({
   fill: { flex: 1, backgroundColor: T.bg },
   head: {
     flexDirection: "row",
+    gap: 10,
     alignItems: "center",
     paddingTop: 62,
     paddingHorizontal: 16,
