@@ -38,6 +38,11 @@ macOS builds are signed and notarised, so they open without warnings.
 - **A conversation that persists.** Each bot owns a session and a workspace on
   disk, and remembers across restarts.
 - **An engine**: which tool answers for it, chosen per bot.
+- **A face.** Head, eyes, brows, a resting smile and a mark — 7,776 combinations
+  before colour, derived from the bot's own id so no two look alike. It blinks,
+  thinks with a cloud over its head, jumps when a turn lands and slumps when one
+  fails. A bot can change its own face when you ask it to, and draw things the
+  wardrobe has not got out of a handful of shapes.
 - **A memory file** it maintains itself, seeded from its name and role.
 - **Optionally, a computer**: a Linux desktop in a container with Firefox or
   Chromium, a terminal, and a screen you can watch and take over. Each one has
@@ -109,7 +114,8 @@ home and on mobile data:
 **Pairing** is a QR code the laptop shows and the phone scans, carrying the
 laptop's address and a six-character code that lasts five minutes, works once,
 and is burned after five wrong guesses. Typing it by hand is kept for when a
-camera is not an option.
+camera is not an option, and a `botcage://pair` link does the same for the
+phones that have no camera to point — a simulator, mostly.
 
 Speaking QUIC needs native code, so the app needs a development build rather
 than Expo Go — see [mobile/README.md](mobile/README.md).
