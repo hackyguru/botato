@@ -177,13 +177,28 @@ fn locate_docker() -> Option<PathBuf> {
     candidates.into_iter().find(|candidate| candidate.is_file())
 }
 
-fn docker(args: &[&str]) -> Result<Output, String> {
+/// A docker command, pointed at the engine botcage manages.
+///
+/// The only place a docker process is constructed. It used not to be: the
+/// image build assembled its own, and so ran against whatever daemon the CLI
+/// defaults to — Docker Desktop, usually — while every other call went to the
+/// managed engine in its VM. On a machine with only one daemon those are the
+/// same thing and nothing looks wrong. On a machine with both, the image is
+/// built into one engine and looked for in another, which fails as "pull
+/// access denied for botcage/desktop" — a message about a registry, for a
+/// local image that exists a few hundred megabytes away.
+fn docker_cmd(args: &[&str]) -> Result<Command, String> {
     let bin = locate_docker().ok_or("Docker CLI not found")?;
     let mut cmd = Command::new(bin);
     cmd.args(args);
     with_socket(&mut cmd);
     quiet(&mut cmd);
-    cmd.output()
+    Ok(cmd)
+}
+
+fn docker(args: &[&str]) -> Result<Output, String> {
+    docker_cmd(args)?
+        .output()
         .map_err(|e| format!("docker {}: {e}", args.join(" ")))
 }
 
@@ -250,13 +265,10 @@ pub fn sync_github(bot_id: &str, token: Option<&str>) {
 /// Same as `docker`, but feeds the process stdin — used for credentials, which
 /// would otherwise sit in the argument list where any process can read them.
 fn docker_stdin(args: &[&str], input: &str) -> Result<Output, String> {
-    let bin = locate_docker().ok_or("Docker CLI not found")?;
-    let mut cmd = Command::new(bin);
-    cmd.args(args)
-        .stdin(Stdio::piped())
+    let mut cmd = docker_cmd(args)?;
+    cmd.stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    with_socket(&mut cmd);
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("docker {}: {e}", args.join(" ")))?;
@@ -503,13 +515,10 @@ fn image_exists() -> bool {
 /// Build the image, streaming progress out as log events — first run pulls a
 /// Debian base and installs a desktop, so this takes minutes.
 fn build_image(bot_id: &str, dir: &Path, log: &dyn Fn(&str, &str)) -> Result<(), String> {
-    let bin = locate_docker().ok_or("Docker CLI not found")?;
-    let mut cmd = Command::new(bin);
-    cmd.args(["build", "--progress", "plain", "-t", IMAGE, "."])
-        .current_dir(dir)
+    let mut cmd = docker_cmd(&["build", "--progress", "plain", "-t", IMAGE, "."])?;
+    cmd.current_dir(dir)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    quiet(&mut cmd);
 
     let mut child = cmd.spawn().map_err(|e| format!("docker build: {e}"))?;
     let stderr = child.stderr.take().ok_or("no stderr on docker build")?;
@@ -915,4 +924,76 @@ pub fn stop_all() {
     let mut args = vec!["stop", "-t", "6"];
     args.extend(ids.iter().map(String::as_str));
     let _ = docker(&args);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Both of these set the one global that says which engine botcage
+    /// manages, and cargo runs tests in parallel — so without this they take
+    /// each other's socket and fail on the other one's expectation.
+    static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
+
+    fn socket_of(cmd: &Command) -> Option<String> {
+        cmd.get_envs().find_map(|(key, value)| {
+            (key == "DOCKER_HOST").then(|| value.unwrap_or_default().to_string_lossy().into_owned())
+        })
+    }
+
+    /// The bug this exists to prevent, in the words of the person who hit it:
+    /// the image built into one engine and looked for in another.
+    ///
+    /// botcage installs its own engine, which on macOS lives in a VM reached
+    /// through a socket. Every docker command has to be told that, and the
+    /// build was the one that was not — so on a machine that also had Docker
+    /// Desktop, `docker build` succeeded against Desktop while the `docker run`
+    /// after it asked the managed engine for an image it had never seen. Which
+    /// it reported as "pull access denied": a message about a registry, for an
+    /// image sitting on the same disk.
+    ///
+    /// A machine with only one daemon cannot tell the difference, which is why
+    /// this survived every test on the machine it was written on.
+    #[test]
+    fn every_docker_command_is_pointed_at_the_engine_botcage_manages() {
+        let _alone = ONE_AT_A_TIME
+            .lock()
+            .unwrap_or_else(|held| held.into_inner());
+        let socket = "unix:///Users/someone/.botcage/lima/botcage/sock";
+        use_managed_engine(
+            Some(PathBuf::from("/usr/local/bin/docker")),
+            Some(socket.into()),
+        );
+
+        for args in [
+            vec!["image", "inspect", IMAGE],
+            vec!["build", "--progress", "plain", "-t", IMAGE, "."],
+            vec!["run", "-d", "--name", "botcage-x", IMAGE],
+            vec!["exec", "botcage-x", "true"],
+        ] {
+            let cmd = docker_cmd(&args).expect("a docker command");
+            assert_eq!(
+                socket_of(&cmd).as_deref(),
+                Some(socket),
+                "`docker {}` would run against whatever daemon the CLI defaults to",
+                args.join(" ")
+            );
+        }
+
+        use_managed_engine(None, None);
+    }
+
+    /// And where botcage installed nothing, it must not invent a socket: the
+    /// user's own docker is the right answer then, and pointing it at a VM that
+    /// does not exist would break the machines this works on today.
+    #[test]
+    fn an_unmanaged_engine_is_left_alone() {
+        let _alone = ONE_AT_A_TIME
+            .lock()
+            .unwrap_or_else(|held| held.into_inner());
+        use_managed_engine(None, None);
+        if let Ok(cmd) = docker_cmd(&["ps"]) {
+            assert_eq!(socket_of(&cmd), None);
+        }
+    }
 }
