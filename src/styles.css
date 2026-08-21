@@ -1286,7 +1286,14 @@ textarea {
 }
 
 .cal__event span {
+  display: block;
+  overflow: hidden;
   color: rgba(255, 255, 255, 0.78);
+  /* One line, clipped. The author's name wrapping to a second line pushed
+     itself out through the bottom of the tile, half-drawn — which reads as a
+     rendering fault rather than as a name too long for the space. */
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Sharing an hour: no room for anything but the name. */
@@ -4634,4 +4641,16 @@ a.detail__source:hover {
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Where a routine came from, when it was not you. Tinted rather than plain
+   text: it is the one line in this sheet that is not a field you filled in. */
+.routine__by {
+  margin: 0 0 12px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: rgba(10, 132, 255, 0.13);
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.45;
 }

@@ -23,6 +23,10 @@ pub struct Bot {
     pub id: String,
     pub workspace: PathBuf,
     pub brand: sandbox::BotBrand,
+    /// Who else is on this machine, by name. A bot cannot put work on a
+    /// colleague's calendar without knowing the colleague exists, and names
+    /// are what one bot calls another — ids are botcage's business.
+    pub colleagues: Vec<String>,
 }
 
 /// Fallback when the bot was started without a size, matching the Dockerfile.
@@ -270,6 +274,117 @@ fn check_parts(parts: &Value) -> Result<Value, String> {
     }
 }
 
+/// The schedules a bot may set, in the vocabulary the calendar draws.
+const EVERY: &[&str] = &["once", "week", "day", "weekday", "hour", "minutes"];
+
+/// Work one bot puts on another's calendar — or its own.
+///
+/// The same handoff as a face: this server is a separate process that will
+/// have exited before anything can be shown, so it writes what it wants and
+/// the window applies it when the turn ends. The window resolves the name,
+/// because the roster is its business and can change while a turn runs.
+fn set_routine(bot: &Bot, args: &Value) -> Value {
+    let name = args["name"].as_str().unwrap_or_default().trim();
+    let instruction = args["instruction"].as_str().unwrap_or_default().trim();
+    if name.is_empty() || instruction.is_empty() {
+        return text_result(
+            "a routine needs a name and an instruction — the instruction is what the bot will be \
+             asked, in the words you would use yourself"
+                .to_string(),
+            true,
+        );
+    }
+
+    let every = args["every"]
+        .as_str()
+        .unwrap_or("day")
+        .trim()
+        .to_lowercase();
+    if !EVERY.contains(&every.as_str()) {
+        return text_result(
+            format!(
+                "every must be one of: {}, not \"{every}\"",
+                EVERY.join(", ")
+            ),
+            true,
+        );
+    }
+
+    // Whose calendar. Absent means the bot's own, which is the commonest case
+    // and the one that needs no permission from anybody.
+    let whose = args["bot"].as_str().unwrap_or_default().trim();
+    if !whose.is_empty()
+        && !bot
+            .colleagues
+            .iter()
+            .any(|other| other.eq_ignore_ascii_case(whose))
+    {
+        return text_result(
+            format!(
+                "there is no bot called \"{whose}\" on this machine. There is: {}",
+                if bot.colleagues.is_empty() {
+                    "nobody else".to_string()
+                } else {
+                    bot.colleagues.join(", ")
+                }
+            ),
+            true,
+        );
+    }
+
+    let at = args["at"].as_str().unwrap_or("09:00").trim().to_string();
+    let mut wanted = serde_json::Map::new();
+    wanted.insert("name".into(), Value::String(name.to_string()));
+    wanted.insert("instruction".into(), Value::String(instruction.to_string()));
+    wanted.insert("every".into(), Value::String(every.clone()));
+    wanted.insert("at".into(), Value::String(at.clone()));
+    if !whose.is_empty() {
+        wanted.insert("bot".into(), Value::String(whose.to_string()));
+    }
+    for (key, low, high) in [("day", 0.0, 6.0), ("minutes", 1.0, 720.0)] {
+        if let Some(found) = args[key].as_f64() {
+            if found < low || found > high {
+                return text_result(format!("{key} must be between {low} and {high}"), true);
+            }
+            wanted.insert(key.into(), Value::from(found));
+        }
+    }
+    if let Some(date) = args["date"].as_str() {
+        wanted.insert("date".into(), Value::String(date.trim().to_string()));
+    }
+
+    // Appended rather than written: a bot may set several in one turn, and a
+    // second one must not silently replace the first.
+    let path = bot.workspace.join("routines.jsonl");
+    let line = format!("{}\n", Value::Object(wanted));
+    let wrote = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .and_then(|mut file| std::io::Write::write_all(&mut file, line.as_bytes()));
+
+    match wrote {
+        Err(e) => text_result(format!("could not write the routine: {e}"), true),
+        Ok(()) => text_result(
+            format!(
+                "scheduled \"{name}\" for {} — {}{}. It appears on the calendar when this turn \
+                 ends, marked as added by you.",
+                if whose.is_empty() { "yourself" } else { whose },
+                match every.as_str() {
+                    "minutes" => "every few minutes".to_string(),
+                    "hour" => "every hour".to_string(),
+                    "once" => format!("once at {at}"),
+                    "week" => format!("weekly at {at}"),
+                    "weekday" => format!("every weekday at {at}"),
+                    _ => format!("every day at {at}"),
+                },
+                ""
+            ),
+            false,
+        ),
+    }
+}
+
 /// What a bot writes when it changes its own appearance.
 ///
 /// A file rather than a call back into the app: this server is a separate
@@ -353,6 +468,47 @@ fn set_look(bot: &Bot, args: &Value) -> Value {
 fn tool_specs(bot: &Bot) -> Value {
     let (w, h) = screen_of(bot);
     json!([
+        {
+            "name": "schedule",
+            "description": format!(
+                "Put standing work on a calendar — your own, or another bot's. A routine is an \
+                 instruction that arrives in that bot's conversation on a schedule and is \
+                 answered exactly as if the user had typed it.\n\n\
+                 Use it when somebody asks for something recurring, and when you and another bot \
+                 agree that they should be doing something regularly: you can schedule it for \
+                 them rather than reminding them each time.\n\n\
+                 bot: whose calendar. Leave it out for your own. On this machine: {}.\n\
+                 name: what it is called, a few words.\n\
+                 instruction: what that bot will be asked, written the way the user would write \
+                 it — the bot receiving it sees only this.\n\
+                 every: once, week, day, weekday, hour, or minutes.\n\
+                 at: HH:MM, for all but the minutes kind.\n\
+                 day: 0-6 with Sunday 0, for the weekly kind. date: YYYY-MM-DD, for once. \
+                 minutes: the gap, for the minutes kind.\n\n\
+                 It is added openly: the calendar shows you as the author, the user sees it \
+                 appear, and they can delete it in one click. Scheduling something for somebody \
+                 else is a thing to say you are doing, not a thing to slip in.",
+                if bot.colleagues.is_empty() {
+                    "there are no other bots yet".to_string()
+                } else {
+                    bot.colleagues.join(", ")
+                }
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "bot": { "type": "string" },
+                    "name": { "type": "string" },
+                    "instruction": { "type": "string" },
+                    "every": { "type": "string" },
+                    "at": { "type": "string" },
+                    "day": { "type": "number" },
+                    "date": { "type": "string" },
+                    "minutes": { "type": "number" }
+                },
+                "required": ["name", "instruction", "every"]
+            }
+        },
         {
             "name": "set_appearance",
             "description": format!(
@@ -611,6 +767,9 @@ fn call_tool(bot: &Bot, params: &Value) -> Value {
     if name == "set_appearance" {
         return set_look(bot, &params["arguments"]);
     }
+    if name == "schedule" {
+        return set_routine(bot, &params["arguments"]);
+    }
     let args = params
         .get("arguments")
         .cloned()
@@ -754,6 +913,7 @@ mod tests {
             id: "b1".into(),
             workspace: dir,
             brand: Default::default(),
+            colleagues: vec!["Ops".into(), "Research".into()],
         }
     }
 
@@ -836,6 +996,7 @@ mod drawing_tests {
                 id: "b1".into(),
                 workspace: dir,
                 brand: Default::default(),
+                colleagues: vec!["Ops".into()],
             }
         };
 
@@ -907,6 +1068,124 @@ mod drawing_tests {
         assert!(
             check_parts(&json!([{ "shape": "rect", "x": 50, "y": -400, "w": 40, "h": 20 }]))
                 .is_err()
+        );
+    }
+}
+
+#[cfg(test)]
+mod schedule_tests {
+    use super::*;
+
+    fn a_bot(name: &str) -> Bot {
+        let dir = std::env::temp_dir().join(format!("botcage-sched-{name}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("workspace");
+        Bot {
+            id: "b1".into(),
+            workspace: dir,
+            brand: Default::default(),
+            colleagues: vec!["Ops".into(), "Research & Writing".into()],
+        }
+    }
+
+    fn written(bot: &Bot) -> Vec<Value> {
+        std::fs::read_to_string(bot.workspace.join("routines.jsonl"))
+            .unwrap_or_default()
+            .lines()
+            .map(|line| serde_json::from_str(line).expect("valid json"))
+            .collect()
+    }
+
+    /// The point of the whole thing: work that lands on somebody else's week.
+    #[test]
+    fn a_bot_can_put_work_on_a_colleagues_calendar() {
+        let bot = a_bot("other");
+        let said = set_routine(
+            &bot,
+            &json!({
+                "bot": "ops",
+                "name": "Morning backup check",
+                "instruction": "Check last night's backup finished and say so in one line.",
+                "every": "weekday",
+                "at": "08:30"
+            }),
+        );
+        assert_ne!(said["isError"], true, "{said}");
+
+        let all = written(&bot);
+        assert_eq!(all.len(), 1);
+        assert_eq!(
+            all[0]["bot"], "ops",
+            "case is the window's problem, not this one"
+        );
+        assert_eq!(all[0]["every"], "weekday");
+        assert_eq!(all[0]["at"], "08:30");
+    }
+
+    /// A name nobody answers to is refused with the list, because the reader is
+    /// a model that can try again — and because inventing a target would put
+    /// work on the wrong bot's calendar, which is worse than doing nothing.
+    #[test]
+    fn scheduling_for_a_bot_that_does_not_exist_says_who_does() {
+        let bot = a_bot("missing");
+        let why = set_routine(
+            &bot,
+            &json!({ "bot": "Finance", "name": "x", "instruction": "y", "every": "day" }),
+        );
+        assert_eq!(why["isError"], true);
+        let text = why["content"][0]["text"].as_str().unwrap_or_default();
+        assert!(text.contains("Finance") && text.contains("Ops"), "{text}");
+        assert!(
+            !bot.workspace.join("routines.jsonl").exists(),
+            "nothing is written when the target is nobody"
+        );
+    }
+
+    #[test]
+    fn its_own_calendar_needs_no_name_and_a_schedule_must_be_one_we_draw() {
+        let bot = a_bot("self");
+        assert_ne!(
+            set_routine(
+                &bot,
+                &json!({ "name": "Tidy up", "instruction": "z", "every": "day" })
+            )["isError"],
+            true
+        );
+        assert!(written(&bot)[0].get("bot").is_none(), "absent means itself");
+
+        let why = set_routine(
+            &bot,
+            &json!({ "name": "x", "instruction": "y", "every": "fortnight" }),
+        );
+        assert_eq!(why["isError"], true);
+        assert!(why["content"][0]["text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("weekday"));
+    }
+
+    /// Several in one turn is an ordinary thing to want — "put these three
+    /// checks on Ops" — and the second must not replace the first.
+    #[test]
+    fn a_turn_may_schedule_more_than_one_thing() {
+        let bot = a_bot("several");
+        for name in ["First", "Second", "Third"] {
+            set_routine(
+                &bot,
+                &json!({ "bot": "Ops", "name": name, "instruction": "do it", "every": "day" }),
+            );
+        }
+        let all = written(&bot);
+        assert_eq!(all.len(), 3);
+        assert_eq!(all[2]["name"], "Third");
+    }
+
+    #[test]
+    fn a_routine_without_an_instruction_is_refused() {
+        let bot = a_bot("empty");
+        assert_eq!(
+            set_routine(&bot, &json!({ "name": "Something", "every": "day" }))["isError"],
+            true
         );
     }
 }

@@ -46,6 +46,10 @@ interface Routine {
   day?: number;
   /** Which date, YYYY-MM-DD, for the one-off kind. */
   date?: string;
+  /** The bot that scheduled this, when it was not the user. Shown wherever the
+   *  routine is, because work on your calendar that you did not put there
+   *  needs to say where it came from. */
+  by?: string;
   active: boolean;
   lastRunAt?: number;
 }
@@ -1038,6 +1042,18 @@ function turnEl(msg: Message): HTMLElement {
 const bodyOf = (msgId: string) =>
   thread.querySelector<HTMLElement>(`[data-msg="${msgId}"] .bubble__body`);
 
+/** The number on the clock. Its own function because a routine can now appear
+ *  while a thread is on screen — a colleague scheduled it — and re-rendering
+ *  the whole thread to move one digit would throw away a streaming reply. */
+function paintRoutineCount(): void {
+  const bot = activeBot();
+  const live = (bot?.routines ?? []).filter((r) => r.active).length;
+  $<HTMLButtonElement>("#btn-routines").title = live
+    ? `${live} active routine${live === 1 ? "" : "s"}`
+    : "Routines";
+  $<HTMLSpanElement>("#btn-routines-count").textContent = live ? String(live) : "";
+}
+
 function renderThread(): void {
   const bot = activeBot();
   if (!bot) {
@@ -1050,10 +1066,7 @@ function renderThread(): void {
   topbarId.innerHTML = `${faceHtml(bot, "sm")}<span>${escapeHtml(bot.name)}</span>`;
   input.placeholder = `Message ${bot.name}`;
 
-  const live = (bot.routines ?? []).filter((r) => r.active).length;
-  const routinesBtn = $<HTMLButtonElement>("#btn-routines");
-  routinesBtn.title = live ? `${live} active routine${live === 1 ? "" : "s"}` : "Routines";
-  $<HTMLSpanElement>("#btn-routines-count").textContent = live ? String(live) : "";
+  paintRoutineCount();
 
   if (!bot.messages.length) {
     // On a fresh install this is the whole app: one bot, nothing said yet. Say
@@ -1194,6 +1207,10 @@ async function respond(bot: Bot, prompt: string): Promise<void> {
         model: bot.model || MODEL,
         botName: bot.name,
         botRole: bot.role,
+        // Who else it could hand work to. Names, not ids, because that is what
+        // a bot has to say out loud — and only the bots that carry tools can
+        // act on it anyway.
+        colleagues: state.bots.filter((b) => b.id !== bot.id).map((b) => b.name),
         computer: bot.computer,
         brand: {
           name: bot.name,
@@ -1277,6 +1294,52 @@ function handleBotEvent(event: BotEvent): void {
 
   // What the bot's face does about it. Everything here is already in botcage's
   // vocabulary, so a mood costs a line rather than a new event.
+  // Work a bot put on a calendar — its own, or a colleague's. Applied at the
+  // end of a turn for the same reason a face is: the tool wrote a file and the
+  // process that wrote it is gone.
+  if (event.kind === "done" || event.kind === "error" || event.kind === "cancelled") {
+    void invoke<Record<string, unknown>[]>("take_routines", { botId: event.botId })
+      .then((wanted) => {
+        const author = state.bots.find((b) => b.id === event.botId);
+        if (!author || !wanted?.length) return;
+        for (const one of wanted) {
+          const named = String(one.bot ?? "").trim();
+          // No name means its own calendar. A name that matches nobody is
+          // dropped rather than guessed at: the roster can change while a turn
+          // runs, and the wrong bot doing the work is worse than none.
+          const target = named
+            ? state.bots.find((b) => b.name.toLowerCase() === named.toLowerCase())
+            : author;
+          if (!target) continue;
+
+          target.routines = target.routines ?? [];
+          target.routines.push({
+            id: uid(),
+            name: String(one.name ?? "Routine").slice(0, 48),
+            instruction: String(one.instruction ?? ""),
+            every: String(one.every ?? "day") as Routine["every"],
+            at: String(one.at ?? "09:00"),
+            minutes: Number(one.minutes) || 15,
+            day: Number(one.day) || 0,
+            date: one.date ? String(one.date) : undefined,
+            by: author.name,
+            active: true,
+            lastRunAt: Date.now(),
+          });
+          toast(
+            target.id === author.id
+              ? `${author.name} scheduled "${one.name}" for itself`
+              : `${author.name} scheduled "${one.name}" for ${target.name}`,
+          );
+        }
+        save();
+        renderRoster();
+        paintRoutineCount();
+        if (routinesOpen) renderRoutines();
+      })
+      .catch(() => {});
+  }
+
   // A bot may have changed its own face this turn. Checked at the end rather
   // than watched for: the tool writes a file, the window reads it once, and
   // nothing has to be listening while a turn runs.
@@ -1586,7 +1649,11 @@ function renderRoutines(): void {
             `<b>${escapeHtml(routine.name)}</b>` +
             // The time only when there is room for it; when there is not, it is
             // the one thing already obvious from where the block is.
-            (solo ? `<span>${routine.at}</span>` : "") +
+            // Whose it is beats when it is: the hour is already legible from
+            // where the block sits, and a tile this narrow fits one of them.
+            (solo
+              ? `<span>${routine.by ? `by ${escapeHtml(routine.by)}` : routine.at}</span>`
+              : "") +
             `</button>`
           );
         })
@@ -4393,6 +4460,12 @@ function openRoutine(routine: Routine | null, seed?: { day: number; hour: number
   routineDate.value = routine?.date ?? seed?.date ?? isoDate(new Date());
   routineInterval.value = String(routine?.minutes ?? 15);
   routineActive.checked = routine?.active ?? true;
+
+  // Work you did not put here says so. Without it, a bot quietly filling a
+  // colleague's week is indistinguishable from the colleague's own plans.
+  const by = $<HTMLParagraphElement>("#routine-by");
+  by.hidden = !routine?.by;
+  by.textContent = routine?.by ? `Added by ${routine.by}. Yours to keep, pause or delete.` : "";
 
   $<HTMLHeadingElement>("#routine-title").textContent = routine ? "Routine" : "New routine";
   $<HTMLButtonElement>("#routine-save").textContent = routine ? "Save" : "Add routine";

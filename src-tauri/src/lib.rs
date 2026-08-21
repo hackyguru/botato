@@ -41,6 +41,16 @@ pub fn serve_mcp() {
         .unwrap_or_default();
 
     mcp::serve(mcp::Bot {
+        // Who else this bot could put work on the calendar of. Names rather
+        // than ids: a bot says "Ops", and the window turns that into whichever
+        // bot is called that when the turn ends.
+        colleagues: std::env::var("BOTCAGE_COLLEAGUES")
+            .unwrap_or_default()
+            .split('\n')
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(str::to_string)
+            .collect(),
         id: std::env::var("BOTCAGE_BOT").unwrap_or_default(),
         workspace: std::env::var("BOTCAGE_WORKSPACE")
             .unwrap_or_default()
@@ -56,6 +66,21 @@ mcp__desktop__start_desktop";
 
 /// The one tool every bot has, computer or not: its own appearance.
 const FACE_TOOL: &str = "mcp__desktop__set_appearance";
+
+/// Putting work on a calendar — its own, or a colleague's.
+const SCHEDULE_TOOL: &str = "mcp__desktop__schedule";
+
+/// Same reason as the face prompt: a bot holding a tool nobody told it about
+/// will explain that it cannot do the thing it is holding the tool for.
+const SCHEDULE_PROMPT: &str = "\
+## Putting work on a calendar
+
+`schedule` adds a routine — a standing instruction that runs at a time. Use it \
+on yourself when the user asks for something regular, and on a colleague when \
+the work is theirs: they are named in the tool's description, and a name that \
+is not on that list belongs to nobody. Scheduling for someone else is done \
+openly — say who you are giving work to and what it is, before or as you do it, \
+never quietly. The user sees your name on it and can delete it in one click.";
 
 /// A bot that can change its face should know it can, or it will apologise for
 /// being unable to do something it is holding the tool for. Which is exactly
@@ -195,6 +220,10 @@ struct AskRequest {
     /// Passed through to the container if the bot starts its own desktop.
     #[serde(default)]
     brand: sandbox::BotBrand,
+    /// Every other bot on this machine, by name — so this one can put work on
+    /// their calendars, and knows who there is to ask.
+    #[serde(default)]
+    colleagues: Vec<String>,
     /// MCP server keys this bot may use, from the app's plugin list.
     #[serde(default)]
     plugins: Vec<String>,
@@ -316,13 +345,13 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     let (mut allowed, mut system_prompt) = if req.computer && carries_tools {
         sandbox::touch(&req.bot_id);
         (
-            format!("{TOOLS},{DESKTOP_TOOLS},{FACE_TOOL}"),
-            format!("{base}\n\n{DESKTOP_PROMPT}\n\n{FACE_PROMPT}"),
+            format!("{TOOLS},{DESKTOP_TOOLS},{FACE_TOOL},{SCHEDULE_TOOL}"),
+            format!("{base}\n\n{DESKTOP_PROMPT}\n\n{FACE_PROMPT}\n\n{SCHEDULE_PROMPT}"),
         )
     } else if carries_tools {
         (
-            format!("{TOOLS},{FACE_TOOL}"),
-            format!("{base}\n\n{FACE_PROMPT}"),
+            format!("{TOOLS},{FACE_TOOL},{SCHEDULE_TOOL}"),
+            format!("{base}\n\n{FACE_PROMPT}\n\n{SCHEDULE_PROMPT}"),
         )
     } else {
         (TOOLS.to_string(), base)
@@ -377,6 +406,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
                 "args": ["--mcp"],
                 "env": {
                     "BOTCAGE_BOT": req.bot_id,
+                    "BOTCAGE_COLLEAGUES": req.colleagues.join("\n"),
                     "BOTCAGE_WORKSPACE": cwd.display().to_string(),
                     "BOTCAGE_BRAND": serde_json::to_string(&req.brand).unwrap_or_default(),
                 }
@@ -590,6 +620,26 @@ fn take_face(app: AppHandle, bot_id: String) -> Option<Value> {
     let raw = fs::read_to_string(&path).ok()?;
     let _ = fs::remove_file(&path);
     serde_json::from_str(&raw).ok()
+}
+
+/// Work a bot scheduled this turn, for itself or for a colleague.
+///
+/// Read once and removed, like the face: these are messages from a process
+/// that has already exited. Names rather than ids, because a bot says "Ops"
+/// and only the window knows which bot that is — or that there is no longer
+/// one by that name.
+#[tauri::command]
+fn take_routines(app: AppHandle, bot_id: String) -> Vec<Value> {
+    let Ok(path) = workspace(&app, &bot_id).map(|dir| dir.join("routines.jsonl")) else {
+        return Vec::new();
+    };
+    let Ok(raw) = fs::read_to_string(&path) else {
+        return Vec::new();
+    };
+    let _ = fs::remove_file(&path);
+    raw.lines()
+        .filter_map(|line| serde_json::from_str(line).ok())
+        .collect()
 }
 
 /// Forget the conversation, keeping the bot.
@@ -945,6 +995,7 @@ pub fn run() {
             forget_bot,
             clear_thread,
             take_face,
+            take_routines,
             bots_dir,
             app_version,
             user_name,
