@@ -2196,6 +2196,7 @@ textarea {
 
 /* ----------------------------------------------------------------- composer */
 .dock {
+  position: relative;
   flex: none;
   padding: 8px 18px 18px;
 }
@@ -4848,4 +4849,58 @@ a.detail__source:hover {
   color: var(--text-2);
   font-size: 12.5px;
   line-height: 1.5;
+}
+
+/* Who you might mean, while you are typing it.
+   Above the composer rather than below it, because below is off the bottom of
+   the window — and anchored to the dock so it moves with the composer as that
+   grows. */
+.mentions {
+  position: absolute;
+  z-index: 40;
+  left: 18px;
+  right: 18px;
+  bottom: calc(100% - 8px);
+  max-width: 420px;
+  max-height: 268px;
+  padding: 6px;
+  overflow-y: auto;
+  background: var(--active);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+.mention {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  background: none;
+  border: 0;
+  border-radius: 9px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mention.is-on {
+  background: var(--hover);
+}
+
+.mention__name {
+  flex: none;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+/* What it is for, when there is room for it — the reason you would pick this
+   one rather than the one above it. */
+.mention__role {
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

@@ -1547,6 +1547,7 @@ function handleBotEvent(event: BotEvent): void {
 function send(text: string): void {
   const clean = text.trim();
   if (!clean) return;
+  closeMentions();
 
   const room = activeChannel();
   if (room) {
@@ -4632,7 +4633,134 @@ composer.addEventListener("submit", (e) => {
 
 input.addEventListener("input", autoGrow);
 
+
+/* --------------------------------------------------------- mentioning them */
+/* Typing "@" in a room offers the people in it. The name has to match exactly
+   for the message to reach anybody, and expecting someone to remember and
+   spell "Research and Writing" is how a feature that works becomes a feature
+   nobody uses. */
+
+const mentionsEl = $<HTMLDivElement>("#mentions");
+let mentionHits: Bot[] = [];
+let mentionPick = 0;
+
+/** The "@…" being typed at the caret, if there is one.
+ *
+ *  Spaces are allowed in the query because names have spaces in them. That
+ *  would run away over a whole sentence, so it is bounded twice: a couple of
+ *  dozen characters, and — in `paintMentions` — the fact that nothing matching
+ *  closes the list. Type "@" mid-sentence and you get the list; carry on
+ *  typing prose and it goes away by itself. */
+function mentionQuery(): { at: number; query: string } | null {
+  const caret = input.selectionStart ?? input.value.length;
+  const before = input.value.slice(0, caret);
+  const at = before.lastIndexOf("@");
+  if (at === -1) return null;
+  // It has to start a word — an email address is not a mention.
+  if (at > 0 && !/\s/.test(before[at - 1])) return null;
+  const query = before.slice(at + 1);
+  if (query.length > 24 || query.includes("\n")) return null;
+  return { at, query };
+}
+
+function closeMentions(): void {
+  mentionsEl.hidden = true;
+  mentionHits = [];
+  mentionPick = 0;
+}
+
+function paintMentions(): void {
+  const room = activeChannel();
+  const found = room ? mentionQuery() : null;
+  if (!room || !found) return closeMentions();
+
+  const q = found.query.toLowerCase();
+  const room_ = membersOf(room);
+  // What you have typed first, then anything else containing it: someone who
+  // types "writ" means Research and Writing, and a list that refuses to find
+  // it is worse than no list.
+  const starts = room_.filter((b) => b.name.toLowerCase().startsWith(q));
+  const rest = room_.filter(
+    (b) => !starts.includes(b) && q.length > 0 && b.name.toLowerCase().includes(q),
+  );
+  mentionHits = [...starts, ...rest];
+  if (!mentionHits.length) return closeMentions();
+
+  mentionPick = Math.min(mentionPick, mentionHits.length - 1);
+  mentionsEl.innerHTML = mentionHits
+    .map(
+      (bot, i) =>
+        `<button type="button" class="mention${i === mentionPick ? " is-on" : ""}" data-pick="${i}">` +
+        faceHtml(bot, "sm") +
+        `<span class="mention__name">${escapeHtml(bot.name)}</span>` +
+        (bot.role
+          ? `<span class="mention__role">${escapeHtml(bot.role.split("\n")[0].slice(0, 60))}</span>`
+          : "") +
+        `</button>`,
+    )
+    .join("");
+  mentionsEl.hidden = false;
+  mentionsEl.querySelector(".is-on")?.scrollIntoView({ block: "nearest" });
+}
+
+function acceptMention(bot: Bot): void {
+  const found = mentionQuery();
+  if (!found) return closeMentions();
+  const caret = input.selectionStart ?? input.value.length;
+  const head = input.value.slice(0, found.at);
+  const tail = input.value.slice(caret);
+  // The trailing space is the point: the next thing you type is the message,
+  // not more of the name.
+  const written = `@${bot.name} `;
+  input.value = head + written + tail;
+  const pos = head.length + written.length;
+  input.setSelectionRange(pos, pos);
+  closeMentions();
+  autoGrow();
+  input.focus();
+}
+
+// mousedown rather than click, with the default prevented: the composer keeps
+// focus, so the caret is still where the name has to go.
+mentionsEl.addEventListener("mousedown", (e) => {
+  e.preventDefault();
+  const pick = (e.target as HTMLElement).closest<HTMLElement>("[data-pick]");
+  if (pick) acceptMention(mentionHits[Number(pick.dataset.pick)]);
+});
+
+input.addEventListener("input", paintMentions);
+// Moving the caret changes what is being typed at, and so does clicking into
+// the middle of a line.
+input.addEventListener("click", paintMentions);
+input.addEventListener("keyup", (e) => {
+  if (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End") paintMentions();
+});
+input.addEventListener("blur", closeMentions);
+
 input.addEventListener("keydown", (e) => {
+  // The list owns these keys while it is open. Enter especially: it means
+  // "that one", and sending the message with a half-typed name in it is the
+  // one thing this is here to prevent.
+  if (!mentionsEl.hidden && mentionHits.length) {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      mentionPick = (mentionPick + step + mentionHits.length) % mentionHits.length;
+      paintMentions();
+      return;
+    }
+    if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault();
+      acceptMention(mentionHits[mentionPick]);
+      return;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeMentions();
+      return;
+    }
+  }
+
   if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
     e.preventDefault();
     send(input.value);
