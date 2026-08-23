@@ -363,6 +363,12 @@ textarea {
   transform-origin: 50% 85%;
 }
 
+/* Small enough to sit inside a calendar tile beside a name. Every pixel here
+   is a character of the name that fits. */
+.face--xs {
+  --u: 13px;
+}
+
 .face--sm {
   --u: 22px;
 }
@@ -4913,4 +4919,18 @@ a.detail__source:hover {
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* A face inside a calendar block, on everybody's week. Ringed in the block's
+   own colour so it reads as part of the block rather than as something
+   floating on top of it. */
+.cal__event .face,
+.cal__chip .face {
+  margin-right: 4px;
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.28);
+  border-radius: 50%;
+  vertical-align: -3px;
+}
+.cal__event .face {
+  float: left;
 }

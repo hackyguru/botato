@@ -836,7 +836,7 @@ function paintMoods(): void {
   }
 }
 
-function faceHtml(bot: Bot, size: "sm" | "md" | "lg" = "md"): string {
+function faceHtml(bot: Bot, size: "xs" | "sm" | "md" | "lg" = "md"): string {
   const cls = size === "md" ? "" : ` face--${size}`;
   const face = faceOf(bot);
   const mood = moods.get(bot.id) ?? restingMood(bot.id);
@@ -1690,9 +1690,12 @@ function fallsOn(routine: Routine, day: Date): boolean {
 }
 
 function renderRoutines(): void {
-  const bot = activeBot();
-  if (!bot) return;
-  const routines = bot.routines ?? [];
+  const drawn = calBots();
+  if (!drawn.length) return;
+  // One flat list, each item remembering whose it is — everything below this
+  // draws a routine without caring whether one bot's week is on screen or
+  // everybody's.
+  const routines = drawn.flatMap((bot) => (bot.routines ?? []).map((routine) => ({ bot, routine })));
   const now = new Date();
   const today = isoDate(now);
 
@@ -1724,21 +1727,27 @@ function renderRoutines(): void {
   ).join("");
 
   // Anything faster than an hour would be a stripe through every column.
-  const often = routines.filter((r) => r.every === "hour" || r.every === "minutes");
+  const often = routines.filter(
+    ({ routine }) => routine.every === "hour" || routine.every === "minutes",
+  );
   const band = $<HTMLDivElement>("#cal-often");
   band.hidden = often.length === 0 && routines.length > 0;
   band.innerHTML = routines.length
     ? often
         .map(
-          (routine) =>
+          ({ bot, routine }) =>
             `<button type="button" class="cal__chip${routine.active ? "" : " is-off"}" ` +
             `data-edit="${routine.id}"><i style="--tint:${bot.color}"></i>` +
+            (calEveryone ? faceHtml(bot, "xs") : "") +
             `<b>${escapeHtml(routine.name)}</b>` +
             `<span>${escapeHtml(describeRoutine(routine))}</span></button>`,
         )
         .join("")
-    : `<div class="cal__empty">Nothing scheduled. Click any slot to give ` +
-      `${escapeHtml(bot.name)} a standing instruction — routines run while botcage is open.</div>`;
+    : `<div class="cal__empty">Nothing scheduled. ${
+        calEveryone
+          ? "Open a bot's own calendar to give it a standing instruction."
+          : `Click any slot to give ${escapeHtml(drawn[0].name)} a standing instruction`
+      } — routines run while botcage is open.</div>`;
 
   $<HTMLDivElement>("#cal-cols").innerHTML = days
     .map((day, column) => {
@@ -1747,7 +1756,7 @@ function renderRoutines(): void {
         (_, hour) => `<div class="cal__slot" data-col="${column}" data-hour="${hour}"></div>`,
       ).join("");
 
-      const due = routines.filter((routine) => fallsOn(routine, day));
+      const due = routines.filter(({ routine }) => fallsOn(routine, day));
 
       // Two routines in the same hour would sit exactly on top of each other,
       // and the one underneath would be a routine nobody could see was there.
@@ -1759,14 +1768,14 @@ function renderRoutines(): void {
       // edit it rather than add to it. The strip down the right stays empty and
       // clickable, which is what makes an hour able to hold two.
       const crowd = new Map<number, number>();
-      for (const routine of due) {
+      for (const { routine } of due) {
         const hour = Number(routine.at.split(":")[0]) || 0;
         crowd.set(hour, (crowd.get(hour) ?? 0) + 1);
       }
       const placed = new Map<number, number>();
 
       const events = due
-        .map((routine) => {
+        .map(({ bot, routine }) => {
           const [hh, mm] = routine.at.split(":").map(Number);
           const hour = hh || 0;
           const of = crowd.get(hour) ?? 1;
@@ -1784,11 +1793,12 @@ function renderRoutines(): void {
             `${routine.active ? "" : " is-off"}" data-edit="${routine.id}" ` +
             `style="top:${top + lane * slice}px;height:${slice - (solo ? 0 : 2)}px;` +
             `right:${FREE_PX}px;--tint:${bot.color}">` +
+            // On everybody's week, whose it is comes first: the same face as
+            // in the sidebar, on a block already in that bot's colour.
+            (calEveryone ? faceHtml(bot, "xs") : "") +
             `<b>${escapeHtml(routine.name)}</b>` +
-            // The time only when there is room for it; when there is not, it is
-            // the one thing already obvious from where the block is.
-            // Whose it is beats when it is: the hour is already legible from
-            // where the block sits, and a tile this narrow fits one of them.
+            // Who put it there beats when it runs: the hour is already legible
+            // from where the block sits, and a tile this narrow fits one line.
             (solo
               ? `<span>${routine.by ? `by ${escapeHtml(routine.by)}` : routine.at}</span>`
               : "") +
@@ -3292,6 +3302,11 @@ function freshenGuide(bot: Bot): void {
 function openBot(id: string): void {
   const opening = state.bots.find((bot) => bot.id === id);
   if (opening) freshenGuide(opening);
+  // Everybody's week belongs to nobody, so picking somebody leaves it.
+  if (calEveryone) {
+    calEveryone = false;
+    showRoutines(false);
+  }
   state.activeChannel = null;
   paintTopbarFor(opening ?? null);
   state.activeId = id;
@@ -3606,6 +3621,7 @@ function openChannel(id: string): void {
   // A room has no calendar of its own, so leave the one that was open.
   if (routinesOpen) {
     routinesOpen = false;
+    calEveryone = false;
     $<HTMLElement>(".main").classList.remove("is-routines");
     $<HTMLElement>("#routines").hidden = true;
     $<HTMLButtonElement>("#btn-routines").classList.remove("is-on");
@@ -3628,6 +3644,7 @@ function paintTopbarFor(bot: Bot | null): void {
     $<HTMLButtonElement>(`#${id}`).hidden = inRoom;
   }
   const gear = $<HTMLButtonElement>("#btn-settings");
+  gear.hidden = false;
   gear.title = inRoom ? "Channel settings" : "Bot settings";
 }
 
@@ -3973,6 +3990,40 @@ function whenNext(routine: Routine): string {
 
 let routinesOpen = false;
 
+/** Whose week the calendar is showing: the bot you have open, or the lot.
+ *
+ *  Everything a bot does on a schedule is invisible from every other bot's
+ *  calendar, which is fine until you have five of them and want to know what
+ *  Tuesday morning actually looks like. */
+let calEveryone = false;
+
+/** The bots the calendar is drawing, and the owner of anything drawn. */
+function calBots(): Bot[] {
+  if (calEveryone) return state.bots;
+  const bot = activeBot();
+  return bot ? [bot] : [];
+}
+
+function ownerOf(routineId: string): { bot: Bot; routine: Routine } | null {
+  for (const bot of calBots()) {
+    const routine = bot.routines?.find((r) => r.id === routineId);
+    if (routine) return { bot, routine };
+  }
+  return null;
+}
+
+/** Everybody's week at once, from the account menu.
+ *
+ *  Reached from there rather than from the clock in a bot's header because it
+ *  is not about a bot: the clock belongs to whoever is on screen, and this is
+ *  the one calendar that belongs to you. */
+function openEveryonesWeek(): void {
+  if (!state.bots.length) return;
+  calEveryone = true;
+  state.activeChannel = null;
+  showRoutines(true);
+}
+
 /** The main pane shows either the conversation or this bot's week. */
 function showRoutines(open: boolean): void {
   routinesOpen = open;
@@ -3981,8 +4032,24 @@ function showRoutines(open: boolean): void {
   $<HTMLButtonElement>("#btn-routines").classList.toggle("is-on", open);
   routineWrap.hidden = true;
   if (!open) {
+    calEveryone = false;
+    paintTopbarFor(activeBot());
     renderThread();
     return;
+  }
+
+  // Whose week, in the bar where a bot's face usually is. Everybody's is the
+  // one view in the app that belongs to no bot, so it says so — and the top
+  // right is emptied, because a plug, a screen and a clock all belong to a
+  // single bot and none of them mean anything here.
+  if (calEveryone) {
+    paintTopbarFor(null);
+    $<HTMLButtonElement>("#btn-settings").hidden = true;
+    topbarId.innerHTML =
+      `<span class="chan__hash">${icon("clock")}</span><span>Everyone's week</span>` +
+      `<span class="chan__faces">${state.bots.map((b) => faceHtml(b, "sm")).join("")}</span>`;
+  } else {
+    $<HTMLButtonElement>("#btn-settings").hidden = false;
   }
 
   // Opening always lands on this week, wherever it was left.
@@ -4841,7 +4908,13 @@ input.addEventListener("keydown", (e) => {
   }
 });
 
-$<HTMLButtonElement>("#btn-routines").addEventListener("click", () => showRoutines(!routinesOpen));
+$<HTMLButtonElement>("#btn-routines").addEventListener("click", () => {
+  // The clock in a bot's header is that bot's week, even if you arrived at the
+  // calendar from the account menu and then clicked a bot.
+  const back = routinesOpen && !calEveryone;
+  calEveryone = false;
+  showRoutines(!back);
+});
 
 $<HTMLButtonElement>("#btn-settings").addEventListener("click", () => {
   const room = activeChannel();
@@ -4876,6 +4949,8 @@ menu.addEventListener("click", (event) => {
 $<HTMLButtonElement>("#btn-account").addEventListener("click", (event) => {
   openMenu(
     event.currentTarget as HTMLElement,
+      `<button type="button" class="menu-item" data-app="calendar">${icon("clock")}` +
+      `<span class="menu-item__body"><span class="menu-item__name">Everyone's week</span></span></button>` +
       `<button type="button" class="menu-item" data-app="settings">${icon("gear")}` +
       `<span class="menu-item__body"><span class="menu-item__name">Settings</span></span></button>` +
       `<button type="button" class="menu-item" data-app="tour">${icon("eye")}` +
@@ -5001,7 +5076,8 @@ menu.addEventListener("click", (e) => {
   const app = target.closest<HTMLButtonElement>("[data-app]")?.dataset.app;
   if (app) {
     closeMenu();
-    if (app === "settings") void openAppSettings();
+    if (app === "calendar") openEveryonesWeek();
+    else if (app === "settings") void openAppSettings();
     else if (app === "tour") startTour();
     else if (app === "setup") void openSetup(appSettings().onboarded ? "answers" : "welcome");
     else void openAbout();
@@ -5203,6 +5279,17 @@ function paintRoutineForm(): void {
 function openRoutine(routine: Routine | null, seed?: { day: number; hour: number; date: string }): void {
   editingRoutine = routine?.id ?? null;
 
+  // Whose calendar this lands on. On one bot's week that is never in question;
+  // on everybody's it is the first thing the form has to answer, so it is the
+  // first row rather than something to discover after saving to the wrong bot.
+  const owner = routine ? ownerOf(routine.id)?.bot : null;
+  const picker = $<HTMLSelectElement>("#routine-bot");
+  $<HTMLLabelElement>("#routine-bot-row").hidden = !calEveryone;
+  picker.innerHTML = state.bots
+    .map((b) => `<option value="${b.id}">${escapeHtml(b.name)}</option>`)
+    .join("");
+  picker.value = owner?.id ?? activeBot()?.id ?? state.bots[0]?.id ?? "";
+
   routineName.value = routine?.name ?? "";
   routineInstruction.value = routine?.instruction ?? "";
   // A slot that was clicked means that day at that hour — the reading anyone
@@ -5260,16 +5347,16 @@ $<HTMLButtonElement>("#cal-today").addEventListener("click", () => {
 });
 
 $<HTMLElement>("#routines").addEventListener("click", (e) => {
-  const bot = activeBot();
-  if (!bot) return;
   const target = e.target as HTMLElement;
 
   const edit = target.closest<HTMLElement>("[data-edit]");
   if (edit) {
-    const routine = bot.routines?.find((r) => r.id === edit.dataset.edit);
-    if (routine) openRoutine(routine);
+    const found = ownerOf(edit.dataset.edit ?? "");
+    if (found) openRoutine(found.routine);
     return;
   }
+
+  if (!calBots().length) return;
 
   const slot = target.closest<HTMLElement>(".cal__slot");
   if (slot) {
@@ -5284,8 +5371,6 @@ $<HTMLElement>("#routines").addEventListener("click", (e) => {
 
 routineForm.addEventListener("submit", (e) => {
   e.preventDefault();
-  const bot = activeBot();
-  if (!bot) return;
 
   const draft = draftRoutine();
   if (!draft.name || !draft.instruction) {
@@ -5294,15 +5379,32 @@ routineForm.addEventListener("submit", (e) => {
     return;
   }
 
+  const was = editingRoutine ? ownerOf(editingRoutine) : null;
+  // Where it is going: what the picker says on the shared week, and the bot
+  // whose week you are looking at everywhere else.
+  const picked = calEveryone ? $<HTMLSelectElement>("#routine-bot").value : "";
+  const bot = state.bots.find((b) => b.id === picked) ?? was?.bot ?? activeBot();
+  if (!bot) return;
+
   bot.routines = bot.routines ?? [];
-  const existing = bot.routines.find((r) => r.id === editingRoutine);
+  const existing = was?.bot.id === bot.id ? was.routine : null;
   if (existing) {
     Object.assign(existing, draft, { id: existing.id, lastRunAt: existing.lastRunAt });
     // Re-timed from now, so an edited schedule cannot fire the moment it is
     // saved because its old time had already passed.
     existing.lastRunAt = Date.now();
   } else {
-    bot.routines.push({ ...draft, id: uid(), active: true, lastRunAt: Date.now() });
+    // Either new, or handed to a different bot on the shared week — in which
+    // case it leaves the one that had it rather than being in two places.
+    if (was) was.bot.routines = (was.bot.routines ?? []).filter((r) => r.id !== was.routine.id);
+    bot.routines.push({
+      ...draft,
+      id: was?.routine.id ?? uid(),
+      by: was?.routine.by,
+      active: was?.routine.active ?? true,
+      lastRunAt: Date.now(),
+    });
+    if (was) toast(`Moved "${draft.name}" to ${bot.name}`);
   }
 
   routineWrap.hidden = true;
@@ -5312,24 +5414,24 @@ routineForm.addEventListener("submit", (e) => {
 });
 
 $<HTMLButtonElement>("#routine-run").addEventListener("click", () => {
-  const bot = activeBot();
-  const routine = bot?.routines?.find((r) => r.id === editingRoutine);
-  if (!bot || !routine) return;
+  const found = editingRoutine ? ownerOf(editingRoutine) : null;
+  if (!found) return;
   routineWrap.hidden = true;
   showRoutines(false);
-  runRoutine(bot, routine);
+  // Running it means watching it, so the bot doing the work is opened.
+  if (found.bot.id !== state.activeId || state.activeChannel) openBot(found.bot.id);
+  runRoutine(found.bot, found.routine);
 });
 
 $<HTMLButtonElement>("#routine-delete").addEventListener("click", () => {
-  const bot = activeBot();
-  if (!bot?.routines) return;
-  const gone = bot.routines.find((r) => r.id === editingRoutine);
-  bot.routines = bot.routines.filter((r) => r.id !== editingRoutine);
+  const found = editingRoutine ? ownerOf(editingRoutine) : null;
+  if (!found) return;
+  found.bot.routines = (found.bot.routines ?? []).filter((r) => r.id !== editingRoutine);
   routineWrap.hidden = true;
   save();
   renderRoutines();
   renderThread();
-  if (gone) toast(`Deleted ${gone.name}`);
+  toast(`Deleted ${found.routine.name}`);
 });
 
 swatches.addEventListener("click", (e) => {
