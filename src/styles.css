@@ -4654,3 +4654,198 @@ a.detail__source:hover {
   font-size: 12.5px;
   line-height: 1.45;
 }
+
+/* ---------------------------------------------------------------- channels */
+
+/* The sidebar splits into two lists once there is a room. Quiet enough to read
+   as a divider rather than as a heading — the rows are the content. */
+.rail-group {
+  margin: 12px 0 4px;
+  padding: 0 10px;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.rail-group:first-child {
+  margin-top: 2px;
+}
+
+.chan-row__hash {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  color: var(--text-2);
+}
+.chan-row__hash svg {
+  width: 19px;
+  height: 19px;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  fill: none;
+}
+.chan-row.is-active .chan-row__hash {
+  color: var(--text);
+}
+
+/* Somebody in this room is talking, and you are looking at another one. */
+.chan-row__live {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-right: 4px;
+  background: var(--blue);
+  border-radius: 50%;
+  animation: chan-live 1.4s ease-in-out infinite;
+}
+@keyframes chan-live {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* The room's name in the top bar, with everyone in it beside it. */
+.chan__hash {
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+}
+.chan__hash svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+}
+.chan__faces {
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+}
+/* Overlapped, like every other roomful of faces. The ring is the page colour
+   rather than a border, so the stack reads as depth instead of as chips. Only
+   the ones after the first are pulled left — pulling the first one too dragged
+   it under the channel's name and clipped it. */
+.chan__faces .face {
+  box-shadow: 0 0 0 2px var(--bg-main);
+  border-radius: 50%;
+}
+.chan__faces .face + .face {
+  margin-left: -7px;
+}
+
+/* Who said it, in the gutter beside what they said.
+   Top-aligned rather than centred: a name floating halfway down a six-line
+   answer reads as a label for the middle of it. */
+.turn--said {
+  align-items: flex-start;
+  margin-top: 16px;
+}
+.said {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  width: 132px;
+  justify-content: flex-end;
+  padding-top: 9px;
+}
+.said__name {
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.said__at {
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+/* Making one. The sheet's body centres its children by default, which is right
+   for a form of short controls and wrong for a column of full-width fields. */
+.sheet--channel .sheet__body {
+  align-items: stretch;
+  text-align: left;
+}
+.sheet--channel textarea {
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--field);
+  border: 0;
+  border-radius: 10px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.5;
+  outline: none;
+  resize: none;
+}
+
+.chan__name {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 12px;
+  background: var(--field);
+  border-radius: 10px;
+}
+.chan__name > span {
+  color: var(--text-3);
+  font-size: 17px;
+}
+.chan__name input {
+  flex: 1;
+  padding: 11px 2px;
+  background: none;
+  border: 0;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+}
+
+.chan__group {
+  margin: 18px 0 8px 2px;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.chan__members {
+  display: grid;
+  gap: 2px;
+  grid-template-columns: 1fr 1fr;
+}
+.chan__member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.chan__member:hover {
+  background: var(--hover);
+}
+.chan__member input {
+  flex: none;
+  accent-color: var(--blue);
+}
+.chan__memberName {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chan__fine {
+  margin: 14px 2px 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.5;
+}

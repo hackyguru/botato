@@ -45,13 +45,38 @@ pub struct Entry {
 /// modern context window.
 pub const BUDGET: usize = 48_000;
 
-fn path(workspace: &Path) -> PathBuf {
-    workspace.join("transcript.jsonl")
+/// Where a conversation lives.
+///
+/// A bot has more than one. Its own chat is the unnamed thread; a channel is a
+/// separate room it also speaks in, and the two must not run together — a bot
+/// answering in #finance should not have yesterday's private chat replayed at
+/// it, and the room should not leak into the chat. One file per thread, in the
+/// same workspace, so a channel is forgotten by deleting a file.
+fn path(workspace: &Path, thread: Option<&str>) -> PathBuf {
+    match thread {
+        None => workspace.join("transcript.jsonl"),
+        // Ids come from the window, not from a person, but they end up as a
+        // filename either way — so anything that is not plainly safe becomes a
+        // dash rather than an escape from the workspace.
+        Some(thread) => {
+            let safe: String = thread
+                .chars()
+                .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+                .take(64)
+                .collect();
+            workspace.join(format!("transcript-{safe}.jsonl"))
+        }
+    }
 }
 
 /// Add what was just said. Appends rather than rewrites, so a long
 /// conversation costs the same to record as a short one.
-pub fn append(workspace: &Path, voice: Voice, text: &str) -> Result<(), String> {
+pub fn append(
+    workspace: &Path,
+    thread: Option<&str>,
+    voice: Voice,
+    text: &str,
+) -> Result<(), String> {
     if text.trim().is_empty() {
         return Ok(());
     }
@@ -68,7 +93,7 @@ pub fn append(workspace: &Path, voice: Voice, text: &str) -> Result<(), String> 
     let mut file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open(path(workspace))
+        .open(path(workspace, thread))
         .map_err(|e| format!("could not open the transcript: {e}"))?;
     writeln!(file, "{line}").map_err(|e| format!("could not write the transcript: {e}"))
 }
@@ -81,8 +106,8 @@ pub fn append(workspace: &Path, voice: Voice, text: &str) -> Result<(), String> 
 ///
 /// Whole entries only. Half a message is worse than no message — it reads as
 /// something the speaker actually said and stopped saying.
-pub fn recent(workspace: &Path, budget: usize) -> Vec<Entry> {
-    let Ok(file) = std::fs::File::open(path(workspace)) else {
+pub fn recent(workspace: &Path, thread: Option<&str>, budget: usize) -> Vec<Entry> {
+    let Ok(file) = std::fs::File::open(path(workspace, thread)) else {
         return Vec::new();
     };
 
@@ -108,8 +133,8 @@ pub fn recent(workspace: &Path, budget: usize) -> Vec<Entry> {
 
 /// Forget the conversation, keeping the bot. What "clear thread" means for an
 /// engine that has no session of its own to end.
-pub fn clear(workspace: &Path) -> Result<(), String> {
-    match std::fs::remove_file(path(workspace)) {
+pub fn clear(workspace: &Path, thread: Option<&str>) -> Result<(), String> {
+    match std::fs::remove_file(path(workspace, thread)) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(format!("could not clear the transcript: {e}")),
@@ -130,11 +155,11 @@ mod tests {
     #[test]
     fn a_conversation_comes_back_in_order() {
         let dir = workspace("order");
-        append(&dir, Voice::User, "morning").unwrap();
-        append(&dir, Voice::Bot, "morning — two PRs need review").unwrap();
-        append(&dir, Voice::User, "which ones?").unwrap();
+        append(&dir, None, Voice::User, "morning").unwrap();
+        append(&dir, None, Voice::Bot, "morning — two PRs need review").unwrap();
+        append(&dir, None, Voice::User, "which ones?").unwrap();
 
-        let back = recent(&dir, BUDGET);
+        let back = recent(&dir, None, BUDGET);
         assert_eq!(back.len(), 3);
         assert_eq!(back[0].voice, Voice::User);
         assert_eq!(back[0].text, "morning");
@@ -147,14 +172,15 @@ mod tests {
         for i in 0..40 {
             append(
                 &dir,
+                None,
                 Voice::User,
                 &format!("old message {i} {}", "x".repeat(200)),
             )
             .unwrap();
         }
-        append(&dir, Voice::User, "the actual question").unwrap();
+        append(&dir, None, Voice::User, "the actual question").unwrap();
 
-        let back = recent(&dir, 1_000);
+        let back = recent(&dir, None, 1_000);
         assert!(
             back.len() < 41,
             "a budget that keeps everything is not a budget"
@@ -174,8 +200,8 @@ mod tests {
         // nothing at all, and half of it would read as something the person
         // said and stopped saying.
         let dir = workspace("huge");
-        append(&dir, Voice::User, &"y".repeat(5_000)).unwrap();
-        let back = recent(&dir, 100);
+        append(&dir, None, Voice::User, &"y".repeat(5_000)).unwrap();
+        let back = recent(&dir, None, 100);
         assert_eq!(back.len(), 1);
         assert_eq!(back[0].text.len(), 5_000, "entries are never cut in half");
     }
@@ -183,22 +209,22 @@ mod tests {
     #[test]
     fn a_bot_that_has_never_spoken_has_no_transcript() {
         let dir = workspace("empty");
-        assert!(recent(&dir, BUDGET).is_empty());
+        assert!(recent(&dir, None, BUDGET).is_empty());
         // And clearing one that was never written is not an error.
-        clear(&dir).expect("clearing nothing must succeed");
+        clear(&dir, None).expect("clearing nothing must succeed");
     }
 
     #[test]
     fn clearing_forgets_the_conversation_but_not_the_bot() {
         let dir = workspace("clear");
-        append(&dir, Voice::User, "something").unwrap();
-        clear(&dir).unwrap();
-        assert!(recent(&dir, BUDGET).is_empty());
+        append(&dir, None, Voice::User, "something").unwrap();
+        clear(&dir, None).unwrap();
+        assert!(recent(&dir, None, BUDGET).is_empty());
         assert!(dir.exists(), "the workspace is the bot; only the talk goes");
 
         // And it can be spoken to again afterwards.
-        append(&dir, Voice::User, "hello again").unwrap();
-        assert_eq!(recent(&dir, BUDGET).len(), 1);
+        append(&dir, None, Voice::User, "hello again").unwrap();
+        assert_eq!(recent(&dir, None, BUDGET).len(), 1);
     }
 
     #[test]
@@ -206,7 +232,7 @@ mod tests {
         // A crash mid-write leaves a partial line. The rest is still worth
         // reading — a transcript is not a ledger.
         let dir = workspace("damaged");
-        append(&dir, Voice::User, "before").unwrap();
+        append(&dir, None, Voice::User, "before").unwrap();
         {
             let mut file = std::fs::OpenOptions::new()
                 .append(true)
@@ -214,10 +240,45 @@ mod tests {
                 .unwrap();
             writeln!(file, "{{\"voice\":\"user\",\"text\":\"cut off").unwrap();
         }
-        append(&dir, Voice::Bot, "after").unwrap();
+        append(&dir, None, Voice::Bot, "after").unwrap();
 
-        let back = recent(&dir, BUDGET);
+        let back = recent(&dir, None, BUDGET);
         assert_eq!(back.len(), 2, "the readable entries survive");
         assert_eq!(back[1].text, "after");
+    }
+
+    /// The point of naming a thread: a bot's own chat and a room it speaks in
+    /// are two conversations, and replaying one into the other would have it
+    /// answering questions nobody in the room asked.
+    #[test]
+    fn a_channel_and_a_chat_are_different_conversations() {
+        let dir = workspace("threads");
+        append(&dir, None, Voice::User, "just between us").unwrap();
+        append(&dir, Some("ch-finance"), Voice::User, "in the room").unwrap();
+
+        let chat = recent(&dir, None, BUDGET);
+        let room = recent(&dir, Some("ch-finance"), BUDGET);
+        assert_eq!(chat.len(), 1);
+        assert_eq!(chat[0].text, "just between us");
+        assert_eq!(room.len(), 1);
+        assert_eq!(room[0].text, "in the room");
+
+        // And clearing one leaves the other standing.
+        clear(&dir, Some("ch-finance")).unwrap();
+        assert!(recent(&dir, Some("ch-finance"), BUDGET).is_empty());
+        assert_eq!(recent(&dir, None, BUDGET).len(), 1);
+    }
+
+    /// Ids come from the window today, but they end up as a filename, and a
+    /// filename is not the place to find out that something upstream changed.
+    #[test]
+    fn a_thread_name_cannot_escape_the_workspace() {
+        let dir = workspace("escape");
+        append(&dir, Some("../../etc/passwd"), Voice::User, "nope").unwrap();
+        assert!(
+            !dir.join("../../etc/passwd").exists(),
+            "a thread id is a name, not a path"
+        );
+        assert_eq!(recent(&dir, Some("../../etc/passwd"), BUDGET).len(), 1);
     }
 }

@@ -28,6 +28,33 @@ interface Message {
   error?: string;
   kind?: "teach" | "routine";
   meta?: { steps: number; frames: number; slug: string; name?: string };
+  /** In a channel, which bot said it. A private chat has two voices and needs
+   *  no attribution; a room has as many as it has members. */
+  by?: string;
+}
+
+/** A room, rather than a chat.
+ *
+ *  A bot's own thread is between the two of you. A channel is shared: several
+ *  bots and you, everyone reading everything, and a bot able to bring another
+ *  in by name. It is the difference between asking two people separately and
+ *  putting them in a room, and it is worth the machinery because the second
+ *  thing is what people actually do at work. */
+interface Channel {
+  id: string;
+  /** Without the "#", which is decoration the app adds. */
+  name: string;
+  /** What the room is for, in the user's words. Every member is told, because
+   *  a channel with no stated purpose gets answered as though it were a chat. */
+  purpose: string;
+  /** Bot ids. Order is the order they were added, which is the order their
+   *  faces appear in the header. */
+  members: string[];
+  messages: Message[];
+  /** Each member's own conversation in this room, kept apart from its chat:
+   *  a bot in #finance should not have last night's private thread replayed at
+   *  it, and what it says here should not turn up there. */
+  seats: Record<string, { sessionId: string; started: boolean }>;
 }
 
 /** A standing instruction a bot runs on a schedule. */
@@ -197,7 +224,11 @@ const MODEL = "opus";
 
 interface Persisted {
   bots: Bot[];
+  /** Absent on every state saved before rooms existed. */
+  channels?: Channel[];
   activeId: string | null;
+  /** The room on screen, if it is a room rather than a bot. */
+  activeChannel?: string | null;
   /** Whether the desktop pane is docked open, and how big. */
   screenOpen?: boolean;
   screenWidth?: number;
@@ -242,7 +273,13 @@ const DEFAULT_APP: AppSettings = {
   remoteOn: false,
 };
 
-const state: Persisted = { bots: [], activeId: null, app: { ...DEFAULT_APP } };
+const state: Persisted = {
+  bots: [],
+  channels: [],
+  activeId: null,
+  activeChannel: null,
+  app: { ...DEFAULT_APP },
+};
 
 const appSettings = () => state.app ?? DEFAULT_APP;
 
@@ -448,8 +485,17 @@ async function setUpEngine(): Promise<void> {
 const controlBtn = $<HTMLButtonElement>("#btn-control");
 const controlLabel = $<HTMLSpanElement>("#btn-control-label");
 
-/** Bots with a turn in flight, keyed by bot id. */
-const inflight = new Map<string, { message: Message; sawText: boolean; note: string }>();
+/** Bots with a turn in flight, keyed by bot id.
+ *
+ *  A bot takes one turn at a time wherever it is speaking, so the key stays the
+ *  bot: two turns at once would interleave into the same face and the same
+ *  stop button. `channelId` says which room this one is in — absent for its own
+ *  chat — and `settle` lets a caller wait for it, which is how a channel takes
+ *  one voice at a time instead of everybody talking over each other. */
+const inflight = new Map<
+  string,
+  { message: Message; sawText: boolean; note: string; channelId?: string; settle?: () => void }
+>();
 
 /** What this session has spent, and where the usage window stands. */
 const session = {
@@ -885,7 +931,14 @@ function load(): void {
       model: bot.model || MODEL,
       routines: bot.routines ?? [],
     }));
+    state.channels = (data.channels ?? []).map((ch) => ({
+      ...ch,
+      members: (ch.members ?? []).filter((id) => state.bots.some((b) => b.id === id)),
+      messages: ch.messages ?? [],
+      seats: ch.seats ?? {},
+    }));
     state.activeId = data.activeId ?? state.bots[0].id;
+    state.activeChannel = data.activeChannel ?? null;
     for (const bot of state.bots) freshenGuide(bot);
     state.screenOpen = Boolean(data.screenOpen);
     state.screenWidth = data.screenWidth;
@@ -919,7 +972,37 @@ function renderRoster(): void {
     return;
   }
 
-  botsEl.innerHTML = hits
+  // Rooms first, then bots. A channel is where several of them are, so it sits
+  // above the list of individuals — the same order every app with both has
+  // settled on, for the same reason.
+  const rooms = channels().filter(
+    (ch) => !q || ch.name.includes(q) || ch.messages.some((m) => m.text.toLowerCase().includes(q)),
+  );
+  const roomsHtml = rooms.length
+    ? `<p class="rail-group">Channels</p>` +
+      rooms
+        .map((ch) => {
+          const room = membersOf(ch);
+          const busy = room.some((b) => inflight.get(b.id)?.channelId === ch.id);
+          return (
+            `<button class="bot-row chan-row${ch.id === state.activeChannel ? " is-active" : ""}" ` +
+            `data-channel="${ch.id}">` +
+            `<span class="chan-row__hash">${icon("hash")}</span>` +
+            `<span class="bot-row__body"><span class="bot-row__top">` +
+            `<span class="bot-row__name">${escapeHtml(ch.name)}</span>` +
+            `<span class="bot-row__time">${busy ? "" : room.length || ""}</span>` +
+            `</span></span>` +
+            (busy ? `<span class="chan-row__live"></span>` : "") +
+            `</button>`
+          );
+        })
+        .join("")
+    : "";
+
+  botsEl.innerHTML =
+    roomsHtml +
+    (roomsHtml ? `<p class="rail-group">Bots</p>` : "") +
+    hits
     .map((bot) => {
       const last = lastOf(bot);
       return (
@@ -936,7 +1019,7 @@ function renderRoster(): void {
         `</span></button>`
       );
     })
-    .join("");
+      .join("");
 }
 
 /** A small drawing per lesson, which moves when the card is hovered or
@@ -1011,7 +1094,7 @@ function actsHtml(msg: Message): string {
   );
 }
 
-function turnEl(msg: Message): HTMLElement {
+function turnEl(msg: Message, ch?: Channel): HTMLElement {
   const wrap = document.createElement("div");
   wrap.dataset.msg = msg.id;
 
@@ -1034,6 +1117,24 @@ function turnEl(msg: Message): HTMLElement {
   }
 
   wrap.className = `turn turn--${msg.from}`;
+
+  // In a room, who said it. A face and a name above the bubble rather than
+  // beside it: the bubbles are already a column, and the eye reads a name at
+  // the top of one faster than it reads a colour down the side. Left off your
+  // own messages, which need no introduction, and off a chat, which has two
+  // voices and one of them is on the left.
+  const author = ch && msg.from === "bot" ? state.bots.find((b) => b.id === msg.by) : null;
+  if (author) {
+    wrap.classList.add("turn--said");
+    wrap.innerHTML =
+      `<span class="said">${faceHtml(author, "sm")}` +
+      `<span class="said__name">${escapeHtml(author.name)}</span>` +
+      `<span class="said__at">${clock(msg.at)}</span></span>` +
+      bubbleHtml(msg) +
+      actsHtml(msg);
+    return wrap;
+  }
+
   wrap.innerHTML = msg.from === "me" ? actsHtml(msg) + bubbleHtml(msg) : bubbleHtml(msg) + actsHtml(msg);
   return wrap;
 }
@@ -1147,7 +1248,15 @@ function setStreaming(on: boolean): void {
   sendBtn.title = on ? "Stop" : "Send";
 }
 
-const syncSend = () => setStreaming(inflight.has(state.activeId ?? ""));
+const syncSend = () => {
+  const room = activeChannel();
+  // In a room the button is a stop button while anybody in it is speaking —
+  // it is one conversation, whoever's turn it happens to be.
+  const busy = room
+    ? [...inflight.values()].some((p) => p.channelId === room.id)
+    : inflight.has(state.activeId ?? "");
+  setStreaming(busy);
+};
 
 // It knows you are talking to it before you have finished the sentence.
 input.addEventListener("input", () => {
@@ -1248,7 +1357,10 @@ function finish(botId: string, event: BotEvent): void {
     if (event.text && event.text.length > pending.message.text.length) {
       pending.message.text = event.text;
     }
-    bot.started = true;
+    // Only the bot's own session. A turn taken in a room created a different
+    // session entirely, and flagging this one would have the next private turn
+    // resume a conversation that was never started.
+    if (!pending.channelId) bot.started = true;
   } else if (event.kind === "cancelled") {
     pending.message.text = pending.message.text || "_Stopped._";
   } else {
@@ -1260,8 +1372,14 @@ function finish(botId: string, event: BotEvent): void {
   pending.message.at = Date.now();
   save();
   renderRoster();
-  if (botId === state.activeId) renderThread();
+  if (pending.channelId) {
+    if (pending.channelId === state.activeChannel) renderChannel();
+    else syncSend();
+  } else if (botId === state.activeId) renderThread();
   else syncSend();
+
+  // Whoever was waiting on this turn — the room, taking one voice at a time.
+  pending.settle?.();
 
   // If the demonstration went out unnamed, the bot was asked to name it.
   const demo = [...bot.messages].reverse().find((m) => m.kind === "teach");
@@ -1287,7 +1405,7 @@ function handleBotEvent(event: BotEvent): void {
   // forever. Recording it here also heals a bot already in that state: the
   // failure itself is the event that sets the flag.
   const from = state.bots.find((bot) => bot.id === event.botId);
-  if (from && !from.started) {
+  if (from && !from.started && !inflight.get(event.botId)?.channelId) {
     from.started = true;
     save();
   }
@@ -1356,7 +1474,8 @@ function handleBotEvent(event: BotEvent): void {
         if (colour) bot.color = colour;
         save();
         renderRoster();
-        renderThread();
+        if (state.activeChannel) renderChannel();
+        else renderThread();
         toast(`${bot.name} changed how it looks`);
       })
       .catch(() => {});
@@ -1388,7 +1507,9 @@ function handleBotEvent(event: BotEvent): void {
 
   const pending = inflight.get(event.botId);
   if (!pending) return;
-  const live = event.botId === state.activeId;
+  const live = pending.channelId
+    ? pending.channelId === state.activeChannel
+    : event.botId === state.activeId && !state.activeChannel;
 
   if (event.kind === "tool") {
     const tool = (event.text ?? "a tool").replace(/^mcp__desktop__/, "");
@@ -1425,8 +1546,20 @@ function handleBotEvent(event: BotEvent): void {
 
 function send(text: string): void {
   const clean = text.trim();
+  if (!clean) return;
+
+  const room = activeChannel();
+  if (room) {
+    if (!claudeReady) {
+      toast("Claude Code CLI not found — install it to talk to your bots");
+      return;
+    }
+    postToChannel(room, clean);
+    return;
+  }
+
   const bot = activeBot();
-  if (!clean || !bot || inflight.has(bot.id)) return;
+  if (!bot || inflight.has(bot.id)) return;
   if (!claudeReady) {
     toast("Claude Code CLI not found — install it to talk to your bots");
     return;
@@ -3154,6 +3287,8 @@ function freshenGuide(bot: Bot): void {
 function openBot(id: string): void {
   const opening = state.bots.find((bot) => bot.id === id);
   if (opening) freshenGuide(opening);
+  state.activeChannel = null;
+  paintTopbarFor(opening ?? null);
   state.activeId = id;
   setMood(id, "wave");
   save();
@@ -3164,6 +3299,401 @@ function openBot(id: string): void {
   if (!screenPane.hidden && screen.botId !== id) void openScreen();
   input.focus();
 }
+
+
+/* ---------------------------------------------------------------- channels */
+/* A channel is several bots and you in one room. The pieces are: who is in it,
+   who a message is addressed to, what a bot missed while it was not speaking,
+   and how far a conversation between bots may run before it stops. Everything
+   else — streaming, faces, bubbles, the stop button — is the machinery a chat
+   already had, which is why a room reuses `Message` rather than inventing a
+   parallel kind of thing to say. */
+
+/** How many bot-to-bot summons one message from you may set off.
+ *
+ *  Bots that can summon each other can summon each other forever, and the
+ *  failure mode is not a crash: it is two bots being polite at each other
+ *  overnight and a bill in the morning.
+ *
+ *  One pot for the whole message, not one per chain. Depth alone is not a
+ *  bound: naming two bots in a sentence started two chains of three, and the
+ *  first one to speak spent a turn saying "I'll let X take this" — which is
+ *  five turns for one question and reads as the bots enjoying themselves.
+ *  Whoever *you* named always answers; this only limits what they set off. */
+const HOPS = 3;
+
+/** What is left of that pot, for one message. */
+interface Budget {
+  left: number;
+}
+
+const channels = (): Channel[] => (state.channels ??= []);
+const activeChannel = (): Channel | null =>
+  channels().find((c) => c.id === state.activeChannel) ?? null;
+const membersOf = (ch: Channel): Bot[] =>
+  ch.members.map((id) => state.bots.find((b) => b.id === id)).filter((b): b is Bot => Boolean(b));
+
+/** The seat a bot sits in: its own session for this room, made on first use. */
+function seatFor(ch: Channel, bot: Bot): { sessionId: string; started: boolean } {
+  return (ch.seats[bot.id] ??= { sessionId: newSessionId(), started: false });
+}
+
+/** Who a message is addressed to.
+ *
+ *  An "@" and a name summons that member. Names have spaces in them, so this
+ *  matches the longest member name that follows the "@" rather than a word —
+ *  "@Research and Writing" is one person, not one person and a conjunction.
+ *
+ *  With nobody named, the rule depends on how crowded the room is: one bot in
+ *  it answers everything, because a two-person room is a chat and making you
+ *  type its name every time would be silly. More than one and an unaddressed
+ *  message is left alone — that is what a channel is, and five bots all
+ *  answering "morning" is the behaviour this rule exists to prevent. */
+function addressees(ch: Channel, text: string, exclude?: string): Bot[] {
+  const room = membersOf(ch).filter((bot) => bot.id !== exclude);
+  const hay = text.toLowerCase();
+  const named = room.filter((bot) => {
+    const at = `@${bot.name.toLowerCase()}`;
+    let from = hay.indexOf(at);
+    while (from !== -1) {
+      // Followed by a word character it is a longer name that happens to start
+      // with this one, and belongs to somebody else.
+      const after = hay[from + at.length] ?? " ";
+      if (!/[a-z0-9]/.test(after)) return true;
+      from = hay.indexOf(at, from + 1);
+    }
+    return false;
+  });
+  if (named.length) return named;
+  return exclude === undefined && room.length === 1 ? room : [];
+}
+
+/** What was said in here since this bot last spoke, attributed.
+ *
+ *  A bot's session only ever saw what botcage sent it, so a room's other
+ *  voices reach it as text or not at all. Attributed on every line because in
+ *  a room "who said that" is half the message. */
+function whatItMissed(ch: Channel, botId: string): string {
+  const spokeAt = ch.messages.map((m) => m.by).lastIndexOf(botId);
+  const fresh = ch.messages.slice(spokeAt + 1).filter((m) => m.text.trim());
+  const lines = fresh.map((m) => {
+    const who = m.from === "me" ? userName() || "The user" : nameOf(m.by) || "A bot";
+    return `${who}: ${m.text}`;
+  });
+  return lines.join("\n\n");
+}
+
+const nameOf = (botId?: string): string =>
+  state.bots.find((b) => b.id === botId)?.name ?? "";
+
+/** What a bot is told about the room it is speaking in. */
+function channelPromptFor(ch: Channel, bot: Bot): string {
+  const others = membersOf(ch).filter((b) => b.id !== bot.id);
+  return [
+    `You are "${bot.name}". This is #${ch.name}, a shared channel in botcage — a room, not a private chat.`,
+    userName() ? `The person you are talking to is called ${userName()}.` : "",
+    ch.purpose ? `What this channel is for:\n\n${ch.purpose}` : "",
+    bot.role ? `What you are here to do, as the user described it:\n\n${bot.role}` : "",
+    others.length
+      ? `Also in this channel: ${others.map((b) => `${b.name}${b.role ? ` (${b.role.split("\n")[0].slice(0, 120)})` : ""}`).join("; ")}.`
+      : `You are the only bot in this channel for now.`,
+    // The two rules that make a room work rather than turn into a hall of
+    // mirrors. Stated as behaviour rather than as prohibitions, because a
+    // model told only what not to do will still do something.
+    others.length
+      ? `Every message you see is labelled with who said it. To bring someone in, write @${others[0].name} — they are given the conversation and reply here. Do that when the work is genuinely theirs, and say what you want from them in the same message. Don't @ someone to thank them, agree with them, or hand back something already finished: a mention costs them a turn, and a channel where every message summons somebody is a channel nobody can read.`
+      : "",
+    `You are not obliged to speak. If the room does not need you, reply with nothing at all.`,
+    `Reply conversationally and keep it tight — this is a chat window and other people are reading. Markdown is rendered.`,
+    `Your working directory is this bot's private scratch folder, and CLAUDE.md in it is your memory across sessions.`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/** Resolves when this bot's turn ends, however it ends. */
+function settled(botId: string): Promise<void> {
+  const pending = inflight.get(botId);
+  if (!pending) return Promise.resolve();
+  return new Promise((resolve) => {
+    pending.settle = resolve;
+  });
+}
+
+/** One bot's turn in a room, and whatever it sets off.
+ *
+ *  Sequential on purpose: the addressees answer one at a time, and a bot that
+ *  brings somebody in waits for them. A room where three bots stream at once
+ *  is unreadable, and it is also not how the thing being modelled works. */
+async function channelTurn(ch: Channel, bot: Bot, budget: Budget): Promise<void> {
+  // Busy in its own chat, or already speaking here. Skipped rather than
+  // queued: by the time it is free the conversation has moved on, and an
+  // answer to a message five turns back is worse than no answer.
+  if (inflight.has(bot.id)) {
+    toast(`${bot.name} is busy — ask again in a moment`);
+    return;
+  }
+
+  const heard = whatItMissed(ch, bot.id);
+  if (!heard.trim()) return;
+
+  const seat = seatFor(ch, bot);
+  const post: Message = { id: uid(), from: "bot", by: bot.id, text: "", at: Date.now() };
+  ch.messages.push(post);
+  inflight.set(bot.id, { message: post, sawText: false, note: "", channelId: ch.id });
+
+  if (state.activeChannel === ch.id) {
+    thread.append(turnEl(post, ch));
+    waitingHtml(post.id, "");
+    scrollToEnd(true);
+  }
+  syncSend();
+  renderRoster();
+
+  const wait = settled(bot.id);
+  try {
+    await invoke("ask", {
+      req: {
+        botId: bot.id,
+        engine: bot.engine ?? DEFAULT_ENGINE,
+        provider: bot.provider,
+        // Its seat in this room, not its chat: a different conversation with a
+        // different history, which is the whole reason both can exist.
+        sessionId: seat.sessionId,
+        resume: seat.started,
+        thread: ch.id,
+        prompt: heard,
+        systemPrompt: channelPromptFor(ch, bot),
+        model: bot.model || MODEL,
+        botName: bot.name,
+        botRole: bot.role,
+        colleagues: state.bots.filter((b) => b.id !== bot.id).map((b) => b.name),
+        computer: bot.computer,
+        brand: {
+          name: bot.name,
+          color: bot.color,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? "",
+          locale: navigator.language ?? "",
+          network: bot.network,
+          github: (bot.plugins ?? []).includes("github"),
+          ...machineBrand(bot),
+        },
+        plugins: bot.plugins ?? [],
+        blockedPlugins: plugins.map((p) => p.key).filter((key) => !(bot.plugins ?? []).includes(key)),
+      },
+    });
+  } catch (err) {
+    finish(bot.id, { botId: bot.id, kind: "error", text: String(err) });
+  }
+  await wait;
+  seat.started = true;
+
+  // Nothing to say is a valid turn, and an empty bubble is not. Drop it.
+  if (!post.text.trim() && !post.error) {
+    ch.messages.splice(ch.messages.indexOf(post), 1);
+    if (state.activeChannel === ch.id) renderChannel();
+  }
+  save();
+
+  // Whoever it brought in, while the message still has turns left to give.
+  for (const next of addressees(ch, post.text, bot.id)) {
+    if (budget.left <= 0) return;
+    budget.left -= 1;
+    await channelTurn(ch, next, budget);
+  }
+}
+
+/** You said something in a room. */
+function postToChannel(ch: Channel, text: string): void {
+  const msg: Message = { id: uid(), from: "me", text, at: Date.now() };
+  ch.messages.push(msg);
+  if (ch.messages.length === 1) thread.innerHTML = "";
+  thread.append(turnEl(msg, ch));
+  input.value = "";
+  autoGrow();
+  save();
+  scrollToEnd(true);
+
+  const wanted = addressees(ch, text);
+  if (!wanted.length) {
+    // Said to the room rather than to anyone in it. Not an error — people do
+    // it constantly — but silence with no explanation reads as a bug.
+    if (membersOf(ch).length > 1) {
+      toast(`Nobody was named — write @${membersOf(ch)[0].name} to bring someone in`);
+    }
+    return;
+  }
+  const budget: Budget = { left: HOPS };
+  void (async () => {
+    for (const bot of wanted) await channelTurn(ch, bot, budget);
+  })();
+}
+
+/* -------------------------------------------------------------- the room UI */
+
+function renderChannel(): void {
+  const ch = activeChannel();
+  if (!ch) return;
+
+  const room = membersOf(ch);
+  topbarId.innerHTML =
+    `<span class="chan__hash">${icon("hash")}</span><span>${escapeHtml(ch.name)}</span>` +
+    `<span class="chan__faces">${room.map((b) => faceHtml(b, "sm")).join("")}</span>`;
+  input.placeholder = room.length
+    ? `Message #${ch.name}`
+    : `#${ch.name} has nobody in it yet`;
+
+  if (!ch.messages.length) {
+    thread.innerHTML =
+      `<div class="empty">` +
+      `<h2>#${escapeHtml(ch.name)}</h2>` +
+      `<p>${
+        room.length > 1
+          ? `${escapeHtml(room.map((b) => b.name).join(", "))} are in here. Name one with @ to bring them in — they can bring each other in the same way.`
+          : room.length === 1
+            ? `${escapeHtml(room[0].name)} is in here and answers everything said.`
+            : `Nobody is in here yet. Open the channel's settings to add bots.`
+      }</p></div>`;
+  } else {
+    thread.innerHTML = "";
+    for (const msg of ch.messages) thread.append(turnEl(msg, ch));
+  }
+
+  // Re-attach the waiting indicator for anyone mid-turn in this room.
+  for (const [, pending] of inflight) {
+    if (pending.channelId === ch.id && !pending.sawText) waitingHtml(pending.message.id, pending.note);
+  }
+  syncSend();
+  scrollToEnd();
+}
+
+function openChannel(id: string): void {
+  state.activeChannel = id;
+  // A room has no calendar of its own, so leave the one that was open.
+  if (routinesOpen) {
+    routinesOpen = false;
+    $<HTMLElement>(".main").classList.remove("is-routines");
+    $<HTMLElement>("#routines").hidden = true;
+    $<HTMLButtonElement>("#btn-routines").classList.remove("is-on");
+  }
+  save();
+  renderRoster();
+  paintTopbarFor(null);
+  renderChannel();
+  input.focus();
+}
+
+/** Which of the top-right buttons make sense for what is on screen.
+ *
+ *  A room has no routines, no plugins of its own and no computer — those
+ *  belong to a bot. Hiding them beats showing four buttons that do nothing to
+ *  the thing you are looking at. */
+function paintTopbarFor(bot: Bot | null): void {
+  const inRoom = !bot;
+  for (const id of ["btn-routines", "btn-plugins", "btn-monitor"]) {
+    $<HTMLButtonElement>(`#${id}`).hidden = inRoom;
+  }
+  const gear = $<HTMLButtonElement>("#btn-settings");
+  gear.title = inRoom ? "Channel settings" : "Bot settings";
+}
+
+/* --------------------------------------------------------- making a channel */
+
+let editingChannel: string | null = null;
+const channelWrap = $<HTMLDivElement>("#channel-wrap");
+const channelName = $<HTMLInputElement>("#channel-name");
+const channelPurpose = $<HTMLTextAreaElement>("#channel-purpose");
+const channelMembers = $<HTMLDivElement>("#channel-members");
+
+function openChannelSheet(ch: Channel | null): void {
+  editingChannel = ch?.id ?? null;
+  channelName.value = ch?.name ?? "";
+  channelPurpose.value = ch?.purpose ?? "";
+
+  channelMembers.innerHTML = state.bots.length
+    ? state.bots
+        .map(
+          (bot) =>
+            `<label class="chan__member">` +
+            `<input type="checkbox" value="${bot.id}"${ch?.members.includes(bot.id) ? " checked" : ""} />` +
+            faceHtml(bot, "sm") +
+            `<span class="chan__memberName">${escapeHtml(bot.name)}</span></label>`,
+        )
+        .join("")
+    : `<p class="chan__fine">Make a bot first — a channel with nobody in it is a notepad.</p>`;
+
+  $<HTMLHeadingElement>("#channel-title").textContent = ch ? `#${ch.name}` : "New channel";
+  $<HTMLButtonElement>("#channel-save").textContent = ch ? "Save" : "Create channel";
+  $<HTMLButtonElement>("#channel-delete").hidden = !ch;
+  channelWrap.hidden = false;
+  channelName.focus();
+}
+
+$<HTMLFormElement>("#channel-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  // A channel name is a handle: lowercase, no spaces, like every other app
+  // that has one. Corrected rather than rejected — nobody wants a form error
+  // for typing a capital letter.
+  const name = channelName.value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 24);
+  if (!name) {
+    channelName.focus();
+    return;
+  }
+  const picked = [...channelMembers.querySelectorAll<HTMLInputElement>("input:checked")].map(
+    (box) => box.value,
+  );
+
+  const existing = channels().find((c) => c.id === editingChannel);
+  if (existing) {
+    existing.name = name;
+    existing.purpose = channelPurpose.value.trim();
+    existing.members = picked;
+  } else {
+    const made: Channel = {
+      id: uid(),
+      name,
+      purpose: channelPurpose.value.trim(),
+      members: picked,
+      messages: [],
+      seats: {},
+    };
+    channels().push(made);
+    state.activeChannel = made.id;
+  }
+  channelWrap.hidden = true;
+  save();
+  renderRoster();
+  renderChannel();
+  input.focus();
+});
+
+$<HTMLButtonElement>("#channel-delete").addEventListener("click", () => {
+  const ch = channels().find((c) => c.id === editingChannel);
+  if (!ch) return;
+  state.channels = channels().filter((c) => c.id !== ch.id);
+  // Each member kept a conversation for this room; it goes with the room.
+  for (const botId of Object.keys(ch.seats)) {
+    void invoke("clear_thread", { botId, thread: ch.id }).catch(() => {});
+  }
+  channelWrap.hidden = true;
+  state.activeChannel = null;
+  save();
+  renderRoster();
+  renderThread();
+  toast(`Deleted #${ch.name}`);
+});
+
+$<HTMLButtonElement>("#channel-close").addEventListener("click", () => {
+  channelWrap.hidden = true;
+});
+channelWrap.addEventListener("mousedown", (e) => {
+  if (e.target === channelWrap) channelWrap.hidden = true;
+});
 
 /* ------------------------------------------------------------ app settings */
 
@@ -4112,6 +4642,8 @@ input.addEventListener("keydown", (e) => {
 $<HTMLButtonElement>("#btn-routines").addEventListener("click", () => showRoutines(!routinesOpen));
 
 $<HTMLButtonElement>("#btn-settings").addEventListener("click", () => {
+  const room = activeChannel();
+  if (room) return openChannelSheet(room);
   const bot = activeBot();
   if (bot) openSheet(bot);
 });
@@ -4120,7 +4652,24 @@ $<HTMLButtonElement>("#btn-monitor").addEventListener("click", () => {
   if (screenPane.hidden) void openScreen();
   else closeScreen();
 });
-$<HTMLButtonElement>("#btn-new").addEventListener("click", () => openSheet());
+$<HTMLButtonElement>("#btn-new").addEventListener("click", (event) => {
+  // One plus, two things it could make. A menu rather than a second icon in a
+  // two-icon header: "new" is one intention, and which kind is the question it
+  // is already asking.
+  openMenu(
+    event.currentTarget as HTMLElement,
+    `<button type="button" class="menu-item" data-new="bot">${icon("plus")}New bot</button>` +
+      `<button type="button" class="menu-item" data-new="channel">${icon("hash")}New channel</button>`,
+  );
+});
+
+menu.addEventListener("click", (event) => {
+  const pick = (event.target as HTMLElement).closest<HTMLElement>("[data-new]");
+  if (!pick) return;
+  closeMenu();
+  if (pick.dataset.new === "channel") openChannelSheet(null);
+  else openSheet();
+});
 
 $<HTMLButtonElement>("#btn-account").addEventListener("click", (event) => {
   openMenu(
@@ -4153,6 +4702,8 @@ $<HTMLDivElement>(".field").addEventListener("click", () => {
 searchEl.addEventListener("input", renderRoster);
 
 botsEl.addEventListener("click", (e) => {
+  const room = (e.target as HTMLElement).closest<HTMLElement>("[data-channel]");
+  if (room) return openChannel(room.dataset.channel!);
   const row = (e.target as HTMLElement).closest<HTMLElement>("[data-bot]");
   if (row) openBot(row.dataset.bot!);
 });
@@ -4613,6 +5164,7 @@ document.addEventListener("keydown", (e) => {
   } else if (e.key === "Escape") {
     if (!tourWrap().hidden) endTour();
     else if (!modelsWrap.hidden) modelsWrap.hidden = true;
+    else if (!channelWrap.hidden) channelWrap.hidden = true;
     else if (!routineWrap.hidden) routineWrap.hidden = true;
     else if (!setupWrap.hidden) closeSetup();
     else if (!aboutWrap.hidden) aboutWrap.hidden = true;
@@ -5988,7 +6540,15 @@ setPaneWidth(state.screenWidth ?? SCREEN_PANE.initial);
 setPaneHeight(state.screenHeight ?? SCREEN_ROW.initial);
 relayout();
 renderRoster();
-renderThread();
+// Reopen whatever was on screen last. A room you were reading is as much
+// "where you were" as a bot you were talking to.
+if (activeChannel()) {
+  paintTopbarFor(null);
+  renderChannel();
+} else {
+  paintTopbarFor(activeBot());
+  renderThread();
+}
 if (state.screenOpen) void openScreen();
 autoGrow();
 input.focus();

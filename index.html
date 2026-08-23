@@ -104,6 +104,9 @@
         <path d="M12 2.7 20.5 7.4v9.2L12 21.3 3.5 16.6V7.4z" />
         <path d="M3.5 7.4 12 12l8.5-4.6M12 12v9.3" />
       </symbol>
+      <symbol id="i-hash" viewBox="0 0 24 24">
+        <path d="M9.5 3 7.8 21M16.2 3l-1.7 18M3.8 8.5h17M3 15.5h17" />
+      </symbol>
       <symbol id="i-record" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="9.5" />
         <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />
@@ -299,6 +302,36 @@
             <button type="button" class="chip" id="models-key-save"><span>Save key</span></button>
             <button type="button" class="chip" id="models-key-forget" hidden><span>Forget</span></button>
           </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="overlay" id="channel-wrap" hidden>
+      <form class="sheet sheet--channel" id="channel-form">
+        <div class="sheet__head">
+          <h2 id="channel-title">New channel</h2>
+          <button type="button" class="icon-btn icon-btn--sm" id="channel-close" aria-label="Close">
+            <svg><use href="#i-x" /></svg>
+          </button>
+        </div>
+        <div class="sheet__body">
+          <label class="chan__name">
+            <span>#</span>
+            <input id="channel-name" placeholder="finance" spellcheck="false" maxlength="24" />
+          </label>
+          <textarea id="channel-purpose" rows="3"
+                    placeholder="What is this channel for? Everyone in it is told, so it is worth a sentence."></textarea>
+
+          <p class="chan__group">Who is in it</p>
+          <div class="chan__members" id="channel-members"></div>
+          <p class="chan__fine">
+            Bots in a channel see everything said in it and can bring each other in by name.
+            Their private chats stay private.
+          </p>
+        </div>
+        <div class="sheet__foot">
+          <button type="button" class="danger" id="channel-delete" hidden>Delete channel</button>
+          <button type="submit" class="btn-primary" id="channel-save">Create channel</button>
         </div>
       </form>
     </div>

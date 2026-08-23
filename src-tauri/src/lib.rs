@@ -224,6 +224,11 @@ struct AskRequest {
     /// their calendars, and knows who there is to ask.
     #[serde(default)]
     colleagues: Vec<String>,
+    /// Which conversation this turn belongs to. Absent for the bot's own chat;
+    /// a channel id when it is speaking in a room, so the two do not run into
+    /// one another for an engine botcage keeps the transcript for.
+    #[serde(default)]
+    thread: Option<String>,
     /// MCP server keys this bot may use, from the app's plugin list.
     #[serde(default)]
     plugins: Vec<String>,
@@ -323,7 +328,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     let history = if engine.owns_transcript() && req.resume {
         Vec::new()
     } else {
-        transcript::recent(&cwd, transcript::BUDGET)
+        transcript::recent(&cwd, req.thread.as_deref(), transcript::BUDGET)
     };
 
     // A running desktop earns the bot a second set of tools, pointed at that
@@ -467,7 +472,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     // Kept for every engine, not only the ones that need it read back. It costs
     // a line per message, and it is what lets a bot keep its thread when the
     // thing answering for it changes.
-    let _ = transcript::append(&cwd, transcript::Voice::User, &req.prompt);
+    let _ = transcript::append(&cwd, req.thread.as_deref(), transcript::Voice::User, &req.prompt);
 
     let stdout = child
         .stdout
@@ -493,6 +498,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     let bot_id = req.bot_id.clone();
     let reader = inference::for_key(req.engine.as_deref());
     let workspace = cwd.clone();
+    let thread = req.thread.clone();
     std::thread::spawn(move || {
         let mut final_text: Option<String> = None;
         let mut failure: Option<String> = None;
@@ -561,7 +567,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
             Some(text) if text.len() >= spoken.len() => text.clone(),
             _ => spoken.clone(),
         };
-        let _ = transcript::append(&workspace, transcript::Voice::Bot, &said);
+        let _ = transcript::append(&workspace, thread.as_deref(), transcript::Voice::Bot, &said);
 
         // stdout is closed, so the process is finished or was killed.
         let status = app_handle
@@ -649,8 +655,8 @@ fn take_routines(app: AppHandle, bot_id: String) -> Vec<Value> {
 /// is this file — so clearing on screen has to clear it here, or a "cleared"
 /// bot would carry on referring to what was just deleted.
 #[tauri::command]
-fn clear_thread(app: AppHandle, bot_id: String) -> Result<(), String> {
-    transcript::clear(&workspace(&app, &bot_id)?)
+fn clear_thread(app: AppHandle, bot_id: String, thread: Option<String>) -> Result<(), String> {
+    transcript::clear(&workspace(&app, &bot_id)?, thread.as_deref())
 }
 
 /// Forget a bot for good: kill any turn in flight, drop its Claude Code
