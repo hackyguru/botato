@@ -4889,6 +4889,28 @@ a.detail__source:hover {
   background: var(--hover);
 }
 
+/* The room itself. Marked out because it is not a person and because picking
+   it by accident costs several turns rather than one. */
+.mention__all {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  background: var(--hover);
+  border-radius: 50%;
+}
+.mention__all svg {
+  width: 15px;
+  height: 15px;
+  stroke: var(--text-2);
+  stroke-width: 1.9;
+  fill: none;
+}
+.mention--all .mention__name {
+  color: var(--text-2);
+}
+
 .mention__name {
   flex: none;
   font-size: 13.5px;

@@ -3339,6 +3339,17 @@ function seatFor(ch: Channel, bot: Bot): { sessionId: string; started: boolean }
   return (ch.seats[bot.id] ??= { sessionId: newSessionId(), started: false });
 }
 
+/** Calling the whole room in. Three spellings because people arrive from
+ *  different apps and all three mean the same thing; "@everyones" is a word
+ *  and not a summons, hence the boundary.
+ *
+ *  A regex literal rather than one built from a template string: `\b` inside a
+ *  template literal is the backspace character, not a word boundary, so the
+ *  first version of this compiled, ran, and matched nothing — and a message
+ *  that summons nobody is indistinguishable on screen from a message addressed
+ *  to nobody, which is why it took sending one to notice. */
+const callsTheRoom = (text: string): boolean => /@(everyone|channel|here)\b/i.test(text);
+
 /** Who a message is addressed to.
  *
  *  An "@" and a name summons that member. Names have spaces in them, so this
@@ -3352,6 +3363,13 @@ function seatFor(ch: Channel, bot: Bot): { sessionId: string; started: boolean }
  *  answering "morning" is the behaviour this rule exists to prevent. */
 function addressees(ch: Channel, text: string, exclude?: string): Bot[] {
   const room = membersOf(ch).filter((bot) => bot.id !== exclude);
+
+  // "@everyone" is yours alone — `exclude` is set only when a bot is the one
+  // being read. A bot able to call the room in would spend a whole message's
+  // budget in one line, and in a room of five that means three arbitrary bots
+  // answer and two do not, which is worse than a rule that says no. Bots bring
+  // in the person whose work it is, by name.
+  if (exclude === undefined && callsTheRoom(text)) return room;
   const hay = text.toLowerCase();
   const named = room.filter((bot) => {
     const at = `@${bot.name.toLowerCase()}`;
@@ -3402,7 +3420,7 @@ function channelPromptFor(ch: Channel, bot: Bot): string {
     // mirrors. Stated as behaviour rather than as prohibitions, because a
     // model told only what not to do will still do something.
     others.length
-      ? `Every message you see is labelled with who said it. To bring someone in, write @${others[0].name} — they are given the conversation and reply here. Do that when the work is genuinely theirs, and say what you want from them in the same message. Don't @ someone to thank them, agree with them, or hand back something already finished: a mention costs them a turn, and a channel where every message summons somebody is a channel nobody can read.`
+      ? `Every message you see is labelled with who said it. To bring someone in, write @${others[0].name} — they are given the conversation and reply here. Do that when the work is genuinely theirs, and say what you want from them in the same message. Don't @ someone to thank them, agree with them, or hand back something already finished: a mention costs them a turn, and a channel where every message summons somebody is a channel nobody can read. The user can call the whole room in with @everyone; you cannot — name the person whose work it is.`
       : "",
     `You are not obliged to speak. If the room does not need you, reply with nothing at all.`,
     `Reply conversationally and keep it tight — this is a chat window and other people are reading. Markdown is rendered.`,
@@ -3520,7 +3538,7 @@ function postToChannel(ch: Channel, text: string): void {
     // Said to the room rather than to anyone in it. Not an error — people do
     // it constantly — but silence with no explanation reads as a bug.
     if (membersOf(ch).length > 1) {
-      toast(`Nobody was named — write @${membersOf(ch)[0].name} to bring someone in`);
+      toast(`Nobody was named — @${membersOf(ch)[0].name} brings one in, @everyone brings them all`);
     }
     return;
   }
@@ -4641,7 +4659,17 @@ input.addEventListener("input", autoGrow);
    nobody uses. */
 
 const mentionsEl = $<HTMLDivElement>("#mentions");
-let mentionHits: Bot[] = [];
+
+/** Something you can put after an "@": one of the room's members, or the room
+ *  itself. Both are a name and a line about what picking it does, so the list
+ *  does not need to know which kind it is holding. */
+interface Mention {
+  name: string;
+  hint: string;
+  bot?: Bot;
+}
+
+let mentionHits: Mention[] = [];
 let mentionPick = 0;
 
 /** The "@…" being typed at the caret, if there is one.
@@ -4675,13 +4703,29 @@ function paintMentions(): void {
   if (!room || !found) return closeMentions();
 
   const q = found.query.toLowerCase();
-  const room_ = membersOf(room);
+  const here = membersOf(room);
+  const offered: Mention[] = here.map((bot) => ({
+    name: bot.name,
+    hint: bot.role ? bot.role.split("\n")[0].slice(0, 60) : "",
+    bot,
+  }));
+
+  // The room itself, last: it is the loudest thing in the list and putting it
+  // first would make it the thing you hit by reflex. Only where there is a
+  // room to call — in a one-bot channel it is a longer way to say its name.
+  if (here.length > 1) {
+    offered.push({
+      name: "everyone",
+      hint: `Bring in all ${here.length} — ${here.map((b) => b.name).join(", ")}`,
+    });
+  }
+
   // What you have typed first, then anything else containing it: someone who
   // types "writ" means Research and Writing, and a list that refuses to find
   // it is worse than no list.
-  const starts = room_.filter((b) => b.name.toLowerCase().startsWith(q));
-  const rest = room_.filter(
-    (b) => !starts.includes(b) && q.length > 0 && b.name.toLowerCase().includes(q),
+  const starts = offered.filter((m) => m.name.toLowerCase().startsWith(q));
+  const rest = offered.filter(
+    (m) => !starts.includes(m) && q.length > 0 && m.name.toLowerCase().includes(q),
   );
   mentionHits = [...starts, ...rest];
   if (!mentionHits.length) return closeMentions();
@@ -4689,13 +4733,12 @@ function paintMentions(): void {
   mentionPick = Math.min(mentionPick, mentionHits.length - 1);
   mentionsEl.innerHTML = mentionHits
     .map(
-      (bot, i) =>
-        `<button type="button" class="mention${i === mentionPick ? " is-on" : ""}" data-pick="${i}">` +
-        faceHtml(bot, "sm") +
-        `<span class="mention__name">${escapeHtml(bot.name)}</span>` +
-        (bot.role
-          ? `<span class="mention__role">${escapeHtml(bot.role.split("\n")[0].slice(0, 60))}</span>`
-          : "") +
+      (m, i) =>
+        `<button type="button" class="mention${i === mentionPick ? " is-on" : ""}` +
+        `${m.bot ? "" : " mention--all"}" data-pick="${i}">` +
+        (m.bot ? faceHtml(m.bot, "sm") : `<span class="mention__all">${icon("people")}</span>`) +
+        `<span class="mention__name">${escapeHtml(m.name)}</span>` +
+        (m.hint ? `<span class="mention__role">${escapeHtml(m.hint)}</span>` : "") +
         `</button>`,
     )
     .join("");
@@ -4703,7 +4746,7 @@ function paintMentions(): void {
   mentionsEl.querySelector(".is-on")?.scrollIntoView({ block: "nearest" });
 }
 
-function acceptMention(bot: Bot): void {
+function acceptMention(pick: Mention): void {
   const found = mentionQuery();
   if (!found) return closeMentions();
   const caret = input.selectionStart ?? input.value.length;
@@ -4711,7 +4754,7 @@ function acceptMention(bot: Bot): void {
   const tail = input.value.slice(caret);
   // The trailing space is the point: the next thing you type is the message,
   // not more of the name.
-  const written = `@${bot.name} `;
+  const written = `@${pick.name} `;
   input.value = head + written + tail;
   const pos = head.length + written.length;
   input.setSelectionRange(pos, pos);
