@@ -1547,6 +1547,10 @@ function handleBotEvent(event: BotEvent): void {
   // kind === "delta"
   pending.message.text += event.text ?? "";
   pending.sawText = true;
+  // On a call, each sentence goes to the voice the moment it is whole. Before
+  // the `live` check, because a call is worth speaking even if the thread it
+  // belongs to is not the pane on screen.
+  if (call?.botId === event.botId) speakAsItArrives(event.botId, pending.message.text);
   if (!live) return;
 
   const body = bodyOf(pending.message.id);
@@ -3789,6 +3793,12 @@ interface Call {
   bits: Blob[];
   /** What it heard you say last, shown so a misheard word is visible. */
   heard: string;
+  /** How much of the reply has already been handed to the voice. */
+  spokenTo: number;
+  /** Sentences waiting their turn at the speaker. */
+  saying: string[];
+  /** Whether something is being said right now. */
+  voicing: boolean;
 }
 
 
@@ -3832,7 +3842,17 @@ async function startCall(bot: Bot): Promise<void> {
     toast("Claude Code CLI not found — install it to talk to your bots");
     return;
   }
-  call = { botId: bot.id, queue: [], listening: false, tape: null, bits: [], heard: "" };
+  call = {
+    botId: bot.id,
+    queue: [],
+    listening: false,
+    tape: null,
+    bits: [],
+    heard: "",
+    spokenTo: 0,
+    saying: [],
+    voicing: false,
+  };
 
   $<HTMLDivElement>("#call-face").innerHTML = faceHtml(bot, "lg");
   $<HTMLHeadingElement>("#call-who").textContent = bot.name;
@@ -3864,6 +3884,7 @@ async function startCall(bot: Bot): Promise<void> {
 
 function endCall(): void {
   if (!call) return;
+  call.saying = [];
   stopListening();
   void invoke("hush").catch(() => {});
   call = null;
@@ -3953,7 +3974,10 @@ function startListening(): void {
   if (!call || call.listening) return;
   call.listening = true;
   call.bits = [];
-  // Nothing should be talking at you while you talk.
+  // Talking over it stops it. The queue is emptied first: hushing only kills
+  // the sentence in the air, and the pump would calmly start the next one —
+  // which is the opposite of being interrupted.
+  call.saying = [];
   void invoke("hush").catch(() => {});
   setMood(call.botId, "listen");
   callSays("Listening…");
@@ -4034,6 +4058,8 @@ function sayToBot(said: string): void {
 
   callHeard.textContent = said;
   callSays("Thinking…");
+  call.spokenTo = 0;
+  call.saying = [];
 
   const msg: Message = { id: uid(), from: "me", text: said, at: Date.now() };
   bot.messages.push(msg);
@@ -4049,30 +4075,89 @@ function sayToBot(said: string): void {
  *  a different delivery rather than a different personality. */
 const CALL_STYLE = `You are on a voice call with the user right now: they are speaking, and your reply is read out loud by a speech synthesiser. Answer in one or two spoken sentences — no lists, no headings, no code blocks, no markdown, and no "let me know if". If they have given you something to do, say what you understood in a sentence and get on with it; the full detail belongs in the written thread, not in what you say.`;
 
-/** Called when a turn ends, so the call can speak the answer and move on. */
+/** Where a sentence ends, for something being read aloud.
+ *
+ *  A full stop followed by a space, which is enough: it leaves "3.5" and
+ *  "botcage.app" alone, and the worst an abbreviation can do is put a pause
+ *  where a person would not have made one. Speech is forgiving about that in a
+ *  way that text is not. */
+const SENTENCE = /[.!?…]["')\]]*\s/g;
+
+/** Speak the reply as it is written rather than when it is finished.
+ *
+ *  Measured on this machine: the first token of a turn arrives about three
+ *  seconds in, and the rest of the answer takes as long as the answer is long.
+ *  Waiting for the whole thing made a two-sentence reply take twenty seconds
+ *  to start; speaking each sentence as it lands makes the length stop
+ *  mattering, because sentence four is still being written while sentence one
+ *  is in the air. It is the difference between a laggy phone line and a broken
+ *  one, and it needed no new model — only not doing things in sequence that
+ *  did not have to be. */
+function speakAsItArrives(botId: string, whole: string, ending = false): void {
+  if (!call || call.botId !== botId) return;
+
+  const fresh = whole.slice(call.spokenTo);
+  if (!fresh) return;
+
+  // How much of what has arrived is a whole sentence. At the end of a turn
+  // there is no more coming, so whatever is left counts.
+  let upto = 0;
+  SENTENCE.lastIndex = 0;
+  for (let hit = SENTENCE.exec(fresh); hit; hit = SENTENCE.exec(fresh)) {
+    upto = hit.index + hit[0].length;
+  }
+  if (ending) upto = fresh.length;
+  if (!upto) return;
+
+  call.spokenTo += upto;
+  const line = forSpeech(fresh.slice(0, upto));
+  if (!line) return;
+  call.saying.push(line);
+  void pumpVoice(botId);
+}
+
+/** One sentence at a time, in order.
+ *
+ *  Sequential because the synthesiser is: asking it to say a second thing
+ *  stops it saying the first, so two overlapping calls would produce one
+ *  sentence and a stump of another. */
+async function pumpVoice(botId: string): Promise<void> {
+  if (!call || call.voicing || call.botId !== botId) return;
+  const bot = state.bots.find((b) => b.id === botId);
+  if (!bot) return;
+
+  call.voicing = true;
+  while (call?.botId === botId && call.saying.length) {
+    const line = call.saying.shift() as string;
+    // Live captions: what is being said, while it is being said.
+    callHeard.textContent = line;
+    callSays("Speaking…");
+    setMood(botId, "talk");
+    try {
+      await invoke("speak", { text: line, voice: voiceFor(bot) });
+    } catch {
+      break;
+    }
+  }
+  if (!call || call.botId !== botId) return;
+
+  call.voicing = false;
+  if (moods.get(botId) === "talk") setMood(botId, "happy");
+  if (!call.saying.length && !inflight.has(botId) && !call.queue.length) {
+    callSays("Go on — hold to talk.");
+  }
+}
+
+/** Called when a turn ends: say whatever was not a whole sentence yet. */
 function callHeardBack(botId: string, text: string, failed: boolean): void {
   if (!call || call.botId !== botId) return;
 
   if (failed) {
+    call.saying = [];
     callSays("That turn failed — it is written up in the thread.");
   } else {
-    const spoken = forSpeech(text);
-    callSays(spoken ? "Speaking…" : "Nothing to say.");
-    // What it is saying, in writing. A call you can read is a call you can
-    // take somewhere quiet, and it is the only record of the spoken version.
-    callHeard.textContent = spoken;
-    if (spoken) {
-      setMood(botId, "talk");
-      void invoke("speak", { text: spoken, voice: voiceFor(state.bots.find((b) => b.id === botId)!) })
-        .then(() => {
-          // Resolves when the sound stops, so the mouth stops with it.
-          if (moods.get(botId) === "talk") setMood(botId, "happy");
-          if (call?.botId === botId && !call.queue.length) callSays("Go on — hold to talk.");
-        })
-        .catch(() => {
-          if (moods.get(botId) === "talk") setMood(botId, "happy");
-        });
-    }
+    speakAsItArrives(botId, text, true);
+    if (!call.saying.length && !call.voicing) callSays("Go on — hold to talk.");
   }
 
   // Whatever you said while it was busy.
@@ -5325,6 +5410,7 @@ document.addEventListener("keydown", (e) => {
 document.addEventListener("keyup", (e) => {
   if (e.code === "Space" && call?.listening) stopListening();
 });
+
 
 
 $<HTMLButtonElement>("#btn-plugins").addEventListener("click", () => void openPlugins());
