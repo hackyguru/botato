@@ -4738,30 +4738,18 @@ a.detail__source:hover {
   margin-left: -7px;
 }
 
-/* Who said it, in the gutter beside what they said.
-   Top-aligned rather than centred: a name floating halfway down a six-line
+/* Whose face it is, in the gutter beside what they said.
+   Top-aligned rather than centred: a marker floating halfway down a six-line
    answer reads as a label for the middle of it. */
 .turn--said {
   align-items: flex-start;
-  margin-top: 16px;
+  margin-top: 14px;
 }
 .said {
   display: flex;
   flex: none;
-  align-items: center;
-  gap: 7px;
-  width: 132px;
-  justify-content: flex-end;
-  padding-top: 9px;
-}
-.said__name {
-  color: var(--text);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-.said__at {
-  color: var(--text-3);
-  font-size: 11px;
+  padding-top: 4px;
+  cursor: default;
 }
 
 /* Making one. The sheet's body centres its children by default, which is right

@@ -1118,18 +1118,18 @@ function turnEl(msg: Message, ch?: Channel): HTMLElement {
 
   wrap.className = `turn turn--${msg.from}`;
 
-  // In a room, who said it. A face and a name above the bubble rather than
-  // beside it: the bubbles are already a column, and the eye reads a name at
-  // the top of one faster than it reads a colour down the side. Left off your
-  // own messages, which need no introduction, and off a chat, which has two
-  // voices and one of them is on the left.
+  // In a room, whose face it is. Just the face: a name repeated down the side
+  // of every message is the same word over and over, and the face is already
+  // the thing the eye picks out — it is on the row in the sidebar, on the
+  // header of the room, and it is different for every bot. The name is on the
+  // face's tooltip for the one time you cannot place it.
   const author = ch && msg.from === "bot" ? state.bots.find((b) => b.id === msg.by) : null;
   if (author) {
     wrap.classList.add("turn--said");
     wrap.innerHTML =
-      `<span class="said">${faceHtml(author, "sm")}` +
-      `<span class="said__name">${escapeHtml(author.name)}</span>` +
-      `<span class="said__at">${clock(msg.at)}</span></span>` +
+      `<span class="said" title="${escapeHtml(author.name)} · ${clock(msg.at)}">` +
+      faceHtml(author, "sm") +
+      `</span>` +
       bubbleHtml(msg) +
       actsHtml(msg);
     return wrap;
@@ -1164,7 +1164,11 @@ function renderThread(): void {
     return;
   }
 
-  topbarId.innerHTML = `${faceHtml(bot, "sm")}<span>${escapeHtml(bot.name)}</span>`;
+  // The face alone. Which bot you are talking to is answered three times over
+  // — the highlighted row in the sidebar, the face here, and the placeholder
+  // in the composer — and the name spelled out in the bar was the least of
+  // them.
+  topbarId.innerHTML = `<span title="${escapeHtml(bot.name)}">${faceHtml(bot, "sm")}</span>`;
   input.placeholder = `Message ${bot.name}`;
 
   paintRoutineCount();
