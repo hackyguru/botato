@@ -27,6 +27,38 @@ static TALKING: Mutex<Option<(u64, Child)>> = Mutex::new(None);
 /// the one being said.
 static UTTERANCE: Mutex<u64> = Mutex::new(0);
 
+/// Voices macOS ships that do not speak.
+///
+/// Several of these sing — Cellos to Carmina Burana, Good News and Bad News to
+/// their own little fanfares — and the rest are robots, sheep and bubbles.
+/// They are wonderful and they are not a colleague telling you the build
+/// broke, so a bot is never given one. Found by a bot on this machine drawing
+/// Cellos and singing its answer.
+const NOVELTY: &[&str] = &[
+    "Albert",
+    "Bad News",
+    "Bahh",
+    "Bells",
+    "Boing",
+    "Bubbles",
+    "Cellos",
+    "Deranged",
+    "Good News",
+    "Hysterical",
+    "Jester",
+    "Junior",
+    "Kathy",
+    "Organ",
+    "Pipe Organ",
+    "Princess",
+    "Ralph",
+    "Superstar",
+    "Trinoids",
+    "Whisper",
+    "Wobble",
+    "Zarvox",
+];
+
 /// The voices installed for a language, by name.
 ///
 /// macOS lists them as `Name    en_GB    # Hello, my name is Name.`; the
@@ -63,6 +95,26 @@ pub fn voices(language: &str) -> Vec<String> {
 
     found.sort();
     found.dedup();
+    found.retain(|name| {
+        // "(Enhanced)" and the rest are the same voice at a better sample
+        // rate, so the novelty check has to look at the name before the
+        // bracket or "Bells (Enhanced)" walks straight through it.
+        let plain = name.split(" (").next().unwrap_or(name).trim();
+        !NOVELTY.iter().any(|bad| bad.eq_ignore_ascii_case(plain))
+    });
+
+    // A voice someone has downloaded is a voice they wanted: the enhanced and
+    // premium ones sound like a person where the compact ones sound like a
+    // 2005 satnav, and macOS ships the compact ones by default. If any are
+    // installed, bots use those and nothing else.
+    let better: Vec<String> = found
+        .iter()
+        .filter(|name| name.contains("(Enhanced)") || name.contains("(Premium)"))
+        .cloned()
+        .collect();
+    if !better.is_empty() {
+        return better;
+    }
     found
 }
 
@@ -180,6 +232,27 @@ Daniel              en_GB    # Hello! My name is Daniel.
             .collect();
 
         assert_eq!(names, ["Albert", "Grandma (Enhanced)", "Daniel"]);
+    }
+
+    /// The bug this list exists for: a bot drew Cellos and sang its answer to
+    /// Carmina Burana. Funny once.
+    #[test]
+    fn a_bot_is_never_given_a_voice_that_sings() {
+        let voices = voices("en");
+        // Nothing to check on a machine with no speech synthesiser at all.
+        if voices.is_empty() {
+            return;
+        }
+        for singing in ["Cellos", "Good News", "Bad News", "Bells", "Organ", "Zarvox"] {
+            assert!(
+                !voices.iter().any(|v| v.split(" (").next() == Some(singing)),
+                "{singing} is still on offer"
+            );
+        }
+        assert!(
+            voices.iter().any(|v| !v.is_empty()),
+            "filtering left nothing to speak with"
+        );
     }
 
     /// Hushing when nothing is talking is the common case — every call to
