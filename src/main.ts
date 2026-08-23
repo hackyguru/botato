@@ -3465,6 +3465,11 @@ function channelPromptFor(ch: Channel, bot: Bot): string {
     .join("\n\n");
 }
 
+// How the download is going, while it is going.
+void listen<string>("hearing", (event) => {
+  if (call) callSays(event.payload);
+});
+
 /** Resolves when this bot's turn ends, however it ends. */
 function settled(botId: string): Promise<void> {
   const pending = inflight.get(botId);
@@ -3778,31 +3783,14 @@ interface Call {
   /** What you have said that has not been sent yet, because a turn is running. */
   queue: string[];
   listening: boolean;
-  /** Held open across a call so it does not have to warm up on every press. */
-  ears: SpeechRecognitionLike | null;
-  /** What the recogniser is hearing right now, shown as it changes. */
+  /** The microphone, open for as long as the button is held. */
+  tape: MediaRecorder | null;
+  /** The pieces it has handed over so far. */
+  bits: Blob[];
+  /** What it heard you say last, shown so a misheard word is visible. */
   heard: string;
 }
 
-/** The bits of the browser's speech recogniser this uses. Written out rather
- *  than pulled from a DOM library because the implementation is prefixed and
- *  not in the standard lib.dom types. */
-interface SpeechRecognitionLike {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  start(): void;
-  stop(): void;
-  abort(): void;
-  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null;
-  onend: (() => void) | null;
-  onerror: ((event: { error: string }) => void) | null;
-}
-
-/** Whether this is `tauri dev` rather than a packaged app. Read off the module
- *  rather than through the typed `import.meta.env`, which the app's tsconfig
- *  does not pull Vite's types into. */
-const DEV_BUILD = Boolean((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV);
 
 let call: Call | null = null;
 let voiceNames: string[] = [];
@@ -3844,7 +3832,7 @@ async function startCall(bot: Bot): Promise<void> {
     toast("Claude Code CLI not found — install it to talk to your bots");
     return;
   }
-  call = { botId: bot.id, queue: [], listening: false, ears: null, heard: "" };
+  call = { botId: bot.id, queue: [], listening: false, tape: null, bits: [], heard: "" };
 
   $<HTMLDivElement>("#call-face").innerHTML = faceHtml(bot, "lg");
   $<HTMLHeadingElement>("#call-who").textContent = bot.name;
@@ -3859,6 +3847,19 @@ async function startCall(bot: Bot): Promise<void> {
       () => [],
     );
   }
+
+  // The speech model, once, on the first call ever made. Fetched here rather
+  // than at install because most people will never make a call, and 57 MB is
+  // a lot to spend on their behalf.
+  if (!(await invoke<boolean>("hearing_ready").catch(() => false))) {
+    callSays("Fetching the speech model — once, about 57 MB.");
+    try {
+      await invoke("hearing_install");
+      callSays("Ready. Hold the button, or hold space, and talk.");
+    } catch (err) {
+      callSays(`Could not fetch the speech model: ${err}`);
+    }
+  }
 }
 
 function endCall(): void {
@@ -3870,31 +3871,88 @@ function endCall(): void {
 }
 
 /* ------------------------------------------------------------------ hearing */
+/* Recorded here, transcribed in Rust, by a model on this machine.
+ *
+ * Not the webview's own recogniser: on macOS it needs a packaged build to
+ * exist at all, WebKitGTK has no implementation of it, and nobody outside
+ * Apple can say whether the audio stays on the machine. whisper answers all
+ * three, and the only thing crossing the boundary is a list of numbers. */
 
-function ears(): SpeechRecognitionLike | null {
-  const made = (window as unknown as Record<string, unknown>).webkitSpeechRecognition
-    ?? (window as unknown as Record<string, unknown>).SpeechRecognition;
-  if (typeof made !== "function") return null;
-  const rec = new (made as new () => SpeechRecognitionLike)();
-  rec.lang = navigator.language || "en-US";
-  // One utterance per press. Continuous listening in a room with a speaking
-  // bot in it hears the bot.
-  rec.continuous = false;
-  rec.interimResults = true;
-  return rec;
+/** The microphone, opened once and kept for the call.
+ *
+ *  Asking for it per press puts a permission check and a device warm-up in
+ *  front of every sentence, which is about a second of a two-second thought. */
+let microphone: MediaStream | null = null;
+
+async function openMicrophone(): Promise<MediaStream | null> {
+  if (microphone?.active) return microphone;
+  try {
+    microphone = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        // The bot is speaking out of the same speakers you are talking over.
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+    return microphone;
+  } catch (err) {
+    const why = String(err);
+    callSays(
+      why.includes("NotAllowed") || why.includes("denied")
+        ? "botcage needs the microphone: System Settings → Privacy & Security → Microphone."
+        : `No microphone: ${why}`,
+    );
+    return null;
+  }
 }
+
+/** Whatever the browser gave us, as the mono 16 kHz whisper wants.
+ *
+ *  Decoded and resampled here rather than in Rust because the webview already
+ *  has the codecs — asking Rust to unpick Opus would mean shipping one. */
+async function samplesFrom(recorded: Blob): Promise<Float32Array> {
+  const bytes = await recorded.arrayBuffer();
+  const ctx = new AudioContext();
+  try {
+    const decoded = await ctx.decodeAudioData(bytes);
+    // Mixed down rather than taking channel zero: a microphone that records in
+    // stereo can put most of a voice in the channel you dropped.
+    const length = decoded.length;
+    const mixed = new Float32Array(length);
+    for (let c = 0; c < decoded.numberOfChannels; c += 1) {
+      const channel = decoded.getChannelData(c);
+      for (let i = 0; i < length; i += 1) mixed[i] += channel[i];
+    }
+    if (decoded.numberOfChannels > 1) {
+      for (let i = 0; i < length; i += 1) mixed[i] /= decoded.numberOfChannels;
+    }
+
+    const ratio = decoded.sampleRate / WHISPER_RATE;
+    if (Math.abs(ratio - 1) < 0.001) return mixed;
+
+    // Linear interpolation. A speech model at 16 kHz is not going to notice
+    // the difference between this and a windowed sinc, and this is ten lines.
+    const out = new Float32Array(Math.floor(length / ratio));
+    for (let i = 0; i < out.length; i += 1) {
+      const at = i * ratio;
+      const low = Math.floor(at);
+      const high = Math.min(low + 1, length - 1);
+      const frac = at - low;
+      out[i] = mixed[low] * (1 - frac) + mixed[high] * frac;
+    }
+    return out;
+  } finally {
+    void ctx.close();
+  }
+}
+
+const WHISPER_RATE = 16_000;
 
 function startListening(): void {
   if (!call || call.listening) return;
-  const rec = ears();
-  if (!rec) {
-    callSays("This machine has no speech recognition — type in the thread instead.");
-    return;
-  }
-
-  call.ears = rec;
   call.listening = true;
-  call.heard = "";
+  call.bits = [];
   // Nothing should be talking at you while you talk.
   void invoke("hush").catch(() => {});
   setMood(call.botId, "listen");
@@ -3902,44 +3960,18 @@ function startListening(): void {
   $<HTMLSpanElement>("#call-talk-label").textContent = "Listening";
   $<HTMLButtonElement>("#call-talk").classList.add("is-live");
 
-  rec.onresult = (event) => {
-    let said = "";
-    for (let i = 0; i < event.results.length; i += 1) said += event.results[i][0].transcript;
-    if (!call) return;
-    call.heard = said;
-    callHeard.textContent = said;
-  };
-  rec.onerror = (event) => {
-    if (event.error === "no-speech") return;
-    // These two are the ones people actually hit, and their names describe the
-    // refusal rather than the reason — which is a bad way to find out that the
-    // fix is a checkbox in System Settings.
-    if (event.error === "not-allowed") {
-      callSays("botcage needs the microphone: System Settings → Privacy & Security → Microphone.");
-    } else if (event.error === "service-not-allowed") {
-      // In dev this is not a setting anybody can change: macOS grants speech
-      // recognition against an app bundle's stated reason for wanting it, and
-      // `tauri dev` runs a bare binary with a three-key Info.plist. Saying
-      // "check System Settings" would send someone looking for a switch that
-      // is not there.
-      callSays(
-        DEV_BUILD
-          ? "Speech needs a packaged build — macOS won't grant it to the dev binary. Voice out works; voice in needs `tauri build`."
-          : "macOS refused the speech recogniser — allow botcage under Privacy & Security → Speech Recognition.",
-      );
-    } else {
-      callSays(`Could not hear: ${event.error}`);
-    }
-  };
-  rec.onend = () => {
-    if (call?.listening) stopListening();
-  };
-
-  try {
-    rec.start();
-  } catch {
-    /* already going */
-  }
+  void openMicrophone().then((stream) => {
+    // Let go before the microphone opened: nothing to record, and starting now
+    // would leave it running with nobody to stop it.
+    if (!stream || !call?.listening) return;
+    const tape = new MediaRecorder(stream);
+    call.tape = tape;
+    tape.ondataavailable = (e) => {
+      if (e.data.size) call?.bits.push(e.data);
+    };
+    tape.onstop = () => void heardIt();
+    tape.start();
+  });
 }
 
 function stopListening(): void {
@@ -3947,21 +3979,40 @@ function stopListening(): void {
   call.listening = false;
   $<HTMLSpanElement>("#call-talk-label").textContent = "Hold to talk";
   $<HTMLButtonElement>("#call-talk").classList.remove("is-live");
-  try {
-    call.ears?.stop();
-  } catch {
-    /* already stopped */
+  if (call.tape?.state === "recording") {
+    // The rest arrives in ondataavailable, and heardIt runs from onstop.
+    call.tape.stop();
+  } else {
+    callSays("Go on — hold to talk.");
   }
-  call.ears = null;
+  call.tape = null;
+}
 
-  const said = call.heard.trim();
-  call.heard = "";
-  if (!said) {
-    callHeard.textContent = "";
+/** What the recording turned out to be. */
+async function heardIt(): Promise<void> {
+  if (!call) return;
+  const recorded = new Blob(call.bits, { type: call.bits[0]?.type || "audio/webm" });
+  call.bits = [];
+  if (!recorded.size) {
     callSays("Didn't catch that — hold and try again.");
     return;
   }
-  sayToBot(said);
+
+  callSays("Working out what you said…");
+  try {
+    const samples = await samplesFrom(recorded);
+    const said = await invoke<string>("transcribe", { samples: Array.from(samples) });
+    if (!call) return;
+    if (!said.trim()) {
+      callHeard.textContent = "";
+      callSays("Didn't catch that — hold and try again.");
+      return;
+    }
+    call.heard = said;
+    sayToBot(said);
+  } catch (err) {
+    callSays(String(err));
+  }
 }
 
 /* ------------------------------------------------------------------ talking */

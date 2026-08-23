@@ -22,6 +22,7 @@ use tauri::{AppHandle, Emitter, Manager, RunEvent};
 mod catalogue;
 mod connectors;
 mod engine;
+mod hearing;
 mod inference;
 mod mcp;
 mod oauth;
@@ -649,6 +650,31 @@ fn take_routines(app: AppHandle, bot_id: String) -> Vec<Value> {
         .collect()
 }
 
+/// Whether this machine can already turn speech into words.
+#[tauri::command]
+fn hearing_ready(app: AppHandle) -> bool {
+    hearing::ready(&app)
+}
+
+/// Fetch the speech model. Reports progress on the "hearing" event.
+#[tauri::command]
+async fn hearing_install(app: AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || hearing::install(&app))
+        .await
+        .map_err(|e| format!("download thread: {e}"))?
+}
+
+/// What was said, from mono 16 kHz samples the window recorded.
+///
+/// Off the main thread: a few seconds of speech takes a moment even on the
+/// GPU, and the window is showing a face that should keep blinking.
+#[tauri::command]
+async fn transcribe(app: AppHandle, samples: Vec<f32>) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || hearing::listen(&app, &samples))
+        .await
+        .map_err(|e| format!("transcription thread: {e}"))?
+}
+
 /// Say it out loud, in whichever voice this bot was given.
 ///
 /// Answers when the speaking stops rather than when it starts: the window
@@ -1030,6 +1056,9 @@ pub fn run() {
             speak,
             hush,
             voices,
+            hearing_ready,
+            hearing_install,
+            transcribe,
             bots_dir,
             app_version,
             user_name,

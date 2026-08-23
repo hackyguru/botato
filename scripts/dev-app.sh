@@ -19,12 +19,14 @@
 # moment this one replaces it, leaving two windows, one of which cannot hear
 # you — which is exactly the confusion this script exists to end.
 #
-# This keeps its own bots. WebKit files a page's storage under the bundle
-# identifier, and a bare binary has none — so `tauri dev` and any bundle were
-# always going to be two different rosters, and the honest thing is to make
-# that deliberate rather than surprising. It means an experiment here cannot
-# lose a bot you cared about. The way to actually use voice is a normal
-# `pnpm tauri build`, where the same Info.plist is merged in for real.
+# This gets its own roster. WebKit files a page's storage under the bundle
+# identifier and a bare binary has none, so `tauri dev` and any bundle were
+# always going to list different bots — better deliberate than surprising, and
+# it means an experiment here cannot lose a bot you cared about. What it does
+# share is everything Rust keeps: workspaces, sessions and the speech model all
+# live under the identifier baked into the binary, so the model is downloaded
+# once for both. The way to actually use voice is a normal `pnpm tauri build`,
+# where the same Info.plist is merged in for real.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")/.." && pwd)"

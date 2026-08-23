@@ -2,17 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <!-- macOS will not hand an app the microphone, or the speech recogniser,
-       without a sentence explaining why — and it shows that sentence to the
-       person being asked. So these are written for them rather than for us.
+  <!-- macOS will not hand an app the microphone without a sentence explaining
+       why, and it shows that sentence to the person being asked — so this is
+       written for them rather than for us.
 
-       Without them the webview's recogniser fails with "service-not-allowed",
-       which names the refusal and not the reason. -->
+       There is deliberately no NSSpeechRecognitionUsageDescription: botcage
+       transcribes on this machine with its own model and never asks Apple's
+       recogniser for anything, so asking for that permission would be a claim
+       we could not justify. -->
 
   <key>NSMicrophoneUsageDescription</key>
-  <string>botcage uses the microphone only while you hold the talk button on a call with one of your bots.</string>
-
-  <key>NSSpeechRecognitionUsageDescription</key>
-  <string>botcage turns what you say on a call into text for your bot to answer. Nothing is recorded or kept.</string>
+  <string>botcage uses the microphone only while you hold the talk button on a call with one of your bots. What you say is turned into text on this machine and never sent anywhere.</string>
 </dict>
 </plist>

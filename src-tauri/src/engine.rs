@@ -251,6 +251,10 @@ pub fn install_engine(app: AppHandle) -> Result<String, String> {
 /// redraws with carriage returns, which line-based reading cannot follow, so the
 /// size of the growing file is the progress — it needs no parsing and cannot
 /// disagree with what actually landed on disk.
+pub fn download(url: &str, to: &Path, say: &dyn Fn(&str), label: &str) -> Result<(), String> {
+    fetch(url, to, say, label)
+}
+
 fn fetch(url: &str, to: &Path, say: &dyn Fn(&str), label: &str) -> Result<(), String> {
     let total = content_length(url);
     let mut child = Command::new("curl")
