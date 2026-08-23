@@ -33,8 +33,8 @@ pnpm tauri dev
 Voice is the exception. macOS grants the microphone and the speech recogniser
 against an app bundle's stated reason for wanting them, and `tauri dev` runs a
 bare executable with nowhere to state one — so calls can speak but not listen
-there. `pnpm dev` in one terminal and `pnpm dev:app` in another runs the same
-dev build as a bundle that can, with its own scratch roster.
+there. `pnpm dev:app`, used instead of `pnpm tauri dev`, runs the same dev build as a
+bundle that can — it starts vite itself, and keeps its own scratch roster.
 
 Builds are produced by tagging a release; see [.github/RELEASING.md](.github/RELEASING.md).
 macOS builds are signed and notarised, so they open without warnings.

@@ -11,11 +11,13 @@
 # that sentence. Everything else about the dev loop is unchanged: it still
 # loads from the vite dev server, so edits still reload.
 #
-#   pnpm dev              # in one terminal — the vite server, nothing else
-#   pnpm dev:app          # in another — builds, wraps, and runs it
+#   pnpm dev:app          # instead of `pnpm tauri dev`
 #
-# Not `pnpm tauri dev`: that owns its own copy of the binary and starts it
-# again the moment this one replaces it.
+# It starts the vite server if nothing is serving yet, so it is the whole dev
+# loop rather than half of one. Use it *instead of* `pnpm tauri dev`, not
+# alongside: that owns its own copy of the binary and starts it again the
+# moment this one replaces it, leaving two windows, one of which cannot hear
+# you — which is exactly the confusion this script exists to end.
 #
 # This keeps its own bots. WebKit files a page's storage under the bundle
 # identifier, and a bare binary has none — so `tauri dev` and any bundle were
@@ -29,9 +31,25 @@ here="$(cd "$(dirname "$0")/.." && pwd)"
 binary="$here/src-tauri/target/debug/botcage"
 app="$here/src-tauri/target/botcage-dev.app"
 
-if ! curl -sf -o /dev/null --max-time 2 http://localhost:1420; then
-  echo "Nothing serving on :1420 — run 'pnpm dev' in another terminal first." >&2
+if pgrep -f "tauri.js dev" >/dev/null 2>&1; then
+  echo "'pnpm tauri dev' is running — quit it first. This replaces it." >&2
   exit 1
+fi
+
+if ! curl -sf -o /dev/null --max-time 2 "http://localhost:1420"; then
+  echo "→ starting vite"
+  # Fully detached, all three streams closed: a background child that keeps
+  # this script's stdout open leaves the terminal hanging after the app is
+  # already on screen, which reads as the script having failed.
+  (cd "$here" && nohup pnpm dev </dev/null >/dev/null 2>&1 &)
+  for _ in $(seq 1 40); do
+    curl -sf -o /dev/null --max-time 1 "http://localhost:1420" && break
+    sleep 0.5
+  done
+  curl -sf -o /dev/null --max-time 1 "http://localhost:1420" || {
+    echo "vite did not come up on :1420" >&2
+    exit 1
+  }
 fi
 
 echo "→ building"
