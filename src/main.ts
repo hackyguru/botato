@@ -3328,6 +3328,14 @@ interface Budget {
   left: number;
 }
 
+/** Rooms where you have pressed stop, until you say something again.
+ *
+ *  Cancelling the bot that is mid-sentence is only half of it: the one it was
+ *  about to bring in has not started yet, and would start the moment the
+ *  cancelled turn settled. A stop button that stops one voice and lets the
+ *  room carry on is worse than no stop button. */
+const hushed = new Set<string>();
+
 const channels = (): Channel[] => (state.channels ??= []);
 const activeChannel = (): Channel | null =>
   channels().find((c) => c.id === state.activeChannel) ?? null;
@@ -3445,6 +3453,7 @@ function settled(botId: string): Promise<void> {
  *  brings somebody in waits for them. A room where three bots stream at once
  *  is unreadable, and it is also not how the thing being modelled works. */
 async function channelTurn(ch: Channel, bot: Bot, budget: Budget): Promise<void> {
+  if (hushed.has(ch.id)) return;
   // Busy in its own chat, or already speaking here. Skipped rather than
   // queued: by the time it is free the conversation has moved on, and an
   // answer to a message five turns back is worse than no answer.
@@ -3516,7 +3525,7 @@ async function channelTurn(ch: Channel, bot: Bot, budget: Budget): Promise<void>
 
   // Whoever it brought in, while the message still has turns left to give.
   for (const next of addressees(ch, post.text, bot.id)) {
-    if (budget.left <= 0) return;
+    if (budget.left <= 0 || hushed.has(ch.id)) return;
     budget.left -= 1;
     await channelTurn(ch, next, budget);
   }
@@ -3524,6 +3533,8 @@ async function channelTurn(ch: Channel, bot: Bot, budget: Budget): Promise<void>
 
 /** You said something in a room. */
 function postToChannel(ch: Channel, text: string): void {
+  // Saying something is how a stopped room starts again.
+  hushed.delete(ch.id);
   const msg: Message = { id: uid(), from: "me", text, at: Date.now() };
   ch.messages.push(msg);
   if (ch.messages.length === 1) thread.innerHTML = "";
@@ -4640,11 +4651,27 @@ controlBtn.addEventListener("click", () => {
 
 composer.addEventListener("submit", (e) => {
   e.preventDefault();
-  const bot = activeBot();
-  if (bot && inflight.has(bot.id)) {
-    cancelTurn(bot.id);
-    return;
+
+  // In a room, stop whoever is talking in it. `activeBot` is whichever bot's
+  // chat you last had open, which in a channel is very likely not one of the
+  // people speaking — so the button turned into a stop button and then either
+  // did nothing or cancelled a turn in another window entirely.
+  const room = activeChannel();
+  if (room) {
+    const talking = [...inflight].filter(([, p]) => p.channelId === room.id);
+    if (talking.length) {
+      hushed.add(room.id);
+      for (const [botId] of talking) cancelTurn(botId);
+      return;
+    }
+  } else {
+    const bot = activeBot();
+    if (bot && inflight.has(bot.id)) {
+      cancelTurn(bot.id);
+      return;
+    }
   }
+
   if (!input.value.trim()) return;
   send(input.value);
 });
