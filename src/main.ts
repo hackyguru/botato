@@ -3648,7 +3648,10 @@ function openChannel(id: string): void {
  *  the thing you are looking at. */
 function paintTopbarFor(bot: Bot | null): void {
   const inRoom = !bot;
-  for (const id of ["btn-routines", "btn-plugins", "btn-monitor"]) {
+  // A call belongs to a bot. In a room the button would ring whichever bot's
+  // private chat you last had open, which is nobody's idea of calling #eng —
+  // that is the group call, and it does not exist yet.
+  for (const id of ["btn-routines", "btn-plugins", "btn-monitor", "btn-call"]) {
     $<HTMLButtonElement>(`#${id}`).hidden = inRoom;
   }
   const gear = $<HTMLButtonElement>("#btn-settings");
@@ -7167,6 +7170,7 @@ if (activeChannel()) {
 if (state.screenOpen) void openScreen();
 autoGrow();
 input.focus();
+
 
 
 // Routines are checked here rather than in Rust: the state they read lives in

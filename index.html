@@ -210,8 +210,13 @@
           </div>
         </section>
 
-    <div class="call" id="call" hidden>
-          <div class="call__stage">
+        <!-- The call covers the whole column, top bar included, so the drag
+             region that lived up there is underneath it. Without these the
+             window cannot be moved while a call is open, which is a strange
+             thing for a call screen to take away. The foot is left alone: its
+             two buttons are the only things here that are not scenery. -->
+        <div class="call" id="call" data-tauri-drag-region hidden>
+          <div class="call__stage" data-tauri-drag-region="deep">
             <div class="call__face" id="call-face"></div>
             <h2 class="call__who" id="call-who"></h2>
             <p class="call__state" id="call-state">Connecting…</p>
