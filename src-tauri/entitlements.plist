@@ -18,5 +18,12 @@
        to state. -->
   <key>com.apple.security.cs.allow-jit</key>
   <true/>
+
+  <!-- The microphone, for calls. Under the hardened runtime an app is refused
+       protected resources unless it says which ones it wants, so this is what
+       makes "hold to talk" able to hear anything. It is a claim we can justify:
+       nothing listens unless the button is held. -->
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
 </dict>
 </plist>

@@ -31,6 +31,7 @@ mod remote;
 mod sandbox;
 mod setup;
 mod transcript;
+mod voice;
 
 /// Entry point for `botcage --mcp` (see main.rs). Identity arrives in the
 /// environment, set by the app when it registers this server.
@@ -648,6 +649,30 @@ fn take_routines(app: AppHandle, bot_id: String) -> Vec<Value> {
         .collect()
 }
 
+/// Say it out loud, in whichever voice this bot was given.
+///
+/// Answers when the speaking stops rather than when it starts: the window
+/// moves the bot's mouth for as long as this takes, and a promise that
+/// resolved on spawn would have a face finish talking a sentence early.
+#[tauri::command]
+async fn speak(text: String, voice: Option<String>, rate: Option<u32>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || voice::speak(&text, voice.as_deref(), rate))
+        .await
+        .map_err(|e| format!("speech thread: {e}"))?
+}
+
+/// Stop talking — the call ended, or you have heard enough.
+#[tauri::command]
+fn hush() {
+    voice::hush();
+}
+
+/// The voices this machine has for a language, so each bot can have its own.
+#[tauri::command]
+fn voices(language: String) -> Vec<String> {
+    voice::voices(&language)
+}
+
 /// Forget the conversation, keeping the bot.
 ///
 /// The app starts a new session id at the same moment, which is what ends the
@@ -1002,6 +1027,9 @@ pub fn run() {
             clear_thread,
             take_face,
             take_routines,
+            speak,
+            hush,
+            voices,
             bots_dir,
             app_version,
             user_name,

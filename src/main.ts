@@ -776,6 +776,9 @@ const MOODS: Record<string, { hold?: number }> = {
   peek: { hold: 900 },
   listen: { hold: 1400 },
   stretch: { hold: 1500 },
+  // A state, not an event: it lasts exactly as long as there is sound, which
+  // the speaking command reports when it stops.
+  talk: {},
 };
 
 /** How long a bot has to go unspoken to before it dozes off. Long enough that
@@ -1294,7 +1297,7 @@ window.setInterval(() => {
   setMood(resting[Math.floor(Math.random() * resting.length)].id, "stretch");
 }, 24_000);
 
-async function respond(bot: Bot, prompt: string): Promise<void> {
+async function respond(bot: Bot, prompt: string, style?: string): Promise<void> {
   const message: Message = { id: uid(), from: "bot", text: "", at: Date.now() };
   bot.messages.push(message);
   inflight.set(bot.id, { message, sawText: false, note: "" });
@@ -1316,7 +1319,10 @@ async function respond(bot: Bot, prompt: string): Promise<void> {
         sessionId: bot.sessionId,
         resume: bot.started,
         prompt,
-        systemPrompt: systemPromptFor(bot),
+        // `style` is how this turn should be delivered rather than who the bot
+        // is — a call asks for two spoken sentences from the same bot with the
+        // same memory, not for a different bot.
+        systemPrompt: style ? `${systemPromptFor(bot)}\n\n${style}` : systemPromptFor(bot),
         model: bot.model || MODEL,
         botName: bot.name,
         botRole: bot.role,
@@ -1384,6 +1390,8 @@ function finish(botId: string, event: BotEvent): void {
 
   // Whoever was waiting on this turn — the room, taking one voice at a time.
   pending.settle?.();
+  // And the call, if this bot is on one, which is where it gets spoken.
+  callHeardBack(botId, pending.message.text, event.kind !== "done");
 
   // If the demonstration went out unnamed, the bot was asked to name it.
   const demo = [...bot.messages].reverse().find((m) => m.kind === "teach");
@@ -3746,6 +3754,278 @@ channelWrap.addEventListener("mousedown", (e) => {
   if (e.target === channelWrap) channelWrap.hidden = true;
 });
 
+
+/* -------------------------------------------------------------------- calls */
+/* Talking to a bot instead of typing at it.
+ *
+ *  The bot's own face, already carrying fifteen moods, is the video: it
+ *  listens, thinks, speaks and waves without anybody having to fake a webcam.
+ *  Underneath there is no new machinery — a call is a different way in and out
+ *  of the same conversation, so what you say becomes an ordinary message, the
+ *  reply becomes an ordinary reply, and when the call ends the whole thing is
+ *  in the thread to read.
+ *
+ *  A turn takes fifteen to twenty-five seconds, which is unbearable as a
+ *  conversation and fine as dispatch. So the call is built for handing over
+ *  work rather than for chatting: you can keep talking while it is thinking,
+ *  and what you say queues up behind what it is already doing. */
+
+interface Call {
+  botId: string;
+  /** What you have said that has not been sent yet, because a turn is running. */
+  queue: string[];
+  listening: boolean;
+  /** Held open across a call so it does not have to warm up on every press. */
+  ears: SpeechRecognitionLike | null;
+  /** What the recogniser is hearing right now, shown as it changes. */
+  heard: string;
+}
+
+/** The bits of the browser's speech recogniser this uses. Written out rather
+ *  than pulled from a DOM library because the implementation is prefixed and
+ *  not in the standard lib.dom types. */
+interface SpeechRecognitionLike {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start(): void;
+  stop(): void;
+  abort(): void;
+  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null;
+  onend: (() => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+}
+
+/** Whether this is `tauri dev` rather than a packaged app. Read off the module
+ *  rather than through the typed `import.meta.env`, which the app's tsconfig
+ *  does not pull Vite's types into. */
+const DEV_BUILD = Boolean((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV);
+
+let call: Call | null = null;
+let voiceNames: string[] = [];
+
+const callEl = $<HTMLDivElement>("#call");
+const callState = $<HTMLParagraphElement>("#call-state");
+const callHeard = $<HTMLParagraphElement>("#call-heard");
+
+/** Which voice a bot speaks in.
+ *
+ *  Chosen from its id the same way its face is, so a bot sounds the same every
+ *  time and no two next to each other are likely to sound alike. Nobody picks
+ *  it, for the same reason nobody picks a face: a hundred and eighty voices is
+ *  not a decision anyone wants to make per bot. */
+function voiceFor(bot: Bot): string | undefined {
+  if (!voiceNames.length) return undefined;
+  return voiceNames[seedOf(bot.id) % voiceNames.length];
+}
+
+/** Markdown read aloud is punctuation read aloud. */
+function forSpeech(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, " — code — ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/^[#>\s]*/gm, "")
+    .replace(/[*_~]/g, "")
+    .replace(/^[-•]\s+/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function callSays(note: string): void {
+  callState.textContent = note;
+}
+
+async function startCall(bot: Bot): Promise<void> {
+  if (!claudeReady) {
+    toast("Claude Code CLI not found — install it to talk to your bots");
+    return;
+  }
+  call = { botId: bot.id, queue: [], listening: false, ears: null, heard: "" };
+
+  $<HTMLDivElement>("#call-face").innerHTML = faceHtml(bot, "lg");
+  $<HTMLHeadingElement>("#call-who").textContent = bot.name;
+  callHeard.textContent = "";
+  callEl.hidden = false;
+  callEl.style.setProperty("--skin", bot.color);
+  setMood(bot.id, "wave");
+  callSays("Hold the button, or hold space, and talk.");
+
+  if (!voiceNames.length) {
+    voiceNames = await invoke<string[]>("voices", { language: navigator.language || "en" }).catch(
+      () => [],
+    );
+  }
+}
+
+function endCall(): void {
+  if (!call) return;
+  stopListening();
+  void invoke("hush").catch(() => {});
+  call = null;
+  callEl.hidden = true;
+}
+
+/* ------------------------------------------------------------------ hearing */
+
+function ears(): SpeechRecognitionLike | null {
+  const made = (window as unknown as Record<string, unknown>).webkitSpeechRecognition
+    ?? (window as unknown as Record<string, unknown>).SpeechRecognition;
+  if (typeof made !== "function") return null;
+  const rec = new (made as new () => SpeechRecognitionLike)();
+  rec.lang = navigator.language || "en-US";
+  // One utterance per press. Continuous listening in a room with a speaking
+  // bot in it hears the bot.
+  rec.continuous = false;
+  rec.interimResults = true;
+  return rec;
+}
+
+function startListening(): void {
+  if (!call || call.listening) return;
+  const rec = ears();
+  if (!rec) {
+    callSays("This machine has no speech recognition — type in the thread instead.");
+    return;
+  }
+
+  call.ears = rec;
+  call.listening = true;
+  call.heard = "";
+  // Nothing should be talking at you while you talk.
+  void invoke("hush").catch(() => {});
+  setMood(call.botId, "listen");
+  callSays("Listening…");
+  $<HTMLSpanElement>("#call-talk-label").textContent = "Listening";
+  $<HTMLButtonElement>("#call-talk").classList.add("is-live");
+
+  rec.onresult = (event) => {
+    let said = "";
+    for (let i = 0; i < event.results.length; i += 1) said += event.results[i][0].transcript;
+    if (!call) return;
+    call.heard = said;
+    callHeard.textContent = said;
+  };
+  rec.onerror = (event) => {
+    if (event.error === "no-speech") return;
+    // These two are the ones people actually hit, and their names describe the
+    // refusal rather than the reason — which is a bad way to find out that the
+    // fix is a checkbox in System Settings.
+    if (event.error === "not-allowed") {
+      callSays("botcage needs the microphone: System Settings → Privacy & Security → Microphone.");
+    } else if (event.error === "service-not-allowed") {
+      // In dev this is not a setting anybody can change: macOS grants speech
+      // recognition against an app bundle's stated reason for wanting it, and
+      // `tauri dev` runs a bare binary with a three-key Info.plist. Saying
+      // "check System Settings" would send someone looking for a switch that
+      // is not there.
+      callSays(
+        DEV_BUILD
+          ? "Speech needs a packaged build — macOS won't grant it to the dev binary. Voice out works; voice in needs `tauri build`."
+          : "macOS refused the speech recogniser — allow botcage under Privacy & Security → Speech Recognition.",
+      );
+    } else {
+      callSays(`Could not hear: ${event.error}`);
+    }
+  };
+  rec.onend = () => {
+    if (call?.listening) stopListening();
+  };
+
+  try {
+    rec.start();
+  } catch {
+    /* already going */
+  }
+}
+
+function stopListening(): void {
+  if (!call) return;
+  call.listening = false;
+  $<HTMLSpanElement>("#call-talk-label").textContent = "Hold to talk";
+  $<HTMLButtonElement>("#call-talk").classList.remove("is-live");
+  try {
+    call.ears?.stop();
+  } catch {
+    /* already stopped */
+  }
+  call.ears = null;
+
+  const said = call.heard.trim();
+  call.heard = "";
+  if (!said) {
+    callHeard.textContent = "";
+    callSays("Didn't catch that — hold and try again.");
+    return;
+  }
+  sayToBot(said);
+}
+
+/* ------------------------------------------------------------------ talking */
+
+/** Something you said, on its way to the bot.
+ *
+ *  Queued rather than refused when a turn is already running: the point of a
+ *  call at this latency is handing over three things in a row without waiting
+ *  for the first to come back. */
+function sayToBot(said: string): void {
+  const bot = state.bots.find((b) => b.id === call?.botId);
+  if (!bot || !call) return;
+
+  if (inflight.has(bot.id)) {
+    call.queue.push(said);
+    callSays(`Noted — ${call.queue.length} waiting while it finishes.`);
+    return;
+  }
+
+  callHeard.textContent = said;
+  callSays("Thinking…");
+
+  const msg: Message = { id: uid(), from: "me", text: said, at: Date.now() };
+  bot.messages.push(msg);
+  save();
+  if (bot.id === state.activeId && !state.activeChannel) renderThread();
+  void respond(bot, said, CALL_STYLE);
+}
+
+/** What a bot is told while it is on a call.
+ *
+ *  Read aloud, a well-organised answer with three headings and a code block is
+ *  punishment. It is also the same bot with the same memory, so this asks for
+ *  a different delivery rather than a different personality. */
+const CALL_STYLE = `You are on a voice call with the user right now: they are speaking, and your reply is read out loud by a speech synthesiser. Answer in one or two spoken sentences — no lists, no headings, no code blocks, no markdown, and no "let me know if". If they have given you something to do, say what you understood in a sentence and get on with it; the full detail belongs in the written thread, not in what you say.`;
+
+/** Called when a turn ends, so the call can speak the answer and move on. */
+function callHeardBack(botId: string, text: string, failed: boolean): void {
+  if (!call || call.botId !== botId) return;
+
+  if (failed) {
+    callSays("That turn failed — it is written up in the thread.");
+  } else {
+    const spoken = forSpeech(text);
+    callSays(spoken ? "Speaking…" : "Nothing to say.");
+    // What it is saying, in writing. A call you can read is a call you can
+    // take somewhere quiet, and it is the only record of the spoken version.
+    callHeard.textContent = spoken;
+    if (spoken) {
+      setMood(botId, "talk");
+      void invoke("speak", { text: spoken, voice: voiceFor(state.bots.find((b) => b.id === botId)!) })
+        .then(() => {
+          // Resolves when the sound stops, so the mouth stops with it.
+          if (moods.get(botId) === "talk") setMood(botId, "happy");
+          if (call?.botId === botId && !call.queue.length) callSays("Go on — hold to talk.");
+        })
+        .catch(() => {
+          if (moods.get(botId) === "talk") setMood(botId, "happy");
+        });
+    }
+  }
+
+  // Whatever you said while it was busy.
+  const next = call.queue.shift();
+  if (next) window.setTimeout(() => sayToBot(next), 300);
+}
+
 /* ------------------------------------------------------------ app settings */
 
 const appWrap = $<HTMLDivElement>("#app-settings");
@@ -4963,6 +5243,36 @@ $<HTMLButtonElement>("#btn-account").addEventListener("click", (event) => {
   );
 });
 
+$<HTMLButtonElement>("#btn-call").addEventListener("click", () => {
+  const bot = activeBot();
+  if (bot) void startCall(bot);
+});
+
+$<HTMLButtonElement>("#call-end").addEventListener("click", endCall);
+
+// Held, not toggled. A press-to-start-press-to-stop button leaves a microphone
+// live in a room you have walked out of; holding one cannot.
+const talkBtn = $<HTMLButtonElement>("#call-talk");
+talkBtn.addEventListener("mousedown", startListening);
+talkBtn.addEventListener("mouseup", stopListening);
+talkBtn.addEventListener("mouseleave", () => {
+  if (call?.listening) stopListening();
+});
+
+// Space does the same, because reaching for a button to say one sentence is
+// the thing that stops people using it.
+document.addEventListener("keydown", (e) => {
+  if (e.code !== "Space" || !call || callEl.hidden || e.repeat) return;
+  const typing = document.activeElement;
+  if (typing instanceof HTMLInputElement || typing instanceof HTMLTextAreaElement) return;
+  e.preventDefault();
+  startListening();
+});
+document.addEventListener("keyup", (e) => {
+  if (e.code === "Space" && call?.listening) stopListening();
+});
+
+
 $<HTMLButtonElement>("#btn-plugins").addEventListener("click", () => void openPlugins());
 
 $<HTMLButtonElement>("#btn-rail").addEventListener("click", toggleRail);
@@ -5466,7 +5776,8 @@ document.addEventListener("keydown", (e) => {
     searchEl.focus();
     searchEl.select();
   } else if (e.key === "Escape") {
-    if (!tourWrap().hidden) endTour();
+    if (call) endCall();
+    else if (!tourWrap().hidden) endTour();
     else if (!modelsWrap.hidden) modelsWrap.hidden = true;
     else if (!channelWrap.hidden) channelWrap.hidden = true;
     else if (!routineWrap.hidden) routineWrap.hidden = true;
@@ -6856,6 +7167,7 @@ if (activeChannel()) {
 if (state.screenOpen) void openScreen();
 autoGrow();
 input.focus();
+
 
 // Routines are checked here rather than in Rust: the state they read lives in
 // the webview, and nothing can fire while the app is closed anyway.

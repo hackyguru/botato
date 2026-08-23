@@ -860,6 +860,8 @@ textarea {
 
 /* --------------------------------------------------------------------- main */
 .main {
+  /* The anchor a call fills. */
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -4933,4 +4935,173 @@ a.detail__source:hover {
 }
 .cal__event .face {
   float: left;
+}
+
+/* -------------------------------------------------------------------- calls */
+
+/* Over the conversation rather than beside it: a call is the only thing you
+   are doing while it is happening. The sidebar stays, because leaving the app
+   to talk to one bot would be a strange thing to insist on. */
+.call {
+  position: absolute;
+  z-index: 60;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  background: var(--bg-main);
+  /* The bot's own colour, breathed into the room it is on a call in. */
+  background-image: radial-gradient(
+    62% 52% at 50% 42%,
+    color-mix(in srgb, var(--skin, #0a84ff) 22%, transparent),
+    transparent 70%
+  );
+}
+
+.call__stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+/* Four times the size it is anywhere else. It is the picture on the call. */
+.call__face .face {
+  --u: 132px;
+}
+
+.call__who {
+  margin: 14px 0 0;
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.call__state {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 14px;
+}
+
+/* What it heard you say, so a misheard word is visible rather than mysterious. */
+.call__heard {
+  max-width: 520px;
+  min-height: 22px;
+  margin: 6px 0 0;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.call__foot {
+  position: absolute;
+  bottom: 42px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.call__talk {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 26px;
+  height: 52px;
+  background: var(--field);
+  border: 0;
+  border-radius: 26px;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  user-select: none;
+}
+.call__talk svg {
+  width: 19px;
+  height: 19px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  fill: none;
+}
+.call__talk:hover {
+  background: var(--active);
+}
+
+/* Live: unmistakably so, because a microphone you think is off is the worst
+   state this screen can be in. */
+.call__talk.is-live {
+  background: var(--blue);
+  color: #fff;
+  animation: call-live 1.5s ease-in-out infinite;
+}
+@keyframes call-live {
+  50% {
+    box-shadow: 0 0 0 10px rgba(10, 132, 255, 0.14);
+  }
+}
+
+.call__end {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  background: var(--red);
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+}
+.call__end svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  fill: none;
+}
+.call__end:hover {
+  filter: brightness(1.1);
+}
+
+/* Talking: the mouth opens and closes for as long as there is sound. Two
+   frames, not a waveform — a face made of five boxes that suddenly animated
+   smoothly would look like a different character. */
+.face[data-mood="talk"] .face__mouth {
+  width: calc(var(--u) * 0.24);
+  height: calc(var(--u) * 0.15);
+  background: var(--ink);
+  border: 0;
+  border-radius: calc(var(--u) * 0.1);
+  animation: mood-talk 0.34s steps(1, end) infinite;
+}
+@keyframes mood-talk {
+  0%,
+  49% {
+    height: calc(var(--u) * 0.15);
+    transform: translateY(0);
+  }
+  50%,
+  100% {
+    height: calc(var(--u) * 0.05);
+    transform: translateY(calc(var(--u) * 0.05));
+  }
+}
+
+/* And the head keeps a little life in it while the mouth is going. */
+.face[data-mood="talk"] {
+  animation: mood-talking 1.9s ease-in-out infinite;
+}
+@keyframes mood-talking {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  40% {
+    transform: translateY(calc(var(--u) * -0.02)) rotate(-1.5deg);
+  }
+  70% {
+    transform: translateY(calc(var(--u) * -0.01)) rotate(1.5deg);
+  }
 }
