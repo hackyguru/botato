@@ -107,6 +107,11 @@ interface Bot {
   /** Which provider answers, for an engine that is an API rather than a
    *  program: a models.dev id, or "ollama" for the one on this machine. */
   provider?: string;
+  /** How it sounds on a call. Absent means the one its id chose for it, which
+   *  is what almost every bot will have — the picker exists for the one you
+   *  want to sound different, not because anybody wants to choose fifty
+   *  times. */
+  voice?: string;
   /** Which of that engine's models. Named in the engine's own vocabulary, so
    *  "opus", "gemini-2.5-pro" and "anthropic/claude-sonnet-4" all live here. */
   model: string;
@@ -1829,6 +1834,41 @@ function renderRoutines(): void {
     .join("");
 }
 
+/** Which voice this bot speaks in, and every other one it could have.
+ *
+ *  The one its id chose is first and marked as such, because that is what it
+ *  already sounds like and the list is otherwise fifty names with nothing to
+ *  choose between them. */
+async function paintSheetVoices(bot: Bot | null): Promise<void> {
+  const row = $<HTMLLabelElement>("#sheet-voice-row");
+  const picker = $<HTMLSelectElement>("#sheet-voice");
+  const all = await knownVoices();
+
+  // Nothing installed that can speak. Offering an empty list would be a
+  // setting that looks broken rather than one that is not applicable.
+  row.hidden = !all.length;
+  if (!all.length) return;
+
+  const given = bot ? voiceNames[seedOf(bot.id) % voiceNames.length] : all[0];
+  picker.innerHTML =
+    `<option value="">${escapeHtml(given)} — chosen by its id</option>` +
+    all
+      .filter((v) => v !== given)
+      .map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`)
+      .join("");
+  picker.value = bot?.voice && all.includes(bot.voice) ? bot.voice : "";
+}
+
+$<HTMLButtonElement>("#sheet-voice-try").addEventListener("click", () => {
+  const picker = $<HTMLSelectElement>("#sheet-voice");
+  const chosen = picker.value || picker.options[0]?.textContent?.split(" — ")[0] || "";
+  const name = sheetName.value.trim() || "your new bot";
+  void invoke("speak", {
+    text: `Hello. I am ${name}, and this is how I sound.`,
+    voice: chosen,
+  }).catch(() => {});
+});
+
 /** What could answer for this bot, and what is stopping the rest.
  *
  *  An engine that is missing is still listed, greyed, with the reason on it: a
@@ -2281,6 +2321,7 @@ function openSheet(bot: Bot | null = null): void {
     model: bot?.model ?? (appSettings().engine ? appSettings().model : ""),
   };
   paintSheetEngines(bot);
+  void paintSheetVoices(bot);
   sheetBrowser.value = bot?.machine?.browser ?? "";
   sheetRendering.value = bot?.machine?.rendering ?? "";
   // Say what "Automatic" resolved to, or the tab reads as though nothing is set
@@ -3213,6 +3254,10 @@ function saveSheet(): void {
       engine: sheetEngine.value,
       provider: picked.provider,
       model: picked.model,
+      // Empty means the one its id chose, which is not the same as no voice:
+      // storing the resolved name would freeze it against a better one being
+      // installed later.
+      voice: $<HTMLSelectElement>("#sheet-voice").value || undefined,
       machine: machineFromSheet(),
     });
 
@@ -3816,8 +3861,24 @@ const callHeard = $<HTMLParagraphElement>("#call-heard");
  *  it, for the same reason nobody picks a face: a hundred and eighty voices is
  *  not a decision anyone wants to make per bot. */
 function voiceFor(bot: Bot): string | undefined {
+  // One it was given by hand wins, and survives the list changing underneath
+  // it — installing a better voice should not resettle everybody.
+  if (bot.voice) return bot.voice;
   if (!voiceNames.length) return undefined;
   return voiceNames[seedOf(bot.id) % voiceNames.length];
+}
+
+/** The voices this machine offers, fetched once.
+ *
+ *  Wanted before any call is made now, because the settings sheet lists them —
+ *  so this is the one place that asks, and everywhere else waits on it. */
+async function knownVoices(): Promise<string[]> {
+  if (!voiceNames.length) {
+    voiceNames = await invoke<string[]>("voices", {
+      language: navigator.language || "en",
+    }).catch(() => []);
+  }
+  return voiceNames;
 }
 
 /** Markdown read aloud is punctuation read aloud. */
@@ -3862,11 +3923,7 @@ async function startCall(bot: Bot): Promise<void> {
   setMood(bot.id, "wave");
   callSays("Hold the button, or hold space, and talk.");
 
-  if (!voiceNames.length) {
-    voiceNames = await invoke<string[]>("voices", { language: navigator.language || "en" }).catch(
-      () => [],
-    );
-  }
+  await knownVoices();
 
   // The speech model, once, on the first call ever made. Fetched here rather
   // than at install because most people will never make a call, and 57 MB is

@@ -49,6 +49,11 @@ macOS builds are signed and notarised, so they open without warnings.
   thinks with a cloud over its head, jumps when a turn lands and slumps when one
   fails. A bot can change its own face when you ask it to, and draw things the
   wardrobe has not got out of a handful of shapes.
+- **A voice**, on a call: one of the machine's own, chosen from the bot's id
+  the way its face is, and changeable in its settings. macOS has two dozen
+  usable ones; Linux has espeak-ng's accents crossed with its variants, which
+  is seventy-odd. Point `BOTCAGE_TTS` at a command to use something better —
+  Piper, Kokoro, whatever comes next — without botcage shipping a model.
 - **A memory file** it maintains itself, seeded from its name and role.
 - **Optionally, a computer**: a Linux desktop in a container with Firefox or
   Chromium, a terminal, and a screen you can watch and take over. Each one has
