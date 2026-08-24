@@ -3816,7 +3816,16 @@ async function channelTurn(
   save();
 
   // Whoever it brought in, while the message still has turns left to give.
-  for (const next of addressees(ch, post.text, bot.id)) {
+  //
+  // On a call, a name said aloud counts as bringing someone in. A bot asked to
+  // hand over says "Guide, can you confirm" rather than "@Guide", because it
+  // was told to talk like a person on a call — and requiring the marker meant
+  // the handover it just announced never happened.
+  const onward =
+    call?.channelId === ch.id
+      ? spokenAddressees(ch, post.text, false).filter((b) => b.id !== bot.id)
+      : addressees(ch, post.text, bot.id);
+  for (const next of onward) {
     if (budget.left <= 0 || hushed.has(ch.id)) return;
     budget.left -= 1;
     await channelTurn(ch, next, budget);
@@ -4092,11 +4101,19 @@ interface Call {
   bits: Blob[];
   /** What it heard you say last, shown so a misheard word is visible. */
   heard: string;
-  /** How much of the reply has already been handed to the voice. Counted
-   *  against one bot's answer, so it resets when the floor changes hands. */
-  spokenTo: number;
-  /** Sentences waiting their turn at the speaker. */
-  saying: string[];
+  /** How much of each bot's reply has been handed to the voice.
+   *
+   *  Per bot, not one number: a turn is finished as far as the model is
+   *  concerned while its last sentence is still being spoken, so the bot it
+   *  brought in starts streaming before the previous one has stopped talking.
+   *  Two answers are in the air at once and they are different lengths. */
+  spokenTo: Record<string, number>;
+  /** Lines waiting their turn at the speaker, each with whose they are.
+   *
+   *  Whose matters: the queue outlives a turn, so a line pulled off it may
+   *  belong to a bot that stopped generating a while ago. Speaking it in
+   *  whoever happens to be current puts one bot's words in another's voice. */
+  saying: { botId: string; line: string }[];
   /** Whether something is being said right now. */
   voicing: boolean;
   /** Whose answer is currently being read out, in a room. */
@@ -4157,6 +4174,9 @@ async function knownVoices(): Promise<string[]> {
 /** Markdown read aloud is punctuation read aloud. */
 function forSpeech(text: string): string {
   return text
+    // "@Guide" is a mention on screen and the words "at Guide" out loud, which
+    // is not what anybody meant. The name stays; the marker goes.
+    .replace(/@(?=[A-Za-z])/g, "")
     .replace(/```[\s\S]*?```/g, " — code — ")
     .replace(/`([^`]+)`/g, "$1")
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
@@ -4244,7 +4264,7 @@ async function startCall(bot: Bot, room?: Channel): Promise<void> {
     tape: null,
     bits: [],
     heard: "",
-    spokenTo: 0,
+    spokenTo: {},
     saying: [],
     voicing: false,
   };
@@ -4487,7 +4507,7 @@ function sayToBot(said: string): void {
 
   callHeard.textContent = said;
   callSays("Thinking…");
-  call.spokenTo = 0;
+  call.spokenTo = {};
   call.saying = [];
   call.speakingFor = undefined;
 
@@ -4509,12 +4529,14 @@ function sayToBot(said: string): void {
  *  A name at the front wins, because that is how anyone addresses one person
  *  in a room out loud. Then a name anywhere. An "@" still works, for the
  *  transcript that happens to contain one. */
-function spokenAddressees(room: Channel, said: string): Bot[] {
-  const typed = addressees(room, said);
+function spokenAddressees(room: Channel, said: string, yours = true): Bot[] {
+  const typed = addressees(room, said, yours ? undefined : "");
   if (typed.length) return typed;
 
-  // Said aloud, "everyone" needs no "@" either.
-  if (/\b(everyone|everybody|all of you)\b/i.test(said)) return membersOf(room);
+  // Said aloud, "everyone" needs no "@" either — but only from you. Calling
+  // the room in is yours alone for the same reason it is when typing: a bot
+  // doing it spends the whole budget in one line.
+  if (yours && /\b(everyone|everybody|all of you)\b/i.test(said)) return membersOf(room);
 
   const heard = said.trim().toLowerCase();
   const opening = membersOf(room).filter((bot) => {
@@ -4557,7 +4579,7 @@ function saidOnCall(room: Channel, said: string): void {
   // so the tile that is lit is the one that is not talking.
   if (call) {
     call.speakingFor = undefined;
-    call.spokenTo = 0;
+    call.spokenTo = {};
     paintCallStage();
   }
 
@@ -4607,16 +4629,10 @@ function speakAsItArrives(botId: string, whole: string, ending = false): void {
   if (!onThisCall(botId)) return;
   if (!call) return;
 
-  // The floor changing hands in a room: a new voice starts its answer from the
-  // beginning, and `spokenTo` counts against one answer.
-  if (call.speakingFor !== botId) {
-    call.speakingFor = botId;
-    call.botId = botId;
-    call.spokenTo = 0;
-    paintCallStage();
-  }
-
-  const fresh = whole.slice(call.spokenTo);
+  // Not who has the floor — that is decided when a line actually starts being
+  // spoken, which can be a while after it was written.
+  const done = call.spokenTo[botId] ?? 0;
+  const fresh = whole.slice(done);
   if (!fresh) return;
 
   // How much of what has arrived is a whole sentence. At the end of a turn
@@ -4637,14 +4653,14 @@ function speakAsItArrives(botId: string, whole: string, ending = false): void {
   // Speaking a reply one sentence at a time made a bot's voice change halfway
   // through its own answer, which is far more noticeable than it changing
   // between turns. Fewer, longer pieces means fewer performances.
-  const started = call.spokenTo > 0;
+  const started = done > 0;
   if (started && !ending && upto < MOUTHFUL) return;
 
-  call.spokenTo += upto;
+  call.spokenTo[botId] = done + upto;
   const line = forSpeech(fresh.slice(0, upto));
   if (!line) return;
-  call.saying.push(line);
-  void pumpVoice(botId);
+  call.saying.push({ botId, line });
+  void pumpVoice();
 }
 
 /** One sentence at a time, in order.
@@ -4652,35 +4668,45 @@ function speakAsItArrives(botId: string, whole: string, ending = false): void {
  *  Sequential because the synthesiser is: asking it to say a second thing
  *  stops it saying the first, so two overlapping calls would produce one
  *  sentence and a stump of another. */
-async function pumpVoice(botId: string): Promise<void> {
-  if (!call || call.voicing || !onThisCall(botId)) return;
-  const bot = state.bots.find((b) => b.id === botId);
-  if (!bot) return;
+async function pumpVoice(): Promise<void> {
+  if (!call || call.voicing) return;
 
   // The list has to be in hand before the first word, or `voiceFor` returns
   // nothing, Rust falls back to whichever voice is first, and every bot sounds
   // the same until the fetch lands. After the first call this costs nothing.
   await knownVoices();
+  if (!call) return;
 
   call.voicing = true;
-  while (call && onThisCall(botId) && call.saying.length) {
-    const line = call.saying.shift() as string;
-    // Live captions: what is being said, while it is being said.
-    callHeard.textContent = line;
+  while (call?.saying.length) {
+    const next = call.saying.shift();
+    if (!next) break;
+    const bot = state.bots.find((b) => b.id === next.botId);
+    if (!bot) continue;
+
+    // The floor is taken here rather than when the words were written: this is
+    // the moment the sound starts, and it is what the ring and the mouth are
+    // meant to be showing.
+    call.speakingFor = bot.id;
+    paintCallStage();
+    setMood(bot.id, "talk");
+    callHeard.textContent = next.line;
     callSays("Speaking…");
-    setMood(botId, "talk");
     try {
-      await invoke("speak", { text: line, voice: voiceFor(bot) });
+      await invoke("speak", { text: next.line, voice: voiceFor(bot) });
     } catch {
       break;
     }
+    if (moods.get(bot.id) === "talk") setMood(bot.id, "happy");
   }
-  if (!call || !onThisCall(botId)) return;
+  if (!call) return;
 
   call.voicing = false;
   stopLips();
-  if (moods.get(botId) === "talk") setMood(botId, "happy");
-  if (!call.saying.length && !inflight.has(botId) && !call.queue.length) {
+  const busy = [...inflight.values()].some((p) =>
+    call?.channelId ? p.channelId === call.channelId : true,
+  );
+  if (!call.saying.length && !busy && !call.queue.length) {
     call.speakingFor = undefined;
     paintCallStage();
     callSays(callRoom() ? "Go on — everyone can hear you." : "Go on — hold to talk.");
@@ -4692,11 +4718,15 @@ function callHeardBack(botId: string, text: string, failed: boolean): void {
   if (!onThisCall(botId) || !call) return;
 
   if (failed) {
-    call.saying = [];
+    // Only this bot's lines. Another bot may be mid-sentence or waiting behind
+    // it, and one failed turn is not a reason to cut the room off.
+    call.saying = call.saying.filter((waiting) => waiting.botId !== botId);
     callSays("That turn failed — it is written up in the thread.");
   } else {
     speakAsItArrives(botId, text, true);
-    if (!call.saying.length && !call.voicing) callSays("Go on — hold to talk.");
+    if (!call.saying.length && !call.voicing) {
+      callSays(callRoom() ? "Go on — everyone can hear you." : "Go on — hold to talk.");
+    }
   }
 
   // Whatever you said while it was busy.
@@ -5971,6 +6001,7 @@ document.addEventListener("keydown", (e) => {
 document.addEventListener("keyup", (e) => {
   if (e.code === "Space" && call?.listening) stopListening();
 });
+
 
 
 
