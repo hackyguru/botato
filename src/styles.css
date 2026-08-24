@@ -5351,3 +5351,74 @@ a.detail__source:hover {
     box-shadow: 0 0 0 2px var(--blue);
   }
 }
+
+/* A bubble with something hanging off it: the bubble and the way in, stacked,
+   so the strip lines up under the message it belongs to rather than beside
+   it. */
+.turn__stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+}
+.turn--me .turn__stack {
+  align-items: flex-end;
+}
+
+/* The way into a thread, from the line it was pulled out of. Quiet: it is a
+   footnote on somebody's message, not a message of its own. */
+.thread-strip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 5px 11px 5px 8px;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.thread-strip:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.thread-strip__arrow {
+  display: grid;
+  place-items: center;
+}
+.thread-strip__arrow svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  transform: scaleY(-1);
+}
+.thread-strip__name {
+  overflow: hidden;
+  max-width: 230px;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.thread-strip__count {
+  flex: none;
+  color: var(--text-2);
+}
+/* With no name beside it the count is the whole label, so it reads as one. */
+.thread-strip__name + .thread-strip__count {
+  color: var(--text-3);
+}
+
+/* Something said in it that you have not read. */
+.thread-strip.is-unread {
+  border-color: color-mix(in srgb, var(--blue) 55%, transparent);
+}
+.thread-strip.is-unread .thread-strip__count {
+  color: var(--blue);
+}

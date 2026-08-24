@@ -1204,6 +1204,14 @@ function turnEl(msg: Message, ch?: Channel): HTMLElement {
   // the thing the eye picks out — it is on the row in the sidebar, on the
   // header of the room, and it is different for every bot. The name is on the
   // face's tooltip for the one time you cannot place it.
+  // A message with a thread hanging off it says so, and is the way in. Without
+  // this a thread exists only in the sidebar, and the line it came from — the
+  // thing you would go looking from — gives no sign anything happened.
+  const hanging = ch ? channels().find((c) => c.from?.messageId === msg.id) : null;
+  const body = hanging
+    ? `<span class="turn__stack">${bubbleHtml(msg)}${threadStrip(hanging, msg)}</span>`
+    : bubbleHtml(msg);
+
   const author = ch && msg.from === "bot" ? state.bots.find((b) => b.id === msg.by) : null;
   if (author) {
     wrap.classList.add("turn--said");
@@ -1211,13 +1219,38 @@ function turnEl(msg: Message, ch?: Channel): HTMLElement {
       `<span class="said" title="${escapeHtml(author.name)} · ${clock(msg.at)}">` +
       faceHtml(author, "sm") +
       `</span>` +
-      bubbleHtml(msg) +
+      body +
       actsHtml(msg);
     return wrap;
   }
 
-  wrap.innerHTML = msg.from === "me" ? actsHtml(msg) + bubbleHtml(msg) : bubbleHtml(msg) + actsHtml(msg);
+  wrap.innerHTML = msg.from === "me" ? actsHtml(msg) + body : body + actsHtml(msg);
   return wrap;
+}
+
+/** The way into a thread, from the message it was pulled out of. */
+function threadStrip(thread: Channel, from: Message): string {
+  // The quoted first message came from here, so it is not a reply.
+  const said = Math.max(0, thread.messages.filter((m) => m.text.trim()).length - 1);
+  const news = unreadIn(thread.messages, thread.seenAt);
+
+  // A thread keeps the name it was born with — the opening words of the
+  // message — so printing it directly under that message says the same thing
+  // twice. Named only once somebody has renamed it to something else.
+  const flat = from.text.replace(/\s+/g, " ").trim();
+  const named = !flat.startsWith(thread.name)
+    ? `<span class="thread-strip__name">${escapeHtml(thread.name)}</span>`
+    : "";
+
+  return (
+    `<button type="button" class="thread-strip${news.unread ? " is-unread" : ""}" ` +
+    `data-open-thread="${thread.id}">` +
+    `<span class="thread-strip__arrow">${icon("reply")}</span>` +
+    named +
+    `<span class="thread-strip__count">` +
+    `${said === 0 ? "Thread — nothing said yet" : said === 1 ? "1 reply" : `${said} replies`}` +
+    `</span></button>`
+  );
 }
 
 /** How many pinned messages the open conversation has. */
@@ -6248,6 +6281,11 @@ thread.addEventListener("click", (e) => {
   if (!lesson) return;
   const found = LESSONS.find((l) => l.id === lesson.dataset.lesson);
   if (found) startTour(found.stops);
+});
+
+thread.addEventListener("click", (e) => {
+  const open = (e.target as HTMLElement).closest<HTMLElement>("[data-open-thread]");
+  if (open?.dataset.openThread) openChannel(open.dataset.openThread);
 });
 
 thread.addEventListener("click", (e) => {
