@@ -37,6 +37,7 @@ import {
 import type { Bot, Routine, Snapshot } from "./src/types";
 import Pair from "./src/screens/Pair";
 import Bots from "./src/screens/Bots";
+import Room from "./src/screens/Room";
 import Chat from "./src/screens/Chat";
 import BotSettings from "./src/screens/BotSettings";
 import Phone from "./src/screens/Phone";
@@ -44,7 +45,7 @@ import { T } from "./src/theme";
 
 // "settings" is one bot's; "phone" is this device's own — the link to the
 // laptop, and the one destructive thing a phone can do.
-type Screen = "bots" | "chat" | "settings" | "phone";
+type Screen = "bots" | "chat" | "room" | "settings" | "phone";
 
 export default function App() {
   const [pairing, setPairing] = useState<Pairing | null>(null);
@@ -52,6 +53,7 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [screen, setScreen] = useState<Screen>("bots");
   const [botId, setBotId] = useState<string | null>(null);
+  const [roomId, setRoomId] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -287,6 +289,10 @@ export default function App() {
 
   const bots = snapshot?.bots ?? [];
   const bot: Bot | undefined = bots.find((b) => b.id === botId);
+  // Absent from a laptop older than channels, which is why everything here
+  // copes with there being none rather than assuming the field exists.
+  const channels = snapshot?.channels ?? [];
+  const room = channels.find((c) => c.id === roomId);
 
   return (
     <>
@@ -297,9 +303,60 @@ export default function App() {
         </View>
       ) : null}
 
-      {screen === "bots" || !bot ? (
+      {screen === "room" && room ? (
+        <Room
+          channel={room}
+          bots={bots}
+          parent={channels.find((c) => c.id === room.from?.channelId)}
+          threads={channels.filter((c) => c.from)}
+          onBack={() => setScreen("bots")}
+          onOpenThread={(thread) => {
+            setRoomId(thread.id);
+            void act("channel/seen", { channelId: thread.id });
+          }}
+          onSend={async (text) => {
+            // Shown at once; the laptop's own copy replaces it with the next
+            // snapshot, the same bargain a bot's chat already makes.
+            setSnapshot((was) =>
+              was
+                ? {
+                    ...was,
+                    channels: (was.channels ?? []).map((c) =>
+                      c.id === room.id
+                        ? {
+                            ...c,
+                            busy: true,
+                            messages: [
+                              ...c.messages,
+                              {
+                                id: `local-${Date.now()}`,
+                                from: "me" as const,
+                                text,
+                                at: Date.now(),
+                                fromPhone: true,
+                              },
+                            ],
+                          }
+                        : c,
+                    ),
+                  }
+                : was,
+            );
+            const p = current.current;
+            if (!p) return;
+            try {
+              await call(p, "channel/send", { channelId: room.id, text });
+            } catch (err) {
+              setProblem(err instanceof Error ? err.message : String(err));
+              void refresh();
+            }
+          }}
+        />
+      ) : screen === "bots" || !bot ? (
         <Bots
           bots={bots}
+          channels={channels}
+          called={String(snapshot?.settings?.name ?? "")}
           connected={connected}
           loading={loading}
           onRefresh={refresh}
@@ -307,6 +364,11 @@ export default function App() {
             setBotId(chosen.id);
             setScreen("chat");
             void act("open", { botId: chosen.id });
+          }}
+          onOpenChannel={(chosen) => {
+            setRoomId(chosen.id);
+            setScreen("room");
+            void act("channel/seen", { channelId: chosen.id });
           }}
           onCreate={async (name, role) => {
             await act("bot/create", { name, role });

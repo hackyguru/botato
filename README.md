@@ -144,6 +144,11 @@ of its own: every request is answered by the desktop window using the same code
 its own UI calls, so the phone gets whatever the desktop can do rather than a
 second implementation that drifts.
 
+Channels and the threads hanging off them are on the phone too, with the same
+unread dots and mention badges — a message sent from a train is routed by the
+laptop's own function, so the mentions, the hop budget and everything else
+behave identically. Calls are the one thing the phone cannot do yet.
+
 **How it reaches your laptop.** The laptop listens on nothing — the API is bound
 to loopback, so no port is open on any network it joins. The only way in is a
 QUIC connection made directly between the two devices, in which the laptop's

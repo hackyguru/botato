@@ -4,9 +4,31 @@ export interface Message {
   from: "me" | "bot";
   text: string;
   at: number;
+  /** In a channel, which bot said it. A private chat has two voices and needs
+   *  no attribution; a room has as many as it has members. */
+  by?: string;
+  /** Kept at the top of the room. */
+  pinned?: boolean;
+  kind?: "teach" | "routine";
+  meta?: { name?: string };
   /** Sent from a phone rather than the laptop. */
   fromPhone?: boolean;
   note?: string;
+}
+
+/** A room several bots and you share — or, with `from` set, a thread pulled
+ *  out of one message in a room. The laptop treats a thread as a channel with
+ *  a parent, and so does this. */
+export interface Channel {
+  id: string;
+  name: string;
+  purpose: string;
+  /** Bot ids: the phone already has the bots. */
+  members: string[];
+  messages: Message[];
+  seenAt?: number;
+  from?: { channelId: string; messageId: string };
+  busy: boolean;
 }
 
 export interface Routine {
@@ -62,6 +84,7 @@ export interface Bot {
   routines: Routine[];
   busy: boolean;
   messages: Message[];
+  seenAt?: number;
 }
 
 /** Something on the laptop that can answer for a bot. The phone shows the list
@@ -83,4 +106,7 @@ export interface Snapshot {
   /** Absent from a laptop running a build older than engines. */
   engines?: EngineInfo[];
   bots: Bot[];
+  /** Absent from a laptop running a build older than channels — which is why
+   *  everything that reads it copes with there being none. */
+  channels?: Channel[];
 }

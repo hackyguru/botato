@@ -8087,7 +8087,20 @@ function remoteSnapshot(): Record<string, unknown> {
       routines: bot.routines ?? [],
       busy: inflight.has(bot.id),
       messages: bot.messages,
+      seenAt: bot.seenAt,
       // the phone renders the same mark on its own side
+    })),
+    // Rooms and the threads hanging off them, so a phone sees the same app
+    // rather than an older one. Members by id: the phone already has the bots.
+    channels: channels().map((ch) => ({
+      id: ch.id,
+      name: ch.name,
+      purpose: ch.purpose,
+      members: ch.members,
+      messages: ch.messages,
+      seenAt: ch.seenAt,
+      from: ch.from,
+      busy: membersOf(ch).some((b) => inflight.get(b.id)?.channelId === ch.id),
     })),
   };
 }
@@ -8131,6 +8144,57 @@ const REMOTE_ACTIONS: Record<string, (payload: Record<string, unknown>) => unkno
   state: () => remoteSnapshot(),
 
   send: (p) => remoteSend(String(p.botId ?? ""), String(p.text ?? "")),
+
+  /** Say something in a room, from the phone. Routed exactly as it is on the
+   *  laptop — the same mentions, the same hop budget, the same everything —
+   *  because it is the same function. */
+  "channel/send": (p) => {
+    const room = channels().find((c) => c.id === String(p.channelId ?? ""));
+    if (!room) throw new Error("no such channel");
+    const text = String(p.text ?? "").trim();
+    if (!text) throw new Error("nothing to say");
+
+    // Opened first so the message lands on screen here too, and so what the
+    // phone said is marked read rather than coming back as an unread badge.
+    openChannel(room.id);
+    postToChannel(room, text);
+    return { ok: true };
+  },
+
+  /** Mark a room read, because reading it on the phone is reading it. */
+  "channel/seen": (p) => {
+    const room = channels().find((c) => c.id === String(p.channelId ?? ""));
+    if (!room) throw new Error("no such channel");
+    room.seenAt = Date.now();
+    save();
+    renderRoster();
+    return { ok: true };
+  },
+
+  /** Pin or unpin, from either side. */
+  "message/pin": (p) => {
+    const wanted = String(p.messageId ?? "");
+    const room = channels().find((c) => c.id === String(p.channelId ?? ""));
+    const msg = room
+      ? room.messages.find((m) => m.id === wanted)
+      : state.bots.find((b) => b.id === String(p.botId ?? ""))?.messages.find((m) => m.id === wanted);
+    if (!msg) throw new Error("no such message");
+    msg.pinned = typeof p.pinned === "boolean" ? p.pinned : !msg.pinned;
+    save();
+    redrawConversation();
+    return { pinned: Boolean(msg.pinned) };
+  },
+
+  /** Pull a message aside into a thread, from the phone. */
+  "thread/start": (p) => {
+    const room = channels().find((c) => c.id === String(p.channelId ?? ""));
+    const msg = room?.messages.find((m) => m.id === String(p.messageId ?? ""));
+    if (!room || !msg) throw new Error("no such message");
+    const already = channels().find((c) => c.from?.messageId === msg.id);
+    if (already) return { id: already.id };
+    openThreadFrom(room, msg);
+    return { id: channels().find((c) => c.from?.messageId === msg.id)?.id ?? "" };
+  },
 
   cancel: (p) => {
     cancelTurn(String(p.botId ?? ""));
