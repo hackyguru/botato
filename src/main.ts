@@ -77,6 +77,10 @@ interface Routine {
    *  routine is, because work on your calendar that you did not put there
    *  needs to say where it came from. */
   by?: string;
+  /** Which channel it reports into. Absent means the bot's own chat, which is
+   *  where every routine used to go — and the reason a watchdog that checks
+   *  the build every half hour was shouting into a room nobody visits. */
+  channel?: string;
   active: boolean;
   lastRunAt?: number;
 }
@@ -3599,7 +3603,14 @@ function settled(botId: string): Promise<void> {
  *  Sequential on purpose: the addressees answer one at a time, and a bot that
  *  brings somebody in waits for them. A room where three bots stream at once
  *  is unreadable, and it is also not how the thing being modelled works. */
-async function channelTurn(ch: Channel, bot: Bot, budget: Budget): Promise<void> {
+async function channelTurn(
+  ch: Channel,
+  bot: Bot,
+  budget: Budget,
+  /** What to answer, when it is not simply what was said since it last spoke —
+   *  a routine has its own instruction, and nobody said it out loud. */
+  asked?: string,
+): Promise<void> {
   if (hushed.has(ch.id)) return;
   // Busy in its own chat, or already speaking here. Skipped rather than
   // queued: by the time it is free the conversation has moved on, and an
@@ -3609,7 +3620,7 @@ async function channelTurn(ch: Channel, bot: Bot, budget: Budget): Promise<void>
     return;
   }
 
-  const heard = whatItMissed(ch, bot.id);
+  const heard = asked ?? whatItMissed(ch, bot.id);
   if (!heard.trim()) return;
 
   const seat = seatFor(ch, bot);
@@ -3676,6 +3687,43 @@ async function channelTurn(ch: Channel, bot: Bot, budget: Budget): Promise<void>
     budget.left -= 1;
     await channelTurn(ch, next, budget);
   }
+}
+
+/** A routine firing into a channel rather than into the bot's own chat.
+ *
+ *  The room gets a badge naming the routine, because a bot that suddenly
+ *  starts talking about last night's backups has to say why — nobody typed
+ *  anything, and without it the room reads as a bot talking to itself.
+ *
+ *  A fresh hop budget, so a watchdog that finds something wrong can bring in
+ *  whoever should fix it. That is most of the reason to report into a room
+ *  rather than a thread. */
+async function runRoutineInChannel(bot: Bot, routine: Routine, room: Channel): Promise<void> {
+  // Empty text on purpose: a marker, not something said. `whatItMissed` skips
+  // it, so the next bot to speak is not handed the instruction as though
+  // somebody had read it out.
+  room.messages.push({
+    id: uid(),
+    from: "bot",
+    by: bot.id,
+    text: "",
+    at: Date.now(),
+    kind: "routine",
+    meta: { steps: 0, frames: 0, slug: routine.id, name: routine.name },
+  });
+  save();
+  renderRoster();
+  if (state.activeChannel === room.id) renderChannel();
+
+  // What it missed first, then what it is here to do — in that order, so the
+  // instruction is the last thing it reads and the thing it acts on.
+  const since = whatItMissed(room, bot.id);
+  const asked = since
+    ? `Since you last spoke here:\n\n${since}\n\n---\n\nYour standing instruction, which has just come due. Do it and report here:\n\n${routine.instruction}`
+    : `Your standing instruction, which has just come due. Do it and report here:\n\n${routine.instruction}`;
+
+  setMood(bot.id, "alert");
+  await channelTurn(room, bot, { left: HOPS }, asked);
 }
 
 /** You said something in a room. */
@@ -4520,6 +4568,15 @@ function nextRun(routine: Routine, from: number): number {
 }
 
 function describeRoutine(routine: Routine): string {
+  const room = routine.channel ? channels().find((c) => c.id === routine.channel) : null;
+  // Where it lands, when that is not the bot's own chat. On the calendar this
+  // is the difference between a bot muttering to itself and a bot posting to a
+  // room, which is worth four characters.
+  const into = room ? ` → #${room.name}` : "";
+  return `${howOften(routine)}${into}`;
+}
+
+function howOften(routine: Routine): string {
   if (routine.every === "minutes") {
     const gap = Math.max(1, routine.minutes ?? 15);
     return gap === 1 ? "Every minute" : `Every ${gap} minutes`;
@@ -4632,10 +4689,20 @@ function runRoutine(bot: Bot, routine: Routine): void {
   }
 
   routine.lastRunAt = Date.now();
-  // Something arrived that nobody typed, so the bot says so before it starts.
-  setMood(bot.id, "alert");
   // A task, not a routine: it has now happened, and should not happen again.
   if (routine.every === "once") routine.active = false;
+
+  // Reporting into a room rather than into its own chat. Its own path,
+  // because the bot speaks there as a member of the channel, from its seat in
+  // it, and everyone else in the room sees it happen.
+  const into = routine.channel ? channels().find((c) => c.id === routine.channel) : null;
+  if (into && into.members.includes(bot.id)) {
+    void runRoutineInChannel(bot, routine, into);
+    return;
+  }
+
+  // Something arrived that nobody typed, so the bot says so before it starts.
+  setMood(bot.id, "alert");
   const note: Message = {
     id: uid(),
     from: "me",
@@ -5850,6 +5917,10 @@ function draftRoutine(): Routine {
     minutes: Number(routineInterval.value) || 15,
     day: Number(routineDay.value),
     date: routineDate.value,
+    // Empty means the bot's own chat, which is not the same as "no channel
+    // chosen yet" — but it is stored the same way, because a routine pointed
+    // at nowhere and a routine pointed at its own thread do the same thing.
+    channel: $<HTMLSelectElement>("#routine-where").value || undefined,
     active: routineActive.checked,
   };
 }
@@ -5901,6 +5972,8 @@ function openRoutine(routine: Routine | null, seed?: { day: number; hour: number
   by.hidden = !routine?.by;
   by.textContent = routine?.by ? `Added by ${routine.by}. Yours to keep, pause or delete.` : "";
 
+  paintRoutineWhere(picker.value, routine?.channel);
+
   $<HTMLHeadingElement>("#routine-title").textContent = routine ? "Routine" : "New routine";
   $<HTMLButtonElement>("#routine-save").textContent = routine ? "Save" : "Add routine";
   // Only something that exists can be run, deleted, or paused.
@@ -5912,6 +5985,27 @@ function openRoutine(routine: Routine | null, seed?: { day: number; hour: number
   routineWrap.hidden = false;
   routineName.focus();
 }
+
+/** Where a routine reports: its own bot's chat, or a room that bot is in.
+ *
+ *  Only rooms it is a member of — a routine pointed at a channel the bot had
+ *  since been taken out of would come due every morning and go nowhere. */
+function paintRoutineWhere(botId: string, chosen?: string): void {
+  const whose = state.bots.find((b) => b.id === (botId || activeBot()?.id));
+  const rooms = whose ? channels().filter((c) => c.members.includes(whose.id)) : [];
+  const where = $<HTMLSelectElement>("#routine-where");
+  $<HTMLLabelElement>("#routine-where-row").hidden = !rooms.length;
+  where.innerHTML =
+    `<option value="">${escapeHtml(whose?.name ?? "The bot")}&rsquo;s own chat</option>` +
+    rooms.map((c) => `<option value="${c.id}">#${escapeHtml(c.name)}</option>`).join("");
+  where.value = chosen && rooms.some((c) => c.id === chosen) ? chosen : "";
+}
+
+// Whose routine it is decides which rooms it could report into. Only that row
+// is repainted: reopening the sheet would throw away everything else typed.
+$<HTMLSelectElement>("#routine-bot").addEventListener("change", (e) => {
+  paintRoutineWhere((e.target as HTMLSelectElement).value);
+});
 
 routineEvery.addEventListener("change", paintRoutineForm);
 routineAt.addEventListener("change", paintRoutineForm);
