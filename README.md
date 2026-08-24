@@ -181,9 +181,11 @@ is what answers for a bot. Different things, unfortunately similar words.
 
 ## Why it is small
 
-The desktop binary is about 10 MB because it uses the system webview instead of
-bundling a browser. Most of that is now QUIC and its dependencies; the app
-itself is a fraction of it.
+The desktop binary is about 11 MB because it uses the system webview instead of
+bundling a browser. Most of that is QUIC and whisper.cpp; the app itself is a
+fraction of it. The models it speaks and listens with are fetched on first use
+rather than shipped, which is why adding them cost a megabyte here rather than
+four hundred.
 
 ## Status
 
