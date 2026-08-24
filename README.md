@@ -52,6 +52,12 @@ macOS builds are signed and notarised, so they open without warnings.
 - **A conversation that persists.** Each bot owns a session and a workspace on
   disk, and remembers across restarts.
 - **An engine**: which tool answers for it, chosen per bot.
+  A bot's voice and its face are written down the first time it has them, not
+  worked out from its id every time. What is derived from an id depends on the
+  size of the list it indexes into, and those lists move — a voice fetched
+  later, a system voice installed, a trait added in an update — so anything
+  derived would quietly change under a bot you had been talking to for a
+  month. Recorded once; the same bot afterwards.
 - **A face.** Head, eyes, brows, a resting smile and a mark — 7,776 combinations
   before colour, derived from the bot's own id so no two look alike. It blinks,
   thinks with a cloud over its head, jumps when a turn lands and slumps when one

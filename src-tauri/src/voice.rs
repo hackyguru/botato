@@ -234,14 +234,18 @@ fn mac_voices(want: &str) -> Vec<String> {
 
     // A voice someone has downloaded is a voice they wanted: the enhanced and
     // premium ones sound like a person where the compact ones sound like a
-    // 2005 satnav, and macOS ships the compact ones by default. If any are
-    // installed, bots use those and nothing else.
+    // 2005 satnav, and macOS ships the compact ones by default.
+    //
+    // Only when there are enough of them to go round, though. Returning *only*
+    // the better ones meant that downloading a single enhanced voice left one
+    // voice for every bot on the machine — every one of them suddenly the same
+    // person, which is worse than all of them sounding like a satnav.
     let better: Vec<String> = found
         .iter()
         .filter(|name| name.contains("(Enhanced)") || name.contains("(Premium)"))
         .cloned()
         .collect();
-    if !better.is_empty() {
+    if better.len() >= 6 {
         return better;
     }
     found

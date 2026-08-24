@@ -714,6 +714,21 @@ function seedOf(text: string): number {
 }
 
 /** This bot's face: what it chose, or what its id implies. */
+/** Write down the face a bot was born with, so it keeps it.
+ *
+ *  Same reason as the voice: the traits are picked by indexing the bot's id
+ *  into lists of heads, eyes, brows, smiles and marks. Those lists are
+ *  constants today, and the day one of them gains an entry every bot in every
+ *  install changes face — which is a strange thing for an update to do to
+ *  something you have been talking to for a month. Recorded once and derived
+ *  never again.
+ *
+ *  Idempotent: a bot that already has one keeps it, including one it drew for
+ *  itself. */
+function pinFace(bot: Bot): void {
+  bot.face = { ...faceOf(bot), ...bot.face };
+}
+
 function faceOf(bot: Bot): Face {
   const seed = seedOf(bot.id);
   return {
@@ -922,6 +937,7 @@ function seed(): void {
       guide: true,
     },
   ];
+  for (const bot of state.bots) pinFace(bot);
   state.activeId = state.bots[0].id;
 }
 
@@ -949,6 +965,10 @@ function load(): void {
       model: bot.model || MODEL,
       routines: bot.routines ?? [],
     }));
+    // Everything derived from an id gets written down the first time it is
+    // seen, so nothing about a bot moves underneath it later.
+    for (const bot of state.bots) pinFace(bot);
+
     state.channels = (data.channels ?? []).map((ch) => ({
       ...ch,
       members: (ch.members ?? []).filter((id) => state.bots.some((b) => b.id === id)),
@@ -1895,7 +1915,9 @@ async function paintSheetVoices(bot: Bot | null): Promise<void> {
       .filter((v) => v !== given)
       .map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`)
       .join("");
-  picker.value = bot?.voice && all.includes(bot.voice) ? bot.voice : "";
+  // A pinned voice that happens to be the one its id chose still reads as the
+  // default, because that is what it is — the pin only stops it moving.
+  picker.value = bot?.voice && bot.voice !== given && all.includes(bot.voice) ? bot.voice : "";
 }
 
 $<HTMLButtonElement>("#sheet-voice-try").addEventListener("click", () => {
@@ -3358,6 +3380,7 @@ function createBot(): void {
     routines: [],
     messages: [],
   };
+  pinFace(bot);
   state.bots.unshift(bot);
   state.activeId = bot.id;
   sheetWrap.hidden = true;
@@ -4151,11 +4174,24 @@ const callHeard = $<HTMLParagraphElement>("#call-heard");
  *  it, for the same reason nobody picks a face: a hundred and eighty voices is
  *  not a decision anyone wants to make per bot. */
 function voiceFor(bot: Bot): string | undefined {
-  // One it was given by hand wins, and survives the list changing underneath
-  // it — installing a better voice should not resettle everybody.
-  if (bot.voice) return bot.voice;
+  // Whatever it has, as long as the machine still has it. Nothing to check
+  // against yet means trust what was written down rather than lose it.
+  if (bot.voice && (!voiceNames.length || voiceNames.includes(bot.voice))) return bot.voice;
   if (!voiceNames.length) return undefined;
-  return voiceNames[seedOf(bot.id) % voiceNames.length];
+
+  const given = voiceNames[seedOf(bot.id) % voiceNames.length];
+
+  // Written down the first time it speaks, and never derived again.
+  //
+  // The pick is an index into however many voices are installed, and that
+  // number moves: a voice that failed to download and is fetched later, the
+  // engine removed and put back, a system voice added. Any of those shifts
+  // every index by one and every bot in the app wakes up sounding like
+  // somebody else. A bot's voice is part of what it is, so it stops being a
+  // calculation as soon as there is an answer to write down.
+  bot.voice = given;
+  save();
+  return given;
 }
 
 /** The voices this machine offers, fetched once.
@@ -4167,6 +4203,13 @@ async function knownVoices(): Promise<string[]> {
     voiceNames = await invoke<string[]>("voices", {
       language: navigator.language || "en",
     }).catch(() => []);
+    // The moment there is a list, every bot's voice is decided and written
+    // down — not left until the first time it happens to speak. Otherwise a
+    // bot's settings show one voice today and another tomorrow because
+    // something was installed in between, and it never said a word either way.
+    if (voiceNames.length) {
+      for (const bot of state.bots) voiceFor(bot);
+    }
   }
   return voiceNames;
 }
@@ -8010,6 +8053,9 @@ if (activeChannel()) {
   renderThread();
 }
 if (state.screenOpen) void openScreen();
+// Settles every bot's voice on the first run after this exists, so nothing
+// about a bot is still being calculated by the time you look at it.
+void knownVoices();
 autoGrow();
 input.focus();
 
