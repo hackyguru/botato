@@ -3716,6 +3716,9 @@ async function channelTurn(
     waitingHtml(post.id, "");
     scrollToEnd(true);
   }
+  // On a call, the tile should show it is working before it has anything to
+  // say — a room of still faces during a twenty-second turn looks broken.
+  if (call?.channelId === ch.id) paintCallStage();
   syncSend();
   renderRoster();
 
@@ -4139,20 +4142,37 @@ function paintCallStage(): void {
     stage.className = "call__face";
     stage.innerHTML = faceHtml(bot, "lg");
     who.textContent = bot.name;
+    $<HTMLDivElement>(".call__stage").classList.remove("call__stage--room");
     return;
   }
 
   const speaking = call.speakingFor;
-  stage.className = "call__face call__face--room";
-  stage.innerHTML = membersOf(room)
-    .map(
-      (b) =>
-        `<span class="call__seat${b.id === speaking ? " is-speaking" : ""}">` +
-        faceHtml(b, "lg") +
-        `<span class="call__seatName">${escapeHtml(b.name)}</span></span>`,
-    )
-    .join("");
+  const there = membersOf(room);
+  stage.className = "call__grid";
+  // The count decides the shape: one big tile, two side by side, four in a
+  // square. Left to the browser it would put six in a row and each would be
+  // the size of a stamp.
+  // You are on the call too, and a room that shows only the bots reads as a
+  // panel you are watching rather than a call you are in.
+  stage.dataset.count = String(Math.min(there.length + 1, 6));
+  stage.innerHTML =
+    there
+      .map(
+        (b) =>
+          `<span class="tile${b.id === speaking ? " is-speaking" : ""}${
+            inflight.has(b.id) ? " is-working" : ""
+          }" style="--skin:${b.color}">` +
+          `<span class="tile__face">${faceHtml(b, "lg")}</span>` +
+          `<span class="tile__name">${escapeHtml(b.name)}</span>` +
+          `</span>`,
+      )
+      .join("") +
+    `<span class="tile tile--you${call.listening ? " is-speaking" : ""}">` +
+    `<span class="tile__you">${escapeHtml((userName() || "y").slice(0, 1).toUpperCase())}</span>` +
+    `<span class="tile__name">${escapeHtml(userName() || "You")}</span>` +
+    `</span>`;
   who.textContent = `#${room.name}`;
+  $<HTMLDivElement>(".call__stage").classList.add("call__stage--room");
 }
 
 /** Ring a whole room. */
@@ -4340,6 +4360,7 @@ function startListening(): void {
   callSays("Listening…");
   $<HTMLSpanElement>("#call-talk-label").textContent = "Listening";
   $<HTMLButtonElement>("#call-talk").classList.add("is-live");
+  paintCallStage();
 
   void openMicrophone().then((stream) => {
     // Let go before the microphone opened: nothing to record, and starting now
@@ -4360,6 +4381,7 @@ function stopListening(): void {
   call.listening = false;
   $<HTMLSpanElement>("#call-talk-label").textContent = "Hold to talk";
   $<HTMLButtonElement>("#call-talk").classList.remove("is-live");
+  paintCallStage();
   if (call.tape?.state === "recording") {
     // The rest arrives in ondataavailable, and heardIt runs from onstop.
     call.tape.stop();
@@ -4419,6 +4441,7 @@ function sayToBot(said: string): void {
   callSays("Thinking…");
   call.spokenTo = 0;
   call.saying = [];
+  call.speakingFor = undefined;
 
   const msg: Message = { id: uid(), from: "me", text: said, at: Date.now() };
   bot.messages.push(msg);
@@ -4446,6 +4469,15 @@ function saidOnCall(room: Channel, said: string): void {
   if (!wanted.length) {
     callSays("Nobody is in this channel yet.");
     return;
+  }
+
+  // Nobody has the floor while the room is thinking. Without this the last
+  // speaker keeps its ring for the three seconds before the next one starts,
+  // so the tile that is lit is the one that is not talking.
+  if (call) {
+    call.speakingFor = undefined;
+    call.spokenTo = 0;
+    paintCallStage();
   }
 
   callSays("Thinking…");
@@ -5834,6 +5866,7 @@ document.addEventListener("keydown", (e) => {
 document.addEventListener("keyup", (e) => {
   if (e.code === "Space" && call?.listening) stopListening();
 });
+
 
 
 

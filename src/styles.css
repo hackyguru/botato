@@ -4996,20 +4996,28 @@ a.detail__source:hover {
   line-height: 1.45;
 }
 
+/* The controls, gathered into a bar rather than floating loose — which is
+   what every call has at the bottom, and what makes the rest of the screen
+   read as the call rather than as a page with buttons on it. */
 .call__foot {
   position: absolute;
-  bottom: 42px;
+  bottom: 34px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
+  padding: 8px;
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 34px;
+  backdrop-filter: blur(12px);
 }
 
 .call__talk {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 26px;
-  height: 52px;
+  padding: 0 24px;
+  height: 48px;
   background: var(--field);
   border: 0;
   border-radius: 26px;
@@ -5046,8 +5054,8 @@ a.detail__source:hover {
 .call__end {
   display: grid;
   place-items: center;
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   background: var(--red);
   border: 0;
   border-radius: 50%;
@@ -5143,49 +5151,113 @@ a.detail__source:hover {
   font-weight: 600;
 }
 
-/* A roomful of faces on a call, rather than one.
-   Side by side, with whoever has the floor lit — the rest are still there and
-   still listening, which is what dimming says and disappearing would not. */
-.call__face--room {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 26px;
-  align-items: flex-end;
-  justify-content: center;
-  max-width: 620px;
+/* A room on a call: tiles, the way every voice channel has looked since
+   people stopped putting cameras on. Each one is a seat that stays put — the
+   grid does not reflow when somebody starts talking, because a layout that
+   moves while you are looking at it is worse than one that is not optimal. */
+.call__stage--room {
+  width: 100%;
+  gap: 18px;
 }
-
-.call__seat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  opacity: 0.42;
-  transition: opacity 220ms ease;
-}
-
-.call__seat.is-speaking {
-  opacity: 1;
-}
-
-.call__seatName {
+.call__stage--room #call-who {
+  /* The channel above the room rather than under it: it names what you are
+     looking at, and a title under a grid reads as a caption for it. */
+  order: -1;
+  margin: 0;
+  font-size: 15px;
   color: var(--text-2);
-  font-size: 12.5px;
-}
-.call__seat.is-speaking .call__seatName {
-  color: var(--text);
-  font-weight: 600;
+  font-weight: 500;
 }
 
-/* The one talking gets a ring in its own colour, which is the only moving
-   thing on the screen and so the only thing you have to look at. */
-.call__seat.is-speaking .face {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--skin) 55%, transparent);
-  border-radius: 50%;
-  animation: call-floor 1.8s ease-in-out infinite;
+.call__grid {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  max-width: 780px;
+  padding: 0 24px;
+  grid-template-columns: 1fr;
 }
-@keyframes call-floor {
+.call__grid[data-count="2"],
+.call__grid[data-count="3"],
+.call__grid[data-count="4"] {
+  grid-template-columns: repeat(2, 1fr);
+}
+.call__grid[data-count="5"],
+.call__grid[data-count="6"] {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 11;
+  min-height: 132px;
+  background: var(--field);
+  border: 2px solid transparent;
+  border-radius: 14px;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.tile .face {
+  --u: 100px;
+}
+
+/* The name in the corner, the way a voice tile has always done it. */
+.tile__name {
+  position: absolute;
+  left: 10px;
+  bottom: 9px;
+  max-width: calc(100% - 20px);
+  overflow: hidden;
+  padding: 3px 8px;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 7px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Talking: a green ring on the tile. Green because that is what a speaking
+   ring means to anyone who has been in a voice channel, and the bot's own
+   colour is already doing a different job three inches away. */
+.tile.is-speaking {
+  border-color: #3ba55d;
+  background: color-mix(in srgb, #3ba55d 8%, var(--field));
+}
+.tile.is-speaking .face {
+  animation: tile-talk 1.9s ease-in-out infinite;
+}
+@keyframes tile-talk {
   50% {
-    box-shadow: 0 0 0 9px color-mix(in srgb, var(--skin) 16%, transparent);
+    transform: scale(1.04);
   }
+}
+
+/* Working on an answer but not saying anything yet — the thought cloud is on
+   the face already; this is so the tile agrees with it. */
+.tile.is-working:not(.is-speaking) {
+  border-color: color-mix(in srgb, var(--skin) 45%, transparent);
+}
+
+/* Your own seat. An initial rather than a face, because you do not have one —
+   and the same tile as everyone else, because you are on the call. */
+.tile__you {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  background: var(--active);
+  border-radius: 50%;
+  color: var(--text-2);
+  font-size: 30px;
+  font-weight: 500;
+}
+.tile--you.is-speaking .tile__you {
+  background: color-mix(in srgb, #3ba55d 22%, var(--active));
+  color: var(--text);
 }
