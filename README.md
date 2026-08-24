@@ -33,6 +33,12 @@ pnpm install
 pnpm tauri dev
 ```
 
+Building on Linux needs `cmake`, `clang` and `libclang-dev` on top of the usual
+webkit development packages: whisper.cpp is compiled in, and bindgen reads its
+headers. On **ARM** Linux, build with `CC=clang CXX=clang++` — gcc refuses
+ggml's half-precision NEON intrinsics with "target specific option mismatch",
+and clang does not.
+
 Voice is the exception, on macOS. It grants the microphone against an app
 bundle's stated reason for wanting it, and `tauri dev` runs a bare executable
 with nowhere to state one — so calls can speak but not listen there. `pnpm dev:app`, used instead of `pnpm tauri dev`, runs the same dev build as a
