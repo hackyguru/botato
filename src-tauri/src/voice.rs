@@ -19,20 +19,60 @@ use std::sync::Mutex;
 
 /// A command to speak with instead of the system's own.
 ///
-/// Set `BOTCAGE_TTS` to a shell command that reads the text on stdin and plays
-/// it. `{voice}` in the command is replaced with the bot's voice, and
-/// `BOTCAGE_TTS_VOICES` is the comma-separated list to hand out — so a bot
-/// still sounds like itself.
+/// Set `BOTCAGE_TTS` to a shell command that reads the text on stdin.
+/// `{voice}` is replaced with the bot's voice, and `BOTCAGE_TTS_VOICES` is the
+/// comma-separated list to hand out, so a bot still sounds like itself.
 ///
-///     BOTCAGE_TTS='piper -m en_GB-alba-medium.onnx --output-raw \
-///                    | aplay -q -r 22050 -f S16_LE -t raw -'
+/// It may either play the audio itself or write it to stdout, and botcage
+/// works out which by whether anything came out. That is not cleverness for
+/// its own sake: half of these tools play and half write a file, and a seam
+/// that only accepted one of those shapes would exclude the tool somebody
+/// actually wanted.
 ///
-/// This is how Kokoro, Piper or whatever comes next gets used without botcage
-/// shipping a model, a Python runtime and an inference engine to go with it.
-/// A ten-megabyte app that speaks well by borrowing beats a three-hundred
-/// megabyte one that speaks well by itself.
+///     # writes a wav to stdout — botcage plays it
+///     BOTCAGE_TTS='pocket-tts generate --voice {voice} --output - --text -'
+///     BOTCAGE_TTS_VOICES='Alba,Giovanni,Estelle,Charles'
+///
+///     # plays it itself
+///     BOTCAGE_TTS='piper -m {voice}.onnx --output-raw | aplay -q -r 22050 -f S16_LE -t raw -'
+///
+/// This is how Kokoro, Piper, pocket-tts or whatever comes next speaks for a
+/// bot without botcage shipping a model, an inference engine and a Python
+/// runtime to go with them. A ten-megabyte app that speaks well by borrowing
+/// beats a three-hundred megabyte one that speaks well by itself.
 const CUSTOM: &str = "BOTCAGE_TTS";
 const CUSTOM_VOICES: &str = "BOTCAGE_TTS_VOICES";
+
+/// Playing a file, when the speaking command wrote one instead of playing it.
+fn player(file: &std::path::Path) -> Option<Command> {
+    let candidates: &[(&str, &[&str])] = if cfg!(target_os = "macos") {
+        &[("afplay", &[])]
+    } else {
+        // Whichever of these a desktop happens to have. `paplay` is on
+        // anything running PulseAudio or Pipewire, `aplay` on bare ALSA, and
+        // ffplay is on machines that have ffmpeg for some other reason.
+        &[
+            ("paplay", &[]),
+            ("aplay", &["-q"]),
+            ("ffplay", &["-nodisp", "-autoexit", "-loglevel", "quiet"]),
+        ]
+    };
+
+    for (bin, args) in candidates {
+        if Command::new(bin)
+            .arg("--help")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok()
+        {
+            let mut cmd = Command::new(bin);
+            cmd.args(*args).arg(file);
+            return Some(cmd);
+        }
+    }
+    None
+}
 
 /// Voices macOS ships that do not speak.
 ///
@@ -244,14 +284,14 @@ pub fn speak(text: &str, voice: Option<&str>, rate: Option<u32>) -> Result<(), S
     }
 
     let voice = voice.filter(|v| !v.is_empty());
-    let mut cmd = match std::env::var(CUSTOM) {
-        Ok(template) if !template.trim().is_empty() => {
-            let mut sh = Command::new("sh");
-            sh.arg("-c")
-                .arg(template.replace("{voice}", voice.unwrap_or_default()));
-            sh
+    if let Ok(template) = std::env::var(CUSTOM) {
+        if !template.trim().is_empty() {
+            return borrowed(&template.replace("{voice}", voice.unwrap_or_default()), text);
         }
-        _ if cfg!(target_os = "macos") => {
+    }
+
+    let mut cmd = match () {
+        () if cfg!(target_os = "macos") => {
             let mut say = Command::new("say");
             if let Some(voice) = voice {
                 say.args(["-v", voice]);
@@ -266,7 +306,7 @@ pub fn speak(text: &str, voice: Option<&str>, rate: Option<u32>) -> Result<(), S
             say.arg("-f").arg("-");
             say
         }
-        _ => {
+        () => {
             let mut speak = Command::new(espeak().unwrap_or("espeak-ng"));
             if let Some(voice) = voice {
                 speak.args(["-v", voice]);
@@ -294,30 +334,101 @@ pub fn speak(text: &str, voice: Option<&str>, rate: Option<u32>) -> Result<(), S
         // of input, and a pipe left open is a voice that never starts.
     }
 
+    let _ = wait_for(claim(child))?;
+    Ok(())
+}
+
+/// Speak with somebody else's synthesiser.
+///
+/// Waits for it, because that is the contract the caller relies on to know
+/// when a mouth stops moving. Anything it wrote to stdout is treated as audio
+/// and played; nothing on stdout means it played the audio itself.
+fn borrowed(command: &str, text: &str) -> Result<(), String> {
+    let mut child = Command::new("sh")
+        .arg("-c")
+        .arg(command)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("could not run {CUSTOM}: {e}"))?;
+
+    if let Some(mut pipe) = child.stdin.take() {
+        let _ = pipe.write_all(text.as_bytes());
+    }
+
+    let mine = claim(child);
+    // Waiting on the whole thing rather than streaming it: a synthesiser fast
+    // enough to be worth borrowing renders a sentence in a fraction of the
+    // time it takes to say one, and this keeps the seam a single command
+    // rather than a protocol.
+    let done = wait_for(mine)?;
+    let Some(done) = done else { return Ok(()) };
+
+    if !done.status.success() && done.stdout.is_empty() {
+        let why = String::from_utf8_lossy(&done.stderr);
+        return Err(format!(
+            "{CUSTOM} failed: {}",
+            why.lines().last().unwrap_or("no output").trim()
+        ));
+    }
+    if done.stdout.is_empty() {
+        // It played the sound itself, and has finished doing so.
+        return Ok(());
+    }
+
+    let file = std::env::temp_dir().join(format!("botcage-said-{mine}.wav"));
+    std::fs::write(&file, &done.stdout).map_err(|e| format!("could not save the audio: {e}"))?;
+    let played = player(&file)
+        .ok_or("nothing on this machine can play audio — install afplay, paplay or aplay")?
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("could not play the audio: {e}"))?;
+
+    let played = claim(played);
+    let _ = wait_for(played);
+    let _ = std::fs::remove_file(&file);
+    Ok(())
+}
+
+/// Register a child as the thing currently talking, and number it.
+fn claim(child: Child) -> u64 {
     let mine = {
         let mut count = UTTERANCE.lock().unwrap_or_else(|held| held.into_inner());
         *count += 1;
         *count
     };
     *TALKING.lock().unwrap_or_else(|held| held.into_inner()) = Some((mine, child));
+    mine
+}
 
+/// Wait for utterance `mine` to finish, or for something to take its place.
+///
+/// `None` when it was hushed or superseded — which is not a failure, it is
+/// somebody deciding they had heard enough.
+fn wait_for(mine: u64) -> Result<Option<std::process::Output>, String> {
     loop {
-        std::thread::sleep(std::time::Duration::from_millis(90));
+        std::thread::sleep(std::time::Duration::from_millis(60));
         let mut talking = TALKING.lock().unwrap_or_else(|held| held.into_inner());
         match talking.as_mut() {
-            // Hushed, or a newer sentence took over. Either way this one is
-            // over as far as the face is concerned.
-            None => return Ok(()),
-            Some((id, _)) if *id != mine => return Ok(()),
+            None => return Ok(None),
+            Some((id, _)) if *id != mine => return Ok(None),
             Some((_, child)) => match child.try_wait() {
                 Ok(Some(_)) => {
-                    *talking = None;
-                    return Ok(());
+                    let Some((_, child)) = talking.take() else {
+                        return Ok(None);
+                    };
+                    drop(talking);
+                    return child
+                        .wait_with_output()
+                        .map(Some)
+                        .map_err(|e| format!("could not read the speech: {e}"));
                 }
                 Ok(None) => {}
-                Err(_) => {
+                Err(e) => {
                     *talking = None;
-                    return Ok(());
+                    return Err(format!("speech ended badly: {e}"));
                 }
             },
         }
@@ -444,5 +555,31 @@ Pty Language Age/Gender VoiceName          File                 Other Languages
         hush();
         hush();
     }
-}
 
+    /// The borrowed path, end to end, with something that writes a wav to
+    /// stdout the way pocket-tts and Kokoro's CLIs do. Ignored by default
+    /// because it makes a noise, which is a rude thing for a test suite to do.
+    ///
+    ///     cargo test --lib borrowed -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    #[cfg(target_os = "macos")]
+    fn a_borrowed_synthesiser_that_writes_a_wav_is_played() {
+        let wav = std::env::temp_dir().join("botcage-borrow-test.wav");
+        let _ = std::fs::remove_file(&wav);
+        std::env::set_var(
+            CUSTOM,
+            format!(
+                "cat > /tmp/botcage-borrow-in.txt; \
+                 say -v Daniel -f /tmp/botcage-borrow-in.txt \
+                     -o {} --data-format=LEI16@22050 && cat {}",
+                wav.display(),
+                wav.display()
+            ),
+        );
+
+        let said = speak("Borrowed and played.", None, None);
+        std::env::remove_var(CUSTOM);
+        assert!(said.is_ok(), "{said:?}");
+    }
+}

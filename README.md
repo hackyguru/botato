@@ -53,7 +53,15 @@ macOS builds are signed and notarised, so they open without warnings.
   the way its face is, and changeable in its settings. macOS has two dozen
   usable ones; Linux has espeak-ng's accents crossed with its variants, which
   is seventy-odd. Point `BOTCAGE_TTS` at a command to use something better —
-  Piper, Kokoro, whatever comes next — without botcage shipping a model.
+  pocket-tts, Kokoro, Piper — without botcage shipping a model:
+
+  ```sh
+  BOTCAGE_TTS='pocket-tts generate --voice {voice} --output - --text -'
+  BOTCAGE_TTS_VOICES='Alba,Giovanni,Estelle,Charles'
+  ```
+
+  The command reads the text on stdin and may either play the audio or write
+  it to stdout; botcage works out which by whether anything came out.
 - **A memory file** it maintains itself, seeded from its name and role.
 - **Optionally, a computer**: a Linux desktop in a container with Firefox or
   Chromium, a terminal, and a screen you can watch and take over. Each one has
