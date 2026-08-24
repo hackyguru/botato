@@ -5105,3 +5105,40 @@ a.detail__source:hover {
     transform: translateY(calc(var(--u) * -0.01)) rotate(1.5deg);
   }
 }
+
+/* Something happened where you were not looking.
+   A count when a bot addressed you by name, a dot when a room merely carried
+   on without you — the difference between being asked a question and there
+   being noise, which is worth two different marks. */
+.row-badge {
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  margin-right: 2px;
+  padding: 0 5px;
+  background: var(--red);
+  border-radius: 9px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.row-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  background: var(--text-2);
+  border-radius: 50%;
+}
+
+/* An unread row reads first. Only the name brightens — the whole row going
+   white would fight the selected row for attention, and only one of them is
+   where you are. */
+.bot-row.is-unread .bot-row__name {
+  color: var(--text);
+  font-weight: 600;
+}

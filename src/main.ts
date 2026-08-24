@@ -51,6 +51,10 @@ interface Channel {
    *  faces appear in the header. */
   members: string[];
   messages: Message[];
+  /** When you last had this room open. Anything said after it is unread, which
+   *  is the only way a room full of bots talking to each other is bearable —
+   *  otherwise you have to remember where you got to. */
+  seenAt?: number;
   /** Each member's own conversation in this room, kept apart from its chat:
    *  a bot in #finance should not have last night's private thread replayed at
    *  it, and what it says here should not turn up there. */
@@ -111,6 +115,8 @@ interface Bot {
   /** Which provider answers, for an engine that is an API rather than a
    *  program: a models.dev id, or "ollama" for the one on this machine. */
   provider?: string;
+  /** When you last had this bot's chat open. See `Channel.seenAt`. */
+  seenAt?: number;
   /** How it sounds on a call. Absent means the one its id chose for it, which
    *  is what almost every bot will have — the picker exists for the one you
    *  want to sound different, not because anybody wants to choose fifty
@@ -996,14 +1002,18 @@ function renderRoster(): void {
         .map((ch) => {
           const room = membersOf(ch);
           const busy = room.some((b) => inflight.get(b.id)?.channelId === ch.id);
+          const news = ch.id === state.activeChannel
+            ? { unread: 0, mentions: 0 }
+            : unreadIn(ch.messages, ch.seenAt);
           return (
-            `<button class="bot-row chan-row${ch.id === state.activeChannel ? " is-active" : ""}" ` +
-            `data-channel="${ch.id}">` +
+            `<button class="bot-row chan-row${ch.id === state.activeChannel ? " is-active" : ""}` +
+            `${news.unread ? " is-unread" : ""}" data-channel="${ch.id}">` +
             `<span class="chan-row__hash">${icon("hash")}</span>` +
             `<span class="bot-row__body"><span class="bot-row__top">` +
             `<span class="bot-row__name">${escapeHtml(ch.name)}</span>` +
-            `<span class="bot-row__time">${busy ? "" : room.length || ""}</span>` +
+            `<span class="bot-row__time">${busy || news.unread ? "" : room.length || ""}</span>` +
             `</span></span>` +
+            badgeHtml(news) +
             (busy ? `<span class="chan-row__live"></span>` : "") +
             `</button>`
           );
@@ -1017,8 +1027,13 @@ function renderRoster(): void {
     hits
     .map((bot) => {
       const last = lastOf(bot);
+      const news =
+        bot.id === state.activeId && !state.activeChannel
+          ? { unread: 0, mentions: 0 }
+          : unreadIn(bot.messages, bot.seenAt);
       return (
-        `<button class="bot-row${bot.id === state.activeId ? " is-active" : ""}" data-bot="${bot.id}">` +
+        `<button class="bot-row${bot.id === state.activeId && !state.activeChannel ? " is-active" : ""}` +
+        `${news.unread ? " is-unread" : ""}" data-bot="${bot.id}">` +
         faceHtml(bot) +
         `<span class="bot-row__body">` +
         // Name and time, and nothing else. The second line used to carry the
@@ -1027,11 +1042,26 @@ function renderRoster(): void {
         // you, and what a bot is doing this second is on its face — a thought
         // cloud says "typing" better than the word does.
         `<span class="bot-row__top"><span class="bot-row__name">${escapeHtml(bot.name)}</span>` +
-        `<span class="bot-row__time">${last ? clock(last.at) : ""}</span></span>` +
-        `</span></button>`
+        `<span class="bot-row__time">${news.unread ? "" : last ? clock(last.at) : ""}</span></span>` +
+        `</span>` +
+        badgeHtml(news) +
+        `</button>`
       );
     })
       .join("");
+}
+
+/** The mark on a row for something you have not seen.
+ *
+ *  A count only when somebody actually addressed you; otherwise a dot. A
+ *  number for every message would make a channel where two bots are working
+ *  look like an emergency, and a room that chatters is not a room that asked
+ *  you a question. */
+function badgeHtml(news: { unread: number; mentions: number }): string {
+  if (news.mentions) {
+    return `<span class="row-badge">${news.mentions > 9 ? "9+" : news.mentions}</span>`;
+  }
+  return news.unread ? `<span class="row-dot"></span>` : "";
 }
 
 /** A small drawing per lesson, which moves when the card is hovered or
@@ -1219,6 +1249,7 @@ function renderThread(): void {
   const pending = inflight.get(bot.id);
   if (pending && !pending.sawText) waitingHtml(pending.message.id, pending.note);
 
+  markSeen();
   syncSend();
   scrollToEnd();
 }
@@ -1561,6 +1592,10 @@ function handleBotEvent(event: BotEvent): void {
   // belongs to is not the pane on screen.
   if (call?.botId === event.botId) speakAsItArrives(event.botId, pending.message.text);
   if (!live) return;
+
+  // Watching it arrive counts as having read it, or the row you are looking at
+  // grows a badge for the thing on your screen.
+  markSeen();
 
   const body = bodyOf(pending.message.id);
   if (!body) return;
@@ -3493,6 +3528,48 @@ function whatItMissed(ch: Channel, botId: string): string {
 const nameOf = (botId?: string): string =>
   state.bots.find((b) => b.id === botId)?.name ?? "";
 
+/** Did a bot address you by name?
+ *
+ *  Not "does your name appear" — a bot discussing a file called guru.md is not
+ *  talking to you. The "@" is what makes it a summons, the same as it is
+ *  between bots, and it is what the prompt tells them to use. */
+function mentionsYou(text: string): boolean {
+  const called = userName().trim();
+  if (!called) return false;
+  const at = new RegExp(`@${called.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+  return at.test(text);
+}
+
+/** What has happened somewhere you were not looking.
+ *
+ *  Two numbers, because they mean different things: unread is "there is
+ *  something here", and mentions is "somebody wanted you". Slack and Discord
+ *  both learned to show these differently and both were right — a room that
+ *  chatters is not the same as a room that asked you a question. */
+function unreadIn(messages: Message[], seenAt = 0): { unread: number; mentions: number } {
+  let unread = 0;
+  let mentions = 0;
+  for (const msg of messages) {
+    // Your own words are not news, and neither is an empty streaming bubble.
+    if (msg.from === "me" || msg.at <= seenAt || !msg.text.trim()) continue;
+    unread += 1;
+    if (mentionsYou(msg.text)) mentions += 1;
+  }
+  return { unread, mentions };
+}
+
+/** Mark it read. Called whenever a thing is on screen, including while it is
+ *  still being written to — reading something as it arrives is still reading
+ *  it, and a badge appearing on the row you are looking at is a bug. */
+function markSeen(): void {
+  const room = activeChannel();
+  if (room) room.seenAt = Date.now();
+  else {
+    const bot = activeBot();
+    if (bot) bot.seenAt = Date.now();
+  }
+}
+
 /** What a bot is told about the room it is speaking in. */
 function channelPromptFor(ch: Channel, bot: Bot): string {
   const others = membersOf(ch).filter((b) => b.id !== bot.id);
@@ -3509,6 +3586,9 @@ function channelPromptFor(ch: Channel, bot: Bot): string {
     // model told only what not to do will still do something.
     others.length
       ? `Every message you see is labelled with who said it. To bring someone in, write @${others[0].name} — they are given the conversation and reply here. Do that when the work is genuinely theirs, and say what you want from them in the same message. Don't @ someone to thank them, agree with them, or hand back something already finished: a mention costs them a turn, and a channel where every message summons somebody is a channel nobody can read. The user can call the whole room in with @everyone; you cannot — name the person whose work it is.`
+      : "",
+    userName()
+      ? `To get ${userName()}'s attention — a question only they can answer, or something they should know now — write @${userName()}. It marks the channel for them. Use it when you need them and not otherwise: a bot that tags someone in every message is a bot they mute.`
       : "",
     `You are not obliged to speak. If the room does not need you, reply with nothing at all.`,
     `Reply conversationally and keep it tight — this is a chat window and other people are reading. Markdown is rendered.`,
@@ -3788,6 +3868,7 @@ function renderChannel(): void {
   for (const [, pending] of inflight) {
     if (pending.channelId === ch.id && !pending.sawText) waitingHtml(pending.message.id, pending.note);
   }
+  markSeen();
   syncSend();
   scrollToEnd();
 }

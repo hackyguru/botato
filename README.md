@@ -83,7 +83,8 @@ macOS builds are signed and notarised, so they open without warnings.
   its own filesystem, network policy, and a machine fingerprint of its own —
   cores, screen size, fonts, locale, rendering — so ten bots do not look like
   one machine wearing ten hats.
-- **Routines**: things it does on a schedule.
+- **Routines**: things it does on a schedule, reported into its own chat or
+  into a channel.
 - **Connectors and plugins**: GitHub, Gmail, Calendar, Notion, Stripe, Vercel
   and others, connected once and scoped per bot.
 
