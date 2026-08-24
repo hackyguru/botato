@@ -19,6 +19,9 @@ of ours, and no telemetry.
   models.dev with an API key you hold, or at Ollama on your own machine, which
   needs nothing.
 - **Nothing else** for chat, memory, routines, connectors and plugins.
+- **For calls on Linux**, espeak-ng to speak with and one of paplay, aplay or
+  ffplay to play with. GStreamer's base and good plugin sets, which a desktop
+  will already have, are what let the webview record.
 - **A container engine** only if you want bots to have their own computer.
   botcage downloads and manages one itself — lima and the docker CLI on macOS,
   rootless podman on Linux — so Docker Desktop is not required.
@@ -30,10 +33,9 @@ pnpm install
 pnpm tauri dev
 ```
 
-Voice is the exception. macOS grants the microphone and the speech recogniser
-against an app bundle's stated reason for wanting them, and `tauri dev` runs a
-bare executable with nowhere to state one — so calls can speak but not listen
-there. `pnpm dev:app`, used instead of `pnpm tauri dev`, runs the same dev build as a
+Voice is the exception, on macOS. It grants the microphone against an app
+bundle's stated reason for wanting it, and `tauri dev` runs a bare executable
+with nowhere to state one — so calls can speak but not listen there. `pnpm dev:app`, used instead of `pnpm tauri dev`, runs the same dev build as a
 bundle that can — it starts vite itself, and keeps its own scratch roster.
 
 Builds are produced by tagging a release; see [.github/RELEASING.md](.github/RELEASING.md).

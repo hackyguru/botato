@@ -650,6 +650,48 @@ fn take_routines(app: AppHandle, bot_id: String) -> Vec<Value> {
         .collect()
 }
 
+/// Say yes when the page asks for the microphone.
+///
+/// Only Linux has anything to do here. WebKitGTK does not decide for itself
+/// whether a page may use a device — it emits `permission-request` and lets
+/// whoever embedded it answer — and wry implements that for the macOS and
+/// Android webviews but not for GTK. An unanswered request is a denied one, so
+/// without this a call on Linux is silent and says nothing about why.
+///
+/// The answer is yes because botcage is not a browser: there is one page, we
+/// wrote it, and it asks for the microphone at exactly one moment — while you
+/// are holding the talk button on a call you started. macOS asks the user
+/// instead, through the system, which is the right place for that question
+/// when the code being run might have come from anywhere. Here it did not.
+#[cfg(target_os = "linux")]
+fn allow_the_microphone(app: &tauri::App) {
+    use tauri::Manager;
+    // `is` comes from glib rather than from webkit, and the compiler on a Mac
+    // never sees this block — so this was found by compiling these exact calls
+    // in a Debian container rather than by reading.
+    use webkit2gtk::glib::ObjectExt;
+    use webkit2gtk::{PermissionRequestExt, WebViewExt};
+
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let _ = window.with_webview(|view| {
+        view.inner().connect_permission_request(|_, request| {
+            // Only the microphone. Anything else this page has no business
+            // asking for, and a blanket yes would be a different promise.
+            if request.is::<webkit2gtk::UserMediaPermissionRequest>() {
+                request.allow();
+            } else {
+                request.deny();
+            }
+            true
+        });
+    });
+}
+
+#[cfg(not(target_os = "linux"))]
+fn allow_the_microphone(_app: &tauri::App) {}
+
 /// Whether this machine can already turn speech into words.
 #[tauri::command]
 fn hearing_ready(app: AppHandle) -> bool {
@@ -1122,6 +1164,8 @@ pub fn run() {
             sandbox::sandbox_sync_tools,
         ])
         .setup(|app| {
+            allow_the_microphone(app);
+
             // If botcage installed its own engine, use that rather than whatever
             // is on PATH — it is the one the user agreed to.
             let handle = app.handle().clone();

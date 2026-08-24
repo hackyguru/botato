@@ -44,6 +44,14 @@ opt-level = 3
 panic = "abort"
 strip = true
 
+# The webview itself, on Linux only, and only to answer one question it asks.
+# WebKitGTK hands microphone requests to whoever embedded it, wry does not
+# implement that for GTK, and WebKit denies anything nobody answered — so
+# without this a call on Linux cannot hear. Pinned to the version tauri uses so
+# the WebView handed back is the same type.
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = { version = "2", features = ["v2_40"] }
+
 # Metal on Apple Silicon: whisper runs on the GPU, which turns a few seconds of
 # speech from about a second into about a tenth of one. Linux stays on the CPU,
 # where the small English model is still comfortably faster than talking.
