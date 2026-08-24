@@ -4586,6 +4586,13 @@ const CALL_STYLE = `You are on a voice call with the user right now: they are sp
  *  way that text is not. */
 const SENTENCE = /[.!?…]["')\]]*\s/g;
 
+/** How much to gather before speaking again, once the first sentence is out.
+ *
+ *  Roughly a couple of sentences. Long enough that one answer is one or two
+ *  performances rather than five, short enough that nobody waits for the end
+ *  of a paragraph to hear the middle of it. */
+const MOUTHFUL = 150;
+
 /** Speak the reply as it is written rather than when it is finished.
  *
  *  Measured on this machine: the first token of a turn arrives about three
@@ -4622,6 +4629,17 @@ function speakAsItArrives(botId: string, whole: string, ending = false): void {
   if (ending) upto = fresh.length;
   if (!upto) return;
 
+  // The first sentence goes out as soon as it exists, because that is where
+  // the three seconds of waiting are. After that, wait for a decent mouthful.
+  //
+  // Not tidiness: the model botcage installs is generative and has no seed, so
+  // every separate utterance is an independent performance of the same voice.
+  // Speaking a reply one sentence at a time made a bot's voice change halfway
+  // through its own answer, which is far more noticeable than it changing
+  // between turns. Fewer, longer pieces means fewer performances.
+  const started = call.spokenTo > 0;
+  if (started && !ending && upto < MOUTHFUL) return;
+
   call.spokenTo += upto;
   const line = forSpeech(fresh.slice(0, upto));
   if (!line) return;
@@ -4638,6 +4656,11 @@ async function pumpVoice(botId: string): Promise<void> {
   if (!call || call.voicing || !onThisCall(botId)) return;
   const bot = state.bots.find((b) => b.id === botId);
   if (!bot) return;
+
+  // The list has to be in hand before the first word, or `voiceFor` returns
+  // nothing, Rust falls back to whichever voice is first, and every bot sounds
+  // the same until the fetch lands. After the first call this costs nothing.
+  await knownVoices();
 
   call.voicing = true;
   while (call && onThisCall(botId) && call.saying.length) {
