@@ -57,6 +57,11 @@ macOS builds are signed and notarised, so they open without warnings.
   thinks with a cloud over its head, jumps when a turn lands and slumps when one
   fails. A bot can change its own face when you ask it to, and draw things the
   wardrobe has not got out of a handful of shapes.
+- **Calls.** Hold to talk and a bot listens, thinks and answers out loud —
+  transcribed and spoken on this machine, nothing sent anywhere. Call a channel
+  instead and the whole room is on it: faces side by side, whoever has the
+  floor lit, one voice at a time, and the conversation written down in the
+  channel when you hang up.
 - **A voice**, on a call: one of the machine's own, chosen from the bot's id
   the way its face is, and changeable in its settings. macOS has two dozen
   usable ones; Linux has espeak-ng's accents crossed with its variants, which

@@ -3690,6 +3690,9 @@ async function channelTurn(
   /** What to answer, when it is not simply what was said since it last spoke —
    *  a routine has its own instruction, and nobody said it out loud. */
   asked?: string,
+  /** How to deliver it. A room on a call wants two spoken sentences from the
+   *  same bot, not a different bot. */
+  style?: string,
 ): Promise<void> {
   if (hushed.has(ch.id)) return;
   // Busy in its own chat, or already speaking here. Skipped rather than
@@ -3729,7 +3732,9 @@ async function channelTurn(
         resume: seat.started,
         thread: ch.id,
         prompt: heard,
-        systemPrompt: channelPromptFor(ch, bot),
+        systemPrompt: style
+          ? `${channelPromptFor(ch, bot)}\n\n${style}`
+          : channelPromptFor(ch, bot),
         model: bot.model || MODEL,
         botName: bot.name,
         botRole: bot.role,
@@ -3897,12 +3902,13 @@ function openChannel(id: string): void {
  *  the thing you are looking at. */
 function paintTopbarFor(bot: Bot | null): void {
   const inRoom = !bot;
-  // A call belongs to a bot. In a room the button would ring whichever bot's
-  // private chat you last had open, which is nobody's idea of calling #eng —
-  // that is the group call, and it does not exist yet.
-  for (const id of ["btn-routines", "btn-plugins", "btn-monitor", "btn-call"]) {
+  for (const id of ["btn-routines", "btn-plugins", "btn-monitor"]) {
     $<HTMLButtonElement>(`#${id}`).hidden = inRoom;
   }
+  // A room can be called too, now: everyone in it, one voice at a time.
+  const phone = $<HTMLButtonElement>("#btn-call");
+  phone.hidden = false;
+  phone.title = inRoom ? "Call this channel" : "Call it";
   const gear = $<HTMLButtonElement>("#btn-settings");
   gear.hidden = false;
   gear.title = inRoom ? "Channel settings" : "Bot settings";
@@ -4023,7 +4029,11 @@ channelWrap.addEventListener("mousedown", (e) => {
  *  and what you say queues up behind what it is already doing. */
 
 interface Call {
+  /** Who is speaking, or who you rang. On a call with one bot these are the
+   *  same thing for its whole length; in a room it changes hands. */
   botId: string;
+  /** The room, when this is a call with several bots rather than one. */
+  channelId?: string;
   /** What you have said that has not been sent yet, because a turn is running. */
   queue: string[];
   listening: boolean;
@@ -4033,12 +4043,15 @@ interface Call {
   bits: Blob[];
   /** What it heard you say last, shown so a misheard word is visible. */
   heard: string;
-  /** How much of the reply has already been handed to the voice. */
+  /** How much of the reply has already been handed to the voice. Counted
+   *  against one bot's answer, so it resets when the floor changes hands. */
   spokenTo: number;
   /** Sentences waiting their turn at the speaker. */
   saying: string[];
   /** Whether something is being said right now. */
   voicing: boolean;
+  /** Whose answer is currently being read out, in a room. */
+  speakingFor?: string;
 }
 
 
@@ -4048,6 +4061,18 @@ let voiceStep = "";
 
 let call: Call | null = null;
 let voiceNames: string[] = [];
+
+/** Is this bot on the call — the one you rang, or one of the room's? */
+function onThisCall(botId: string): boolean {
+  if (!call) return false;
+  if (!call.channelId) return call.botId === botId;
+  const room = channels().find((c) => c.id === call?.channelId);
+  return Boolean(room?.members.includes(botId));
+}
+
+/** The room this call is in, if it is in one. */
+const callRoom = (): Channel | null =>
+  call?.channelId ? (channels().find((c) => c.id === call?.channelId) ?? null) : null;
 
 const callEl = $<HTMLDivElement>("#call");
 const callState = $<HTMLParagraphElement>("#call-state");
@@ -4097,13 +4122,57 @@ function callSays(note: string): void {
   callState.textContent = note;
 }
 
-async function startCall(bot: Bot): Promise<void> {
+/** Who is on the call, and who is talking.
+ *
+ *  One face when you rang one bot; the room's faces side by side when you
+ *  rang a room, with whoever has the floor lit and the rest dimmed — which is
+ *  what a call looks like, and here it is true rather than decorative. */
+function paintCallStage(): void {
+  if (!call) return;
+  const room = callRoom();
+  const stage = $<HTMLDivElement>("#call-face");
+  const who = $<HTMLHeadingElement>("#call-who");
+
+  if (!room) {
+    const bot = state.bots.find((b) => b.id === call?.botId);
+    if (!bot) return;
+    stage.className = "call__face";
+    stage.innerHTML = faceHtml(bot, "lg");
+    who.textContent = bot.name;
+    return;
+  }
+
+  const speaking = call.speakingFor;
+  stage.className = "call__face call__face--room";
+  stage.innerHTML = membersOf(room)
+    .map(
+      (b) =>
+        `<span class="call__seat${b.id === speaking ? " is-speaking" : ""}">` +
+        faceHtml(b, "lg") +
+        `<span class="call__seatName">${escapeHtml(b.name)}</span></span>`,
+    )
+    .join("");
+  who.textContent = `#${room.name}`;
+}
+
+/** Ring a whole room. */
+async function startGroupCall(room: Channel): Promise<void> {
+  const there = membersOf(room);
+  if (!there.length) {
+    toast("Nobody is in this channel yet");
+    return;
+  }
+  await startCall(there[0], room);
+}
+
+async function startCall(bot: Bot, room?: Channel): Promise<void> {
   if (!claudeReady) {
     toast("Claude Code CLI not found — install it to talk to your bots");
     return;
   }
   call = {
     botId: bot.id,
+    channelId: room?.id,
     queue: [],
     listening: false,
     tape: null,
@@ -4114,13 +4183,17 @@ async function startCall(bot: Bot): Promise<void> {
     voicing: false,
   };
 
-  $<HTMLDivElement>("#call-face").innerHTML = faceHtml(bot, "lg");
-  $<HTMLHeadingElement>("#call-who").textContent = bot.name;
+  paintCallStage();
   callHeard.textContent = "";
   callEl.hidden = false;
   callEl.style.setProperty("--skin", bot.color);
-  setMood(bot.id, "wave");
-  callSays("Hold the button, or hold space, and talk.");
+  if (room) {
+    for (const b of membersOf(room)) setMood(b.id, "wave");
+    callSays("Everyone can hear you. Name one of them to ask them directly.");
+  } else {
+    setMood(bot.id, "wave");
+    callSays("Hold the button, or hold space, and talk.");
+  }
 
   await knownVoices();
 
@@ -4157,6 +4230,10 @@ async function startCall(bot: Bot): Promise<void> {
 function endCall(): void {
   if (!call) return;
   call.saying = [];
+  // A room hushed by talking over it is only hushed for the call; typing in
+  // it afterwards should not be met with silence.
+  const room = callRoom();
+  if (room) hushed.delete(room.id);
   stopListening();
   void invoke("hush").catch(() => {});
   call = null;
@@ -4248,8 +4325,16 @@ function startListening(): void {
   call.bits = [];
   // Talking over it stops it. The queue is emptied first: hushing only kills
   // the sentence in the air, and the pump would calmly start the next one —
-  // which is the opposite of being interrupted.
+  // which is the opposite of being interrupted. In a room the whole wave
+  // stops, including whoever was about to be brought in.
   call.saying = [];
+  const room = callRoom();
+  if (room) {
+    hushed.add(room.id);
+    for (const [botId, pending] of inflight) {
+      if (pending.channelId === room.id) cancelTurn(botId);
+    }
+  }
   void invoke("hush").catch(() => {});
   setMood(call.botId, "listen");
   callSays("Listening…");
@@ -4305,7 +4390,9 @@ async function heardIt(): Promise<void> {
       return;
     }
     call.heard = said;
-    sayToBot(said);
+    const room = callRoom();
+    if (room) saidOnCall(room, said);
+    else sayToBot(said);
   } catch (err) {
     callSays(String(err));
   }
@@ -4340,6 +4427,37 @@ function sayToBot(said: string): void {
   void respond(bot, said, CALL_STYLE);
 }
 
+/** Something you said out loud to a room.
+ *
+ *  Unaddressed speech reaches everyone, which is the opposite of the rule for
+ *  typing. Both are right: a message nobody was named in is a note to the
+ *  room and can wait, but saying something aloud into a meeting and being met
+ *  with silence is baffling. Naming somebody still directs it at them. */
+function saidOnCall(room: Channel, said: string): void {
+  hushed.delete(room.id);
+
+  const msg: Message = { id: uid(), from: "me", text: said, at: Date.now() };
+  room.messages.push(msg);
+  save();
+  if (state.activeChannel === room.id) renderChannel();
+
+  const named = addressees(room, said);
+  const wanted = named.length ? named : membersOf(room);
+  if (!wanted.length) {
+    callSays("Nobody is in this channel yet.");
+    return;
+  }
+
+  callSays("Thinking…");
+  const budget: Budget = { left: HOPS };
+  void (async () => {
+    for (const bot of wanted) {
+      if (!call || hushed.has(room.id)) return;
+      await channelTurn(room, bot, budget, undefined, CALL_STYLE);
+    }
+  })();
+}
+
 /** What a bot is told while it is on a call.
  *
  *  Read aloud, a well-organised answer with three headings and a code block is
@@ -4366,7 +4484,17 @@ const SENTENCE = /[.!?…]["')\]]*\s/g;
  *  one, and it needed no new model — only not doing things in sequence that
  *  did not have to be. */
 function speakAsItArrives(botId: string, whole: string, ending = false): void {
-  if (!call || call.botId !== botId) return;
+  if (!onThisCall(botId)) return;
+  if (!call) return;
+
+  // The floor changing hands in a room: a new voice starts its answer from the
+  // beginning, and `spokenTo` counts against one answer.
+  if (call.speakingFor !== botId) {
+    call.speakingFor = botId;
+    call.botId = botId;
+    call.spokenTo = 0;
+    paintCallStage();
+  }
 
   const fresh = whole.slice(call.spokenTo);
   if (!fresh) return;
@@ -4394,12 +4522,12 @@ function speakAsItArrives(botId: string, whole: string, ending = false): void {
  *  stops it saying the first, so two overlapping calls would produce one
  *  sentence and a stump of another. */
 async function pumpVoice(botId: string): Promise<void> {
-  if (!call || call.voicing || call.botId !== botId) return;
+  if (!call || call.voicing || !onThisCall(botId)) return;
   const bot = state.bots.find((b) => b.id === botId);
   if (!bot) return;
 
   call.voicing = true;
-  while (call?.botId === botId && call.saying.length) {
+  while (call && onThisCall(botId) && call.saying.length) {
     const line = call.saying.shift() as string;
     // Live captions: what is being said, while it is being said.
     callHeard.textContent = line;
@@ -4411,18 +4539,20 @@ async function pumpVoice(botId: string): Promise<void> {
       break;
     }
   }
-  if (!call || call.botId !== botId) return;
+  if (!call || !onThisCall(botId)) return;
 
   call.voicing = false;
   if (moods.get(botId) === "talk") setMood(botId, "happy");
   if (!call.saying.length && !inflight.has(botId) && !call.queue.length) {
-    callSays("Go on — hold to talk.");
+    call.speakingFor = undefined;
+    paintCallStage();
+    callSays(callRoom() ? "Go on — everyone can hear you." : "Go on — hold to talk.");
   }
 }
 
 /** Called when a turn ends: say whatever was not a whole sentence yet. */
 function callHeardBack(botId: string, text: string, failed: boolean): void {
-  if (!call || call.botId !== botId) return;
+  if (!onThisCall(botId) || !call) return;
 
   if (failed) {
     call.saying = [];
@@ -5675,6 +5805,8 @@ $<HTMLButtonElement>("#btn-account").addEventListener("click", (event) => {
 });
 
 $<HTMLButtonElement>("#btn-call").addEventListener("click", () => {
+  const room = activeChannel();
+  if (room) return void startGroupCall(room);
   const bot = activeBot();
   if (bot) void startCall(bot);
 });
@@ -5702,6 +5834,7 @@ document.addEventListener("keydown", (e) => {
 document.addEventListener("keyup", (e) => {
   if (e.code === "Space" && call?.listening) stopListening();
 });
+
 
 
 

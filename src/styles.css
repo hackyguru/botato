@@ -5142,3 +5142,50 @@ a.detail__source:hover {
   color: var(--text);
   font-weight: 600;
 }
+
+/* A roomful of faces on a call, rather than one.
+   Side by side, with whoever has the floor lit — the rest are still there and
+   still listening, which is what dimming says and disappearing would not. */
+.call__face--room {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 26px;
+  align-items: flex-end;
+  justify-content: center;
+  max-width: 620px;
+}
+
+.call__seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  opacity: 0.42;
+  transition: opacity 220ms ease;
+}
+
+.call__seat.is-speaking {
+  opacity: 1;
+}
+
+.call__seatName {
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.call__seat.is-speaking .call__seatName {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* The one talking gets a ring in its own colour, which is the only moving
+   thing on the screen and so the only thing you have to look at. */
+.call__seat.is-speaking .face {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--skin) 55%, transparent);
+  border-radius: 50%;
+  animation: call-floor 1.8s ease-in-out infinite;
+}
+@keyframes call-floor {
+  50% {
+    box-shadow: 0 0 0 9px color-mix(in srgb, var(--skin) 16%, transparent);
+  }
+}
