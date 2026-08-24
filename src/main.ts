@@ -3515,9 +3515,22 @@ function channelPromptFor(ch: Channel, bot: Bot): string {
 }
 
 // How the download is going, while it is going.
-void listen<string>("hearing", (event) => {
-  if (call) callSays(event.payload);
-});
+void listen<string>("hearing", (event) => voiceProgress(event.payload));
+
+/** How a download is going, wherever it was asked for.
+ *
+ *  The same fetch can be started from three places — a call, the settings row,
+ *  or the setup step — and all three have to be able to show it, because the
+ *  one that started it is the one being watched. Without this the setup step
+ *  said "Starting…" for four hundred megabytes and looked hung. */
+function voiceProgress(note: string): void {
+  if (call) callSays(note);
+  speechHint.textContent = note;
+  // The setup step tracks it in a variable rather than writing to the element,
+  // because that step repaints from scratch whenever anything else changes.
+  voiceStep = note;
+  if (!setupWrap.hidden && setupAt === "voice") paintSetup();
+}
 
 /* ------------------------------------------------------- the better voices */
 /* botcage can fetch a speech model rather than use the machine's own: a
@@ -3528,11 +3541,7 @@ void listen<string>("hearing", (event) => {
 const speechBtn = $<HTMLButtonElement>("#app-speech");
 const speechHint = $<HTMLSpanElement>("#app-speech-hint");
 
-void listen<string>("speech", (event) => {
-  speechHint.textContent = event.payload;
-  // The same progress, on the call screen, when that is where it was asked for.
-  if (call) callSays(event.payload);
-});
+void listen<string>("speech", (event) => voiceProgress(event.payload));
 
 async function paintSpeech(): Promise<void> {
   const installed = await invoke<boolean>("speech_ready").catch(() => false);
@@ -3903,6 +3912,10 @@ interface Call {
   voicing: boolean;
 }
 
+
+/** What the voice download is doing, while it is doing it. Declared here
+ *  because the progress arrives long before the setup step is defined. */
+let voiceStep = "";
 
 let call: Call | null = null;
 let voiceNames: string[] = [];
@@ -6664,9 +6677,6 @@ function paintSetup(): void {
   if (setupAt === "voice") void paintVoiceStep();
   if (setupAt === "done") paintDoneStep();
 }
-
-/** Whether the voice bits are here, being fetched, or waiting to be offered. */
-let voiceStep = "";
 
 /** The onboarding step that offers a voice.
  *
