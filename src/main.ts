@@ -25,6 +25,9 @@ interface Message {
    *  it from a train. */
   fromPhone?: boolean;
   reaction?: string;
+  /** Kept at the top of the room, because a channel of bots working scrolls
+   *  and the decision you want tomorrow is somewhere in the middle of it. */
+  pinned?: boolean;
   error?: string;
   kind?: "teach" | "routine";
   meta?: { steps: number; frames: number; slug: string; name?: string };
@@ -55,6 +58,14 @@ interface Channel {
    *  is the only way a room full of bots talking to each other is bearable —
    *  otherwise you have to remember where you got to. */
   seenAt?: number;
+  /** A thread: the room it hangs off and the message it started from.
+   *
+   *  A thread is a channel with a parent and nothing else different, which is
+   *  why it gets members, per-bot sessions, its own transcript, mentions, hop
+   *  budgets, unread marks and calls without any of that being written twice.
+   *  The only reason to have a separate kind of thing would be to reimplement
+   *  all of it. */
+  from?: { channelId: string; messageId: string };
   /** Each member's own conversation in this room, kept apart from its chat:
    *  a bot in #finance should not have last night's private thread replayed at
    *  it, and what it says here should not turn up there. */
@@ -1013,12 +1024,17 @@ function renderRoster(): void {
   // Rooms first, then bots. A channel is where several of them are, so it sits
   // above the list of individuals — the same order every app with both has
   // settled on, for the same reason.
-  const rooms = channels().filter(
-    (ch) => !q || ch.name.includes(q) || ch.messages.some((m) => m.text.toLowerCase().includes(q)),
-  );
-  const roomsHtml = rooms.length
+  const matches = (ch: Channel) =>
+    !q || ch.name.toLowerCase().includes(q) || ch.messages.some((m) => m.text.toLowerCase().includes(q));
+
+  // A room, then its threads under it. A thread whose room does not match is
+  // still worth showing when the thread itself does, so the room comes along
+  // to say where it belongs.
+  const shown = rooms().filter((ch) => matches(ch) || threadsOf(ch).some(matches));
+  const roomsHtml = shown.length
     ? `<p class="rail-group">Channels</p>` +
-      rooms
+      shown
+        .flatMap((ch) => [ch, ...threadsOf(ch).filter((t) => matches(t) || matches(ch))])
         .map((ch) => {
           const room = membersOf(ch);
           const busy = room.some((b) => inflight.get(b.id)?.channelId === ch.id);
@@ -1027,8 +1043,9 @@ function renderRoster(): void {
             : unreadIn(ch.messages, ch.seenAt);
           return (
             `<button class="bot-row chan-row${ch.id === state.activeChannel ? " is-active" : ""}` +
-            `${news.unread ? " is-unread" : ""}" data-channel="${ch.id}">` +
-            `<span class="chan-row__hash">${icon("hash")}</span>` +
+            `${news.unread ? " is-unread" : ""}${ch.from ? " chan-row--thread" : ""}" ` +
+            `data-channel="${ch.id}">` +
+            `<span class="chan-row__hash">${icon(ch.from ? "reply" : "hash")}</span>` +
             `<span class="bot-row__body"><span class="bot-row__top">` +
             `<span class="bot-row__name">${escapeHtml(ch.name)}</span>` +
             `<span class="bot-row__time">${busy || news.unread ? "" : room.length || ""}</span>` +
@@ -1128,12 +1145,14 @@ const CLAMP_AT = 420;
 function bubbleHtml(msg: Message): string {
   const body = `<div class="md">${renderMd(msg.text)}</div>`;
   const clamp = msg.text.length > CLAMP_AT;
+  const pinned = msg.pinned ? `<span class="bubble__pin" title="Pinned">${icon("pin")}</span>` : "";
   const react = msg.reaction ? `<div class="reacts"><span class="react">${msg.reaction}</span></div>` : "";
   const phone = msg.fromPhone ? `<span class="from-phone" title="Sent from your phone">${icon("ios")}</span>` : "";
   return (
     `<div class="bubble${clamp ? " is-clamped" : ""}">` +
     `<div class="bubble__body">${body}</div>` +
     (clamp ? `<button type="button" class="more-btn">Show more ${icon("chev")}</button>` : "") +
+    pinned +
     phone +
     react +
     `</div>`
@@ -1199,6 +1218,73 @@ function turnEl(msg: Message, ch?: Channel): HTMLElement {
 
   wrap.innerHTML = msg.from === "me" ? actsHtml(msg) + bubbleHtml(msg) : bubbleHtml(msg) + actsHtml(msg);
   return wrap;
+}
+
+/** How many pinned messages the open conversation has. */
+function pinsHere(): Message[] {
+  const room = activeChannel();
+  const all = room ? room.messages : (activeBot()?.messages ?? []);
+  return all.filter((m) => m.pinned);
+}
+
+function paintPins(): void {
+  const many = pinsHere().length;
+  const button = $<HTMLButtonElement>("#btn-pins");
+  button.hidden = false;
+  button.title = many ? `${many} pinned` : "Nothing pinned yet";
+  $<HTMLSpanElement>("#btn-pins-count").textContent = many ? String(many) : "";
+}
+
+$<HTMLButtonElement>("#btn-pins").addEventListener("click", (event) => {
+  const pinned = pinsHere();
+  if (!pinned.length) {
+    toast("Nothing pinned — pin a message from its ⋯ menu");
+    return;
+  }
+  openMenu(
+    event.currentTarget as HTMLElement,
+    pinned
+      .map(
+        (m) =>
+          `<button type="button" class="menu-item menu-item--pin" data-goto="${m.id}">` +
+          `<span class="pin-who">${escapeHtml(nameOf(m.by) || (m.from === "me" ? userName() || "You" : "Bot"))}</span>` +
+          `<span class="pin-said">${escapeHtml(m.text.replace(/\s+/g, " ").slice(0, 70))}</span></button>`,
+      )
+      .join(""),
+    "menu--pins",
+  );
+});
+
+menu.addEventListener("click", (event) => {
+  const go = (event.target as HTMLElement).closest<HTMLElement>("[data-goto]");
+  if (!go) return;
+  closeMenu();
+  const at = thread.querySelector<HTMLElement>(`[data-msg="${go.dataset.goto}"]`);
+  at?.scrollIntoView({ behavior: "smooth", block: "center" });
+  at?.classList.add("is-found");
+  window.setTimeout(() => at?.classList.remove("is-found"), 1400);
+});
+
+/** Redraw whichever conversation is on screen. */
+function redrawConversation(): void {
+  if (activeChannel()) renderChannel();
+  else renderThread();
+}
+
+/** A message and where it lives — a room, or a bot's own chat.
+ *
+ *  Everything a message can have done to it used to look in `activeBot()`,
+ *  which meant not one of copy, react, pin or delete worked in a channel: the
+ *  room's messages are not any bot's. */
+function messageAt(id: string): { msg: Message; room?: Channel; bot?: Bot } | null {
+  const room = activeChannel();
+  if (room) {
+    const msg = room.messages.find((m) => m.id === id);
+    return msg ? { msg, room } : null;
+  }
+  const bot = activeBot();
+  const msg = bot?.messages.find((m) => m.id === id);
+  return bot && msg ? { msg, bot } : null;
 }
 
 /** The live body element of a message, if that message is currently on screen. */
@@ -1270,6 +1356,7 @@ function renderThread(): void {
   if (pending && !pending.sawText) waitingHtml(pending.message.id, pending.note);
 
   markSeen();
+  paintPins();
   syncSend();
   scrollToEnd();
 }
@@ -3475,6 +3562,11 @@ interface Budget {
 const hushed = new Set<string>();
 
 const channels = (): Channel[] => (state.channels ??= []);
+/** Rooms, without the threads hanging off them. */
+const rooms = (): Channel[] => channels().filter((c) => !c.from);
+/** The threads of one room, oldest first. */
+const threadsOf = (ch: Channel): Channel[] =>
+  channels().filter((c) => c.from?.channelId === ch.id);
 const activeChannel = (): Channel | null =>
   channels().find((c) => c.id === state.activeChannel) ?? null;
 const membersOf = (ch: Channel): Bot[] =>
@@ -3905,7 +3997,19 @@ function postToChannel(ch: Channel, text: string): void {
   save();
   scrollToEnd(true);
 
-  const wanted = addressees(ch, text);
+  let wanted = addressees(ch, text);
+
+  // In a thread, whoever said the thing you pulled aside answers by default.
+  // You opened a side conversation about their message; making you name them
+  // again to continue it would be a strange thing to ask.
+  if (!wanted.length && ch.from) {
+    const anchor = channels()
+      .find((c) => c.id === ch.from?.channelId)
+      ?.messages.find((m) => m.id === ch.from?.messageId);
+    const author = membersOf(ch).find((b) => b.id === anchor?.by);
+    if (author) wanted = [author];
+  }
+
   if (!wanted.length) {
     // Said to the room rather than to anyone in it. Not an error — people do
     // it constantly — but silence with no explanation reads as a bug.
@@ -3927,12 +4031,17 @@ function renderChannel(): void {
   if (!ch) return;
 
   const room = membersOf(ch);
+  const parent = ch.from ? channels().find((c) => c.id === ch.from?.channelId) : null;
   topbarId.innerHTML =
-    `<span class="chan__hash">${icon("hash")}</span><span>${escapeHtml(ch.name)}</span>` +
+    `<span class="chan__hash">${icon(ch.from ? "reply" : "hash")}</span>` +
+    `<span>${escapeHtml(ch.name)}</span>` +
+    (parent ? `<span class="chan__parent">in #${escapeHtml(parent.name)}</span>` : "") +
     `<span class="chan__faces">${room.map((b) => faceHtml(b, "sm")).join("")}</span>`;
-  input.placeholder = room.length
-    ? `Message #${ch.name}`
-    : `#${ch.name} has nobody in it yet`;
+  input.placeholder = !room.length
+    ? `#${ch.name} has nobody in it yet`
+    : ch.from
+      ? "Reply in this thread"
+      : `Message #${ch.name}`;
 
   if (!ch.messages.length) {
     thread.innerHTML =
@@ -3955,6 +4064,7 @@ function renderChannel(): void {
     if (pending.channelId === ch.id && !pending.sawText) waitingHtml(pending.message.id, pending.note);
   }
   markSeen();
+  paintPins();
   syncSend();
   scrollToEnd();
 }
@@ -3990,6 +4100,8 @@ function paintTopbarFor(bot: Bot | null): void {
   const phone = $<HTMLButtonElement>("#btn-call");
   phone.hidden = false;
   phone.title = inRoom ? "Call this channel" : "Call it";
+  // Pins belong to a conversation, and both kinds have one.
+  paintPins();
   const gear = $<HTMLButtonElement>("#btn-settings");
   gear.hidden = false;
   gear.title = inRoom ? "Channel settings" : "Bot settings";
@@ -4159,6 +4271,46 @@ function onThisCall(botId: string): boolean {
   return Boolean(room?.members.includes(botId));
 }
 
+/** Start a side conversation from something said in a room.
+ *
+ *  The same bots, so it needs no membership of its own; a fresh seat each, so
+ *  what is said here is a separate conversation from the room's — which is the
+ *  point of a thread, and comes free from a channel already keeping a session
+ *  and a transcript per member.
+ *
+ *  The message it started from is quoted in, because the bots were not there
+ *  when it was said: their session for this thread is new and empty. */
+function openThreadFrom(room: Channel, msg: Message): void {
+  const already = channels().find((c) => c.from?.messageId === msg.id);
+  if (already) return openChannel(already.id);
+
+  const said = msg.text.replace(/\s+/g, " ").trim();
+  const thread: Channel = {
+    id: uid(),
+    // Named after what it came from, which is what anyone would call it.
+    name: (said.slice(0, 40) || "thread").trim(),
+    purpose: room.purpose,
+    members: [...room.members],
+    messages: [
+      {
+        id: uid(),
+        from: msg.from,
+        by: msg.by,
+        text: said,
+        at: msg.at,
+        kind: msg.kind,
+        meta: msg.meta,
+      },
+    ],
+    seats: {},
+    from: { channelId: room.id, messageId: msg.id },
+  };
+  channels().push(thread);
+  save();
+  openChannel(thread.id);
+  toast(`Thread started in #${room.name}`);
+}
+
 /** The room this call is in, if it is in one. */
 const callRoom = (): Channel | null =>
   call?.channelId ? (channels().find((c) => c.id === call?.channelId) ?? null) : null;
@@ -4280,7 +4432,8 @@ function paintCallStage(): void {
     `<span class="tile__you">${escapeHtml((userName() || "y").slice(0, 1).toUpperCase())}</span>` +
     `<span class="tile__name">${escapeHtml(userName() || "You")}</span>` +
     `</span>`;
-  who.textContent = `#${room.name}`;
+  // A thread is not a #channel, and calling one is a real thing to do.
+  who.textContent = room.from ? room.name : `#${room.name}`;
   $<HTMLDivElement>(".call__stage").classList.add("call__stage--room");
 }
 
@@ -6118,16 +6271,19 @@ thread.addEventListener("click", (e) => {
   const btn = target.closest<HTMLButtonElement>("[data-act]");
   if (!btn) return;
   const turn = btn.closest<HTMLElement>("[data-msg]")!;
-  const bot = activeBot();
-  const msg = bot?.messages.find((m) => m.id === turn.dataset.msg);
-  if (!bot || !msg) return;
+  const found = messageAt(turn.dataset.msg ?? "");
+  if (!found) return;
+  const { msg } = found;
 
   switch (btn.dataset.act) {
     case "copy":
       copy(msg.text);
       break;
     case "retry":
-      retry(msg.id);
+      // Only in a bot's own thread: rerunning one turn in a room would have to
+      // decide what happens to everything said after it.
+      if (!found.room) retry(msg.id);
+      else toast("Ask again in the channel instead");
       break;
     case "reply":
       input.value = `${msg.text
@@ -6152,6 +6308,12 @@ thread.addEventListener("click", (e) => {
       openMenu(
         btn,
         `<button type="button" class="menu-item" data-copy="${msg.id}">${icon("copy")}Copy text</button>` +
+          `<button type="button" class="menu-item" data-pin="${msg.id}">${icon("pin")}` +
+          `${msg.pinned ? "Unpin" : "Pin"} message</button>` +
+          (found.room
+            ? `<button type="button" class="menu-item" data-thread="${msg.id}">${icon("reply")}` +
+              `Start a thread</button>`
+            : "") +
           `<button type="button" class="menu-item" data-del="${msg.id}">${icon("trash")}Delete message</button>`,
       );
       break;
@@ -6186,17 +6348,36 @@ menu.addEventListener("click", (e) => {
   }
 
   const copyItem = target.closest<HTMLButtonElement>("[data-copy]");
-  if (copyItem && bot) {
-    const msg = bot.messages.find((m) => m.id === copyItem.dataset.copy);
-    if (msg) copy(msg.text);
+  if (copyItem) {
+    const found = messageAt(copyItem.dataset.copy ?? "");
+    if (found) copy(found.msg.text);
+  }
+
+  const pin = target.closest<HTMLButtonElement>("[data-pin]");
+  if (pin) {
+    const found = messageAt(pin.dataset.pin ?? "");
+    if (found) {
+      found.msg.pinned = !found.msg.pinned;
+      save();
+      redrawConversation();
+      toast(found.msg.pinned ? "Pinned" : "Unpinned");
+    }
+  }
+
+  const startThread = target.closest<HTMLButtonElement>("[data-thread]");
+  if (startThread) {
+    const found = messageAt(startThread.dataset.thread ?? "");
+    if (found?.room) openThreadFrom(found.room, found.msg);
   }
 
   const del = target.closest<HTMLButtonElement>("[data-del]");
-  if (del && bot) {
-    bot.messages = bot.messages.filter((m) => m.id !== del.dataset.del);
+  if (del) {
+    const found = messageAt(del.dataset.del ?? "");
+    if (found?.room) found.room.messages = found.room.messages.filter((m) => m.id !== found.msg.id);
+    else if (found?.bot) found.bot.messages = found.bot.messages.filter((m) => m.id !== found.msg.id);
     save();
     renderRoster();
-    renderThread();
+    redrawConversation();
   }
 
   const clear = target.closest<HTMLButtonElement>("[data-clear]");

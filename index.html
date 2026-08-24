@@ -111,6 +111,9 @@
         <path d="M15.5 21A13.5 13.5 0 0 1 3 8.5V6a2 2 0 0 1 2-2h2.2a1 1 0 0 1 1 .8l.8 3.4a1 1 0 0 1-.5 1.1l-1.6.9a11 11 0 0 0 4.9 4.9l.9-1.6a1 1 0 0 1 1.1-.5l3.4.8a1 1 0 0 1 .8 1V19a2 2 0 0 1-2 2z" />
         <path d="M3 3l18 18" />
       </symbol>
+      <symbol id="i-pin" viewBox="0 0 24 24">
+        <path d="M9 3h6l-1 6 4 3.5V15H6v-2.5L10 9z" /><path d="M12 15v6" />
+      </symbol>
       <symbol id="i-people" viewBox="0 0 24 24">
         <circle cx="9" cy="8" r="3.4" />
         <path d="M2.8 20a6.4 6.4 0 0 1 12.4 0" />
@@ -164,6 +167,10 @@
             </button>
             <button class="icon-btn" id="btn-settings" title="Bot settings" aria-label="Bot settings">
               <svg><use href="#i-gear" /></svg>
+            </button>
+            <button class="icon-btn" id="btn-pins" title="Pinned" aria-label="Pinned">
+              <svg><use href="#i-pin" /></svg>
+              <span class="icon-btn__count" id="btn-pins-count"></span>
             </button>
             <button class="icon-btn" id="btn-call" title="Call it" aria-label="Call it">
               <svg><use href="#i-phone" /></svg>

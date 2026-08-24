@@ -5274,3 +5274,80 @@ a.detail__source:hover {
   background: color-mix(in srgb, #3ba55d 22%, var(--active));
   color: var(--text);
 }
+
+/* Threads: a channel with a parent, and a row that says so by sitting under
+   it and pointing back. */
+.chan-row--thread {
+  padding-left: 18px;
+}
+.chan-row--thread .chan-row__hash svg {
+  width: 15px;
+  height: 15px;
+  transform: scaleY(-1);
+}
+.chan-row--thread .bot-row__name {
+  font-size: 13px;
+  color: var(--text-2);
+}
+.chan-row--thread.is-active .bot-row__name,
+.chan-row--thread.is-unread .bot-row__name {
+  color: var(--text);
+}
+
+.chan__parent {
+  margin-left: 8px;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+/* Pinned: a mark on the bubble, and a list behind the pin in the header. */
+.bubble__pin {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  background: var(--active);
+  border-radius: 50%;
+}
+.bubble__pin svg {
+  width: 11px;
+  height: 11px;
+  stroke: var(--text-2);
+  stroke-width: 2;
+  fill: none;
+}
+
+.menu--pins {
+  max-width: 340px;
+}
+.menu-item--pin {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.pin-who {
+  color: var(--text-2);
+  font-size: 11.5px;
+}
+.pin-said {
+  overflow: hidden;
+  width: 100%;
+  color: var(--text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Jumped to from the pin list — a flash, so the eye knows where it landed. */
+.turn.is-found .bubble {
+  animation: found 1.4s ease-out;
+}
+@keyframes found {
+  0%,
+  60% {
+    box-shadow: 0 0 0 2px var(--blue);
+  }
+}
