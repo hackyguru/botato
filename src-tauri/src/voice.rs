@@ -144,8 +144,29 @@ fn espeak() -> Option<&'static str> {
 }
 
 /// The voices this machine can give bots, for a language.
+///
+/// In order of how good they sound: the model botcage manages if it is
+/// installed, then whatever `BOTCAGE_TTS` was pointed at, then the system's
+/// own. Installing the model gives every bot a new voice, which is the point
+/// of installing it.
 #[must_use]
-pub fn voices(language: &str) -> Vec<String> {
+pub fn voices(app: &tauri::AppHandle, language: &str) -> Vec<String> {
+    if crate::speech::ready(app) {
+        let managed = crate::speech::voices(app);
+        if !managed.is_empty() {
+            return managed;
+        }
+    }
+
+    system_voices(language)
+}
+
+/// What the machine itself can do, with nothing installed and nothing set.
+///
+/// Split out because it is the only part a test can reach: everything above it
+/// needs a running app to ask where its data lives.
+#[must_use]
+pub fn system_voices(language: &str) -> Vec<String> {
     let want = language
         .split(['-', '_'])
         .next()
@@ -290,7 +311,12 @@ fn espeak_voices(want: &str) -> Vec<String> {
 /// Blocking on purpose — the caller is on a background thread and wants to
 /// know when the sound stops, because that is when a talking face stops
 /// talking. Interrupting it counts as finishing.
-pub fn speak(text: &str, voice: Option<&str>, rate: Option<u32>) -> Result<(), String> {
+pub fn speak(
+    app: &tauri::AppHandle,
+    text: &str,
+    voice: Option<&str>,
+    rate: Option<u32>,
+) -> Result<(), String> {
     hush();
     let text = text.trim();
     if text.is_empty() {
@@ -298,10 +324,21 @@ pub fn speak(text: &str, voice: Option<&str>, rate: Option<u32>) -> Result<(), S
     }
 
     let voice = voice.filter(|v| !v.is_empty());
+
+    // Something the user pointed us at beats something botcage installed,
+    // which beats the machine's own: a command set by hand is a preference,
+    // and a preference outranks a default.
     if let Ok(template) = std::env::var(CUSTOM) {
         if !template.trim().is_empty() {
             return borrowed(&template.replace("{voice}", voice.unwrap_or_default()), text);
         }
+    }
+
+    if crate::speech::ready(app) {
+        let (cmd, wav) = crate::speech::command(app, voice, text)?;
+        let said = rendered(cmd, &wav);
+        let _ = std::fs::remove_file(&wav);
+        return said;
     }
 
     let mut cmd = match () {
@@ -349,6 +386,32 @@ pub fn speak(text: &str, voice: Option<&str>, rate: Option<u32>) -> Result<(), S
     }
 
     let _ = wait_for(claim(child))?;
+    Ok(())
+}
+
+/// Run a synthesiser that writes a file, then play the file.
+fn rendered(mut cmd: Command, wav: &std::path::Path) -> Result<(), String> {
+    let made = cmd
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("could not speak: {e}"))?;
+
+    // Registered as the thing talking even while it is only rendering, so that
+    // interrupting during the pause before any sound stops it, rather than
+    // waiting for a sentence nobody wants to hear any more.
+    if wait_for(claim(made))?.is_none() || !wav.is_file() {
+        return Ok(());
+    }
+
+    let played = player(wav)
+        .ok_or("nothing on this machine can play audio — install afplay, paplay or aplay")?
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("could not play the audio: {e}"))?;
+    let _ = wait_for(claim(played));
     Ok(())
 }
 
@@ -492,7 +555,7 @@ Daniel              en_GB    # Hello! My name is Daniel.
     #[test]
     #[cfg(target_os = "macos")]
     fn a_bot_is_never_given_a_voice_that_sings() {
-        let voices = voices("en");
+        let voices = system_voices("en");
         if voices.is_empty() {
             return;
         }
@@ -508,7 +571,7 @@ Daniel              en_GB    # Hello! My name is Daniel.
     /// the number at which a person stops noticing two the same.
     #[test]
     fn a_machine_that_can_speak_at_all_offers_plenty_to_choose_from() {
-        let voices = voices("en");
+        let voices = system_voices("en");
         if voices.is_empty() {
             // No synthesiser installed: bots fall back to the system default
             // and this has nothing to say.
@@ -593,7 +656,10 @@ Pty Language       Age/Gender VoiceName          File                 Other Lang
             ),
         );
 
-        let said = speak("Borrowed and played.", None, None);
+        let said = borrowed(
+            &std::env::var(CUSTOM).expect("just set"),
+            "Borrowed and played.",
+        );
         std::env::remove_var(CUSTOM);
         assert!(said.is_ok(), "{said:?}");
     }

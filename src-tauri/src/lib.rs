@@ -31,6 +31,7 @@ mod plugins;
 mod remote;
 mod sandbox;
 mod setup;
+mod speech;
 mod transcript;
 mod voice;
 
@@ -692,6 +693,26 @@ fn allow_the_microphone(app: &tauri::App) {
 #[cfg(not(target_os = "linux"))]
 fn allow_the_microphone(_app: &tauri::App) {}
 
+/// Whether botcage's own speech engine is installed.
+#[tauri::command]
+fn speech_ready(app: AppHandle) -> bool {
+    speech::ready(&app)
+}
+
+/// Fetch it. Reports progress on the "speech" event.
+#[tauri::command]
+async fn speech_install(app: AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || speech::install(&app))
+        .await
+        .map_err(|e| format!("download thread: {e}"))?
+}
+
+/// Remove it, and go back to the machine's own voice.
+#[tauri::command]
+fn speech_forget(app: AppHandle) -> Result<(), String> {
+    speech::forget(&app)
+}
+
 /// Whether this machine can already turn speech into words.
 #[tauri::command]
 fn hearing_ready(app: AppHandle) -> bool {
@@ -723,8 +744,13 @@ async fn transcribe(app: AppHandle, samples: Vec<f32>) -> Result<String, String>
 /// moves the bot's mouth for as long as this takes, and a promise that
 /// resolved on spawn would have a face finish talking a sentence early.
 #[tauri::command]
-async fn speak(text: String, voice: Option<String>, rate: Option<u32>) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || voice::speak(&text, voice.as_deref(), rate))
+async fn speak(
+    app: AppHandle,
+    text: String,
+    voice: Option<String>,
+    rate: Option<u32>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || voice::speak(&app, &text, voice.as_deref(), rate))
         .await
         .map_err(|e| format!("speech thread: {e}"))?
 }
@@ -737,8 +763,8 @@ fn hush() {
 
 /// The voices this machine has for a language, so each bot can have its own.
 #[tauri::command]
-fn voices(language: String) -> Vec<String> {
-    voice::voices(&language)
+fn voices(app: AppHandle, language: String) -> Vec<String> {
+    voice::voices(&app, &language)
 }
 
 /// Forget the conversation, keeping the bot.
@@ -1098,6 +1124,9 @@ pub fn run() {
             speak,
             hush,
             voices,
+            speech_ready,
+            speech_install,
+            speech_forget,
             hearing_ready,
             hearing_install,
             transcribe,

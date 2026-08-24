@@ -60,8 +60,14 @@ macOS builds are signed and notarised, so they open without warnings.
 - **A voice**, on a call: one of the machine's own, chosen from the bot's id
   the way its face is, and changeable in its settings. macOS has two dozen
   usable ones; Linux has espeak-ng's accents crossed with its variants, which
-  is seventy-odd. Point `BOTCAGE_TTS` at a command to use something better —
-  pocket-tts, Kokoro, Piper — without botcage shipping a model:
+  is seventy-odd. Or let botcage fetch a better one: Settings offers Kyutai's
+  Pocket TTS, which is 24 recorded people rather than a synthesiser, sounds the
+  same on both platforms, and runs on the processor in about a second a
+  sentence. A 130 MB download, 340 MB on disk, removable, and nothing said
+  leaves the machine.
+
+  Point `BOTCAGE_TTS` at a command to use something else again — Kokoro, Piper,
+  whatever comes next — without botcage shipping a model:
 
   ```sh
   BOTCAGE_TTS='pocket-tts generate --voice {voice} --output - --text -'

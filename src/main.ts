@@ -3519,6 +3519,61 @@ void listen<string>("hearing", (event) => {
   if (call) callSays(event.payload);
 });
 
+/* ------------------------------------------------------- the better voices */
+/* botcage can fetch a speech model rather than use the machine's own: a
+   hundred and six people's voices instead of two dozen synthesisers, the same
+   on macOS and Linux. About 130 MB, so it is asked for rather than assumed —
+   the same bargain as a container engine. */
+
+const speechBtn = $<HTMLButtonElement>("#app-speech");
+const speechHint = $<HTMLSpanElement>("#app-speech-hint");
+
+void listen<string>("speech", (event) => {
+  speechHint.textContent = event.payload;
+});
+
+async function paintSpeech(): Promise<void> {
+  const installed = await invoke<boolean>("speech_ready").catch(() => false);
+  speechBtn.textContent = installed ? "Remove" : "Get better voices";
+  if (!installed) {
+    // Both numbers, because they are different and the second one is the one
+    // that stays: 130 MB is what crosses the network, and a third of a
+    // gigabyte is what sits on the disk afterwards.
+    speechHint.textContent =
+      "The machine's own. Real ones cost a 130 MB download and 340 MB on disk, and sound the same on macOS and Linux.";
+    return;
+  }
+  // The real count, not a number written here: a voice that failed to download
+  // is one voice fewer rather than a failed install, so the two can differ.
+  const how = (await knownVoices()).length;
+  speechHint.textContent = `Kyutai Pocket TTS, on this machine. Every bot has one of ${how} real voices.`;
+}
+
+speechBtn.addEventListener("click", () => {
+  void (async () => {
+    const installed = await invoke<boolean>("speech_ready").catch(() => false);
+    speechBtn.disabled = true;
+    try {
+      if (installed) {
+        await invoke("speech_forget");
+        toast("Back to the machine's own voices");
+      } else {
+        speechHint.textContent = "Starting…";
+        await invoke("speech_install");
+        toast("Every bot has a new voice");
+      }
+      // The list changed underneath every bot, so the cached one is wrong.
+      voiceNames = [];
+      await knownVoices();
+    } catch (err) {
+      toast(String(err));
+    } finally {
+      speechBtn.disabled = false;
+      void paintSpeech();
+    }
+  })();
+});
+
 /** Resolves when this bot's turn ends, however it ends. */
 function settled(botId: string): Promise<void> {
   const pending = inflight.get(botId);
@@ -4269,6 +4324,7 @@ const showSheetTab = wireTabs($<HTMLElement>("#sheet-wrap"));
 
 async function openAppSettings(): Promise<void> {
   showSettingsTab("general");
+  void paintSpeech();
   const settings = appSettings();
   $<HTMLInputElement>("#app-name").value = settings.name ?? "";
   appModel.value = settings.model;
