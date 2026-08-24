@@ -5084,6 +5084,19 @@ a.detail__source:hover {
   border-radius: calc(var(--u) * 0.1);
   animation: mood-talk 0.34s steps(1, end) infinite;
 }
+
+/* Following the actual sound. The timed flap is switched off, because two
+   things moving the same mouth to different rhythms looks like neither.
+   Sized from the loudness rather than snapped between two frames: speech has
+   a shape, and this is that shape. */
+.face[data-lip][data-mood="talk"] .face__mouth {
+  height: calc(var(--u) * (0.035 + 0.13 * var(--mouth, 0)));
+  transform: translateY(calc(var(--u) * (0.055 - 0.055 * var(--mouth, 0))));
+  animation: none;
+  transition:
+    height 60ms linear,
+    transform 60ms linear;
+}
 @keyframes mood-talk {
   0%,
   49% {

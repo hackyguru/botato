@@ -3536,9 +3536,11 @@ const nameOf = (botId?: string): string =>
 function mentionsYou(text: string): boolean {
   const called = userName().trim();
   if (!called) return false;
-  const at = new RegExp(`@${called.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
-  return at.test(text);
+  return new RegExp(`@${reSafe(called)}\\b`, "i").test(text);
 }
+
+/** A name, made safe to drop into a pattern. */
+const reSafe = (name: string) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** What has happened somewhere you were not looking.
  *
@@ -3596,6 +3598,50 @@ function channelPromptFor(ch: Channel, bot: Bot): string {
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+/* ------------------------------------------------------------- lip sync */
+/* The mouth follows the sound rather than flapping on a timer.
+ *
+ *  Rust reads the loudness out of the wav it is about to play and sends it
+ *  here as one number every 45 ms; this walks that list in step with the clock
+ *  and sets how far open the mouth is. It is the difference between a face
+ *  that is animated while a voice happens and a face that is saying the words
+ *  — the pauses between sentences land in the right place, and so do the
+ *  loud syllables.
+ *
+ *  Only where the synthesiser hands us a file, which is the one botcage
+ *  installs. `say` and espeak stream straight to the speakers and keep the
+ *  simple flap. */
+let lips: { levels: number[]; step: number; from: number; frame: number } | null = null;
+
+void listen<{ step: number; levels: number[] }>("mouth", (event) => {
+  stopLips();
+  if (!call || !event.payload.levels.length) return;
+  lips = { levels: event.payload.levels, step: event.payload.step, from: performance.now(), frame: 0 };
+  moveLips();
+});
+
+function moveLips(): void {
+  if (!lips || !call) return stopLips();
+  const at = Math.floor((performance.now() - lips.from) / lips.step);
+  if (at >= lips.levels.length) return stopLips();
+
+  const who = call.speakingFor ?? call.botId;
+  for (const face of document.querySelectorAll<HTMLElement>(`.face[data-bot="${who}"]`)) {
+    face.dataset.lip = "1";
+    face.style.setProperty("--mouth", lips.levels[at].toFixed(2));
+  }
+  lips.frame = requestAnimationFrame(moveLips);
+}
+
+function stopLips(): void {
+  if (lips) cancelAnimationFrame(lips.frame);
+  lips = null;
+  for (const face of document.querySelectorAll<HTMLElement>(".face[data-lip]")) {
+    delete face.dataset.lip;
+    face.style.removeProperty("--mouth");
+  }
 }
 
 // How the download is going, while it is going.
@@ -4209,7 +4255,7 @@ async function startCall(bot: Bot, room?: Channel): Promise<void> {
   callEl.style.setProperty("--skin", bot.color);
   if (room) {
     for (const b of membersOf(room)) setMood(b.id, "wave");
-    callSays("Everyone can hear you. Name one of them to ask them directly.");
+    callSays("Everyone can hear you. Say a name to ask just that one.");
   } else {
     setMood(bot.id, "wave");
     callSays("Hold the button, or hold space, and talk.");
@@ -4250,6 +4296,7 @@ async function startCall(bot: Bot, room?: Channel): Promise<void> {
 function endCall(): void {
   if (!call) return;
   call.saying = [];
+  stopLips();
   // A room hushed by talking over it is only hushed for the call; typing in
   // it afterwards should not be met with silence.
   const room = callRoom();
@@ -4348,6 +4395,7 @@ function startListening(): void {
   // which is the opposite of being interrupted. In a room the whole wave
   // stops, including whoever was about to be brought in.
   call.saying = [];
+  stopLips();
   const room = callRoom();
   if (room) {
     hushed.add(room.id);
@@ -4450,6 +4498,39 @@ function sayToBot(said: string): void {
   void respond(bot, said, CALL_STYLE);
 }
 
+/** Who you addressed out loud.
+ *
+ *  Typing needs the "@" because a name in a sentence is usually just a name.
+ *  Speech has no "@" — you say "Ops, what is the state of the build", and the
+ *  transcript says exactly that — so requiring one meant every spoken question
+ *  read as addressed to nobody, and the rule for nobody is everybody. Which is
+ *  why asking one bot something got you answers from all of them.
+ *
+ *  A name at the front wins, because that is how anyone addresses one person
+ *  in a room out loud. Then a name anywhere. An "@" still works, for the
+ *  transcript that happens to contain one. */
+function spokenAddressees(room: Channel, said: string): Bot[] {
+  const typed = addressees(room, said);
+  if (typed.length) return typed;
+
+  // Said aloud, "everyone" needs no "@" either.
+  if (/\b(everyone|everybody|all of you)\b/i.test(said)) return membersOf(room);
+
+  const heard = said.trim().toLowerCase();
+  const opening = membersOf(room).filter((bot) => {
+    const name = bot.name.toLowerCase();
+    if (!heard.startsWith(name)) return false;
+    // "Ops, ..." addresses Ops; "Opsworth is broken" does not.
+    const after = heard[name.length] ?? " ";
+    return !/[a-z0-9]/.test(after);
+  });
+  if (opening.length) return opening;
+
+  return membersOf(room).filter((bot) =>
+    new RegExp(`\\b${reSafe(bot.name)}\\b`, "i").test(said),
+  );
+}
+
 /** Something you said out loud to a room.
  *
  *  Unaddressed speech reaches everyone, which is the opposite of the rule for
@@ -4464,7 +4545,7 @@ function saidOnCall(room: Channel, said: string): void {
   save();
   if (state.activeChannel === room.id) renderChannel();
 
-  const named = addressees(room, said);
+  const named = spokenAddressees(room, said);
   const wanted = named.length ? named : membersOf(room);
   if (!wanted.length) {
     callSays("Nobody is in this channel yet.");
@@ -4574,6 +4655,7 @@ async function pumpVoice(botId: string): Promise<void> {
   if (!call || !onThisCall(botId)) return;
 
   call.voicing = false;
+  stopLips();
   if (moods.get(botId) === "talk") setMood(botId, "happy");
   if (!call.saying.length && !inflight.has(botId) && !call.queue.length) {
     call.speakingFor = undefined;
@@ -5866,6 +5948,7 @@ document.addEventListener("keydown", (e) => {
 document.addEventListener("keyup", (e) => {
   if (e.code === "Space" && call?.listening) stopListening();
 });
+
 
 
 
