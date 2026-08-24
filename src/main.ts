@@ -3530,6 +3530,8 @@ const speechHint = $<HTMLSpanElement>("#app-speech-hint");
 
 void listen<string>("speech", (event) => {
   speechHint.textContent = event.payload;
+  // The same progress, on the call screen, when that is where it was asked for.
+  if (call) callSays(event.payload);
 });
 
 async function paintSpeech(): Promise<void> {
@@ -3540,7 +3542,7 @@ async function paintSpeech(): Promise<void> {
     // that stays: 130 MB is what crosses the network, and a third of a
     // gigabyte is what sits on the disk afterwards.
     speechHint.textContent =
-      "The machine's own. Real ones cost a 130 MB download and 340 MB on disk, and sound the same on macOS and Linux.";
+      "The machine's own. Real ones arrive with your first call, or press this — a 130 MB download, 340 MB on disk.";
     return;
   }
   // The real count, not a number written here: a voice that failed to download
@@ -3980,16 +3982,32 @@ async function startCall(bot: Bot): Promise<void> {
 
   await knownVoices();
 
-  // The speech model, once, on the first call ever made. Fetched here rather
-  // than at install because most people will never make a call, and 57 MB is
-  // a lot to spend on their behalf.
-  if (!(await invoke<boolean>("hearing_ready").catch(() => false))) {
-    callSays("Fetching the speech model — once, about 57 MB.");
+  // Everything a call needs, once, on the first one ever made. Fetched here
+  // rather than at install because most people will never make a call, and
+  // this is a lot to spend on their behalf until they do.
+  //
+  // Both halves, not just the ear: a first call that can hear you and answers
+  // in a 2005 satnav is a bad first impression of the whole feature, and
+  // "there is a better voice, go and find the setting" is a thing nobody
+  // should have to be told. Settings can take it away again.
+  const needsEars = !(await invoke<boolean>("hearing_ready").catch(() => false));
+  const needsVoice = !(await invoke<boolean>("speech_ready").catch(() => false));
+
+  if (needsEars || needsVoice) {
+    callSays("Setting up voice — a few hundred megabytes, once.");
     try {
-      await invoke("hearing_install");
+      if (needsEars) await invoke("hearing_install");
+      if (needsVoice) await invoke("speech_install");
+      voiceNames = [];
+      await knownVoices();
       callSays("Ready. Hold the button, or hold space, and talk.");
     } catch (err) {
-      callSays(`Could not fetch the speech model: ${err}`);
+      // A voice that could not be fetched is not a call that cannot happen:
+      // the machine's own still works, and so does hearing.
+      callSays(`${err}`);
+      window.setTimeout(() => {
+        if (call?.botId === bot.id) callSays("Hold the button, or hold space, and talk.");
+      }, 2500);
     }
   }
 }
