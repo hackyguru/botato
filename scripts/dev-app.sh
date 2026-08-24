@@ -88,4 +88,9 @@ PY
 codesign --force --sign - --entitlements "$here/src-tauri/entitlements.plist" "$app" >/dev/null 2>&1
 
 echo "→ $app"
-open "$app"
+# The executable directly rather than `open`: LaunchServices starts an app with
+# a login environment, so anything exported here — BOTCAGE_TTS, a different
+# CLAUDE_BIN — would be dropped on the floor, which is most of the reason to
+# run a dev build at all. macOS still reads the bundle around the binary, so
+# the microphone permission this whole script exists for is unaffected.
+exec "$app/Contents/MacOS/botcage"
