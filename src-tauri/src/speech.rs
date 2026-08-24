@@ -127,6 +127,7 @@ pub fn install(app: &AppHandle) -> Result<(), String> {
             &say,
             "Downloading the speech engine",
         )?;
+        say("Unpacking the speech engine…");
         unpack(&tar, &dir.join("bin"))?;
         let _ = std::fs::remove_file(&tar);
     }
@@ -134,6 +135,9 @@ pub fn install(app: &AppHandle) -> Result<(), String> {
     if !dir.join(MODEL).join("lm_main.int8.onnx").is_file() {
         let tar = dir.join("model.tar.bz2");
         crate::engine::download(MODEL_URL, &tar, &say, "Downloading the voice model")?;
+        // Four seconds of bzip2 on a fast machine, which is long enough to
+        // read as frozen when the line above it has been counting megabytes.
+        say("Unpacking the voice model…");
         unpack(&tar, &dir)?;
         let _ = std::fs::remove_file(&tar);
     }
