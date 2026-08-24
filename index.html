@@ -909,7 +909,7 @@
               <input id="setup-name" placeholder="Your name" spellcheck="false" maxlength="40"
                      autocomplete="name" />
             </label>
-            <p class="setup__blurb setup__blurb--dim">Two more things to settle — it takes a minute.</p>
+            <p class="setup__blurb setup__blurb--dim">A few more things to settle — it takes a minute.</p>
           </section>
 
           <section class="setup__step" data-step="answers" hidden>
@@ -969,6 +969,20 @@
               <span class="setup__check-text" id="setup-engine-text">Checking…</span>
             </div>
             <p class="setup__fine" id="setup-engine-fine" hidden></p>
+          </section>
+
+          <section class="setup__step" data-step="voice" hidden>
+            <h2 class="setup__title">Talking to your bots</h2>
+            <p class="setup__blurb">
+              Optional. You can call a bot and talk to it — it listens, thinks and answers out
+              loud, all on this machine. That needs a speech model and a set of voices; they can
+              come now, or the first time you make a call.
+            </p>
+            <div class="setup__check" id="setup-voice-check">
+              <span class="setup__dot" data-state="wait"></span>
+              <span class="setup__check-text" id="setup-voice-text">Checking…</span>
+            </div>
+            <p class="setup__fine" id="setup-voice-fine" hidden></p>
           </section>
 
           <section class="setup__step" data-step="done" hidden>

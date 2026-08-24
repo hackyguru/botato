@@ -6080,7 +6080,7 @@ interface ClaudeState {
   trouble: string | null;
 }
 
-const SETUP_STEPS = ["welcome", "answers", "engine", "done"] as const;
+const SETUP_STEPS = ["welcome", "answers", "engine", "voice", "done"] as const;
 type SetupStep = (typeof SETUP_STEPS)[number];
 
 const setupWrap = $<HTMLDivElement>("#setup");
@@ -6629,6 +6629,8 @@ function stepSatisfied(step: SetupStep): boolean {
     return setupPick !== null;
   }
   if (step === "engine") return Boolean(engine?.installed) || engine?.supported === false;
+  // Voice is never a reason to be stuck: a bot you can type at is the whole
+  // app, and this step is an offer rather than a requirement.
   return true;
 }
 
@@ -6659,7 +6661,81 @@ function paintSetup(): void {
   if (setupAt === "welcome") setupNext.textContent = "Get started";
   if (setupAt === "answers") paintAnswersStep();
   if (setupAt === "engine") paintEngineStep();
+  if (setupAt === "voice") void paintVoiceStep();
   if (setupAt === "done") paintDoneStep();
+}
+
+/** Whether the voice bits are here, being fetched, or waiting to be offered. */
+let voiceStep = "";
+
+/** The onboarding step that offers a voice.
+ *
+ *  Offered rather than done, and skippable: it is a few hundred megabytes for
+ *  something a lot of people will never use, and a first run that spends that
+ *  without asking is a first run that feels like it took a liberty. Say no and
+ *  the first call fetches it instead. */
+async function paintVoiceStep(): Promise<void> {
+  const check = $<HTMLDivElement>("#setup-voice-check");
+  const text = $<HTMLSpanElement>("#setup-voice-text");
+  const dot = $<HTMLSpanElement>("#setup-voice-check .setup__dot");
+  const fine = $<HTMLParagraphElement>("#setup-voice-fine");
+
+  if (voiceStep) {
+    dot.dataset.state = "wait";
+    text.textContent = voiceStep;
+    fine.hidden = true;
+    setupSkip.hidden = true;
+    setupNext.disabled = true;
+    return;
+  }
+
+  const [ears, mouth] = await Promise.all([
+    invoke<boolean>("hearing_ready").catch(() => false),
+    invoke<boolean>("speech_ready").catch(() => false),
+  ]);
+  check.hidden = false;
+
+  if (ears && mouth) {
+    dot.dataset.state = "ok";
+    text.textContent = "Ready — you can call your bots.";
+    fine.hidden = true;
+    setupNext.textContent = "Continue";
+    setupNext.disabled = false;
+    setupSkip.hidden = true;
+    return;
+  }
+
+  dot.dataset.state = "wait";
+  text.textContent = "Not set up yet.";
+  fine.hidden = false;
+  fine.textContent =
+    "About 400 MB: a speech recogniser so it can hear you, and two dozen recorded voices so it " +
+    "does not answer like a satnav. Nothing you say or it says leaves this machine, and Settings " +
+    "can remove the voices later.";
+  setupNext.textContent = "Set up voice";
+  setupNext.disabled = false;
+  // Skipping is a real answer here, so it is offered rather than implied.
+  setupSkip.hidden = false;
+}
+
+/** Fetch both halves, reporting progress on the step. */
+async function installVoice(): Promise<void> {
+  voiceStep = "Starting…";
+  paintSetup();
+  try {
+    if (!(await invoke<boolean>("hearing_ready").catch(() => false))) {
+      await invoke("hearing_install");
+    }
+    if (!(await invoke<boolean>("speech_ready").catch(() => false))) {
+      await invoke("speech_install");
+    }
+    voiceNames = [];
+    await knownVoices();
+  } catch (err) {
+    toast(String(err));
+  }
+  voiceStep = "";
+  paintSetup();
 }
 
 /** The step that decides what answers a bot, and arranges whichever was
@@ -6906,7 +6982,7 @@ async function setupAdvance(): Promise<void> {
   }
 
   if (setupAt === "engine") {
-    if (stepSatisfied("engine")) return goTo("done");
+    if (stepSatisfied("engine")) return goTo("voice");
     try {
       await installEngine();
       toast("Engine ready");
@@ -6914,6 +6990,16 @@ async function setupAdvance(): Promise<void> {
       toast(String(err));
     }
     paintSetup();
+    return;
+  }
+
+  if (setupAt === "voice") {
+    const [ears, mouth] = await Promise.all([
+      invoke<boolean>("hearing_ready").catch(() => false),
+      invoke<boolean>("speech_ready").catch(() => false),
+    ]);
+    if (ears && mouth) return goTo("done");
+    await installVoice();
   }
 }
 
