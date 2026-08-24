@@ -228,9 +228,18 @@ fn mac_voices(want: &str) -> Vec<String> {
 
 /// espeak-ng's accents, each crossed with its variants.
 ///
-/// `--voices=en` prints a table whose second column is the language tag and
-/// whose fourth is the name espeak answers to. The name is what goes before
-/// the `+variant`.
+/// `--voices=en` prints a table: priority, language tag, age and gender, the
+/// display name, and the voice file. The **tag** is what `-v` accepts —
+/// `en-gb+f3` speaks, `English_(Great_Britain)+f3` produces nothing at all,
+/// silently, which is how the first version of this would have left every
+/// Linux bot mute. Checked in a Debian container rather than reasoned about.
+///
+/// The file column says what kind of row it is. `mb/` is mbrola, which needs
+/// voice packages installed separately and is silent without them; `!v/` is a
+/// variant leaking into the language listing under the tag "variant", which is
+/// not a language and speaks nothing. Both were found by generating every
+/// voice this produces in a Debian container and listening for the silent
+/// ones — twelve of a hundred and twenty were.
 fn espeak_voices(want: &str) -> Vec<String> {
     let Some(bin) = espeak() else {
         return Vec::new();
@@ -244,13 +253,18 @@ fn espeak_voices(want: &str) -> Vec<String> {
         .skip(1)
         .filter_map(|line| {
             let mut cols = line.split_whitespace();
-            let _pty = cols.next()?;
+            let _priority = cols.next()?;
             let tag = cols.next()?;
             if !tag.to_lowercase().starts_with(want) {
                 return None;
             }
             let _gender = cols.next()?;
-            Some(cols.next()?.to_string())
+            let _name = cols.next()?;
+            let file = cols.next()?;
+            if file.starts_with("mb/") || file.starts_with("!v/") {
+                return None;
+            }
+            Some(tag.to_string())
         })
         .collect();
     bases.sort();
@@ -511,41 +525,42 @@ Daniel              en_GB    # Hello! My name is Daniel.
         assert_eq!(sorted.len(), voices.len(), "the same voice offered twice");
     }
 
-    /// espeak lists accents; crossing them with variants is what turns four
-    /// voices into seventy. The parse is on the shape espeak prints, since
-    /// this test has to pass on a Mac too.
+    /// The language tag, not the display name — `-v English_(Great_Britain)`
+    /// is silent where `-v en-gb` speaks — and no mbrola voices, which are
+    /// silent unless their packages were installed separately.
+    ///
+    /// The listing is real output from `espeak-ng --voices=en` on Debian.
     #[test]
     fn espeak_accents_are_read_out_of_its_table() {
         let listing = "\
-Pty Language Age/Gender VoiceName          File                 Other Languages
- 5  en-029       --/M      English_(Caribbean) gmw/en-029
- 2  en-gb        --/M      English_(Great_Britain) gmw/en
- 5  en-gb-scotland --/M    English_(Scotland)  gmw/en-GB-scotland
- 2  en-us        --/M      English_(America)   gmw/en-US
+Pty Language       Age/Gender VoiceName          File                 Other Languages
+ 2  en-gb           --/M      English_(Great_Britain) gmw/en               (en 2)
+ 3  en-uk           --/M      english-mb-en1     mb/mb-en1            (en-gb 3)(en 2)
+ 2  en-us           --/M      English_(America)  gmw/en-US            (en 3)
+ 5  en-gb-scotland  --/M      English_(Scotland) gmw/en-GB-scotland   (en 4)
+ 5  en-us           --/M      us-mbrola-2        mb/mb-us2            (en 7)
+ 5  variant         --/M      Storm              !v/Storm             (en-us 5)
 ";
-        let names: Vec<String> = listing
+        let tags: Vec<String> = listing
             .lines()
             .skip(1)
             .filter_map(|line| {
                 let mut cols = line.split_whitespace();
-                let _pty = cols.next()?;
+                let _priority = cols.next()?;
                 let tag = cols.next()?;
                 if !tag.starts_with("en") {
                     return None;
                 }
                 let _gender = cols.next()?;
-                Some(cols.next()?.to_string())
+                let _name = cols.next()?;
+                let file = cols.next()?;
+                if file.starts_with("mb/") || file.starts_with("!v/") {
+                    return None;
+                }
+                Some(tag.to_string())
             })
             .collect();
-        assert_eq!(
-            names,
-            [
-                "English_(Caribbean)",
-                "English_(Great_Britain)",
-                "English_(Scotland)",
-                "English_(America)"
-            ]
-        );
+        assert_eq!(tags, ["en-gb", "en-us", "en-gb-scotland"]);
     }
 
     /// Hushing when nothing is talking is the common case — every call to
