@@ -5051,6 +5051,83 @@ a.detail__source:hover {
 
 /* The sidebar splits into two lists once there is a room. Quiet enough to read
    as a divider rather than as a heading — the rows are the content. */
+/* A category: a heading with channels under it, the way Discord has them.
+ *
+ * It looks like the section labels around it rather than like a row, because
+ * that is what it is — a name for what follows, not a thing you open. Clicking
+ * it folds what is under it away. */
+.cat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  margin: 12px 0 2px;
+  padding: 0 10px;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.cat:hover {
+  color: var(--text-2);
+}
+
+.cat__chev {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.13s;
+}
+
+/* Shut: the chevron points at what it is hiding. */
+.cat.is-shut .cat__chev {
+  transform: rotate(-90deg);
+}
+
+.cat__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Naming one, in place. A category is a word, and asking for it in a dialog of
+   its own would be a window to type a word into. */
+.cat__edit {
+  width: calc(100% - 20px);
+  margin: 12px 10px 2px;
+  padding: 3px 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text);
+  background: var(--field);
+  border: 0;
+  border-radius: 6px;
+  outline: none;
+}
+
+/* In a rail there is no room for a name, and what is under it is still there,
+   so the heading simply goes. */
+.is-rail .cat,
+.is-rail .cat__edit {
+  display: none;
+}
+
+
 .rail-group {
   margin: 12px 0 4px;
   padding: 0 10px;

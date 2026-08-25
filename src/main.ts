@@ -66,10 +66,28 @@ interface Channel {
    *  The only reason to have a separate kind of thing would be to reimplement
    *  all of it. */
   from?: { channelId: string; messageId: string };
+  /** Which category it sits under in the sidebar, if any. Absent means the
+   *  ungrouped ones at the top, which is where Discord puts them and where a
+   *  channel that has never been filed belongs. */
+  category?: string;
   /** Each member's own conversation in this room, kept apart from its chat:
    *  a bot in #finance should not have last night's private thread replayed at
    *  it, and what it says here should not turn up there. */
   seats: Record<string, { sessionId: string; started: boolean }>;
+}
+
+/** A heading in the sidebar with channels under it.
+ *
+ *  Nothing hangs off a category but the ordering: a channel in one is the same
+ *  channel, and deleting one leaves its channels where every unfiled channel
+ *  is. That is the whole of what makes it safe to let someone make these
+ *  freely — the worst case is a heading you stop using. */
+interface Category {
+  id: string;
+  name: string;
+  /** Collapsed. Its channels are hidden, except any with something unread —
+   *  a category cannot be a way to miss things. */
+  shut?: boolean;
 }
 
 /** A standing instruction a bot runs on a schedule. */
@@ -259,6 +277,8 @@ interface Persisted {
   bots: Bot[];
   /** Absent on every state saved before rooms existed. */
   channels?: Channel[];
+  /** Absent on every state saved before categories existed. */
+  categories?: Category[];
   activeId: string | null;
   /** The room on screen, if it is a room rather than a bot. */
   activeChannel?: string | null;
@@ -1077,14 +1097,146 @@ function renderRoster(): void {
   // still worth showing when the thread itself does, so the room comes along
   // to say where it belongs.
   const shown = rooms().filter((ch) => matches(ch) || threadsOf(ch).some(matches));
+
+  // Ungrouped rooms first and then each category, which is the order Discord
+  // uses and the one that keeps a channel you never filed from disappearing
+  // under a heading you made for something else.
+  const groups: { cat: Category | null; rooms: Channel[] }[] = [
+    { cat: null, rooms: shown.filter((ch) => !catOf(ch)) },
+    ...categories().map((cat) => ({
+      cat,
+      rooms: shown.filter((ch) => catOf(ch)?.id === cat.id),
+    })),
+  ];
+
   const roomsHtml = shown.length
     ? `<p class="rail-group">Channels</p>` +
-      (() => {
-        const rows = shown.flatMap((ch) => [
-          ch,
-          ...threadsOf(ch).filter((t) => matches(t) || matches(ch)),
-        ]);
-        return rows
+      groups
+        .map(({ cat, rooms: mine }) => {
+          // An empty category still shows its heading: it is the thing you drop
+          // channels into, and one that vanishes when empty cannot be aimed at.
+          if (!mine.length && !cat) return "";
+
+          const head = cat
+            ? `<button type="button" class="cat${cat.shut ? " is-shut" : ""}" data-cat="${cat.id}">` +
+              `<svg class="cat__chev"><use href="#i-chev" /></svg>` +
+              `<span class="cat__name">${escapeHtml(cat.name || "Untitled")}</span>` +
+              `</button>`
+            : "";
+
+          // Shut hides what is under it, but never something unread: a heading
+          // you closed must not be a way to miss a bot asking you something.
+          const open = mine.filter(
+            (ch) =>
+              !cat?.shut ||
+              !!q ||
+              ch.id === state.activeChannel ||
+              unreadIn(ch.messages, ch.seenAt).unread > 0 ||
+              threadsOf(ch).some((t) => t.id === state.activeChannel),
+          );
+
+          return head + roomRows(open, matches, q);
+        })
+        .join("")
+    : "";
+
+  const botsHtml = "";
+  void botsHtml;
+
+  botsEl.innerHTML =
+    roomsHtml +
+    (roomsHtml ? `<p class="rail-group">Bots</p>` : "") +
+    botRows(hits);
+}
+
+/** Make one, and ask for its name where it will live.
+ *
+ *  A category is a word. Asking for it in a dialog of its own would be a window
+ *  that exists to type one word into, so the heading appears immediately and
+ *  you name it in place. */
+function newCategory(): void {
+  const cat: Category = { id: uid(), name: "" };
+  categories().push(cat);
+  save();
+  renderRoster();
+  nameCategory(cat.id);
+}
+
+/** Turn a heading into a field, and put back whatever comes of it.
+ *
+ *  A name that is left empty removes the category, which is also how you get
+ *  rid of one: there is nothing else it could mean, and it saves a delete
+ *  button on every heading. Its channels are not touched — they go back to
+ *  being unfiled, which is where a channel with no category belongs. */
+function nameCategory(id: string): void {
+  const head = botsEl.querySelector<HTMLElement>(`[data-cat="${CSS.escape(id)}"]`);
+  const cat = categories().find((c) => c.id === id);
+  if (!head || !cat) return;
+
+  const field = document.createElement("input");
+  field.className = "cat__edit";
+  field.value = cat.name;
+  field.placeholder = "Category name";
+  field.spellcheck = false;
+  head.replaceWith(field);
+  field.focus();
+  field.select();
+
+  let done = false;
+  const finish = (keep: boolean): void => {
+    if (done) return;
+    done = true;
+    const name = keep ? field.value.trim() : cat.name.trim();
+    if (name) {
+      cat.name = name;
+    } else {
+      state.categories = categories().filter((c) => c.id !== id);
+      for (const ch of channels()) if (ch.category === id) delete ch.category;
+    }
+    save();
+    renderRoster();
+  };
+
+  field.addEventListener("blur", () => finish(true));
+  field.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      finish(true);
+    }
+    if (event.key === "Escape") finish(false);
+  });
+}
+
+botsEl.addEventListener("click", (event) => {
+  const head = (event.target as HTMLElement).closest<HTMLElement>("[data-cat]");
+  if (!head?.dataset.cat) return;
+  const cat = categories().find((c) => c.id === head.dataset.cat);
+  if (!cat) return;
+  cat.shut = !cat.shut;
+  save();
+  renderRoster();
+});
+
+botsEl.addEventListener("dblclick", (event) => {
+  const head = (event.target as HTMLElement).closest<HTMLElement>("[data-cat]");
+  if (head?.dataset.cat) nameCategory(head.dataset.cat);
+});
+
+/** Which category a channel is filed under, if the category still exists. */
+function catOf(ch: Channel): Category | undefined {
+  return ch.category ? categories().find((c) => c.id === ch.category) : undefined;
+}
+
+const categories = (): Category[] => (state.categories ??= []);
+
+/** The rows for a run of rooms, each with its threads under it. */
+function roomRows(shown: Channel[], matches: (ch: Channel) => boolean, q: string): string {
+  const rows = shown.flatMap((ch) => [
+    ch,
+    ...threadsOf(ch).filter((t) => matches(t) || matches(ch)),
+  ]);
+  void q;
+  return rows
           .map((ch, n) => {
             const room = membersOf(ch);
             const busy = room.some((b) => inflight.get(b.id)?.channelId === ch.id);
@@ -1129,13 +1281,11 @@ function renderRoster(): void {
             );
           })
           .join("");
-      })()
-    : "";
+}
 
-  botsEl.innerHTML =
-    roomsHtml +
-    (roomsHtml ? `<p class="rail-group">Bots</p>` : "") +
-    hits
+/** The rows for the bots themselves. */
+function botRows(hits: Bot[]): string {
+  return hits
     .map((bot) => {
       const news =
         bot.id === state.activeId && !state.activeChannel
@@ -4556,11 +4706,26 @@ const channelWrap = $<HTMLDivElement>("#channel-wrap");
 const channelName = $<HTMLInputElement>("#channel-name");
 const channelPurpose = $<HTMLTextAreaElement>("#channel-purpose");
 const channelMembers = $<HTMLDivElement>("#channel-members");
+const channelCat = $<HTMLSelectElement>("#channel-cat");
+const channelCatRow = $<HTMLLabelElement>("#channel-cat-row");
 
 function openChannelSheet(ch: Channel | null): void {
   editingChannel = ch?.id ?? null;
   channelName.value = ch?.name ?? "";
   channelPurpose.value = ch?.purpose ?? "";
+
+  // Only worth asking once there is somewhere to put it. A picker whose only
+  // entry is "None" is a question with one answer.
+  channelCatRow.hidden = !categories().length;
+  channelCat.innerHTML =
+    `<option value="">None</option>` +
+    categories()
+      .map(
+        (cat) =>
+          `<option value="${cat.id}"${ch?.category === cat.id ? " selected" : ""}>` +
+          `${escapeHtml(cat.name || "Untitled")}</option>`,
+      )
+      .join("");
 
   channelMembers.innerHTML = state.bots.length
     ? state.bots
@@ -4600,11 +4765,15 @@ $<HTMLFormElement>("#channel-form").addEventListener("submit", (e) => {
     (box) => box.value,
   );
 
+  const filed = channelCat.value || undefined;
+
   const existing = channels().find((c) => c.id === editingChannel);
   if (existing) {
     existing.name = name;
     existing.purpose = channelPurpose.value.trim();
     existing.members = picked;
+    if (filed) existing.category = filed;
+    else delete existing.category;
   } else {
     const made: Channel = {
       id: uid(),
@@ -4613,6 +4782,7 @@ $<HTMLFormElement>("#channel-form").addEventListener("submit", (e) => {
       members: picked,
       messages: [],
       seats: {},
+      ...(filed ? { category: filed } : {}),
     };
     channels().push(made);
     state.activeChannel = made.id;
@@ -6901,7 +7071,8 @@ $<HTMLButtonElement>("#btn-new").addEventListener("click", (event) => {
   openMenu(
     event.currentTarget as HTMLElement,
     `<button type="button" class="menu-item" data-new="bot">${icon("plus")}New bot</button>` +
-      `<button type="button" class="menu-item" data-new="channel">${icon("hash")}New channel</button>`,
+      `<button type="button" class="menu-item" data-new="channel">${icon("hash")}New channel</button>` +
+      `<button type="button" class="menu-item" data-new="category">${icon("chev")}New category</button>`,
   );
 });
 
@@ -6910,6 +7081,7 @@ menu.addEventListener("click", (event) => {
   if (!pick) return;
   closeMenu();
   if (pick.dataset.new === "channel") openChannelSheet(null);
+  else if (pick.dataset.new === "category") newCategory();
   else openSheet();
 });
 
