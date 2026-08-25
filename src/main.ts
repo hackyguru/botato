@@ -2132,6 +2132,16 @@ function paintSheetModels(want?: string): void {
   open.hidden = !searchable;
   sheetModel.hidden = searchable;
   if (searchable) {
+    // A model picked for another engine means nothing here. "opus" is not
+    // something models.dev or Ollama can be asked for, and it arrived without
+    // a provider to ask — so it is dropped rather than displayed, and the
+    // button goes back to asking. Without this the sheet offers "opus · From
+    // undefined", the save guard sees a model and lets it through, and the bot
+    // fails on its first message instead of in the sheet where it was made.
+    //
+    // A model that does have a provider was chosen from the catalogue, so it
+    // survives switching engines and back.
+    if (!draftModel.provider) draftModel.model = "";
     open.textContent = draftModel.model || "Choose a model…";
     paintSheetHints();
     return;
