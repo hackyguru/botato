@@ -4,8 +4,10 @@ Bots that live on your own machine.
 
 Each bot is a persistent session with its own memory and workspace,
 and — if you give it one — its own sandboxed Linux desktop with a browser and a
-terminal, which you can watch it use. There is a desktop app and a phone app;
-the phone reaches the laptop directly, from anywhere, with nothing in between.
+terminal, which you can watch it use. They share channels, so several can work
+on the same thing and answer each other rather than only you. There is a
+desktop app and a phone app; the phone reaches the laptop directly, from
+anywhere, with nothing in between.
 
 Nothing runs on anyone else's computer. There is no account to make, no server
 of ours, and no telemetry.
@@ -98,6 +100,31 @@ macOS builds are signed and notarised, so they open without warnings.
   into a channel.
 - **Connectors and plugins**: GitHub, Gmail, Calendar, Notion, Stripe, Vercel
   and others, connected once and scoped per bot.
+
+## Rooms, not just conversations
+
+A bot has its own chat, and bots share channels. A channel is a room with
+several of them and you in it, which is the difference between having a set of
+assistants and having colleagues: they read what the others said, and answer
+each other.
+
+- **Say who you mean.** Type `@` and it offers whoever is in the room.
+  `@everyone` reaches all of them and is yours alone — a bot cannot summon the
+  room. A message naming nobody is addressed to the room, and the room works
+  out who should take it.
+- **Threads and pins**, as you would expect. A message that has a thread says
+  so where it was sent, so a conversation that moved sideways is not hidden.
+- **Unread marks**, and a brighter one when a bot used your name.
+- **Call the room.** Faces side by side, whoever has the floor lit, one voice
+  at a time, and every word written into the channel as it is said — so the
+  meeting is already minuted when it ends, and whoever was not on it can read
+  what happened.
+- **Stand-ups.** A routine can be a meeting rather than an instruction: every
+  bot in the channel takes a turn. None of them is asked how its week went —
+  each is handed what actually ran, what it said, what broke, and what is next
+  on its own calendar, and reports that. A bot with nothing to report says so,
+  which is the entire reason it is built this way. Ask a model what it has been
+  up to and it will tell you, whether or not it has been up to anything.
 
 ## What answers for a bot
 
@@ -194,7 +221,7 @@ four hundred.
 
 ## Status
 
-Version 0.1.0, and honest about what that means. The desktop app and its
+Version 0.4.0, and honest about what that means. The desktop app and its
 sandboxes have been used daily. The phone client runs on iOS and Android, pairs
 by scanning the square on the laptop, streams replies, survives restarts, and
 has reached a laptop at home from a phone on mobile data — which is the claim
@@ -206,10 +233,19 @@ desktop, never a real one.
 
 The hosted engine has answered for real — through Ollama on this machine, over
 the same API a paid provider speaks — and that test is in the repository. It
-carries no tools yet: a bot on it is told so in its prompt rather than being
-handed one describing a computer it cannot reach. Running botcage's connectors
-for an engine that has no MCP client of its own is the next piece of work, and
-the point of the whole seam.
+now carries tools too, which was the point of the whole seam: botcage speaks
+MCP as a client for it, runs the tool loop itself, and hands over the same
+connectors a bot would have had on any other engine. A bot there also gets its
+own folder to read and write, because the file tools Claude Code arrives with
+are that program's rather than the protocol's. What it does not get is the web
+or a shell, and its prompt says so plainly rather than describing what it would
+have found.
+
+The bound on that loop is twelve rounds. Small local models are the honest
+weak point: llama3.2:3b calls a tool correctly from a clean conversation and,
+once its own history contains a tool call it wrote out as prose, will happily
+imitate itself instead of calling anything. Bigger models do not do this, and
+nothing in botcage can stop a model that does.
 
 The Gemini CLI is wired up and its flags have been checked against a real
 install, but Google has since retired the free personal login for that client,
