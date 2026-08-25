@@ -25,6 +25,7 @@ mod engine;
 mod hearing;
 mod inference;
 mod mcp;
+mod mcp_client;
 mod oauth;
 mod p2p;
 mod plugins;
