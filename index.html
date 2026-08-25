@@ -870,17 +870,16 @@
             <div class="settings">
               <label class="setting">
                 <span class="setting__label">Back up automatically
-                  <span class="setting__hint" id="app-backup-summary">Your conversations are kept in
-                    the window's storage, not in a folder you could copy. This writes one encrypted
-                    file, wherever you say.</span>
+                  <span class="setting__hint" id="app-backup-summary">Everything, in one
+                    encrypted file, kept where you like.</span>
                 </span>
                 <input type="checkbox" id="app-backup-on" class="switch" />
               </label>
 
               <div class="setting setting--stack" id="app-backup-setup" hidden>
                 <span class="setting__label">Choose a passphrase
-                  <span class="setting__hint">The only thing protecting the backup, and the only way
-                    to open one — so keep it somewhere that is not this machine.</span>
+                  <span class="setting__hint">The only way to open a backup. Keep it somewhere that
+                    is not this machine.</span>
                 </span>
                 <div class="row">
                   <input id="app-backup-pass" class="picker picker--text" type="password"
@@ -890,15 +889,14 @@
               </div>
 
               <div class="quiet-row">
-                <button type="button" class="quiet-btn" id="app-backup-more">Settings…</button>
+                <button type="button" class="quiet-btn" id="app-backup-more" hidden>Settings…</button>
                 <button type="button" class="quiet-btn" id="app-backup-restore">Restore from a backup…</button>
               </div>
 
               <div id="app-backup-details" hidden>
                 <div class="setting setting--stack">
                   <span class="setting__label">Folder
-                    <span class="setting__hint">iCloud Drive, Dropbox or a disk you plug in — the
-                      copy is then off this machine, without botcage having an account anywhere.</span>
+                    <span class="setting__hint">iCloud Drive, Dropbox, or a disk you plug in.</span>
                   </span>
                   <div class="row">
                     <input id="app-backup-folder" class="picker picker--text" spellcheck="false"
@@ -909,7 +907,7 @@
 
                 <label class="setting">
                   <span class="setting__label">How often
-                    <span class="setting__hint">Only while botcage is open, like routines.</span>
+                    <span class="setting__hint">Only while botcage is open.</span>
                   </span>
                   <select id="app-backup-every" class="picker">
                     <option value="day">Every day</option>
@@ -918,9 +916,7 @@
                 </label>
 
                 <label class="setting">
-                  <span class="setting__label">Keep
-                    <span class="setting__hint">Older ones go after a good new one.</span>
-                  </span>
+                  <span class="setting__label">Keep</span>
                   <select id="app-backup-keep" class="picker">
                     <option value="3">The last 3</option>
                     <option value="7">The last 7</option>
@@ -929,9 +925,7 @@
                 </label>
 
                 <div class="setting setting--stack">
-                  <span class="setting__label">In that folder
-                    <span class="setting__hint" id="app-backup-state">None yet.</span>
-                  </span>
+                  <span class="setting__label" id="app-backup-state">None yet.</span>
                   <div class="devices" id="app-backup-list"></div>
                   <div class="row">
                     <button type="button" class="chip" id="app-backup-now"><span>Back up now</span></button>

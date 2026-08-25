@@ -5264,6 +5264,7 @@ const backupEvery = $<HTMLSelectElement>("#app-backup-every");
 const backupKeep = $<HTMLSelectElement>("#app-backup-keep");
 const backupList = $<HTMLDivElement>("#app-backup-list");
 const backupState = $<HTMLSpanElement>("#app-backup-state");
+const backupMore = $<HTMLButtonElement>("#app-backup-more");
 
 interface BackupFile {
   name: string;
@@ -5285,10 +5286,13 @@ function paintBackupSummary(): void {
   const on = (app.backupEvery ?? "off") !== "off";
   backupOn.checked = on;
 
+  // Settings are worth offering once there is something set up to change.
+  // Before that the switch does all of it, and a link to a panel of things
+  // already decided is one more thing to read past.
+  backupMore.hidden = !on;
+
   if (!on) {
-    backupSummary.textContent =
-      "Your conversations are kept in the window's storage, not in a folder you could copy. " +
-      "This writes one encrypted file, wherever you say.";
+    backupSummary.textContent = "Everything, in one encrypted file, kept where you like.";
     return;
   }
 
@@ -5296,8 +5300,8 @@ function paintBackupSummary(): void {
   const where = (app.backupFolder ?? "").includes("com~apple~CloudDocs")
     ? "iCloud Drive"
     : (app.backupFolder ?? "").split("/").pop() || "the folder you chose";
-  const last = app.backupAt ? `Last one ${ago(app.backupAt)}.` : "None taken yet.";
-  backupSummary.textContent = `${how}, to ${where}. ${last}`;
+  const last = app.backupAt ? ago(app.backupAt) : "not yet";
+  backupSummary.textContent = `${how} to ${where} · last one ${last}`;
 }
 
 function backupSettings(): void {
@@ -5330,8 +5334,8 @@ async function paintBackups(): Promise<void> {
     }),
   );
   backupState.textContent = files.length
-    ? `${files.length} there${files.length === 1 ? "" : ", newest first"}.`
-    : "None there yet.";
+    ? `${files.length} in that folder`
+    : "None in that folder yet";
 }
 
 /** Write one now, whoever asked — the switch, the button or the clock. */
@@ -5411,7 +5415,7 @@ backupOn.addEventListener("change", () => {
   paintBackupSummary();
 });
 
-$<HTMLButtonElement>("#app-backup-more").addEventListener("click", () => {
+backupMore.addEventListener("click", () => {
   backupDetails.hidden = !backupDetails.hidden;
   if (!backupDetails.hidden) void paintBackups();
 });
