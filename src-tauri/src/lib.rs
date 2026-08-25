@@ -297,6 +297,81 @@ pub(crate) fn workspace(app: &AppHandle, bot_id: &str) -> Result<PathBuf, String
     Ok(dir)
 }
 
+/// How many times a model may ask for tools before botcage stops asking again.
+///
+/// A loop needs a bound, and the bound has to be generous enough that real work
+/// fits inside it — a bot reading three issues and writing a comment is four
+/// rounds before it has said anything. Twelve is well past anything botcage
+/// asks for and well short of a bot that has got stuck calling the same thing
+/// forever, which is the failure this is here to stop.
+const TOOL_ROUNDS: usize = 12;
+
+/// One request of a turn: the process, its pipes, and where its complaints go.
+///
+/// A turn used to be exactly one of these, which is why this used to be written
+/// inline. It stopped being one when botcage started running the tool loop
+/// itself: a model that asks for a tool has not finished the turn, and the same
+/// turn is put again with the result attached. The first request and the ones
+/// after it start here so they cannot drift apart.
+fn begin(
+    app: &AppHandle,
+    engine: &dyn inference::Engine,
+    turn: &inference::Turn,
+    bot_id: &str,
+) -> Result<(std::process::ChildStdout, Arc<Mutex<String>>), String> {
+    let mut cmd = engine.command(turn)?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("could not start {}: {e}", engine.name()))?;
+
+    // A pipe means the engine is waiting to be told; an engine that took the
+    // prompt as an argument closed stdin instead, and there is nothing to send.
+    // Closing the pipe afterwards is what starts the turn.
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(inference::with_history(turn).as_bytes())
+            .map_err(|e| format!("could not send the prompt: {e}"))?;
+    }
+
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or("no stdout on the engine's process")?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or("no stderr on the engine's process")?;
+
+    app.state::<Running>()
+        .0
+        .lock()
+        .unwrap()
+        .insert(bot_id.to_string(), child);
+
+    let errors: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+    let drain = Arc::clone(&errors);
+    std::thread::spawn(move || {
+        let mut buf = String::new();
+        let mut stderr = stderr;
+        let _ = stderr.read_to_string(&mut buf);
+        *drain.lock().unwrap() = buf;
+    });
+
+    Ok((stdout, errors))
+}
+
+/// A call the model is still in the middle of asking for.
+///
+/// Arrives in fragments: the name in one frame, the arguments over as many as
+/// it takes. Held here until the stream ends, because a call cannot be run
+/// until its arguments are complete.
+#[derive(Default, Clone)]
+struct Asked {
+    id: String,
+    name: String,
+    arguments: String,
+}
+
 #[tauri::command]
 fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Result<(), String> {
     if running.0.lock().unwrap().contains_key(&req.bot_id) {
@@ -348,18 +423,38 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     // than being handed a prompt describing abilities it does not have, which
     // is the difference between a bot that says "I can't reach that" and one
     // that claims to have looked.
-    let carries_tools = engine.tools() != inference::ToolDelivery::None;
+    let delivery = engine.tools();
+    let carries_tools = delivery != inference::ToolDelivery::None;
+
+    // Read, Grep, Write, WebSearch and the rest are Claude Code's own tools,
+    // not something the protocol provides. An engine where botcage runs the
+    // loop gets the bot's connectors and its desktop and no files — so the
+    // built-ins are named only for the engine that actually has them. Naming
+    // them anyway is how a bot ends up claiming to have read something.
+    let builtins = if delivery == inference::ToolDelivery::Native {
+        TOOLS
+    } else {
+        ""
+    };
+    let list = |parts: &[&str]| {
+        parts
+            .iter()
+            .filter(|part| !part.is_empty())
+            .copied()
+            .collect::<Vec<_>>()
+            .join(",")
+    };
 
     let base = format!("{}\n\n{}", req.system_prompt, ROUTINES_PROMPT);
     let (mut allowed, mut system_prompt) = if req.computer && carries_tools {
         sandbox::touch(&req.bot_id);
         (
-            format!("{TOOLS},{DESKTOP_TOOLS},{FACE_TOOL},{SCHEDULE_TOOL}"),
+            list(&[builtins, DESKTOP_TOOLS, FACE_TOOL, SCHEDULE_TOOL]),
             format!("{base}\n\n{DESKTOP_PROMPT}\n\n{FACE_PROMPT}\n\n{SCHEDULE_PROMPT}"),
         )
     } else if carries_tools {
         (
-            format!("{TOOLS},{FACE_TOOL},{SCHEDULE_TOOL}"),
+            list(&[builtins, FACE_TOOL, SCHEDULE_TOOL]),
             format!("{base}\n\n{FACE_PROMPT}\n\n{SCHEDULE_PROMPT}"),
         )
     } else {
@@ -381,6 +476,20 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
              of the user's connected accounts. Answer from what you know and what is in this \
              conversation, and when something would need a tool, say so plainly rather than \
              describing what you would have found.",
+        );
+    }
+
+    // The same honesty, one step in. A bot here has its connectors and its own
+    // face and calendar, and cannot open a file or a web page — a real set of
+    // abilities with a real edge, and a bot that knows where the edge is says
+    // "I can't read that from here" instead of describing what it would have
+    // found.
+    if delivery == inference::ToolDelivery::Hosted {
+        system_prompt.push_str(
+            "\n\nYou cannot read or write files, run commands on this machine, search the web or \
+             fetch a page: those are not among your tools here. What you can use is exactly what \
+             is listed as your tools. When something would need a file or the web, say so plainly \
+             rather than describing what you would have found.",
         );
     }
 
@@ -431,6 +540,32 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         }
     }
 
+    let servers = serde_json::Value::Object(servers);
+
+    // An engine that speaks MCP is handed the servers and asks them itself.
+    // One that does not needs botcage to have asked already: the tools go into
+    // the request as functions, and answering when the model calls one is this
+    // process's job for the rest of the turn.
+    //
+    // Starting them costs a moment before the first token, which is the price
+    // of a bot that can actually do something. Only the servers this bot was
+    // granted are started, and only the tools it is allowed are offered.
+    let mut bench = if delivery == inference::ToolDelivery::Hosted {
+        mcp_client::Bench::open(&servers, &allowed)
+    } else {
+        mcp_client::Bench::default()
+    };
+
+    // A connector that would not start is said out loud rather than silently
+    // missing. A bot that knows its GitHub is down can say so; one that simply
+    // finds no tool for it will invent a reason.
+    for (name, why) in &bench.broken {
+        system_prompt.push_str(&format!(
+            "\n\nYour {name} connector could not be started this turn ({why}), so none of its \
+             tools are available. Say so if something needs it."
+        ));
+    }
+
     // What tools, which connectors, which secrets: botcage's decisions. How any
     // of it is spelled on a command line: the engine's.
     let turn = inference::Turn {
@@ -442,9 +577,13 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         cwd: cwd.clone(),
         allowed_tools: allowed,
         denied_plugins: req.blocked_plugins.clone(),
-        mcp_servers: serde_json::Value::Object(servers),
+        mcp_servers: servers,
         env: plugins::env_for(&req.plugins),
         history,
+        // Empty for an engine that runs its own loop, which is what tells the
+        // request builder there is nothing to send.
+        tools: bench.definitions().to_vec(),
+        pending: Vec::new(),
         // Resolved here, not in the engine: which provider a bot uses is the
         // app's business, and the key belongs to the keychain rather than to
         // anything that builds a command line.
@@ -457,21 +596,10 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         }),
     };
 
-    // The engine this bot chose, not a name written here.
-    let mut cmd = engine.command(&turn)?;
-
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("could not start {}: {e}", engine.name()))?;
-
-    // A pipe means the engine is waiting to be told; an engine that took the
-    // prompt as an argument closed stdin instead, and there is nothing to send.
-    // Closing the pipe afterwards is what starts the turn.
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin
-            .write_all(inference::with_history(&turn).as_bytes())
-            .map_err(|e| format!("could not send the prompt: {e}"))?;
-    }
+    // The first request of the turn. Started here rather than in the thread so
+    // that an engine which cannot be started at all is an error the window gets
+    // back from this call, the way it always was.
+    let (stdout, errors) = begin(&app, engine.as_ref(), &turn, &req.bot_id)?;
 
     // Kept for every engine, not only the ones that need it read back. It costs
     // a line per message, and it is what lets a bot keep its thread when the
@@ -483,130 +611,219 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         &req.prompt,
     );
 
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or("no stdout on the claude process")?;
-    let stderr = child
-        .stderr
-        .take()
-        .ok_or("no stderr on the claude process")?;
-
-    running.0.lock().unwrap().insert(req.bot_id.clone(), child);
-
-    let errors: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
-    let drain = Arc::clone(&errors);
-    std::thread::spawn(move || {
-        let mut buf = String::new();
-        let mut stderr = stderr;
-        let _ = stderr.read_to_string(&mut buf);
-        *drain.lock().unwrap() = buf;
-    });
-
     let app_handle = app.clone();
     let bot_id = req.bot_id.clone();
     let reader = inference::for_key(req.engine.as_deref());
     let workspace = cwd.clone();
     let thread = req.thread.clone();
     std::thread::spawn(move || {
+        let mut turn = turn;
         let mut final_text: Option<String> = None;
         let mut failure: Option<String> = None;
         let mut spend: Option<Value> = None;
         // What the bot has actually said so far, for the transcript. An engine
         // that reports a finished answer is believed over this; one that only
-        // streams still has to be remembered.
+        // streams still has to be remembered. Across every round of the turn,
+        // not just the last: a bot often says something before it reaches for a
+        // tool, and that was part of its answer.
         let mut spoken = String::new();
 
-        for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-            // Read by the engine rather than here. What a stream means is the
-            // engine's business; this loop's business is what botcage does
-            // about it, and the two were the same code only because there was
-            // one engine.
-            for event in reader.read_line(&line) {
-                match event {
-                    inference::Event::Delta(text) => {
-                        spoken.push_str(&text);
-                        emit(&app_handle, &bot_id, "delta", Some(text), None)
+        // The pipes of the round being read. Replaced by the next round's when
+        // the model asks for a tool, which is the only reason this is a loop.
+        let mut pipes = Some((stdout, errors));
+        // Whichever round's stderr we end up reporting: the last one to run.
+        let mut errors: Arc<Mutex<String>>;
+
+        for round in 0.. {
+            let Some((stdout, drain)) = pipes.take() else {
+                break;
+            };
+            errors = drain;
+            // What the model has asked to call this round, still arriving.
+            let mut asked: Vec<Asked> = Vec::new();
+            let mut said_this_round = String::new();
+
+            for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                // Read by the engine rather than here. What a stream means is the
+                // engine's business; this loop's business is what botcage does
+                // about it, and the two were the same code only because there was
+                // one engine.
+                for event in reader.read_line(&line) {
+                    match event {
+                        inference::Event::Delta(text) => {
+                            spoken.push_str(&text);
+                            said_this_round.push_str(&text);
+                            emit(&app_handle, &bot_id, "delta", Some(text), None)
+                        }
+                        inference::Event::Thinking(text) => {
+                            emit(&app_handle, &bot_id, "thinking", Some(text), None)
+                        }
+                        inference::Event::Tool(name) => {
+                            emit(&app_handle, &bot_id, "tool", Some(name), None)
+                        }
+                        // Assembled rather than acted on: the arguments are still
+                        // arriving, and a call cannot be run half-written. The
+                        // index is the provider's, and is what keeps two calls
+                        // asked for at once from becoming one.
+                        inference::Event::Calling {
+                            index,
+                            id,
+                            name,
+                            arguments,
+                        } => {
+                            if asked.len() <= index {
+                                asked.resize(index + 1, Asked::default());
+                            }
+                            let call = &mut asked[index];
+                            if let Some(id) = id {
+                                call.id = id;
+                            }
+                            if let Some(name) = name {
+                                call.name.push_str(&name);
+                            }
+                            call.arguments.push_str(&arguments);
+                        }
+                        inference::Event::RateLimit {
+                            status,
+                            kind,
+                            resets_at,
+                        } => emit(
+                            &app_handle,
+                            &bot_id,
+                            "rate-limit",
+                            None,
+                            Some(serde_json::json!({
+                                "status": status,
+                                "rateLimitType": kind,
+                                "resetsAt": resets_at,
+                            })),
+                        ),
+                        // Held rather than emitted: the turn is only over once the
+                        // process is, and how it ended decides which of these the
+                        // app is told about.
+                        inference::Event::Done {
+                            text,
+                            cost_usd,
+                            duration_ms,
+                        } => {
+                            final_text = text;
+                            spend = Some(serde_json::json!({
+                                "costUsd": cost_usd,
+                                "durationMs": duration_ms,
+                            }));
+                        }
+                        inference::Event::Error(why) => failure = Some(why),
                     }
-                    inference::Event::Thinking(text) => {
-                        emit(&app_handle, &bot_id, "thinking", Some(text), None)
-                    }
-                    inference::Event::Tool(name) => {
-                        emit(&app_handle, &bot_id, "tool", Some(name), None)
-                    }
-                    inference::Event::RateLimit {
-                        status,
-                        kind,
-                        resets_at,
-                    } => emit(
-                        &app_handle,
-                        &bot_id,
-                        "rate-limit",
-                        None,
-                        Some(serde_json::json!({
-                            "status": status,
-                            "rateLimitType": kind,
-                            "resetsAt": resets_at,
-                        })),
-                    ),
-                    // Held rather than emitted: the turn is only over once the
-                    // process is, and how it ended decides which of these the
-                    // app is told about.
-                    inference::Event::Done {
-                        text,
-                        cost_usd,
-                        duration_ms,
-                    } => {
-                        final_text = text;
-                        spend = Some(serde_json::json!({
-                            "costUsd": cost_usd,
-                            "durationMs": duration_ms,
+                }
+            }
+
+            // stdout is closed, so this round's process is finished or was killed.
+            let status = app_handle
+                .state::<Running>()
+                .0
+                .lock()
+                .unwrap()
+                .remove(&bot_id)
+                .map(|mut child| child.wait());
+            let ended_well = matches!(&status, Some(Ok(code)) if code.success());
+
+            // The model asked for something rather than answering. Run what it
+            // asked for, hang the answers on the turn, and put the same turn again:
+            // this is the tool loop, and it is why a turn can outlive a process.
+            if status.is_some() && ended_well && failure.is_none() && !asked.is_empty() {
+                if round >= TOOL_ROUNDS {
+                    // Almost certainly a bot going round in circles. Saying so is
+                    // better than answering with silence, and better than looping
+                    // until someone notices the fan.
+                    failure = Some(format!(
+                    "this bot asked to use tools {TOOL_ROUNDS} times without reaching an answer"
+                ));
+                } else {
+                    let mut calls = Vec::new();
+                    let mut results = Vec::new();
+                    for (nth, call) in asked.iter().enumerate() {
+                        // Some providers omit the id on a single call; the pair
+                        // only has to match each other.
+                        let id = if call.id.is_empty() {
+                            format!("call_{round}_{nth}")
+                        } else {
+                            call.id.clone()
+                        };
+                        emit(&app_handle, &bot_id, "tool", Some(call.name.clone()), None);
+                        // Echoed back exactly as the model wrote them, whatever it
+                        // wrote; parsed separately, because a model that sent
+                        // malformed arguments should be told by the tool rather
+                        // than have the turn fall over.
+                        let arguments: Value = serde_json::from_str(&call.arguments)
+                            .unwrap_or_else(|_| serde_json::json!({}));
+                        let answer = bench.call(&call.name, &arguments);
+                        calls.push(serde_json::json!({
+                            "id": id,
+                            "type": "function",
+                            "function": { "name": call.name, "arguments": call.arguments },
+                        }));
+                        results.push(serde_json::json!({
+                            "role": "tool",
+                            "tool_call_id": id,
+                            "content": answer,
                         }));
                     }
-                    inference::Event::Error(why) => failure = Some(why),
+
+                    // The model's own turn, as it made it, and then the answers.
+                    // Anything it said before reaching for the tool belongs in the
+                    // first of those, or it will say it twice.
+                    turn.pending.push(serde_json::json!({
+                    "role": "assistant",
+                    "content": if said_this_round.is_empty() { Value::Null } else { Value::String(said_this_round.clone()) },
+                    "tool_calls": calls,
+                }));
+                    turn.pending.extend(results);
+
+                    match begin(&app_handle, reader.as_ref(), &turn, &bot_id) {
+                        Ok(next) => {
+                            pipes = Some(next);
+                            continue;
+                        }
+                        Err(why) => failure = Some(why),
+                    }
                 }
             }
-        }
 
-        // Whatever was said, including by a turn that was stopped halfway: the
-        // app keeps that text on screen, and a transcript that disagreed with
-        // the screen would be worse than no transcript. The finished answer
-        // wins when there is one, on the same grounds the app prefers it.
-        let said = match &final_text {
-            Some(text) if text.len() >= spoken.len() => text.clone(),
-            _ => spoken.clone(),
-        };
-        let _ = transcript::append(&workspace, thread.as_deref(), transcript::Voice::Bot, &said);
+            // Whatever was said, including by a turn that was stopped halfway: the
+            // app keeps that text on screen, and a transcript that disagreed with
+            // the screen would be worse than no transcript. The finished answer
+            // wins when there is one, on the same grounds the app prefers it.
+            let said = match &final_text {
+                Some(text) if text.len() >= spoken.len() => text.clone(),
+                _ => spoken.clone(),
+            };
+            let _ =
+                transcript::append(&workspace, thread.as_deref(), transcript::Voice::Bot, &said);
 
-        // stdout is closed, so the process is finished or was killed.
-        let status = app_handle
-            .state::<Running>()
-            .0
-            .lock()
-            .unwrap()
-            .remove(&bot_id)
-            .map(|mut child| child.wait());
-
-        match status {
-            // Removed by `cancel` — that path emits its own terminal event.
-            None => {}
-            Some(result) => {
-                let ok = matches!(&result, Ok(status) if status.success());
-                if let Some(message) = failure {
-                    emit(&app_handle, &bot_id, "error", Some(message), None);
-                } else if ok {
-                    emit(&app_handle, &bot_id, "done", final_text, spend);
-                } else {
-                    let stderr = errors.lock().unwrap().trim().to_string();
-                    let tail = stderr.lines().rev().take(4).collect::<Vec<_>>().join(" ");
-                    let message = if tail.is_empty() {
-                        format!("{} stopped before finishing the reply", reader.name())
+            match status {
+                // Removed by `cancel` — that path emits its own terminal event.
+                None => {}
+                Some(result) => {
+                    let ok = matches!(&result, Ok(status) if status.success());
+                    if let Some(message) = failure {
+                        emit(&app_handle, &bot_id, "error", Some(message), None);
+                    } else if ok {
+                        emit(&app_handle, &bot_id, "done", final_text, spend);
                     } else {
-                        tail
-                    };
-                    emit(&app_handle, &bot_id, "error", Some(message), None);
+                        let stderr = errors.lock().unwrap().trim().to_string();
+                        let tail = stderr.lines().rev().take(4).collect::<Vec<_>>().join(" ");
+                        let message = if tail.is_empty() {
+                            format!("{} stopped before finishing the reply", reader.name())
+                        } else {
+                            tail
+                        };
+                        emit(&app_handle, &bot_id, "error", Some(message), None);
+                    }
                 }
             }
+
+            // Nothing asked for, so nothing left to ask.
+            break;
         }
     });
 

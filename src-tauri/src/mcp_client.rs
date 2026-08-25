@@ -30,11 +30,6 @@
 //! with a timeout, so each connection has a thread that does nothing but read
 //! lines into a channel, and the channel is what gets waited on.
 
-// Nothing calls this yet: the engine that needs it is the next commit, and a
-// client and a tool loop landing as one change would be a change nobody could
-// review. The allow goes when the loop arrives.
-#![allow(dead_code)]
-
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
@@ -349,13 +344,41 @@ pub struct Bench {
     pub broken: Vec<(String, String)>,
 }
 
+/// Whether a bot is allowed this tool, by the list botcage already computes.
+///
+/// This is a permissions boundary, and on Claude Code it is enforced by the
+/// engine: `--allowed-tools` is what stops a bot with no computer taking a
+/// screenshot, even though the desktop server offers one to everybody. An
+/// engine where botcage runs the loop has no such argument to pass, so the
+/// enforcement has to happen here or not at all. Not at all would mean a bot's
+/// reach quietly depended on which model it used.
+///
+/// A bare `mcp__<server>` permits everything that server offers, which is how
+/// the list is written for connectors — one entry, and a connector that gains a
+/// tool later needs no change.
+pub fn permitted(allowed: &str, name: &str) -> bool {
+    allowed.split(',').map(str::trim).any(|rule| {
+        if rule.is_empty() {
+            return false;
+        }
+        if rule == name {
+            return true;
+        }
+        // A prefix rule, and only on the boundary between parts: mcp__github
+        // covers mcp__github__create_issue and must not cover a server called
+        // mcp__github_enterprise.
+        name.starts_with(rule) && name[rule.len()..].starts_with("__")
+    })
+}
+
 impl Bench {
-    /// Start everything in the config botcage already builds for an engine.
+    /// Start everything in the config botcage already builds for an engine, and
+    /// offer only what this bot is allowed.
     ///
     /// Never fails as a whole. A connector that will not start is recorded and
     /// skipped, because the alternative — one bad server costing a bot every
     /// tool it has — is worse than the thing it was protecting against.
-    pub fn open(config: &Value) -> Self {
+    pub fn open(config: &Value, allowed: &str) -> Self {
         let mut bench = Bench::default();
         let Some(servers) = config.as_object() else {
             return bench;
@@ -370,6 +393,14 @@ impl Bench {
                 Ok((server, tools)) => {
                     for tool in tools {
                         let called = bench.name_for(name, &tool.name);
+                        if !permitted(allowed, &called) {
+                            // Offered by the server, not granted to this bot.
+                            // Dropped here rather than refused at call time: a
+                            // model told about a tool it may not use will spend
+                            // the turn trying.
+                            bench.routes.remove(&called);
+                            continue;
+                        }
                         bench.definitions.push(json!({
                             "type": "function",
                             "function": {
@@ -431,11 +462,6 @@ impl Bench {
     /// The tools, in the shape a chat-completions request wants them.
     pub fn definitions(&self) -> &[Value] {
         &self.definitions
-    }
-
-    /// Whether there is anything here at all.
-    pub fn is_empty(&self) -> bool {
-        self.definitions.is_empty()
     }
 
     /// Run a tool the model asked for, by the name the model was given.
@@ -650,9 +676,14 @@ mod tests {
             }
         });
 
-        let mut bench = Bench::open(&json!({ "desktop": config }));
+        // Everything the desktop server offers, as a bot with a computer
+        // would be granted it.
+        let mut bench = Bench::open(&json!({ "desktop": config }), "mcp__desktop");
         assert!(bench.broken.is_empty(), "{:?}", bench.broken);
-        assert!(!bench.is_empty(), "the server offered no tools");
+        assert!(
+            !bench.definitions().is_empty(),
+            "the server offered no tools"
+        );
 
         // Named the way the rest of botcage names them, and shaped the way a
         // chat-completions request wants them.
@@ -679,6 +710,27 @@ mod tests {
             !said.contains("no tool called") && !said.contains("is not running"),
             "{ran} → {said}"
         );
+    }
+
+    #[test]
+    fn a_bot_is_offered_only_what_it_was_granted() {
+        // The case that matters: the desktop server offers screenshot and exec
+        // to everyone, and the allowed list is the only thing standing between
+        // a bot with no computer and a bot driving one. On Claude Code that
+        // list is an argument; here it has to be us.
+        let without = "mcp__desktop__set_appearance,mcp__desktop__schedule";
+        assert!(permitted(without, "mcp__desktop__set_appearance"));
+        assert!(!permitted(without, "mcp__desktop__screenshot"));
+        assert!(!permitted(without, "mcp__desktop__exec"));
+
+        // A bare server rule covers everything it offers, which is how
+        // connectors are written.
+        assert!(permitted("Read,mcp__github", "mcp__github__create_issue"));
+
+        // And only on a boundary: one connector's rule must not reach into
+        // another whose name merely starts the same way.
+        assert!(!permitted("mcp__github", "mcp__github_enterprise__deploy"));
+        assert!(!permitted("", "mcp__github__anything"));
     }
 
     #[test]

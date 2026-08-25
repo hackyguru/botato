@@ -63,6 +63,18 @@ pub struct Turn {
     /// double every exchange. Filled for anything that cannot, which is what
     /// makes a bot on such an engine a bot rather than a series of strangers.
     pub history: Vec<crate::transcript::Entry>,
+    /// The tools this bot may call, already in the shape the engine's API
+    /// wants. Empty unless botcage is running the loop: an engine that speaks
+    /// MCP is handed the servers instead and works this out for itself.
+    pub tools: Vec<serde_json::Value>,
+    /// What has happened *within* this turn already — what the model asked to
+    /// call, and what came back.
+    ///
+    /// A turn stops being one request the moment a model asks for a tool: the
+    /// answer is a request to call something, and the same turn has to be put
+    /// again with the result attached. This is that accumulation, and it is the
+    /// reason a `Turn` is built once and sent more than once.
+    pub pending: Vec<serde_json::Value>,
 }
 
 /// One provider, resolved: somewhere to send a request and, usually, the
@@ -128,6 +140,22 @@ pub enum Event {
     Thinking(String),
     /// A tool is being used, by name.
     Tool(String),
+    /// The model is asking to call something, a fragment at a time.
+    ///
+    /// Streamed like the text is: the name arrives in one frame and the
+    /// arguments over several, so this carries pieces rather than a finished
+    /// call. Assembling them is the runner's job, because the runner is what
+    /// has somewhere to put a half-built call — an engine reads one line and
+    /// remembers nothing, which is what makes it testable.
+    ///
+    /// `index` is which of several calls this belongs to: a model may ask for
+    /// more than one at a time, and they interleave.
+    Calling {
+        index: usize,
+        id: Option<String>,
+        name: Option<String>,
+        arguments: String,
+    },
     /// The turn finished.
     ///
     /// `text` is the whole answer as the engine finally rendered it, which is
@@ -752,6 +780,10 @@ fn messages(turn: &Turn) -> serde_json::Value {
         }));
     }
     out.push(serde_json::json!({ "role": "user", "content": turn.prompt }));
+    // What this turn has already done: the calls it asked for and what they
+    // returned. On the first request there is nothing here, which is the same
+    // request as before this existed.
+    out.extend(turn.pending.iter().cloned());
     serde_json::Value::Array(out)
 }
 
@@ -788,11 +820,12 @@ impl Engine for OpenAiCompatible {
     }
 
     fn tools(&self) -> ToolDelivery {
-        // Honest rather than aspirational: the request this builds carries no
-        // tools, so a bot on this engine has none. Handing over botcage's
-        // connectors means running the tool loop here — asking, executing,
-        // asking again — which is the next piece of work, not this one.
-        ToolDelivery::None
+        // The request carries the bot's connectors as functions and botcage
+        // runs the loop: asking, executing, asking again. What it does not
+        // carry is Claude Code's own Read, Grep and the rest — those are that
+        // program's, not the protocol's — so a bot here has its connectors and
+        // its desktop and no files, and its prompt says exactly that.
+        ToolDelivery::Hosted
     }
 
     fn command(&self, turn: &Turn) -> Result<std::process::Command, String> {
@@ -810,11 +843,17 @@ impl Engine for OpenAiCompatible {
         // The body goes to a file rather than an argument: a prompt on a command
         // line is visible to every process on the machine through `ps`. It holds
         // nothing the transcript in the same directory does not.
-        let body = serde_json::json!({
+        let mut body = serde_json::json!({
             "model": turn.model,
             "stream": true,
             "messages": messages(turn),
         });
+        // Absent rather than empty when a bot has none: some providers reject a
+        // request carrying an empty tool list, and there is nothing to say.
+        if !turn.tools.is_empty() {
+            body["tools"] = serde_json::Value::Array(turn.tools.clone());
+            body["tool_choice"] = serde_json::json!("auto");
+        }
         let request = turn.cwd.join(".botcage-request.json");
         std::fs::write(&request, body.to_string())
             .map_err(|e| format!("could not write this turn's request: {e}"))?;
@@ -907,6 +946,24 @@ impl Engine for OpenAiCompatible {
         if let Some(text) = delta["content"].as_str().filter(|t| !t.is_empty()) {
             events.push(Event::Delta(text.to_string()));
         }
+
+        // A request to call something, in pieces. The index is the provider's
+        // own: it says which call a fragment belongs to when the model asked
+        // for several, and without it two sets of arguments become one
+        // unparseable string.
+        if let Some(calls) = delta["tool_calls"].as_array() {
+            for (nth, call) in calls.iter().enumerate() {
+                events.push(Event::Calling {
+                    index: call["index"].as_u64().map(|i| i as usize).unwrap_or(nth),
+                    id: call["id"].as_str().map(str::to_string),
+                    name: call["function"]["name"].as_str().map(str::to_string),
+                    arguments: call["function"]["arguments"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .to_string(),
+                });
+            }
+        }
         events
     }
 }
@@ -994,14 +1051,128 @@ mod tests {
         assert_eq!(for_key(Some("claude-code")).tools(), ToolDelivery::Native);
         assert_eq!(for_key(Some("gemini-cli")).tools(), ToolDelivery::Native);
 
-        // And the hosted engine admits it has none yet rather than claiming
-        // tools the request it builds does not carry. When the tool loop lands
-        // this becomes Hosted, and this line is how anyone notices.
+        // The hosted engine carries them as functions, with botcage running
+        // the loop. It said None until there was a loop to run — a statement
+        // about what it could do, kept honest by this line.
         assert_eq!(
             for_key(Some("openai-compatible")).tools(),
-            ToolDelivery::None,
-            "if this carries tools now, the bot's prompt must stop saying it cannot"
+            ToolDelivery::Hosted
         );
+    }
+
+    /// The request grows a tools array, and only when there is something to put
+    /// in it.
+    ///
+    /// An empty array is not the same as no array: some providers reject the
+    /// first, and a bot with no connectors would stop working for a reason
+    /// nobody would look for here.
+    #[test]
+    fn tools_appear_in_the_request_only_when_the_bot_has_any() {
+        let cwd = std::env::temp_dir().join("botcage-hosted-tools");
+        std::fs::create_dir_all(&cwd).expect("a workspace");
+
+        let mut turn = a_turn(cwd.clone());
+        turn.api = Some(Api {
+            provider: "Groq".into(),
+            base: "https://api.groq.com/openai/v1".into(),
+            key: Some("secret".into()),
+        });
+
+        let body = |turn: &Turn| -> serde_json::Value {
+            OpenAiCompatible.command(turn).expect("a command");
+            let raw = std::fs::read_to_string(cwd.join(".botcage-request.json")).expect("the body");
+            serde_json::from_str(&raw).expect("json")
+        };
+
+        assert!(
+            body(&turn).get("tools").is_none(),
+            "a bot with no connectors must not send an empty tool list"
+        );
+
+        turn.tools = vec![serde_json::json!({
+            "type": "function",
+            "function": { "name": "mcp__github__create_issue", "parameters": {} }
+        })];
+        let with = body(&turn);
+        assert_eq!(
+            with["tools"][0]["function"]["name"],
+            "mcp__github__create_issue"
+        );
+        assert_eq!(with["tool_choice"], "auto");
+    }
+
+    /// A request to call something, as it actually arrives: in pieces.
+    ///
+    /// The name comes in one frame and the arguments over several, and the
+    /// index is what says which call a fragment belongs to when the model asked
+    /// for two at once. Getting this wrong does not crash: it produces one call
+    /// with both sets of arguments concatenated into something unparseable,
+    /// which is why it is asserted rather than eyeballed.
+    #[test]
+    fn a_call_arrives_in_fragments_and_keeps_them_apart() {
+        let read = |line: &str| OpenAiCompatible.read_line(line);
+        let frame = |delta: &str| format!(r#"data: {{"choices":[{{"delta":{delta}}}]}}"#);
+
+        // Two calls opened at once, then their arguments interleaved.
+        let opened = read(&frame(
+            r#"{"tool_calls":[
+                {"index":0,"id":"a","function":{"name":"mcp__github__list_issues","arguments":""}},
+                {"index":1,"id":"b","function":{"name":"mcp__desktop__schedule","arguments":""}}
+            ]}"#,
+        ));
+        assert_eq!(opened.len(), 2);
+        assert!(matches!(
+            &opened[0],
+            Event::Calling { index: 0, id: Some(id), name: Some(name), .. }
+                if id == "a" && name == "mcp__github__list_issues"
+        ));
+        assert!(matches!(&opened[1], Event::Calling { index: 1, .. }));
+
+        // A later frame carries arguments and nothing else — no id, no name.
+        let more = read(&frame(
+            r#"{"tool_calls":[{"index":1,"function":{"arguments":"{\"when\":"}}]}"#,
+        ));
+        assert!(matches!(
+            &more[0],
+            Event::Calling { index: 1, id: None, name: None, arguments } if arguments == "{\"when\":"
+        ));
+
+        // Text alongside a call is still text: a model often says something
+        // before it reaches for a tool, and that is part of its answer.
+        let both = read(&frame(
+            r#"{"content":"one moment","tool_calls":[{"index":0,"function":{"arguments":"{}"}}]}"#,
+        ));
+        assert!(matches!(&both[0], Event::Delta(text) if text == "one moment"));
+        assert!(matches!(&both[1], Event::Calling { index: 0, .. }));
+
+        // And an ordinary answer still carries no calls at all.
+        assert!(read(&frame(r#"{"content":"42 are open"}"#))
+            .iter()
+            .all(|event| !matches!(event, Event::Calling { .. })));
+    }
+
+    /// What the model asked for, and what came back, go into the next request.
+    ///
+    /// This is the whole of the tool loop from the request's side: the turn is
+    /// the same turn, and what has happened inside it rides along.
+    #[test]
+    fn a_tool_result_is_carried_into_the_next_request() {
+        let mut turn = a_turn(std::env::temp_dir());
+        let before = messages(&turn);
+        let was = before.as_array().expect("messages").len();
+
+        turn.pending = vec![
+            serde_json::json!({ "role": "assistant", "tool_calls": [{ "id": "c1" }] }),
+            serde_json::json!({ "role": "tool", "tool_call_id": "c1", "content": "42 open" }),
+        ];
+        let after = messages(&turn);
+        let now = after.as_array().expect("messages");
+
+        assert_eq!(now.len(), was + 2);
+        // After the question, not before it: the model asked for this while
+        // answering that.
+        assert_eq!(now[was]["role"], "assistant");
+        assert_eq!(now[was + 1]["content"], "42 open");
     }
 
     /// The reason for adding a second engine at all: to find out what botcage
@@ -1094,6 +1265,8 @@ mod tests {
             allowed_tools: "Read,Glob,mcp__github".into(),
             denied_plugins: vec!["notion".into()],
             mcp_servers: serde_json::json!({ "github": { "command": "x" } }),
+            tools: Vec::new(),
+            pending: Vec::new(),
             env: vec![("GITHUB_TOKEN".into(), "secret".into())],
             history: Vec::new(),
             api: None,
@@ -1225,6 +1398,8 @@ mod tests {
             allowed_tools: "Read,Glob".into(),
             denied_plugins: vec!["notion".into()],
             mcp_servers: serde_json::json!({ "github": { "command": "gh-mcp" } }),
+            tools: Vec::new(),
+            pending: Vec::new(),
             env: vec![],
             history: vec![],
             api: None,
