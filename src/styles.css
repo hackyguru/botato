@@ -898,6 +898,167 @@ textarea {
   background: linear-gradient(to bottom, var(--bg-main), transparent);
 }
 
+/* Discord's header search: a quiet field that widens when you use it, and a
+ * panel of results down the right. It searches what is in front of you — this
+ * room, this thread, this bot — which is the search you actually want when you
+ * are looking at a conversation. The box in the sidebar is a different
+ * question: which conversation, not which message. */
+.find {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 148px;
+  height: 28px;
+  padding: 0 6px 0 8px;
+  background: var(--field);
+  border-radius: 8px;
+  transition: width 0.16s ease;
+}
+
+.find:focus-within {
+  width: 220px;
+}
+
+.find__glass {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--text-3);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.find input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+  background: none;
+  border: 0;
+  outline: none;
+}
+
+.find__clear {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--text-3);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.find__clear:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.find__clear svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+/* The results, in a column down the right the way Discord puts them, over the
+ * conversation rather than beside it — this window is not wide enough to give
+ * up 300px of a room permanently. */
+.found {
+  position: absolute;
+  z-index: 5;
+  top: 56px;
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-left: 1px solid var(--line);
+}
+
+.found__head {
+  margin: 0;
+  padding: 12px 14px 8px;
+  color: var(--text-2);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.found__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 8px 12px;
+}
+
+.hit {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.hit:hover {
+  background: var(--hover);
+}
+
+.hit__who {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.hit__name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hit__when {
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+
+.hit__text {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.hit__text mark {
+  color: var(--text);
+  background: rgba(88, 101, 242, 0.32);
+  border-radius: 2px;
+}
+
+.found__none {
+  padding: 10px;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+/* Where a result took you, so the eye lands on the right line. */
+.turn--lit {
+  background: rgba(88, 101, 242, 0.16);
+}
+
 .topbar__actions {
   display: flex;
   align-items: center;

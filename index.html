@@ -158,6 +158,13 @@
         <header class="topbar" data-tauri-drag-region="deep">
           <div class="topbar__id" id="topbar-id"></div>
           <div class="topbar__actions">
+            <div class="find" id="find">
+              <svg class="find__glass"><use href="#i-search" /></svg>
+              <input id="find-input" placeholder="Search" spellcheck="false" autocomplete="off" />
+              <button type="button" class="find__clear" id="find-clear" hidden aria-label="Clear">
+                <svg><use href="#i-x" /></svg>
+              </button>
+            </div>
             <button class="icon-btn" id="btn-routines" title="Routines" aria-label="Routines">
               <svg><use href="#i-clock" /></svg>
               <span class="icon-btn__count" id="btn-routines-count"></span>
@@ -183,6 +190,11 @@
 
         <div class="scroll" id="scroll">
           <section class="thread" id="thread"></section>
+        </div>
+
+        <div class="found" id="found" hidden>
+          <p class="found__head" id="found-head"></p>
+          <div class="found__list" id="found-list"></div>
         </div>
 
 

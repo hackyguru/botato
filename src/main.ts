@@ -347,6 +347,11 @@ const searchEl = $<HTMLInputElement>("#search");
 const topbarId = $<HTMLDivElement>("#topbar-id");
 const thread = $<HTMLElement>("#thread");
 const scroller = $<HTMLDivElement>("#scroll");
+const findBox = $<HTMLInputElement>("#find-input");
+const findClear = $<HTMLButtonElement>("#find-clear");
+const found = $<HTMLDivElement>("#found");
+const foundHead = $<HTMLParagraphElement>("#found-head");
+const foundList = $<HTMLDivElement>("#found-list");
 const jump = $<HTMLButtonElement>("#jump");
 const jumpWhat = $<HTMLSpanElement>("#jump-what");
 /** How many messages arrived while you were reading something further up.
@@ -1464,6 +1469,115 @@ function scrollToEnd(smooth = false): void {
 
 const nearBottom = () => scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 180;
 
+/* ------------------------------------------------------------ finding a line */
+
+/** Searching what is in front of you: this room, this thread, this bot.
+ *
+ *  The box in the sidebar answers a different question — which conversation —
+ *  and this one answers which message, then takes you to it. Both are worth
+ *  having and neither replaces the other. */
+
+
+/** The messages of whatever is open, and where they live. */
+function openConversation(): { messages: Message[]; channel?: Channel } | null {
+  const room = activeChannel();
+  if (room) return { messages: room.messages, channel: room };
+  const bot = activeBot();
+  return bot ? { messages: bot.messages } : null;
+}
+
+function closeFind(): void {
+  findBox.value = "";
+  findClear.hidden = true;
+  found.hidden = true;
+}
+
+function runFind(): void {
+  const q = findBox.value.trim().toLowerCase();
+  findClear.hidden = !q;
+  if (!q) {
+    found.hidden = true;
+    return;
+  }
+
+  const open = openConversation();
+  const hits = (open?.messages ?? [])
+    .filter((m) => m.text.toLowerCase().includes(q))
+    // Newest first, which is where a search in a conversation usually means.
+    .reverse();
+
+  found.hidden = false;
+  foundHead.textContent = hits.length
+    ? `${hits.length} result${hits.length === 1 ? "" : "s"}`
+    : "No results";
+
+  if (!hits.length) {
+    foundList.innerHTML = `<p class="found__none">Nothing in this conversation says that.</p>`;
+    return;
+  }
+
+  foundList.replaceChildren(
+    ...hits.map((msg) => {
+      const who = saidBy(msg, open?.channel);
+      const hit = document.createElement("button");
+      hit.type = "button";
+      hit.className = "hit";
+      hit.dataset.goto = msg.id;
+      hit.innerHTML =
+        `<span class="hit__who">` +
+        `<span class="hit__name">${escapeHtml(who.name)}</span>` +
+        `<span class="hit__when">${clock(msg.at)}</span>` +
+        `</span>` +
+        `<span class="hit__text">${highlight(msg.text, q)}</span>`;
+      return hit;
+    }),
+  );
+}
+
+/** The words that were searched for, marked in what came back. */
+function highlight(text: string, q: string): string {
+  const at = text.toLowerCase().indexOf(q);
+  if (at < 0) return escapeHtml(text);
+  // A little of what came before, so the match is not stranded at the top of
+  // an answer that starts three paragraphs earlier.
+  const from = Math.max(0, at - 60);
+  const lead = from > 0 ? "…" : "";
+  return (
+    lead +
+    escapeHtml(text.slice(from, at)) +
+    `<mark>${escapeHtml(text.slice(at, at + q.length))}</mark>` +
+    escapeHtml(text.slice(at + q.length, at + q.length + 160))
+  );
+}
+
+/** Take me to that line, and make it obvious which one it was. */
+function gotoMessage(id: string): void {
+  const el = thread.querySelector<HTMLElement>(`[data-msg="${CSS.escape(id)}"]`);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.classList.add("turn--lit");
+  window.setTimeout(() => el.classList.remove("turn--lit"), 1800);
+}
+
+findBox.addEventListener("input", runFind);
+findClear.addEventListener("click", () => {
+  closeFind();
+  findBox.focus();
+});
+
+findBox.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeFind();
+    findBox.blur();
+  }
+});
+
+foundList.addEventListener("click", (event) => {
+  const hit = (event.target as HTMLElement).closest<HTMLElement>("[data-goto]");
+  if (!hit?.dataset.goto) return;
+  gotoMessage(hit.dataset.goto);
+});
+
 /* --------------------------------------------------------- jump to present */
 
 /** Something landed in the conversation you have open.
@@ -1517,6 +1631,10 @@ let showing = "";
  *  answered by going to the end rather than by putting anything back. */
 function heldPlace(what: string): number | null {
   const same = showing === what;
+  // Results belong to the conversation they were found in, so a change of
+  // subject takes them down rather than leaving a panel of lines that are no
+  // longer anywhere on screen.
+  if (!same) closeFind();
   showing = what;
   return same && !nearBottom() ? scroller.scrollTop : null;
 }
