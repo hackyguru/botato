@@ -41,6 +41,7 @@ import Room from "./src/screens/Room";
 import Chat from "./src/screens/Chat";
 import BotSettings from "./src/screens/BotSettings";
 import Drawer from "./src/drawer";
+import Rail from "./src/rail";
 import Phone from "./src/screens/Phone";
 import { T } from "./src/theme";
 
@@ -352,6 +353,31 @@ export default function App() {
           onOpen={() => setAside(true)}
           onClose={() => setAside(false)}
           aside={
+            // The laptop's collapsed sidebar, in the place Discord keeps its
+            // server rail, with the named list beside it.
+            <View style={s.aside}>
+              <Rail
+                bots={bots}
+                rooms={channels.filter((c) => !c.from)}
+                openBot={botId}
+                openRoom={
+                  screen === "room"
+                    ? (room?.from?.channelId ?? room?.id ?? null)
+                    : null
+                }
+                onOpen={(chosen) => {
+                  setBotId(chosen.id);
+                  setScreen("chat");
+                  setAside(false);
+                  void act("open", { botId: chosen.id });
+                }}
+                onOpenChannel={(chosen) => {
+                  setRoomId(chosen.id);
+                  setScreen("room");
+                  setAside(false);
+                  void act("channel/seen", { channelId: chosen.id });
+                }}
+              />
               <Bots
                 bots={bots}
                 channels={channels}
@@ -376,6 +402,7 @@ export default function App() {
                 }}
                 onSettings={() => setScreen("phone")}
               />
+            </View>
           }
         >
           {screen === "room" && room ? (
@@ -486,6 +513,7 @@ export default function App() {
 const s = StyleSheet.create({
   middle: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: T.bg },
   nothing: { color: T.text3, fontSize: 14 },
+  aside: { flex: 1, flexDirection: "row" },
   problem: {
     paddingTop: 54,
     paddingHorizontal: 16,
