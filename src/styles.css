@@ -4851,6 +4851,77 @@ a.detail__source:hover {
    Above the composer rather than below it, because below is off the bottom of
    the window — and anchored to the dock so it moves with the composer as that
    grows. */
+/* Jump to present.
+ *
+ * Discord puts this just above the input rather than floating over the
+ * conversation, which is the right place for it: it is a thing you press on
+ * your way back to typing. It sits in the dock for the same reason the mention
+ * list does, and above it, so the two never argue about the same space.
+ *
+ * Full width and quiet when it is only offering to take you back; it says how
+ * much you missed when something arrived while you were reading. */
+.jump {
+  position: absolute;
+  z-index: 30;
+  left: 18px;
+  right: 18px;
+  bottom: calc(100% - 12px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 8px 5px 12px;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12.5px;
+  background: var(--active);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  animation: jump-in 120ms ease-out;
+}
+
+.jump:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+/* Unread is the loud state, and only that one: a bot answering while you read
+ * back through a channel is the case this exists for. */
+.jump.is-new {
+  color: #fff;
+  background: var(--blue);
+  border-color: transparent;
+}
+
+.jump.is-new:hover {
+  filter: brightness(1.08);
+}
+
+.jump__arrow {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@keyframes jump-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jump {
+    animation: none;
+  }
+}
+
 .mentions {
   position: absolute;
   z-index: 40;

@@ -339,6 +339,13 @@ const searchEl = $<HTMLInputElement>("#search");
 const topbarId = $<HTMLDivElement>("#topbar-id");
 const thread = $<HTMLElement>("#thread");
 const scroller = $<HTMLDivElement>("#scroll");
+const jump = $<HTMLButtonElement>("#jump");
+const jumpWhat = $<HTMLSpanElement>("#jump-what");
+/** How many messages arrived while you were reading something further up.
+ *  Declared here rather than beside the code that uses it, because
+ *  scrollToEnd() clears it and is defined above that — and a `let` read before
+ *  its declaration has run is a blank window, not a warning. */
+let missed = 0;
 const composer = $<HTMLFormElement>("#composer");
 const input = $<HTMLTextAreaElement>("#input");
 const sendBtn = $<HTMLButtonElement>("#btn-send");
@@ -1345,6 +1352,7 @@ function paintRoutineCount(): void {
 
 function renderThread(): void {
   const bot = activeBot();
+  const was = heldPlace(`bot:${bot?.id ?? ""}`);
   if (!bot) {
     topbarId.innerHTML = "";
     thread.innerHTML = `<div class="empty"><h2>No bots yet</h2><p>Hit + to cage your first bot.</p></div>`;
@@ -1398,14 +1406,93 @@ function renderThread(): void {
   markSeen();
   paintPins();
   syncSend();
-  scrollToEnd();
+  restorePlace(was);
 }
 
 function scrollToEnd(smooth = false): void {
+  // Going to the end is the end of having missed anything, whoever asked for
+  // it — opening a conversation, sending a message, or pressing the pill.
+  missed = 0;
+  jump.hidden = true;
   scroller.scrollTo({ top: scroller.scrollHeight, behavior: smooth ? "smooth" : "auto" });
 }
 
 const nearBottom = () => scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 180;
+
+/* --------------------------------------------------------- jump to present */
+
+/** Something landed in the conversation you have open.
+ *
+ *  Used instead of scrolling outright, for anything you did not type: a bot
+ *  answering, a routine firing, a message sent from your phone. Reading back
+ *  through a room while bots talk used to drag you to the bottom mid-sentence,
+ *  which is the one thing a chat window must not do. Now it counts, and the
+ *  pill offers to take you down when you are ready to go. */
+function arrived(): void {
+  if (nearBottom()) {
+    scrollToEnd(true);
+    return;
+  }
+  missed += 1;
+  paintJump();
+}
+
+function paintJump(): void {
+  const away = !nearBottom();
+  jump.hidden = !away;
+  if (!away) return;
+  // Quiet when it is only offering to take you back, loud when you are being
+  // told something you have not seen.
+  jump.classList.toggle("is-new", missed > 0);
+  jumpWhat.textContent = missed
+    ? `${missed} new message${missed === 1 ? "" : "s"}`
+    : "Jump to present";
+}
+
+scroller.addEventListener(
+  "scroll",
+  () => {
+    // Scrolling back down yourself counts as having caught up.
+    if (nearBottom()) missed = 0;
+    paintJump();
+  },
+  { passive: true },
+);
+
+jump.addEventListener("click", () => scrollToEnd(true));
+
+/** Which conversation the scroller is showing, so that a repaint can tell
+ *  itself apart from a change of subject. */
+let showing = "";
+
+/** Where the view was, for a repaint that is about to throw the thread away.
+ *
+ *  `null` means either that it was already at the end, or that this is a
+ *  different conversation from the one that was open — both of which are
+ *  answered by going to the end rather than by putting anything back. */
+function heldPlace(what: string): number | null {
+  const same = showing === what;
+  showing = what;
+  return same && !nearBottom() ? scroller.scrollTop : null;
+}
+
+/** Put it back, after the thread has been rebuilt.
+ *
+ *  Opening a conversation and repainting the one you are already reading are
+ *  the same function, so the difference has to be where you were rather than
+ *  which of the two it was. A bot finishing a turn repaints the whole room, and
+ *  before this that meant being dragged to the bottom mid-sentence every time
+ *  anyone answered — the one thing a window full of talking bots must not do.
+ *  Anything that arrived is still counted on the pill, so nothing is lost by
+ *  staying put. */
+function restorePlace(was: number | null): void {
+  if (was === null) {
+    scrollToEnd();
+    return;
+  }
+  scroller.scrollTop = was;
+  paintJump();
+}
 
 function waitingHtml(msgId: string, note: string): void {
   const body = bodyOf(msgId);
@@ -1492,7 +1579,7 @@ async function respond(bot: Bot, prompt: string, style?: string): Promise<void> 
   if (bot.id === state.activeId) {
     thread.append(turnEl(message));
     waitingHtml(message.id, "");
-    scrollToEnd(true);
+    arrived();
   }
   syncSend();
   renderRoster();
@@ -1779,6 +1866,9 @@ function send(text: string): void {
 
   if (wasEmpty) thread.innerHTML = "";
   thread.append(turnEl(msg));
+  // Sending is a thing you did on purpose, so it always takes you to the end —
+  // even if you were reading back through the conversation when you typed it.
+  scrollToEnd(true);
 
   input.value = "";
   autoGrow();
@@ -3925,7 +4015,7 @@ async function channelTurn(
   if (state.activeChannel === ch.id) {
     thread.append(turnEl(post, ch));
     waitingHtml(post.id, "");
-    scrollToEnd(true);
+    arrived();
   }
   // On a call, the tile should show it is working before it has anything to
   // say — a room of still faces during a twenty-second turn looks broken.
@@ -4132,6 +4222,7 @@ function postToChannel(ch: Channel, text: string): void {
   ch.messages.push(msg);
   if (ch.messages.length === 1) thread.innerHTML = "";
   thread.append(turnEl(msg, ch));
+  scrollToEnd(true);
   input.value = "";
   autoGrow();
   save();
@@ -4169,6 +4260,7 @@ function postToChannel(ch: Channel, text: string): void {
 function renderChannel(): void {
   const ch = activeChannel();
   if (!ch) return;
+  const was = heldPlace(`chan:${ch.id}`);
 
   const room = membersOf(ch);
   const parent = ch.from ? channels().find((c) => c.id === ch.from?.channelId) : null;
@@ -4206,7 +4298,7 @@ function renderChannel(): void {
   markSeen();
   paintPins();
   syncSend();
-  scrollToEnd();
+  restorePlace(was);
 }
 
 function openChannel(id: string): void {
@@ -5435,7 +5527,7 @@ function runRoutine(bot: Bot, routine: Routine): void {
   if (bot.id === state.activeId) {
     if (bot.messages.length === 1) thread.innerHTML = "";
     thread.append(turnEl(note));
-    scrollToEnd(true);
+    arrived();
   }
   save();
   renderRoster();
@@ -8271,7 +8363,7 @@ function remoteSend(botId: string, text: string): Record<string, unknown> {
   if (bot.id === state.activeId) {
     if (bot.messages.length === 1) thread.innerHTML = "";
     thread.append(turnEl(msg));
-    scrollToEnd(true);
+    arrived();
   }
   save();
   renderRoster();
