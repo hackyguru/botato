@@ -40,18 +40,26 @@ import Bots from "./src/screens/Bots";
 import Room from "./src/screens/Room";
 import Chat from "./src/screens/Chat";
 import BotSettings from "./src/screens/BotSettings";
+import Drawer from "./src/drawer";
 import Phone from "./src/screens/Phone";
 import { T } from "./src/theme";
 
 // "settings" is one bot's; "phone" is this device's own — the link to the
 // laptop, and the one destructive thing a phone can do.
-type Screen = "bots" | "chat" | "room" | "settings" | "phone";
+/** What is on top of the conversation, if anything.
+ *
+ *  The list used to be one of these — you went to it and came back. It is a
+ *  drawer now, which is a different thing: the conversation stays, and the list
+ *  slides over it. Settings and pairing genuinely do replace the screen. */
+type Screen = "chat" | "room" | "settings" | "phone";
 
 export default function App() {
   const [pairing, setPairing] = useState<Pairing | null>(null);
   const [ready, setReady] = useState(false);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [screen, setScreen] = useState<Screen>("bots");
+  const [screen, setScreen] = useState<Screen>("chat");
+  // Open when there is nothing to look at yet, which is also how the app opens.
+  const [aside, setAside] = useState(true);
   const [botId, setBotId] = useState<string | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
@@ -244,17 +252,20 @@ export default function App() {
         return true;
       }
       if (screen === "phone") {
-        setScreen("bots");
+        setScreen("chat");
         return true;
       }
-      if (screen === "chat") {
-        setScreen("bots");
+      // Back out of a conversation is back to the list, which is now the
+      // drawer rather than a screen. Once it is open there is nowhere further
+      // back to go, so the button does what it does anywhere else and leaves.
+      if (!aside) {
+        setAside(true);
         return true;
       }
       return false;
     });
     return () => sub.remove();
-  }, [screen]);
+  }, [screen, aside]);
 
   const act = useCallback(
     async (kind: string, payload: Record<string, unknown> = {}) => {
@@ -303,143 +314,27 @@ export default function App() {
         </View>
       ) : null}
 
-      {screen === "room" && room ? (
-        <Room
-          channel={room}
-          bots={bots}
-          parent={channels.find((c) => c.id === room.from?.channelId)}
-          threads={channels.filter((c) => c.from)}
-          onBack={() => setScreen("bots")}
-          onOpenThread={(thread) => {
-            setRoomId(thread.id);
-            void act("channel/seen", { channelId: thread.id });
-          }}
-          onSend={async (text) => {
-            // Shown at once; the laptop's own copy replaces it with the next
-            // snapshot, the same bargain a bot's chat already makes.
-            setSnapshot((was) =>
-              was
-                ? {
-                    ...was,
-                    channels: (was.channels ?? []).map((c) =>
-                      c.id === room.id
-                        ? {
-                            ...c,
-                            busy: true,
-                            messages: [
-                              ...c.messages,
-                              {
-                                id: `local-${Date.now()}`,
-                                from: "me" as const,
-                                text,
-                                at: Date.now(),
-                                fromPhone: true,
-                              },
-                            ],
-                          }
-                        : c,
-                    ),
-                  }
-                : was,
-            );
-            const p = current.current;
-            if (!p) return;
-            try {
-              await call(p, "channel/send", { channelId: room.id, text });
-            } catch (err) {
-              setProblem(err instanceof Error ? err.message : String(err));
-              void refresh();
-            }
-          }}
-        />
-      ) : screen === "bots" || !bot ? (
-        <Bots
-          bots={bots}
-          channels={channels}
-          called={String(snapshot?.settings?.name ?? "")}
-          connected={connected}
-          loading={loading}
-          onRefresh={refresh}
-          onOpen={(chosen) => {
-            setBotId(chosen.id);
-            setScreen("chat");
-            void act("open", { botId: chosen.id });
-          }}
-          onOpenChannel={(chosen) => {
-            setRoomId(chosen.id);
-            setScreen("room");
-            void act("channel/seen", { channelId: chosen.id });
-          }}
-          onCreate={async (name, role) => {
-            await act("bot/create", { name, role });
-          }}
-          onSettings={() => setScreen("phone")}
-        />
-      ) : screen === "phone" ? (
+      {screen === "phone" ? (
         <Phone
           pairing={pairing}
           connected={connected}
-          onBack={() => setScreen("bots")}
+          onBack={() => setAside(true)}
           onDisconnect={async () => {
             await clearPairing();
             setPairing(null);
             setSnapshot(null);
-            setScreen("bots");
+            setScreen("chat");
           }}
         />
-      ) : screen === "chat" ? (
-        <Chat
-          bot={bot}
-          note={notes[bot.id] ?? ""}
-          onBack={() => setScreen("bots")}
-          onSettings={() => setScreen("settings")}
-          onSend={async (text) => {
-            // Show it immediately; the laptop's own copy arrives with the next
-            // snapshot and replaces this one.
-            setSnapshot((was) =>
-              was
-                ? {
-                    ...was,
-                    bots: was.bots.map((b) =>
-                      b.id === bot.id
-                        ? {
-                            ...b,
-                            busy: true,
-                            messages: [
-                              ...b.messages,
-                              {
-                                id: `local-${Date.now()}`,
-                                from: "me" as const,
-                                text,
-                                at: Date.now(),
-                                fromPhone: true,
-                              },
-                            ],
-                          }
-                        : b,
-                    ),
-                  }
-                : was,
-            );
-            const p = current.current;
-            if (!p) return;
-            try {
-              await call(p, "send", { botId: bot.id, text });
-            } catch (err) {
-              setProblem(err instanceof Error ? err.message : String(err));
-              void refresh();
-            }
-          }}
-          onCancel={() => void act("cancel", { botId: bot.id })}
-        />
-      ) : (
+      ) : screen === "settings" && bot ? (
         <BotSettings
           bot={bot}
           engines={snapshot?.engines ?? []}
           onBack={() => setScreen("chat")}
           onUpdate={(patch) => act("bot/update", { botId: bot.id, ...patch })}
           onDelete={async () => {
-            setScreen("bots");
+            setAside(true);
+            setScreen("chat");
             await act("bot/delete", { botId: bot.id });
           }}
           onRoutineSave={(routine: Routine) => act("routine/save", { botId: bot.id, routine })}
@@ -448,6 +343,141 @@ export default function App() {
             act(start ? "desktop/start" : "desktop/stop", { botId: bot.id })
           }
         />
+      ) : (
+        // The conversation is the app; the list slides over it. Both are
+        // always mounted, so opening the drawer is not a screen being built
+        // and coming back is not one being built again.
+        <Drawer
+          open={aside}
+          onOpen={() => setAside(true)}
+          onClose={() => setAside(false)}
+          aside={
+              <Bots
+                bots={bots}
+                channels={channels}
+                called={String(snapshot?.settings?.name ?? "")}
+                connected={connected}
+                loading={loading}
+                onRefresh={refresh}
+                onOpen={(chosen) => {
+                  setBotId(chosen.id);
+                  setScreen("chat");
+                  setAside(false);
+                  void act("open", { botId: chosen.id });
+                }}
+                onOpenChannel={(chosen) => {
+                  setRoomId(chosen.id);
+                  setScreen("room");
+                  setAside(false);
+                  void act("channel/seen", { channelId: chosen.id });
+                }}
+                onCreate={async (name, role) => {
+                  await act("bot/create", { name, role });
+                }}
+                onSettings={() => setScreen("phone")}
+              />
+          }
+        >
+          {screen === "room" && room ? (
+          <Room
+            channel={room}
+            bots={bots}
+            parent={channels.find((c) => c.id === room.from?.channelId)}
+            threads={channels.filter((c) => c.from)}
+            onBack={() => setAside(true)}
+            onOpenThread={(thread) => {
+              setRoomId(thread.id);
+              void act("channel/seen", { channelId: thread.id });
+            }}
+            onSend={async (text) => {
+              // Shown at once; the laptop's own copy replaces it with the next
+              // snapshot, the same bargain a bot's chat already makes.
+              setSnapshot((was) =>
+                was
+                  ? {
+                      ...was,
+                      channels: (was.channels ?? []).map((c) =>
+                        c.id === room.id
+                          ? {
+                              ...c,
+                              busy: true,
+                              messages: [
+                                ...c.messages,
+                                {
+                                  id: `local-${Date.now()}`,
+                                  from: "me" as const,
+                                  text,
+                                  at: Date.now(),
+                                  fromPhone: true,
+                                },
+                              ],
+                            }
+                          : c,
+                      ),
+                    }
+                  : was,
+              );
+              const p = current.current;
+              if (!p) return;
+              try {
+                await call(p, "channel/send", { channelId: room.id, text });
+              } catch (err) {
+                setProblem(err instanceof Error ? err.message : String(err));
+                void refresh();
+              }
+            }}
+          />
+          ) : bot ? (
+          <Chat
+            bot={bot}
+            note={notes[bot.id] ?? ""}
+            onBack={() => setAside(true)}
+            onSettings={() => setScreen("settings")}
+            onSend={async (text) => {
+              // Show it immediately; the laptop's own copy arrives with the next
+              // snapshot and replaces this one.
+              setSnapshot((was) =>
+                was
+                  ? {
+                      ...was,
+                      bots: was.bots.map((b) =>
+                        b.id === bot.id
+                          ? {
+                              ...b,
+                              busy: true,
+                              messages: [
+                                ...b.messages,
+                                {
+                                  id: `local-${Date.now()}`,
+                                  from: "me" as const,
+                                  text,
+                                  at: Date.now(),
+                                  fromPhone: true,
+                                },
+                              ],
+                            }
+                          : b,
+                      ),
+                    }
+                  : was,
+              );
+              const p = current.current;
+              if (!p) return;
+              try {
+                await call(p, "send", { botId: bot.id, text });
+              } catch (err) {
+                setProblem(err instanceof Error ? err.message : String(err));
+                void refresh();
+              }
+            }}
+            onCancel={() => void act("cancel", { botId: bot.id })}
+          />
+          ) : (
+            <View style={s.middle}>
+              <Text style={s.nothing}>Pick a bot or a channel.</Text>
+            </View>
+          )}
+        </Drawer>
       )}
     </>
   );
@@ -455,6 +485,7 @@ export default function App() {
 
 const s = StyleSheet.create({
   middle: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: T.bg },
+  nothing: { color: T.text3, fontSize: 14 },
   problem: {
     paddingTop: 54,
     paddingHorizontal: 16,
