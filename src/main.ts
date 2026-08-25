@@ -1875,6 +1875,12 @@ function highlight(text: string, q: string): string {
 
 /** Take me to that line, and make it obvious which one it was. */
 function gotoMessage(id: string): void {
+  // The calendar covers the conversation while leaving the search in the
+  // header, so a result could be clicked with nothing to scroll: the line was
+  // there, behind a week view, and the app looked broken. Going to a message
+  // means going to where messages are.
+  if (routinesOpen) showRoutines(false);
+
   const el = thread.querySelector<HTMLElement>(`[data-msg="${CSS.escape(id)}"]`);
   if (!el) return;
   el.scrollIntoView({ behavior: "smooth", block: "center" });
