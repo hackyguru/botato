@@ -23,6 +23,7 @@ import {
 } from "react-native";
 import type { Bot, Channel, Message } from "../types";
 import Face from "../face";
+import Composer from "../composer";
 import Markdown from "../markdown";
 import { T } from "../theme";
 import { Initial, startsRun, Turn } from "../turn";
@@ -117,19 +118,12 @@ export default function Room({
         ) : null}
       </ScrollView>
 
-      <View style={s.dock}>
-        <TextInput
-          style={s.input}
-          value={draft}
-          onChangeText={setDraft}
-          placeholder={channel.from ? "Reply in this thread" : `Message #${channel.name}`}
-          placeholderTextColor={T.text3}
-          multiline
-        />
-        <Pressable style={[s.send, !draft.trim() && s.sendOff]} onPress={send}>
-          <Text style={s.sendText}>↑</Text>
-        </Pressable>
-      </View>
+      <Composer
+        value={draft}
+        onChange={setDraft}
+        onSend={send}
+        placeholder={channel.from ? "Reply in this thread" : `Message #${channel.name}`}
+      />
     </KeyboardAvoidingView>
   );
 }

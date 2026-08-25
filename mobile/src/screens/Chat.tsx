@@ -21,6 +21,7 @@ import {
 } from "react-native";
 import type { Bot, Message } from "../types";
 import Face from "../face";
+import Composer from "../composer";
 import Markdown from "../markdown";
 import { T } from "../theme";
 import { Initial, startsRun, Turn } from "../turn";
@@ -125,23 +126,13 @@ export default function Chat({
         ) : null}
       </ScrollView>
 
-      <View style={s.dock}>
-        <TextInput
-          style={s.input}
-          value={draft}
-          onChangeText={setDraft}
-          placeholder={`Message ${bot.name}`}
-          placeholderTextColor={T.text3}
-          multiline
-        />
-        <Pressable
-          style={[s.send, (!draft.trim() || bot.busy) && s.sendOff]}
-          onPress={send}
-          disabled={!draft.trim() || bot.busy}
-        >
-          <Text style={s.sendText}>↑</Text>
-        </Pressable>
-      </View>
+      <Composer
+        value={draft}
+        onChange={setDraft}
+        onSend={send}
+        placeholder={`Message ${bot.name}`}
+        busy={bot.busy}
+      />
     </KeyboardAvoidingView>
   );
 }

@@ -126,13 +126,29 @@ export default function Bots({
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [busy, setBusy] = useState(false);
+  const [find, setFind] = useState("");
+  const q = find.trim().toLowerCase();
 
   // Rooms, each followed by its threads. Flattened once rather than inside the
   // map, so a row can ask what comes after it — which is how the last thread
   // under a room knows to close the branch it hangs from.
+  // A room matches on its own name or on anything said in it, and a room whose
+  // thread matches comes along to say where that thread belongs.
+  const hit = (c: Channel) =>
+    !q || c.name.toLowerCase().includes(q) || c.messages.some((m) => m.text.toLowerCase().includes(q));
+  const shown: Bot[] = bots.filter(
+    (b) =>
+      !q ||
+      b.name.toLowerCase().includes(q) ||
+      b.role.toLowerCase().includes(q) ||
+      b.messages.some((m) => m.text.toLowerCase().includes(q)),
+  );
   const rooms: Channel[] = channels
     .filter((c) => !c.from)
-    .flatMap((room) => [room, ...channels.filter((t) => t.from?.channelId === room.id)]);
+    .flatMap((room) => [room, ...channels.filter((t) => t.from?.channelId === room.id)])
+    .filter((c) =>
+      c.from ? hit(c) || hit(channels.find((r) => r.id === c.from?.channelId) ?? c) : hit(c) || channels.some((t) => t.from?.channelId === c.id && hit(t)),
+    );
 
   async function create() {
     if (!name.trim() || busy) return;
@@ -195,6 +211,19 @@ export default function Bots({
         </View>
       ) : null}
 
+      <View style={s.findWrap}>
+        <TextInput
+          style={s.find}
+          value={find}
+          onChangeText={setFind}
+          placeholder="Search"
+          placeholderTextColor={T.text3}
+          autoCorrect={false}
+          autoCapitalize="none"
+          clearButtonMode="while-editing"
+        />
+      </View>
+
       <ScrollView
         contentContainerStyle={s.list}
         refreshControl={
@@ -208,9 +237,7 @@ export default function Bots({
         {/* Rooms first, then the people in them — the order every app with
             both has settled on, and for the same reason. A thread sits under
             the room it came out of. */}
-        {channels.filter((c) => !c.from).length ? (
-          <Text style={s.group}>CHANNELS</Text>
-        ) : null}
+        {rooms.length ? <Text style={s.group}>CHANNELS</Text> : null}
         {rooms.map((ch, n) => {
           const news = unreadIn(ch.messages, ch.seenAt, called);
           const inside = ch.members
@@ -242,29 +269,30 @@ export default function Bots({
                 >
                   {ch.name}
                 </Text>
-                {/* Who is in a thread is who is in the room it hangs off, so
-                    saying it again under every one is the same names three
-                    times down the screen. */}
-                {thread ? null : (
+                {/* Only when something is happening. Who is in a room is on
+                    the room's own header, and repeating it under every line is
+                    the same two names down the whole screen — a thread's would
+                    be the same names again. */}
+                {ch.busy ? (
                   <Text style={s.preview} numberOfLines={1}>
-                    {ch.busy
-                      ? "Talking…"
-                      : inside.length
-                        ? inside.map((b) => b.name).join(", ")
-                        : "Nobody in it yet"}
+                    Talking…
                   </Text>
-                )}
+                ) : !thread && !inside.length ? (
+                  <Text style={s.preview} numberOfLines={1}>
+                    Nobody in it yet
+                  </Text>
+                ) : null}
               </View>
               <Badge unread={news.unread} mentions={news.mentions} />
             </Pressable>
           );
         })}
 
-        {channels.filter((c) => !c.from).length && bots.length ? (
+        {rooms.length && shown.length ? (
           <Text style={s.group}>BOTS</Text>
         ) : null}
 
-        {bots.map((bot) => {
+        {shown.map((bot) => {
           const last = bot.messages[bot.messages.length - 1];
           return (
             <Pressable key={bot.id} style={s.row} onPress={() => onOpen(bot)}>
@@ -316,6 +344,15 @@ const s = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: "600",
     letterSpacing: 0.5,
+  },
+  findWrap: { paddingHorizontal: 16, paddingBottom: 8 },
+  find: {
+    height: 36,
+    paddingHorizontal: 12,
+    backgroundColor: T.field,
+    borderRadius: 10,
+    color: T.text,
+    fontSize: 15,
   },
   hash: { width: 34, textAlign: "center", color: T.text2, fontSize: 21 },
 
