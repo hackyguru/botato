@@ -275,9 +275,21 @@ mod tests {
     fn a_thread_name_cannot_escape_the_workspace() {
         let dir = workspace("escape");
         append(&dir, Some("../../etc/passwd"), Voice::User, "nope").unwrap();
+
+        // Ask what we wrote, not whether some path outside the workspace
+        // exists. The first version of this asserted /etc/passwd was absent,
+        // which is true on my machine only because the temp directory is deep
+        // enough that ../../ does not reach the root. On Linux it does, and
+        // the test failed for the file being exactly where it belongs.
+        let written: Vec<String> = std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(written.len(), 1, "wrote outside the workspace: {written:?}");
         assert!(
-            !dir.join("../../etc/passwd").exists(),
-            "a thread id is a name, not a path"
+            !written[0].contains(['/', '\\']) && !written[0].contains(".."),
+            "a thread id is a name, not a path: {}",
+            written[0]
         );
         assert_eq!(recent(&dir, Some("../../etc/passwd"), BUDGET).len(), 1);
     }
