@@ -855,20 +855,6 @@ textarea {
 }
 
 
-
-.foot-icon {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  color: var(--text-2);
-}
-
-.foot-icon svg {
-  width: 19px;
-  height: 19px;
-}
-
 .foot-avatar {
   display: grid;
   place-items: center;
@@ -4076,12 +4062,14 @@ a.detail__source:hover {
 }
 
 /* Qualified because .btn-primary is defined further down and would otherwise
-   win on order alone. */
-.btn-primary.danger-btn {
+   win on order alone. Named as a modifier of it, which is what it is: the
+   primary action of a sheet, in the colour of what it does. The quiet .danger
+   beside a Save is the other kind — an option you are unlikely to want. */
+.btn-primary.btn-primary--danger {
   background: var(--red);
 }
 
-.btn-primary.danger-btn:hover {
+.btn-primary.btn-primary--danger:hover {
   filter: brightness(1.08);
 }
 
@@ -4259,8 +4247,12 @@ a.detail__source:hover {
   box-shadow: 0 0 0 2px #17171a, 0 0 0 4px currentColor;
 }
 
+/* The body scrolls between the head and this, and did so against no edge at
+   all — a row could be sliced in half by the bottom of the panel and read as
+   the end of the sheet rather than as more to come. A rule says which it is. */
 .sheet__foot {
-  padding: 0 18px 18px;
+  padding: 12px 18px 18px;
+  border-top: 1px solid var(--line);
 }
 
 .btn-primary {
@@ -4917,10 +4909,6 @@ a.detail__source:hover {
 }
 
 /* Room for the mark, so it never sits on the last line of text. */
-.turn--me .bubble:has(.from-phone) .bubble__body {
-  padding-right: 14px;
-}
-
 /* Revoking one device. Kept quiet until the row is hovered: it is destructive,
    and a row of X buttons reads as a list of things to delete. */
 .device__forget {

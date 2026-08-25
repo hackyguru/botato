@@ -2404,9 +2404,28 @@ const closeMenu = () => {
   menu.hidden = true;
 };
 
-function renderSheetPreview(): void {
-  const shape = SHAPES[state.bots.length % SHAPES.length];
-  sheetPreview.innerHTML = `<span class="face face--${shape} face--lg" style="background:${draftColor}"><i></i><i></i></span>`;
+/** The face at the top of a bot's sheet, in the colour being chosen.
+ *
+ *  Drawn by the same renderer as every other face rather than by a hand-made
+ *  copy of one. The copy had drifted until it was a coloured square with two
+ *  stray marks in it — it was written before a face had brows, a mouth and a
+ *  mark, and nothing made it keep up. Now there is only one way to draw a face
+ *  and this asks for it.
+ *
+ *  Still, like every face outside the roster: a preview that blinks at you
+ *  while you pick a colour is not showing you the colour. */
+function renderSheetPreview(bot?: Bot | null): void {
+  const shown: Bot = bot
+    ? { ...bot, color: draftColor }
+    : ({
+        // A bot that does not exist yet has no id to derive a face from, so it
+        // gets a plain one — the real face is settled the moment it is made.
+        id: "",
+        color: draftColor,
+        shape: SHAPES[state.bots.length % SHAPES.length],
+        face: { head: SHAPES[state.bots.length % SHAPES.length], eyes: "dot", brow: "none", smile: "soft", mark: "none" },
+      } as unknown as Bot);
+  sheetPreview.innerHTML = faceHtml(shown, "lg");
   swatches.innerHTML = COLORS.map(
     (c) =>
       `<button type="button" class="swatch${c === draftColor ? " is-on" : ""}" data-color="${c}" ` +
@@ -3110,7 +3129,7 @@ function openSheet(bot: Bot | null = null): void {
   sheetWindow.value = bot?.machine?.window ?? "";
   sheetFonts.value = bot?.machine?.fonts ?? "";
   sheetLanguage.value = bot?.machine?.language ?? "";
-  renderSheetPreview();
+  renderSheetPreview(bot);
   // Only an existing bot can be deleted, and the confirm never carries over
   // from a previous visit to this sheet.
   sheetDelete.hidden = !bot;
