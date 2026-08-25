@@ -107,7 +107,7 @@ textarea {
   background: rgba(255, 255, 255, 0.16);
   background-clip: content-box;
   border: 3px solid transparent;
-  border-radius: 99px;
+  border-radius: 999px;
 }
 
 /* -------------------------------------------------------------------- shell */
@@ -1346,7 +1346,7 @@ textarea {
   padding: 0 10px;
   font-size: 12.5px;
   background: var(--field);
-  border-radius: 99px;
+  border-radius: 999px;
 }
 
 /* A bot's routines as a week, because that is the shape a schedule has. The
@@ -1684,7 +1684,7 @@ textarea {
   color: var(--text);
   white-space: nowrap;
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 99px;
+  border-radius: 999px;
 }
 
 .ref svg {
@@ -1722,7 +1722,7 @@ textarea {
   font-weight: 500;
   color: var(--text);
   background: rgba(255, 255, 255, 0.09);
-  border-radius: 99px;
+  border-radius: 999px;
 }
 
 .learn-badge svg {
@@ -1795,7 +1795,7 @@ textarea {
   font-size: 13px;
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--line);
-  border-radius: 99px;
+  border-radius: 999px;
 }
 
 /* typing indicator */
@@ -4202,7 +4202,7 @@ a.detail__source:hover {
   appearance: none;
   cursor: pointer;
   background: rgba(255, 255, 255, 0.17);
-  border-radius: 99px;
+  border-radius: 999px;
   transition: background 0.18s ease;
 }
 
@@ -4414,7 +4414,7 @@ a.detail__source:hover {
   font-size: 12px;
   color: var(--text-2);
   background: rgba(255, 255, 255, 0.07);
-  border-radius: 99px;
+  border-radius: 999px;
 }
 
 .state-pill.is-live {
@@ -4503,7 +4503,7 @@ a.detail__source:hover {
   white-space: nowrap;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--line);
-  border-radius: 99px;
+  border-radius: 999px;
   transition: background 0.14s, color 0.14s, border-color 0.14s;
 }
 
@@ -4581,14 +4581,19 @@ a.detail__source:hover {
   font-size: 13.5px;
   color: #0a0a0a;
   background: #f2f2f2;
-  border-radius: 99px;
+  border-radius: 999px;
   transform: translateX(-50%);
   animation: pop 0.13s ease both;
 }
 
 @media (max-width: 700px) {
-  .bubble {
-    max-width: 92%;
+  /* The results take the whole conversation pane rather than a fixed 320px of
+     it. In a narrow window that fixed panel left a column of half-words behind
+     it and covered the composer — and a strip of clipped conversation is not
+     context worth keeping. */
+  .found {
+    left: 0;
+    width: auto;
   }
 }
 
