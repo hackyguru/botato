@@ -386,10 +386,6 @@
 
           <p class="chan__group">Who is in it</p>
           <div class="chan__members" id="channel-members"></div>
-          <p class="chan__fine">
-            Bots in a channel see everything said in it and can bring each other in by name.
-            Their private chats stay private.
-          </p>
         </div>
         <div class="sheet__foot">
           <button type="button" class="danger" id="channel-delete" hidden>Delete channel</button>
@@ -554,9 +550,7 @@
           <div class="settings-panel" data-tab="computer" role="tabpanel" hidden>
             <div class="settings">
             <label class="setting">
-              <span class="setting__label">Own computer
-                <span class="setting__hint">A private Linux desktop it can switch on when a task needs one.</span>
-              </span>
+              <span class="setting__label">Own computer</span>
               <input type="checkbox" id="sheet-computer" class="switch" />
             </label>
 
@@ -577,10 +571,7 @@
             <p class="machine__note" id="sheet-machine-note"></p>
             <div class="settings">
               <label class="setting">
-                <span class="setting__label">Browser
-                  <span class="setting__hint">The biggest difference between two bots: a different
-                    engine renders, measures text and negotiates TLS differently.</span>
-                </span>
+                <span class="setting__label">Browser</span>
                 <select id="sheet-browser" class="picker">
                   <option value="">Automatic</option>
                   <option value="chromium">Chromium</option>
@@ -589,10 +580,7 @@
               </label>
 
               <label class="setting">
-                <span class="setting__label">Text rendering
-                  <span class="setting__hint">Antialiasing and hinting — what a canvas
-                    fingerprint is actually measuring.</span>
-                </span>
+                <span class="setting__label">Text rendering</span>
                 <select id="sheet-rendering" class="picker">
                   <option value="">Automatic</option>
                   <option value="slight">Slight hinting</option>
@@ -698,9 +686,7 @@
           <div class="settings-panel" data-tab="general" role="tabpanel">
             <div class="settings">
               <label class="setting">
-                <span class="setting__label">Your name
-                  <span class="setting__hint">What your bots call you, and what shows at the bottom of the list.</span>
-                </span>
+                <span class="setting__label">Your name</span>
                 <input id="app-name" class="picker picker--text" placeholder="Your name"
                        spellcheck="false" maxlength="40" />
               </label>
@@ -716,9 +702,7 @@
               </label>
 
               <label class="setting">
-                <span class="setting__label">Run routines
-                  <span class="setting__hint">Turn off to pause every bot's schedule at once.</span>
-                </span>
+                <span class="setting__label">Run routines</span>
                 <input type="checkbox" id="app-routines" class="switch" />
               </label>
 
@@ -800,10 +784,7 @@
           <div class="settings-panel" data-tab="power" role="tabpanel" hidden>
             <div class="settings">
               <label class="setting">
-                <span class="setting__label">Keep this computer awake
-                  <span class="setting__hint">Bots and routines keep running with the screen off,
-                    on battery as well as mains.</span>
-                </span>
+                <span class="setting__label">Keep this computer awake</span>
                 <input type="checkbox" id="app-awake" class="switch" />
               </label>
 

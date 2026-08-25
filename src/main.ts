@@ -1457,15 +1457,9 @@ function renderThread(): void {
     // On a fresh install this is the whole app: one bot, nothing said yet. Say
     // where more come from, because a plus icon in a corner is not an answer to
     // "what now".
-    const alone = state.bots.length === 1;
     thread.innerHTML =
       `<div class="empty">${faceHtml(bot, "lg")}<h2>${escapeHtml(bot.name)}</h2>` +
       (bot.guide ? "" : `<p>${escapeHtml(bot.role || "Say hello to get started.")}</p>`) +
-      (alone && !bot.guide
-        ? `<p class="empty__hint">Say hello. When you know what you want, ` +
-          `make a bot for it with the <b>+</b> above the list — each one keeps ` +
-          `its own memory, and can be answered by a different model.</p>`
-        : "") +
       `</div>` +
       // Under the guide's own face rather than above it: this is what it is
       // offering, and a stack of cards over the top of an introduction reads
@@ -4477,11 +4471,9 @@ function renderChannel(): void {
       `<div class="empty">` +
       `<h2>#${escapeHtml(ch.name)}</h2>` +
       `<p>${
-        room.length > 1
-          ? `${escapeHtml(room.map((b) => b.name).join(", "))} are in here. Name one with @ to bring them in — they can bring each other in the same way.`
-          : room.length === 1
-            ? `${escapeHtml(room[0].name)} is in here and answers everything said.`
-            : `Nobody is in here yet. Open the channel's settings to add bots.`
+        room.length
+          ? escapeHtml(room.map((b) => b.name).join(", "))
+          : "Nobody is in here yet."
       }</p></div>`;
   } else {
     thread.innerHTML = "";
@@ -4559,7 +4551,7 @@ function openChannelSheet(ch: Channel | null): void {
             `<span class="chan__memberName">${escapeHtml(bot.name)}</span></label>`,
         )
         .join("")
-    : `<p class="chan__fine">Make a bot first — a channel with nobody in it is a notepad.</p>`;
+    : `<p class="chan__fine">Make a bot first.</p>`;
 
   $<HTMLHeadingElement>("#channel-title").textContent = ch ? `#${ch.name}` : "New channel";
   $<HTMLButtonElement>("#channel-save").textContent = ch ? "Save" : "Create channel";

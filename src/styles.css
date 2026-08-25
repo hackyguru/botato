@@ -2451,21 +2451,6 @@ textarea {
   }
 }
 
-.empty .empty__hint {
-  max-width: 380px;
-  margin: 16px 0 0;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--text-3);
-  -webkit-line-clamp: none;
-  white-space: normal;
-}
-
-.empty .empty__hint b {
-  font-weight: 600;
-  color: var(--text-2);
-}
-
 .empty p {
   max-width: 380px;
   margin: 0;
