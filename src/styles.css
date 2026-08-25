@@ -83,6 +83,18 @@ textarea {
   outline: none;
 }
 
+/* Where the keyboard is.
+ *
+ * The reset above clears the platform's ring on every field, which is right
+ * for how they look and wrong for knowing where you are: tabbing through a
+ * sheet of six fields showed nothing at all unless you had already typed
+ * something into one. `:focus-visible` rather than `:focus`, so this appears
+ * for the keyboard and not for every click. */
+:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
 ::placeholder {
   color: var(--text-3);
 }
@@ -959,7 +971,6 @@ textarea {
   color: var(--text);
   background: none;
   border: 0;
-  outline: none;
 }
 
 .find__clear {
@@ -5169,7 +5180,6 @@ body.is-dragging {
   background: var(--field);
   border: 0;
   border-radius: 6px;
-  outline: none;
 }
 
 /* In a rail there is no room for a name, and what is under it is still there,
@@ -5274,7 +5284,6 @@ body.is-dragging {
   font: inherit;
   font-size: 13.5px;
   line-height: 1.5;
-  outline: none;
   resize: none;
 }
 
@@ -5298,7 +5307,6 @@ body.is-dragging {
   color: var(--text);
   font: inherit;
   font-size: 15px;
-  outline: none;
 }
 
 .chan__group {
