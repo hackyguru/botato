@@ -95,6 +95,14 @@ textarea {
   outline-offset: 2px;
 }
 
+/* Except where you always are. Opening a conversation puts the caret in the
+   composer, so a ring there is not news — it would simply be drawn around the
+   bottom of the window at all times. The caret says the same thing quietly. */
+#input:focus-visible,
+#search:focus-visible {
+  outline: none;
+}
+
 ::placeholder {
   color: var(--text-3);
 }
