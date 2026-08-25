@@ -7876,9 +7876,19 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     searchEl.focus();
     searchEl.select();
+  } else if (meta && e.key.toLowerCase() === "f") {
+    // The two searches answer different questions and now have the key each
+    // one is looked for under: K for which conversation, F for which line in
+    // the one you are reading.
+    e.preventDefault();
+    findBox.focus();
+    findBox.select();
   } else if (e.key === "Escape") {
     if (call) endCall();
     else if (!tourWrap().hidden) endTour();
+    // Before the settings sheet it opens over, or Escape would close the sheet
+    // underneath and leave this standing on its own.
+    else if (!restoreWrap.hidden) closeRestore();
     else if (!modelsWrap.hidden) modelsWrap.hidden = true;
     else if (!channelWrap.hidden) channelWrap.hidden = true;
     else if (!routineWrap.hidden) routineWrap.hidden = true;
@@ -7889,6 +7899,9 @@ document.addEventListener("keydown", (e) => {
     else if (teach.on) void stopTeaching();
     else if (!menu.hidden) closeMenu();
     else if (!sheetWrap.hidden) sheetWrap.hidden = true;
+    // Not a panel you are trapped in, so it goes last — after everything that
+    // is covering something else.
+    else if (!found.hidden) closeFind();
     else if (!screenPane.hidden) closeScreen();
   }
 });
