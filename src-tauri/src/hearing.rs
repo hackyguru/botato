@@ -94,7 +94,7 @@ pub fn listen(app: &AppHandle, samples: &[f32]) -> Result<String, String> {
     if loaded.is_none() {
         *loaded = Some(
             WhisperContext::new_with_params(&path, WhisperContextParameters::default())
-            .map_err(|e| format!("could not load the speech model: {e}"))?,
+                .map_err(|e| format!("could not load the speech model: {e}"))?,
         );
     }
     let context = loaded.as_ref().expect("just loaded");
@@ -154,7 +154,10 @@ fn tidy(raw: &str) -> String {
     let bare = said
         .trim_matches(|c: char| !c.is_alphanumeric())
         .to_lowercase();
-    if matches!(bare.as_str(), "" | "you" | "thank you" | "thanks" | "bye" | "um" | "uh") {
+    if matches!(
+        bare.as_str(),
+        "" | "you" | "thank you" | "thanks" | "bye" | "um" | "uh"
+    ) {
         return String::new();
     }
     said.to_string()
@@ -179,13 +182,19 @@ mod tests {
             "Put the build check on Ops for Tuesday."
         );
         // An annotation in the middle should not take the sentence with it.
-        assert_eq!(tidy("Schedule it (cough) for nine."), "Schedule it  for nine.");
+        assert_eq!(
+            tidy("Schedule it (cough) for nine."),
+            "Schedule it  for nine."
+        );
     }
 
     /// "Thanks" is a real thing to say to a bot; the check is on the whole
     /// utterance being nothing but that, not on the word appearing.
     #[test]
     fn a_sentence_containing_thanks_is_not_silence() {
-        assert_eq!(tidy("Thanks, put it on Tuesday."), "Thanks, put it on Tuesday.");
+        assert_eq!(
+            tidy("Thanks, put it on Tuesday."),
+            "Thanks, put it on Tuesday."
+        );
     }
 }

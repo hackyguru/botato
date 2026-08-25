@@ -334,7 +334,10 @@ pub fn speak(
     // and a preference outranks a default.
     if let Ok(template) = std::env::var(CUSTOM) {
         if !template.trim().is_empty() {
-            return borrowed(&template.replace("{voice}", voice.unwrap_or_default()), text);
+            return borrowed(
+                &template.replace("{voice}", voice.unwrap_or_default()),
+                text,
+            );
         }
     }
 
@@ -411,9 +414,8 @@ fn envelope(wav: &[u8]) -> Option<Vec<f32>> {
     if wav.len() < 12 || &wav[0..4] != b"RIFF" || &wav[8..12] != b"WAVE" {
         return None;
     }
-    let word = |at: usize| -> Option<u16> {
-        Some(u16::from_le_bytes([*wav.get(at)?, *wav.get(at + 1)?]))
-    };
+    let word =
+        |at: usize| -> Option<u16> { Some(u16::from_le_bytes([*wav.get(at)?, *wav.get(at + 1)?])) };
     let long = |at: usize| {
         Some(u32::from_le_bytes([
             *wav.get(at)?,
@@ -462,7 +464,11 @@ fn envelope(wav: &[u8]) -> Option<Vec<f32>> {
             sum += value * value;
             count += 1;
         }
-        let rms = if count == 0 { 0.0 } else { (sum / count as f64).sqrt() as f32 };
+        let rms = if count == 0 {
+            0.0
+        } else {
+            (sum / count as f64).sqrt() as f32
+        };
         peak = peak.max(rms);
         levels.push(rms);
     }
@@ -478,11 +484,7 @@ fn envelope(wav: &[u8]) -> Option<Vec<f32>> {
 }
 
 /// Run a synthesiser that writes a file, then play the file.
-fn rendered(
-    app: &tauri::AppHandle,
-    mut cmd: Command,
-    wav: &std::path::Path,
-) -> Result<(), String> {
+fn rendered(app: &tauri::AppHandle, mut cmd: Command, wav: &std::path::Path) -> Result<(), String> {
     let made = cmd
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -503,7 +505,10 @@ fn rendered(
     if let Ok(bytes) = std::fs::read(wav) {
         if let Some(levels) = envelope(&bytes) {
             use tauri::Emitter;
-            let _ = app.emit("mouth", serde_json::json!({ "step": STEP_MS, "levels": levels }));
+            let _ = app.emit(
+                "mouth",
+                serde_json::json!({ "step": STEP_MS, "levels": levels }),
+            );
         }
     }
 
@@ -661,7 +666,14 @@ Daniel              en_GB    # Hello! My name is Daniel.
         if voices.is_empty() {
             return;
         }
-        for singing in ["Cellos", "Good News", "Bad News", "Bells", "Organ", "Zarvox"] {
+        for singing in [
+            "Cellos",
+            "Good News",
+            "Bad News",
+            "Bells",
+            "Organ",
+            "Zarvox",
+        ] {
             assert!(
                 !voices.iter().any(|v| v.split(" (").next() == Some(singing)),
                 "{singing} is still on offer"
@@ -807,8 +819,16 @@ Pty Language       Age/Gender VoiceName          File                 Other Lang
             "expected about 22 steps, got {}",
             levels.len()
         );
-        assert!(levels[3] > 0.8, "the loud half should be loud: {}", levels[3]);
-        assert!(levels[18] < 0.05, "the silent half should be silent: {}", levels[18]);
+        assert!(
+            levels[3] > 0.8,
+            "the loud half should be loud: {}",
+            levels[3]
+        );
+        assert!(
+            levels[18] < 0.05,
+            "the silent half should be silent: {}",
+            levels[18]
+        );
     }
 
     #[test]

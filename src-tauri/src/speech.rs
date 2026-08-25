@@ -85,7 +85,9 @@ pub fn ready(app: &AppHandle) -> bool {
 /// The voices installed, by the name a bot is given.
 #[must_use]
 pub fn voices(app: &AppHandle) -> Vec<String> {
-    let Ok(dir) = home(app) else { return Vec::new() };
+    let Ok(dir) = home(app) else {
+        return Vec::new();
+    };
     let Ok(entries) = std::fs::read_dir(dir.join("voices")) else {
         return Vec::new();
     };
@@ -188,7 +190,10 @@ fn unpack(tar: &Path, into: &Path) -> Result<(), String> {
     }
     Err(format!(
         "could not unpack: {}",
-        String::from_utf8_lossy(&out.stderr).lines().last().unwrap_or("")
+        String::from_utf8_lossy(&out.stderr)
+            .lines()
+            .last()
+            .unwrap_or("")
     ))
 }
 
@@ -197,14 +202,22 @@ fn unpack(tar: &Path, into: &Path) -> Result<(), String> {
 /// sherpa writes a file rather than a stream, so the caller plays it and
 /// removes it. At two thirds of a second for a sentence that is a round trip
 /// nobody hears, and it keeps this a command rather than a protocol.
-pub fn command(app: &AppHandle, voice: Option<&str>, text: &str) -> Result<(Command, PathBuf), String> {
+pub fn command(
+    app: &AppHandle,
+    voice: Option<&str>,
+    text: &str,
+) -> Result<(Command, PathBuf), String> {
     let dir = home(app)?;
     let model = dir.join(MODEL);
     let chosen = voice
         .filter(|v| !v.is_empty())
         .map(|v| dir.join("voices").join(format!("{v}.wav")))
         .filter(|p| p.is_file())
-        .or_else(|| voices(app).first().map(|v| dir.join("voices").join(format!("{v}.wav"))))
+        .or_else(|| {
+            voices(app)
+                .first()
+                .map(|v| dir.join("voices").join(format!("{v}.wav")))
+        })
         .ok_or("no voices installed")?;
 
     let out = std::env::temp_dir().join(format!(
@@ -213,22 +226,37 @@ pub fn command(app: &AppHandle, voice: Option<&str>, text: &str) -> Result<(Comm
     ));
 
     let mut cmd = Command::new(binary(app)?);
-    cmd.arg(format!("--pocket-lm-flow={}", model.join("lm_flow.int8.onnx").display()))
-        .arg(format!("--pocket-lm-main={}", model.join("lm_main.int8.onnx").display()))
-        .arg(format!("--pocket-encoder={}", model.join("encoder.onnx").display()))
-        .arg(format!("--pocket-decoder={}", model.join("decoder.int8.onnx").display()))
-        .arg(format!(
-            "--pocket-text-conditioner={}",
-            model.join("text_conditioner.onnx").display()
-        ))
-        .arg(format!("--pocket-vocab-json={}", model.join("vocab.json").display()))
-        .arg(format!(
-            "--pocket-token-scores-json={}",
-            model.join("token_scores.json").display()
-        ))
-        .arg(format!("--reference-audio={}", chosen.display()))
-        .arg(format!("--output-filename={}", out.display()))
-        .arg("--num-threads=4")
-        .arg(text);
+    cmd.arg(format!(
+        "--pocket-lm-flow={}",
+        model.join("lm_flow.int8.onnx").display()
+    ))
+    .arg(format!(
+        "--pocket-lm-main={}",
+        model.join("lm_main.int8.onnx").display()
+    ))
+    .arg(format!(
+        "--pocket-encoder={}",
+        model.join("encoder.onnx").display()
+    ))
+    .arg(format!(
+        "--pocket-decoder={}",
+        model.join("decoder.int8.onnx").display()
+    ))
+    .arg(format!(
+        "--pocket-text-conditioner={}",
+        model.join("text_conditioner.onnx").display()
+    ))
+    .arg(format!(
+        "--pocket-vocab-json={}",
+        model.join("vocab.json").display()
+    ))
+    .arg(format!(
+        "--pocket-token-scores-json={}",
+        model.join("token_scores.json").display()
+    ))
+    .arg(format!("--reference-audio={}", chosen.display()))
+    .arg(format!("--output-filename={}", out.display()))
+    .arg("--num-threads=4")
+    .arg(text);
     Ok((cmd, out))
 }

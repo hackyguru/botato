@@ -20,7 +20,10 @@ fn main() {
         // Asked for rather than hardcoded: the path carries the clang version,
         // so it moves with every Xcode update.
         if let Some(dir) = dir {
-            if std::path::Path::new(&dir).join("libclang_rt.osx.a").is_file() {
+            if std::path::Path::new(&dir)
+                .join("libclang_rt.osx.a")
+                .is_file()
+            {
                 println!("cargo:rustc-link-search=native={dir}");
                 println!("cargo:rustc-link-lib=static=clang_rt.osx");
             }

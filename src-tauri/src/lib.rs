@@ -475,7 +475,12 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     // Kept for every engine, not only the ones that need it read back. It costs
     // a line per message, and it is what lets a bot keep its thread when the
     // thing answering for it changes.
-    let _ = transcript::append(&cwd, req.thread.as_deref(), transcript::Voice::User, &req.prompt);
+    let _ = transcript::append(
+        &cwd,
+        req.thread.as_deref(),
+        transcript::Voice::User,
+        &req.prompt,
+    );
 
     let stdout = child
         .stdout
