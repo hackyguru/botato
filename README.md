@@ -164,6 +164,29 @@ you completed once does not have to be repeated because you changed model.
 MCP is how a connector is implemented, not something an engine has to
 understand — see [`inference.rs`](src-tauri/src/inference.rs).
 
+## Backups
+
+What botcage keeps is about half a gigabyte and almost none of it matters: the
+speech models, the container engine and the model catalogue are all fetched, and
+fetched again as easily. What cannot be is a couple of megabytes — conversations,
+memory files, workspaces, routines — and it is in a worse place than anyone would
+guess, because the conversations live in the webview's `localStorage` rather than
+in botcage's own folder.
+
+So: one encrypted file, written on a schedule to a folder you name. Point it at
+iCloud Drive, Dropbox or a disk you plug in and the copy is off the machine
+without botcage holding an account anywhere. It carries no API keys, no OAuth
+tokens and no phone pairing, so it is not a credential store — restoring means
+reconnecting accounts and pairing a phone again.
+
+Argon2id to XChaCha20-Poly1305, the cost parameters travelling in the header and
+authenticated with it. An encrypted backup you can only open with the program
+that died is not a backup, so the format is written down in
+[`backup.rs`](src-tauri/src/backup.rs) and
+[`scripts/open-backup.py`](scripts/open-backup.py) recovers one with nothing but
+Python and `cryptography` — botcage uninstalled, on a machine that has never
+seen it.
+
 ## The phone app
 
 [`mobile/`](mobile/) is a React Native app for iOS and Android. It holds no state

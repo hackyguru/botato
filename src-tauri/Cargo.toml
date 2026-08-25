@@ -39,6 +39,7 @@ argon2 = "0.5"
 tar = "0.4"
 flate2 = "1"
 rand = "0.8"
+tauri-plugin-dialog = "2"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

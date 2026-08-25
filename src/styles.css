@@ -3745,6 +3745,87 @@ a.detail__source:hover {
   background: rgba(255, 255, 255, 0.11);
 }
 
+/* A row naming a file, which may be longer than the sheet is wide. Without
+ * this the whole settings panel scrolls sideways to fit one filename. */
+#app-backup-list .device {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A sheet with one question in it. */
+.sheet--narrow {
+  max-width: 420px;
+}
+
+.sheet--narrow .sheet__body {
+  align-items: stretch;
+  gap: 14px;
+}
+
+.sheet--narrow .sheet__body input {
+  width: 100%;
+  /* .picker caps itself at 46% so a select cannot squeeze its label. In a
+     sheet of its own the field is the row, so the cap has to go rather than
+     be fought with a wider width that cannot win against a max. */
+  max-width: none;
+  text-align: left;
+}
+
+/* What the button is about to do, said in the colour of doing it. */
+.restore__warn {
+  color: var(--text);
+}
+
+/* Qualified because .btn-primary is defined further down and would otherwise
+   win on order alone. */
+.btn-primary.danger-btn {
+  background: var(--red);
+}
+
+.btn-primary.danger-btn:hover {
+  filter: brightness(1.08);
+}
+
+.sheet__foot .chip {
+  margin-right: auto;
+}
+
+/* A field and the button that acts on it, side by side.
+ *
+ * The field fills what is left. `.picker--text` is 46% wide and right-aligned
+ * because everywhere else it sits opposite a label; in a row it is the row, so
+ * both are overridden here rather than by inventing a second input class. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.row > input {
+  flex: 1;
+  width: auto;
+  /* Same cap as in a narrow sheet, same reason. */
+  max-width: none;
+  min-width: 0;
+  text-align: left;
+}
+
+.row > .btn-primary,
+.row > .chip {
+  flex: none;
+}
+
+/* A paragraph at the top of a settings panel, for the one thing a person needs
+ * to know before any of the controls under it mean anything. */
+.setting__note {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
 .settings-panel {
   display: flex;
   flex-direction: column;

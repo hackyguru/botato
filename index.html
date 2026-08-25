@@ -680,6 +680,7 @@
           <button type="button" class="tab" role="tab" data-tab="desktops" aria-selected="false">Desktops</button>
           <button type="button" class="tab" role="tab" data-tab="power" aria-selected="false">Power</button>
           <button type="button" class="tab" role="tab" data-tab="phone" aria-selected="false">Phone</button>
+          <button type="button" class="tab" role="tab" data-tab="backup" aria-selected="false">Backup</button>
         </div>
         <div class="sheet__body">
           <div class="settings-panel" data-tab="general" role="tabpanel">
@@ -864,9 +865,103 @@
               </div>
             </div>
           </div>
+
+          <div class="settings-panel" data-tab="backup" role="tabpanel" hidden>
+            <div class="settings">
+              <p class="setting__note">
+                Your conversations are not kept in botcage's own folder — they live in the
+                window's storage, which is easy to lose and hard to find. A backup is one
+                encrypted file holding every conversation, channel, memory and routine.
+                It carries no keys, tokens or phone pairing, so it is safe to keep anywhere.
+              </p>
+
+              <div class="setting setting--stack">
+                <span class="setting__label">Passphrase
+                  <span class="setting__hint" id="app-backup-pass-hint">Not set. This is the only
+                    thing between the backup and whoever finds it — and the only way to open one,
+                    so keep it somewhere that is not this machine.</span>
+                </span>
+                <div class="row">
+                  <input id="app-backup-pass" class="picker picker--text" type="password"
+                         placeholder="At least eight characters" autocomplete="new-password" />
+                  <button type="button" class="chip" id="app-backup-pass-save"><span>Set</span></button>
+                </div>
+              </div>
+
+              <div class="setting setting--stack">
+                <span class="setting__label">Folder
+                  <span class="setting__hint">Point this at iCloud Drive, Dropbox or a drive you
+                    plug in, and the backup is off this machine without botcage having an account
+                    anywhere.</span>
+                </span>
+                <div class="row">
+                  <input id="app-backup-folder" class="picker picker--text" spellcheck="false"
+                         placeholder="No folder chosen" />
+                  <button type="button" class="chip" id="app-backup-pick"><span>Choose…</span></button>
+                </div>
+              </div>
+
+              <label class="setting">
+                <span class="setting__label">Back up
+                  <span class="setting__hint">Only while botcage is open, like routines.</span>
+                </span>
+                <select id="app-backup-every" class="picker">
+                  <option value="off">Never</option>
+                  <option value="day">Every day</option>
+                  <option value="week">Every week</option>
+                </select>
+              </label>
+
+              <label class="setting">
+                <span class="setting__label">Keep
+                  <span class="setting__hint">Older ones are deleted after a good new one.</span>
+                </span>
+                <select id="app-backup-keep" class="picker">
+                  <option value="3">The last 3</option>
+                  <option value="7">The last 7</option>
+                  <option value="30">The last 30</option>
+                </select>
+              </label>
+
+              <div class="setting setting--stack">
+                <span class="setting__label">Backups
+                  <span class="setting__hint" id="app-backup-state">None yet.</span>
+                </span>
+                <div class="devices" id="app-backup-list"></div>
+                <div class="row">
+                  <button type="button" class="btn-primary" id="app-backup-now">Back up now</button>
+                  <button type="button" class="chip" id="app-backup-restore"><span>Restore…</span></button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="sheet__foot">
           <button type="button" class="btn-primary" id="app-settings-done">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="restore-wrap" hidden>
+      <div class="sheet sheet--narrow">
+        <div class="sheet__head">
+          <h2>Restore from a backup</h2>
+          <button type="button" class="icon-btn icon-btn--sm" id="restore-close" aria-label="Close">
+            <svg><use href="#i-x" /></svg>
+          </button>
+        </div>
+        <div class="sheet__body">
+          <p class="setting__note" id="restore-what">—</p>
+          <p class="setting__note restore__warn">
+            Everything in botcage now — every bot, conversation and channel — is replaced by what
+            is in this backup. What is here is not kept.
+          </p>
+          <input id="restore-pass" class="picker picker--text" type="password"
+                 placeholder="Passphrase for this backup" autocomplete="off" />
+        </div>
+        <div class="sheet__foot">
+          <button type="button" class="chip" id="restore-cancel"><span>Cancel</span></button>
+          <button type="button" class="btn-primary danger-btn" id="restore-go">Replace everything</button>
         </div>
       </div>
     </div>

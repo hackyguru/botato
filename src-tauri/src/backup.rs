@@ -49,12 +49,6 @@
 //! The header is passed as associated data, so the cost parameters cannot be
 //! edited down to make an attacker's work cheaper without the tag failing.
 
-// Nothing calls this yet: the commands, the settings and the timer are the
-// next commit. A backup format and the app plumbing around it landing together
-// would be a change nobody could review, and this is the half worth reading
-// closely. The allow goes when it is wired up.
-#![allow(dead_code)]
-
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 

@@ -294,6 +294,14 @@ interface AppSettings {
   /** Phone access was switched on. Restored at launch: a paired phone away from
    *  the house cannot ask anyone to flip a switch on the laptop. */
   remoteOn: boolean;
+  /** Where encrypted backups are written. Absent until someone picks one. */
+  backupFolder?: string;
+  /** How often, while botcage is open. */
+  backupEvery?: "off" | "day" | "week";
+  /** How many to keep in that folder before the oldest is deleted. */
+  backupKeep?: number;
+  /** When the last good one was written. */
+  backupAt?: number;
 }
 
 const DEFAULT_APP: AppSettings = {
@@ -5207,8 +5215,229 @@ function wireTabs(root: HTMLElement): (name: string) => void {
 const showSettingsTab = wireTabs($<HTMLElement>("#app-settings"));
 const showSheetTab = wireTabs($<HTMLElement>("#sheet-wrap"));
 
+/* ------------------------------------------------------------------ backups */
+
+/** One encrypted file holding the part of botcage that cannot be downloaded
+ *  again.
+ *
+ *  The window's own store goes with it, and has to: the conversations live in
+ *  localStorage rather than in botcage's data folder, so a backup made by
+ *  walking the disk would look complete and hold none of them. */
+
+/** A folder to write backups into. */
+async function openFolder(): Promise<string | null> {
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const picked = await open({ directory: true, multiple: false, title: "Where to keep backups" });
+  return typeof picked === "string" ? picked : null;
+}
+
+/** One archive to restore from. */
+async function openBackupFile(): Promise<string | null> {
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const picked = await open({
+    directory: false,
+    multiple: false,
+    title: "Which backup",
+    filters: [{ name: "botcage backup", extensions: ["backup"] }],
+  });
+  return typeof picked === "string" ? picked : null;
+}
+
+/** How long ago, in the roundest terms that are still true. */
+function ago(at: number): string {
+  const mins = Math.max(0, Math.round((Date.now() - at) / 60000));
+  if (mins < 2) return "just now";
+  if (mins < 60) return `${mins} minutes ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+const backupPass = $<HTMLInputElement>("#app-backup-pass");
+const backupFolder = $<HTMLInputElement>("#app-backup-folder");
+const backupEvery = $<HTMLSelectElement>("#app-backup-every");
+const backupKeep = $<HTMLSelectElement>("#app-backup-keep");
+const backupList = $<HTMLDivElement>("#app-backup-list");
+const backupState = $<HTMLSpanElement>("#app-backup-state");
+
+interface BackupFile {
+  name: string;
+  path: string;
+  bytes: number;
+}
+
+function backupSettings(): void {
+  const app = appSettings();
+  backupFolder.value = app.backupFolder ?? "";
+  backupEvery.value = app.backupEvery ?? "off";
+  backupKeep.value = String(app.backupKeep ?? 7);
+}
+
+async function paintBackups(): Promise<void> {
+  const has = await invoke<boolean>("backup_ready").catch(() => false);
+  $<HTMLSpanElement>("#app-backup-pass-hint").textContent = has
+    ? "Set. Changing it does not re-encrypt the backups you already have — those still open with the one they were made with."
+    : "Not set. This is the only thing between the backup and whoever finds it — and the only way to open one, so keep it somewhere that is not this machine.";
+  backupPass.placeholder = has ? "Change it" : "At least eight characters";
+
+  const folder = appSettings().backupFolder;
+  if (!folder) {
+    backupList.replaceChildren();
+    backupState.textContent = "No folder chosen yet.";
+    return;
+  }
+
+  const files = await invoke<BackupFile[]>("backup_list", { folder }).catch(() => []);
+  backupList.replaceChildren(
+    ...files.slice(0, 6).map((file) => {
+      const row = document.createElement("div");
+      row.className = "device";
+      row.textContent = `${file.name} · ${Math.max(1, Math.round(file.bytes / 1024))} KB`;
+      return row;
+    }),
+  );
+  const when = appSettings().backupAt;
+  backupState.textContent = files.length
+    ? `${files.length} in that folder${when ? `, last one ${ago(when)}` : ""}.`
+    : "None in that folder yet.";
+}
+
+/** Write one now, whoever asked — the button or the clock. */
+async function backupNow(quiet = false): Promise<boolean> {
+  const app = appSettings();
+  if (!app.backupFolder) {
+    if (!quiet) toast("Choose a folder for your backups first");
+    return false;
+  }
+  try {
+    await invoke<string>("backup_now", {
+      // The whole of what the window keeps, which is the thing worth saving.
+      state: JSON.stringify(state),
+      folder: app.backupFolder,
+      keep: app.backupKeep ?? 7,
+    });
+    state.app = { ...appSettings(), backupAt: Date.now() };
+    save();
+    if (!quiet) toast("Backed up");
+    void paintBackups();
+    return true;
+  } catch (err) {
+    // Said out loud even when the clock asked: a backup that has been failing
+    // silently for a month is worse than one that was never set up.
+    toast(String(err));
+    return false;
+  }
+}
+
+/** Due, by the clock. Checked on the same timer as routines. */
+function backupDue(): boolean {
+  const app = appSettings();
+  const every = app.backupEvery ?? "off";
+  if (every === "off" || !app.backupFolder) return false;
+  const gap = every === "day" ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+  return Date.now() - (app.backupAt ?? 0) >= gap;
+}
+
+backupEvery.addEventListener("change", () => {
+  state.app = { ...appSettings(), backupEvery: backupEvery.value as "off" | "day" | "week" };
+  save();
+});
+
+backupKeep.addEventListener("change", () => {
+  state.app = { ...appSettings(), backupKeep: Number(backupKeep.value) };
+  save();
+});
+
+backupFolder.addEventListener("change", () => {
+  state.app = { ...appSettings(), backupFolder: backupFolder.value.trim() || undefined };
+  save();
+  void paintBackups();
+});
+
+$<HTMLButtonElement>("#app-backup-pass-save").addEventListener("click", () => {
+  const word = backupPass.value;
+  void invoke("backup_passphrase", { passphrase: word })
+    .then(() => {
+      backupPass.value = "";
+      toast("Passphrase set");
+      void paintBackups();
+    })
+    .catch((err) => toast(String(err)));
+});
+
+$<HTMLButtonElement>("#app-backup-pick").addEventListener("click", () => {
+  void openFolder().then((picked: string | null) => {
+    if (!picked) return;
+    backupFolder.value = picked;
+    state.app = { ...appSettings(), backupFolder: picked };
+    save();
+    void paintBackups();
+  });
+});
+
+$<HTMLButtonElement>("#app-backup-now").addEventListener("click", () => void backupNow());
+
+$<HTMLButtonElement>("#app-backup-restore").addEventListener("click", () => void restoreBackup());
+
+/** Put one back.
+ *
+ *  Asks in a sheet of our own rather than with prompt(), which the webview does
+ *  not implement — it returns null without drawing anything, so the first
+ *  version of this silently did nothing at all. The passphrase is asked for
+ *  rather than taken from the keychain, because restoring a backup made on
+ *  another machine is the whole case this exists for.
+ *
+ *  The warning and the button are the confirmation. A dialog that says what is
+ *  about to happen, next to a button that says it too, beats a second dialog
+ *  asking whether you meant the first one. */
+const restoreWrap = $<HTMLDivElement>("#restore-wrap");
+const restorePass = $<HTMLInputElement>("#restore-pass");
+let restoring: string | null = null;
+
+async function restoreBackup(): Promise<void> {
+  const file = await openBackupFile();
+  if (!file) return;
+  restoring = file;
+  restorePass.value = "";
+  $<HTMLParagraphElement>("#restore-what").textContent =
+    `From ${file.split("/").pop() ?? file}.`;
+  restoreWrap.hidden = false;
+  restorePass.focus();
+}
+
+function closeRestore(): void {
+  restoreWrap.hidden = true;
+  restoring = null;
+  restorePass.value = "";
+}
+
+$<HTMLButtonElement>("#restore-close").addEventListener("click", closeRestore);
+$<HTMLButtonElement>("#restore-cancel").addEventListener("click", closeRestore);
+
+$<HTMLButtonElement>("#restore-go").addEventListener("click", () => {
+  const path = restoring;
+  const word = restorePass.value;
+  if (!path) return;
+  if (!word) {
+    toast("Enter the passphrase this backup was made with");
+    return;
+  }
+  void invoke<string>("backup_restore", { path, passphrase: word })
+    .then((restored) => {
+      // Written straight to storage rather than merged: a half-restored roster
+      // is worse than either end of the operation. The reload is what picks it
+      // up, because everything in the window was built from the old one.
+      localStorage.setItem(STORE, restored);
+      window.location.reload();
+    })
+    .catch((err) => toast(String(err)));
+});
+
 async function openAppSettings(): Promise<void> {
   showSettingsTab("general");
+  backupSettings();
+  void paintBackups();
   void paintSpeech();
   const settings = appSettings();
   $<HTMLInputElement>("#app-name").value = settings.name ?? "";
@@ -8578,6 +8807,13 @@ input.focus();
 // Routines are checked here rather than in Rust: the state they read lives in
 // the webview, and nothing can fire while the app is closed anyway.
 window.setInterval(tickRoutines, 30_000);
+
+// The same clock and the same caveat for backups. Checked rarely, because the
+// gap being watched is a day at its shortest and a backup that runs while a bot
+// is answering would only make the archive a moment older.
+window.setInterval(() => {
+  if (backupDue() && !inflight.size) void backupNow(true);
+}, 5 * 60_000);
 
 // A desktop you are watching should not be reaped for idleness.
 window.setInterval(() => {

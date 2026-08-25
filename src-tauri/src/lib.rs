@@ -861,6 +861,109 @@ fn cancel(app: AppHandle, running: tauri::State<Running>, bot_id: String) {
     }
 }
 
+/* --------------------------------------------------------------- backups */
+
+/// Where the passphrase lives between backups.
+///
+/// In the keychain, beside the API keys and connector tokens, because an
+/// unattended backup cannot stop and ask. The passphrase is what makes the
+/// archive portable — the keychain copy is only so the timer does not need a
+/// person present.
+const BACKUP_SECRET: &str = "backup-passphrase";
+
+/// Whether botcage is holding a passphrase, without saying what it is.
+#[tauri::command]
+fn backup_ready() -> bool {
+    connectors::read_secret(BACKUP_SECRET).is_some_and(|word| !word.is_empty())
+}
+
+/// Set or change the passphrase.
+///
+/// Changing it does not re-encrypt the archives already written: those still
+/// open with the passphrase they were made with, which is worth knowing before
+/// you forget it.
+#[tauri::command]
+fn backup_passphrase(passphrase: String) -> Result<(), String> {
+    if passphrase.chars().count() < 8 {
+        return Err(
+            "use at least eight characters — this is the only thing between the backup \
+                    and whoever finds it"
+                .into(),
+        );
+    }
+    connectors::write_secret(BACKUP_SECRET, &passphrase)
+}
+
+/// One archive, now.
+///
+/// `state` is the window's own store: the conversations are in the webview and
+/// this process cannot read them, so they are handed over rather than found.
+#[tauri::command]
+fn backup_now(
+    app: AppHandle,
+    state: String,
+    folder: String,
+    keep: usize,
+) -> Result<String, String> {
+    let word = connectors::read_secret(BACKUP_SECRET)
+        .filter(|w| !w.is_empty())
+        .ok_or("set a passphrase first — a backup without one is only a copy")?;
+    let data = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("no app data dir: {e}"))?;
+    let into = PathBuf::from(&folder);
+
+    let written = backup::write(&data, &state, &word, &into)?;
+    // Only ever after a good one. Tidying first would be a way of throwing away
+    // the last copy immediately before failing to make a new one.
+    backup::prune(&into, keep.max(1));
+    Ok(written.display().to_string())
+}
+
+/// The archives in a folder, newest first.
+#[tauri::command]
+fn backup_list(folder: String) -> Vec<Value> {
+    let Ok(entries) = fs::read_dir(&folder) else {
+        return Vec::new();
+    };
+    let mut found: Vec<Value> = entries
+        .flatten()
+        .filter(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            name.starts_with("botcage-") && name.ends_with(".backup")
+        })
+        .map(|e| {
+            let size = e.metadata().map(|m| m.len()).unwrap_or(0);
+            serde_json::json!({
+                "name": e.file_name().to_string_lossy(),
+                "path": e.path().display().to_string(),
+                "bytes": size,
+            })
+        })
+        .collect();
+    // The names carry the time they were taken, so this is chronological.
+    found.sort_by(|a, b| b["name"].as_str().cmp(&a["name"].as_str()));
+    found
+}
+
+/// Open one, put the files back, and hand the window its store.
+///
+/// The window is what finishes the job: it takes the state, saves it, and
+/// reloads. Doing it here would mean a Rust process reaching into the webview's
+/// storage, which is exactly the coupling the rest of botcage avoids.
+#[tauri::command]
+fn backup_restore(app: AppHandle, path: String, passphrase: String) -> Result<String, String> {
+    let sealed = fs::read(&path).map_err(|e| format!("could not read {path}: {e}"))?;
+    let restored = backup::read(&sealed, &passphrase)?;
+    let data = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("no app data dir: {e}"))?;
+    restored.unpack(&data)?;
+    Ok(restored.state)
+}
+
 /// What a bot decided it should look like, if it changed its face this turn.
 ///
 /// Read once and removed: the file is a message from a process that has since
@@ -1356,6 +1459,9 @@ fn teach_name(app: AppHandle, bot_id: String, slug: String) -> Option<String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        // Only so a person can point at a folder for their backups. botcage
+        // never opens one on its own.
+        .plugin(tauri_plugin_dialog::init())
         .manage(Running::default())
         .manage(sandbox::Sandboxes::default())
         .invoke_handler(tauri::generate_handler![
@@ -1364,6 +1470,11 @@ pub fn run() {
             forget_bot,
             clear_thread,
             take_face,
+            backup_ready,
+            backup_passphrase,
+            backup_now,
+            backup_list,
+            backup_restore,
             take_routines,
             speak,
             hush,
