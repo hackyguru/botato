@@ -127,6 +127,13 @@ export default function Bots({
   const [role, setRole] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Rooms, each followed by its threads. Flattened once rather than inside the
+  // map, so a row can ask what comes after it — which is how the last thread
+  // under a room knows to close the branch it hangs from.
+  const rooms: Channel[] = channels
+    .filter((c) => !c.from)
+    .flatMap((room) => [room, ...channels.filter((t) => t.from?.channelId === room.id)]);
+
   async function create() {
     if (!name.trim() || busy) return;
     setBusy(true);
@@ -204,25 +211,41 @@ export default function Bots({
         {channels.filter((c) => !c.from).length ? (
           <Text style={s.group}>CHANNELS</Text>
         ) : null}
-        {channels
-          .filter((c) => !c.from)
-          .flatMap((room) => [room, ...channels.filter((t) => t.from?.channelId === room.id)])
-          .map((ch) => {
-            const news = unreadIn(ch.messages, ch.seenAt, called);
-            const inside = ch.members
-              .map((id) => bots.find((b) => b.id === id))
-              .filter((b): b is Bot => Boolean(b));
-            return (
-              <Pressable
-                key={ch.id}
-                style={[s.row, ch.from ? s.threadRow : null]}
-                onPress={() => onOpenChannel(ch)}
-              >
-                <Text style={[s.hash, ch.from ? s.threadHash : null]}>{ch.from ? "↳" : "#"}</Text>
-                <View style={s.rowBody}>
-                  <Text style={[s.name, news.unread ? s.unreadName : null]} numberOfLines={1}>
-                    {ch.name}
-                  </Text>
+        {rooms.map((ch, n) => {
+          const news = unreadIn(ch.messages, ch.seenAt, called);
+          const inside = ch.members
+            .map((id) => bots.find((b) => b.id === id))
+            .filter((b): b is Bot => Boolean(b));
+          const thread = !!ch.from;
+          // The last thread under a room turns the branch into an elbow, so the
+          // line stops at the thing it points to rather than running on past
+          // it into nothing.
+          const last = thread && !rooms[n + 1]?.from;
+          return (
+            <Pressable
+              key={ch.id}
+              style={[s.row, thread && s.threadRow]}
+              onPress={() => onOpenChannel(ch)}
+            >
+              {thread ? (
+                <>
+                  <View style={[s.branch, last && s.branchLast]} />
+                  <View style={s.elbow} />
+                </>
+              ) : (
+                <Text style={s.hash}>#</Text>
+              )}
+              <View style={s.rowBody}>
+                <Text
+                  style={[thread ? s.threadName : s.name, news.unread ? s.unreadName : null]}
+                  numberOfLines={1}
+                >
+                  {ch.name}
+                </Text>
+                {/* Who is in a thread is who is in the room it hangs off, so
+                    saying it again under every one is the same names three
+                    times down the screen. */}
+                {thread ? null : (
                   <Text style={s.preview} numberOfLines={1}>
                     {ch.busy
                       ? "Talking…"
@@ -230,11 +253,12 @@ export default function Bots({
                         ? inside.map((b) => b.name).join(", ")
                         : "Nobody in it yet"}
                   </Text>
-                </View>
-                <Badge unread={news.unread} mentions={news.mentions} />
-              </Pressable>
-            );
-          })}
+                )}
+              </View>
+              <Badge unread={news.unread} mentions={news.mentions} />
+            </Pressable>
+          );
+        })}
 
         {channels.filter((c) => !c.from).length && bots.length ? (
           <Text style={s.group}>BOTS</Text>
@@ -294,8 +318,14 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
   hash: { width: 34, textAlign: "center", color: T.text2, fontSize: 21 },
-  threadRow: { paddingLeft: 18 },
-  threadHash: { fontSize: 17 },
+
+  /* A thread carries no icon of its own: the branch says what it is, and a
+     glyph on every line only competes with the room's hash above it. */
+  threadRow: { paddingTop: 7, paddingBottom: 7, paddingLeft: 52 },
+  threadName: { color: T.text2, fontSize: 14.5 },
+  branch: { position: "absolute", left: 26, top: 0, bottom: 0, width: 2, backgroundColor: T.line },
+  branchLast: { bottom: "50%", borderBottomLeftRadius: 4 },
+  elbow: { position: "absolute", left: 26, top: "50%", width: 12, height: 2, backgroundColor: T.line },
   unreadName: { color: T.text, fontWeight: "600" },
 
   head: {
