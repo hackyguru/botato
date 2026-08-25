@@ -27,6 +27,12 @@ pub struct Bot {
     /// colleague's calendar without knowing the colleague exists, and names
     /// are what one bot calls another — ids are botcage's business.
     pub colleagues: Vec<String>,
+    /// Whether this bot needs somewhere to read and write files.
+    ///
+    /// Only for an engine that has no file tools of its own. Claude Code and
+    /// Gemini arrive with better ones, and offering a second, worse set would
+    /// mean a bot choosing between them for no reason.
+    pub files: bool,
 }
 
 /// Fallback when the bot was started without a size, matching the Dockerfile.
@@ -466,6 +472,17 @@ fn set_look(bot: &Bot, args: &Value) -> Value {
 }
 
 fn tool_specs(bot: &Bot) -> Value {
+    let mut specs = base_specs(bot);
+    // Added rather than built in, because most bots already have better ones.
+    if bot.files {
+        if let Some(list) = specs.as_array_mut() {
+            list.extend(crate::files::specs());
+        }
+    }
+    specs
+}
+
+fn base_specs(bot: &Bot) -> Value {
     let (w, h) = screen_of(bot);
     json!([
         {
@@ -770,6 +787,18 @@ fn call_tool(bot: &Bot, params: &Value) -> Value {
     if name == "schedule" {
         return set_routine(bot, &params["arguments"]);
     }
+
+    // A bot's own folder, for an engine that cannot open a file itself. Before
+    // the desktop too: these are the same directory the desktop mounts as
+    // ~/work, and reading it does not require the machine to be switched on.
+    if bot.files {
+        if let Some(done) = crate::files::call(&bot.workspace, name, &params["arguments"]) {
+            return match done {
+                Ok(said) => text_result(said, false),
+                Err(why) => text_result(why, true),
+            };
+        }
+    }
     let args = params
         .get("arguments")
         .cloned()
@@ -914,7 +943,81 @@ mod tests {
             workspace: dir,
             brand: Default::default(),
             colleagues: vec!["Ops".into(), "Research".into()],
+            files: false,
         }
+    }
+
+    /// Which bots are handed a way into the filesystem, and which are not.
+    ///
+    /// Two failures live here and neither announces itself. Offering these to
+    /// a Claude Code bot gives it a second, worse Read to choose between. Not
+    /// offering them to a hosted bot leaves it unable to open its own notes,
+    /// which is most of what a bot is for. So the flag is asserted from both
+    /// sides.
+    #[test]
+    fn only_a_bot_without_file_tools_of_its_own_is_given_these() {
+        let named = |bot: &Bot| -> Vec<String> {
+            tool_specs(bot)
+                .as_array()
+                .expect("tools")
+                .iter()
+                .filter_map(|t| t["name"].as_str().map(str::to_string))
+                .collect()
+        };
+
+        let mut bot = a_bot("gating");
+        let without = named(&bot);
+        assert!(without.contains(&"set_appearance".to_string()));
+        assert!(
+            !without.iter().any(|name| name == "read_file"),
+            "an engine with its own Read must not be offered a second one: {without:?}"
+        );
+
+        bot.files = true;
+        let with = named(&bot);
+        for tool in ["read_file", "write_file", "list_files", "find_in_files"] {
+            assert!(with.contains(&tool.to_string()), "{tool} missing: {with:?}");
+        }
+        // And it did not lose anything by gaining them.
+        assert!(with.contains(&"set_appearance".to_string()));
+
+        // The names the app grants must be the names the server answers to. If
+        // these drift, a bot is granted tools that do not exist and offered
+        // tools it is not allowed — in silence, both ways.
+        for name in crate::files::NAMES.split(',') {
+            let bare = name.trim_start_matches("mcp__desktop__");
+            assert!(
+                with.contains(&bare.to_string()),
+                "{name} is granted but not served"
+            );
+        }
+    }
+
+    /// Asking for one is answered, and only for a bot that has them.
+    #[test]
+    fn a_file_tool_is_refused_to_a_bot_that_was_not_given_it() {
+        let mut bot = a_bot("dispatch");
+        std::fs::write(bot.workspace.join("notes.md"), "the deadline is Friday").expect("a note");
+
+        bot.files = true;
+        let said = call_tool(
+            &bot,
+            &json!({ "name": "read_file", "arguments": { "path": "notes.md" } }),
+        );
+        assert_ne!(said["isError"], true, "{said}");
+        assert!(said["content"][0]["text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("Friday"));
+
+        // Without the flag it is not this server's tool at all, and falls
+        // through to the desktop, which has never heard of it either.
+        bot.files = false;
+        let refused = call_tool(
+            &bot,
+            &json!({ "name": "read_file", "arguments": { "path": "notes.md" } }),
+        );
+        assert_eq!(refused["isError"], true, "{refused}");
     }
 
     /// A bot asked for a hat is the case this tool exists to handle well: it
@@ -997,6 +1100,7 @@ mod drawing_tests {
                 workspace: dir,
                 brand: Default::default(),
                 colleagues: vec!["Ops".into()],
+                files: false,
             }
         };
 
@@ -1085,6 +1189,7 @@ mod schedule_tests {
             workspace: dir,
             brand: Default::default(),
             colleagues: vec!["Ops".into(), "Research & Writing".into()],
+            files: false,
         }
     }
 

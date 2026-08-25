@@ -673,8 +673,15 @@ mod tests {
                 "BOTCAGE_COLLEAGUES": "",
                 "BOTCAGE_WORKSPACE": workspace.display().to_string(),
                 "BOTCAGE_BRAND": "{}",
+                // As the app sets it for an engine with no file tools of its own.
+                "BOTCAGE_FILES": "1",
             }
         });
+
+        // Something only the folder knows, so a bot that answers with it can
+        // only have read it.
+        std::fs::write(workspace.join("notes.md"), "the plant is called Gerald")
+            .expect("a note in the folder");
 
         // Everything the desktop server offers, as a bot with a computer
         // would be granted it.
@@ -710,6 +717,27 @@ mod tests {
             !said.contains("no tool called") && !said.contains("is not running"),
             "{ran} → {said}"
         );
+
+        // And the whole way through to a file: the tool the app grants, the
+        // name the server answers to, the folder it reads, and the text a
+        // model would be shown. Every piece of that is botcage's, which is why
+        // it is worth one test that does not depend on a model agreeing to
+        // call anything.
+        let read = bench.call("mcp__desktop__read_file", &json!({ "path": "notes.md" }));
+        assert!(read.contains("Gerald"), "read_file → {read}");
+
+        let listed = bench.call("mcp__desktop__list_files", &json!({}));
+        assert!(listed.contains("notes.md"), "list_files → {listed}");
+
+        let found = bench.call("mcp__desktop__find_in_files", &json!({ "query": "Gerald" }));
+        assert!(found.contains("notes.md:1"), "find_in_files → {found}");
+
+        // The boundary holds through every layer, not only in files.rs.
+        let refused = bench.call(
+            "mcp__desktop__read_file",
+            &json!({ "path": "../../../../etc/passwd" }),
+        );
+        assert!(!refused.contains("root:"), "escaped the folder: {refused}");
     }
 
     #[test]

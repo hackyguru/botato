@@ -22,6 +22,7 @@ use tauri::{AppHandle, Emitter, Manager, RunEvent};
 mod catalogue;
 mod connectors;
 mod engine;
+mod files;
 mod hearing;
 mod inference;
 mod mcp;
@@ -55,6 +56,10 @@ pub fn serve_mcp() {
             .filter(|name| !name.is_empty())
             .map(str::to_string)
             .collect(),
+        // Present *and* not empty: a variable set to "" is still set, and a
+        // bot silently given the wrong tools is not a thing that announces
+        // itself.
+        files: std::env::var("BOTCAGE_FILES").is_ok_and(|on| !on.is_empty()),
         id: std::env::var("BOTCAGE_BOT").unwrap_or_default(),
         workspace: std::env::var("BOTCAGE_WORKSPACE")
             .unwrap_or_default()
@@ -446,15 +451,24 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     };
 
     let base = format!("{}\n\n{}", req.system_prompt, ROUTINES_PROMPT);
+    // The other half of the same thought: where the engine has no file tools,
+    // botcage's own server provides them, and they are granted in the same
+    // breath as everything else this bot may use.
+    let papers = if builtins.is_empty() && carries_tools {
+        files::NAMES
+    } else {
+        ""
+    };
+
     let (mut allowed, mut system_prompt) = if req.computer && carries_tools {
         sandbox::touch(&req.bot_id);
         (
-            list(&[builtins, DESKTOP_TOOLS, FACE_TOOL, SCHEDULE_TOOL]),
+            list(&[builtins, papers, DESKTOP_TOOLS, FACE_TOOL, SCHEDULE_TOOL]),
             format!("{base}\n\n{DESKTOP_PROMPT}\n\n{FACE_PROMPT}\n\n{SCHEDULE_PROMPT}"),
         )
     } else if carries_tools {
         (
-            list(&[builtins, FACE_TOOL, SCHEDULE_TOOL]),
+            list(&[builtins, papers, FACE_TOOL, SCHEDULE_TOOL]),
             format!("{base}\n\n{FACE_PROMPT}\n\n{SCHEDULE_PROMPT}"),
         )
     } else {
@@ -486,10 +500,14 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     // found.
     if delivery == inference::ToolDelivery::Hosted {
         system_prompt.push_str(
-            "\n\nYou cannot read or write files, run commands on this machine, search the web or \
-             fetch a page: those are not among your tools here. What you can use is exactly what \
-             is listed as your tools. When something would need a file or the web, say so plainly \
-             rather than describing what you would have found.",
+            "\n\nYou have your own folder on the user's machine, and `read_file`, `write_file`, \
+             `list_files` and `find_in_files` work in it. It is where your notes belong and where \
+             anything you make for the user should go, because they can open it themselves. Paths \
+             are relative to it and it is the whole of what you can reach: not the rest of their \
+             machine.\n\n\
+             You cannot run commands on this machine, search the web or fetch a page — those are \
+             not among your tools here. When something would need one, say so plainly rather than \
+             describing what you would have found.",
         );
     }
 
@@ -527,6 +545,8 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
                     "BOTCAGE_COLLEAGUES": req.colleagues.join("\n"),
                     "BOTCAGE_WORKSPACE": cwd.display().to_string(),
                     "BOTCAGE_BRAND": serde_json::to_string(&req.brand).unwrap_or_default(),
+                    // Only where the engine brings none of its own.
+                    "BOTCAGE_FILES": if builtins.is_empty() { "1" } else { "" },
                 }
             }),
         );
