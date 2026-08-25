@@ -3753,6 +3753,35 @@ a.detail__source:hover {
   white-space: nowrap;
 }
 
+/* The two ways out of a settings panel that is otherwise one switch: the
+ * details nobody changes twice, and the thing you do once in an emergency.
+ * Quiet, because neither is what the screen is about. */
+.quiet-row {
+  display: flex;
+  gap: 16px;
+}
+
+.quiet-btn {
+  padding: 0;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12.5px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.quiet-btn:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+#app-backup-details {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
 /* A sheet with one question in it. */
 .sheet--narrow {
   max-width: 420px;
@@ -3812,9 +3841,15 @@ a.detail__source:hover {
   text-align: left;
 }
 
+/* .btn-primary is full width by default, which in a row means it lies on top
+   of the field it belongs to. In a row it is a button beside something. */
 .row > .btn-primary,
 .row > .chip {
   flex: none;
+  width: auto;
+  padding: 0 16px;
+  height: 34px;
+  font-size: 13px;
 }
 
 /* A paragraph at the top of a settings panel, for the one thing a person needs

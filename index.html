@@ -868,69 +868,75 @@
 
           <div class="settings-panel" data-tab="backup" role="tabpanel" hidden>
             <div class="settings">
-              <p class="setting__note">
-                Your conversations are not kept in botcage's own folder — they live in the
-                window's storage, which is easy to lose and hard to find. A backup is one
-                encrypted file holding every conversation, channel, memory and routine.
-                It carries no keys, tokens or phone pairing, so it is safe to keep anywhere.
-              </p>
+              <label class="setting">
+                <span class="setting__label">Back up automatically
+                  <span class="setting__hint" id="app-backup-summary">Your conversations are kept in
+                    the window's storage, not in a folder you could copy. This writes one encrypted
+                    file, wherever you say.</span>
+                </span>
+                <input type="checkbox" id="app-backup-on" class="switch" />
+              </label>
 
-              <div class="setting setting--stack">
-                <span class="setting__label">Passphrase
-                  <span class="setting__hint" id="app-backup-pass-hint">Not set. This is the only
-                    thing between the backup and whoever finds it — and the only way to open one,
-                    so keep it somewhere that is not this machine.</span>
+              <div class="setting setting--stack" id="app-backup-setup" hidden>
+                <span class="setting__label">Choose a passphrase
+                  <span class="setting__hint">The only thing protecting the backup, and the only way
+                    to open one — so keep it somewhere that is not this machine.</span>
                 </span>
                 <div class="row">
                   <input id="app-backup-pass" class="picker picker--text" type="password"
                          placeholder="At least eight characters" autocomplete="new-password" />
-                  <button type="button" class="chip" id="app-backup-pass-save"><span>Set</span></button>
+                  <button type="button" class="btn-primary" id="app-backup-pass-save">Turn on</button>
                 </div>
               </div>
 
-              <div class="setting setting--stack">
-                <span class="setting__label">Folder
-                  <span class="setting__hint">Point this at iCloud Drive, Dropbox or a drive you
-                    plug in, and the backup is off this machine without botcage having an account
-                    anywhere.</span>
-                </span>
-                <div class="row">
-                  <input id="app-backup-folder" class="picker picker--text" spellcheck="false"
-                         placeholder="No folder chosen" />
-                  <button type="button" class="chip" id="app-backup-pick"><span>Choose…</span></button>
-                </div>
+              <div class="quiet-row">
+                <button type="button" class="quiet-btn" id="app-backup-more">Settings…</button>
+                <button type="button" class="quiet-btn" id="app-backup-restore">Restore from a backup…</button>
               </div>
 
-              <label class="setting">
-                <span class="setting__label">Back up
-                  <span class="setting__hint">Only while botcage is open, like routines.</span>
-                </span>
-                <select id="app-backup-every" class="picker">
-                  <option value="off">Never</option>
-                  <option value="day">Every day</option>
-                  <option value="week">Every week</option>
-                </select>
-              </label>
+              <div id="app-backup-details" hidden>
+                <div class="setting setting--stack">
+                  <span class="setting__label">Folder
+                    <span class="setting__hint">iCloud Drive, Dropbox or a disk you plug in — the
+                      copy is then off this machine, without botcage having an account anywhere.</span>
+                  </span>
+                  <div class="row">
+                    <input id="app-backup-folder" class="picker picker--text" spellcheck="false"
+                           placeholder="No folder chosen" />
+                    <button type="button" class="chip" id="app-backup-pick"><span>Choose…</span></button>
+                  </div>
+                </div>
 
-              <label class="setting">
-                <span class="setting__label">Keep
-                  <span class="setting__hint">Older ones are deleted after a good new one.</span>
-                </span>
-                <select id="app-backup-keep" class="picker">
-                  <option value="3">The last 3</option>
-                  <option value="7">The last 7</option>
-                  <option value="30">The last 30</option>
-                </select>
-              </label>
+                <label class="setting">
+                  <span class="setting__label">How often
+                    <span class="setting__hint">Only while botcage is open, like routines.</span>
+                  </span>
+                  <select id="app-backup-every" class="picker">
+                    <option value="day">Every day</option>
+                    <option value="week">Every week</option>
+                  </select>
+                </label>
 
-              <div class="setting setting--stack">
-                <span class="setting__label">Backups
-                  <span class="setting__hint" id="app-backup-state">None yet.</span>
-                </span>
-                <div class="devices" id="app-backup-list"></div>
-                <div class="row">
-                  <button type="button" class="btn-primary" id="app-backup-now">Back up now</button>
-                  <button type="button" class="chip" id="app-backup-restore"><span>Restore…</span></button>
+                <label class="setting">
+                  <span class="setting__label">Keep
+                    <span class="setting__hint">Older ones go after a good new one.</span>
+                  </span>
+                  <select id="app-backup-keep" class="picker">
+                    <option value="3">The last 3</option>
+                    <option value="7">The last 7</option>
+                    <option value="30">The last 30</option>
+                  </select>
+                </label>
+
+                <div class="setting setting--stack">
+                  <span class="setting__label">In that folder
+                    <span class="setting__hint" id="app-backup-state">None yet.</span>
+                  </span>
+                  <div class="devices" id="app-backup-list"></div>
+                  <div class="row">
+                    <button type="button" class="chip" id="app-backup-now"><span>Back up now</span></button>
+                    <button type="button" class="chip" id="app-backup-change-pass"><span>Change passphrase</span></button>
+                  </div>
                 </div>
               </div>
             </div>

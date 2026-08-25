@@ -5255,6 +5255,10 @@ function ago(at: number): string {
 }
 
 const backupPass = $<HTMLInputElement>("#app-backup-pass");
+const backupOn = $<HTMLInputElement>("#app-backup-on");
+const backupSetup = $<HTMLDivElement>("#app-backup-setup");
+const backupDetails = $<HTMLDivElement>("#app-backup-details");
+const backupSummary = $<HTMLSpanElement>("#app-backup-summary");
 const backupFolder = $<HTMLInputElement>("#app-backup-folder");
 const backupEvery = $<HTMLSelectElement>("#app-backup-every");
 const backupKeep = $<HTMLSelectElement>("#app-backup-keep");
@@ -5267,19 +5271,47 @@ interface BackupFile {
   bytes: number;
 }
 
+/** Whether botcage is holding a passphrase. Asked once per opening of the
+ *  sheet, because the answer only changes when someone changes it here. */
+let hasPassphrase = false;
+
+/** The one line under the switch.
+ *
+ *  Off, it says why anyone would want this. On, it says what is happening and
+ *  when it last did — which is the only thing worth knowing at a glance, and
+ *  the reason none of the rest of it needs to be on screen. */
+function paintBackupSummary(): void {
+  const app = appSettings();
+  const on = (app.backupEvery ?? "off") !== "off";
+  backupOn.checked = on;
+
+  if (!on) {
+    backupSummary.textContent =
+      "Your conversations are kept in the window's storage, not in a folder you could copy. " +
+      "This writes one encrypted file, wherever you say.";
+    return;
+  }
+
+  const how = app.backupEvery === "week" ? "Every week" : "Every day";
+  const where = (app.backupFolder ?? "").includes("com~apple~CloudDocs")
+    ? "iCloud Drive"
+    : (app.backupFolder ?? "").split("/").pop() || "the folder you chose";
+  const last = app.backupAt ? `Last one ${ago(app.backupAt)}.` : "None taken yet.";
+  backupSummary.textContent = `${how}, to ${where}. ${last}`;
+}
+
 function backupSettings(): void {
   const app = appSettings();
   backupFolder.value = app.backupFolder ?? "";
-  backupEvery.value = app.backupEvery ?? "off";
+  backupEvery.value = app.backupEvery === "week" ? "week" : "day";
   backupKeep.value = String(app.backupKeep ?? 7);
+  backupSetup.hidden = true;
+  paintBackupSummary();
 }
 
 async function paintBackups(): Promise<void> {
-  const has = await invoke<boolean>("backup_ready").catch(() => false);
-  $<HTMLSpanElement>("#app-backup-pass-hint").textContent = has
-    ? "Set. Changing it does not re-encrypt the backups you already have — those still open with the one they were made with."
-    : "Not set. This is the only thing between the backup and whoever finds it — and the only way to open one, so keep it somewhere that is not this machine.";
-  backupPass.placeholder = has ? "Change it" : "At least eight characters";
+  hasPassphrase = await invoke<boolean>("backup_ready").catch(() => false);
+  paintBackupSummary();
 
   const folder = appSettings().backupFolder;
   if (!folder) {
@@ -5297,13 +5329,12 @@ async function paintBackups(): Promise<void> {
       return row;
     }),
   );
-  const when = appSettings().backupAt;
   backupState.textContent = files.length
-    ? `${files.length} in that folder${when ? `, last one ${ago(when)}` : ""}.`
-    : "None in that folder yet.";
+    ? `${files.length} there${files.length === 1 ? "" : ", newest first"}.`
+    : "None there yet.";
 }
 
-/** Write one now, whoever asked — the button or the clock. */
+/** Write one now, whoever asked — the switch, the button or the clock. */
 async function backupNow(quiet = false): Promise<boolean> {
   const app = appSettings();
   if (!app.backupFolder) {
@@ -5339,9 +5370,62 @@ function backupDue(): boolean {
   return Date.now() - (app.backupAt ?? 0) >= gap;
 }
 
-backupEvery.addEventListener("change", () => {
-  state.app = { ...appSettings(), backupEvery: backupEvery.value as "off" | "day" | "week" };
+/** Switch it on, choosing everything that can be chosen for someone.
+ *
+ *  A folder and a frequency are decisions with obvious right answers, and
+ *  asking for them is how a feature that should be one switch becomes a form.
+ *  The passphrase is the exception — nobody can pick that for you — so it is
+ *  the only thing the switch stops to ask about. */
+async function turnBackupsOn(): Promise<void> {
+  if (!hasPassphrase) {
+    backupSetup.hidden = false;
+    backupPass.focus();
+    backupOn.checked = false;
+    return;
+  }
+
+  const folder =
+    appSettings().backupFolder ?? (await invoke<string>("backup_default_folder").catch(() => ""));
+  state.app = {
+    ...appSettings(),
+    backupFolder: folder || undefined,
+    backupEvery: appSettings().backupEvery === "week" ? "week" : "day",
+    backupKeep: appSettings().backupKeep ?? 7,
+  };
   save();
+  backupSettings();
+  // The first one now, rather than in up to a day's time: switching this on and
+  // being told "no backups yet" is the wrong answer to the question it asks.
+  await backupNow(true);
+  void paintBackups();
+}
+
+backupOn.addEventListener("change", () => {
+  if (backupOn.checked) {
+    void turnBackupsOn();
+    return;
+  }
+  state.app = { ...appSettings(), backupEvery: "off" };
+  save();
+  backupSetup.hidden = true;
+  paintBackupSummary();
+});
+
+$<HTMLButtonElement>("#app-backup-more").addEventListener("click", () => {
+  backupDetails.hidden = !backupDetails.hidden;
+  if (!backupDetails.hidden) void paintBackups();
+});
+
+$<HTMLButtonElement>("#app-backup-change-pass").addEventListener("click", () => {
+  backupSetup.hidden = false;
+  backupPass.value = "";
+  backupPass.focus();
+});
+
+backupEvery.addEventListener("change", () => {
+  state.app = { ...appSettings(), backupEvery: backupEvery.value as "day" | "week" };
+  save();
+  paintBackupSummary();
 });
 
 backupKeep.addEventListener("change", () => {
@@ -5352,16 +5436,19 @@ backupKeep.addEventListener("change", () => {
 backupFolder.addEventListener("change", () => {
   state.app = { ...appSettings(), backupFolder: backupFolder.value.trim() || undefined };
   save();
+  paintBackupSummary();
   void paintBackups();
 });
 
 $<HTMLButtonElement>("#app-backup-pass-save").addEventListener("click", () => {
-  const word = backupPass.value;
-  void invoke("backup_passphrase", { passphrase: word })
+  void invoke("backup_passphrase", { passphrase: backupPass.value })
     .then(() => {
       backupPass.value = "";
-      toast("Passphrase set");
-      void paintBackups();
+      backupSetup.hidden = true;
+      hasPassphrase = true;
+      // Whoever asked for the passphrase wanted the thing behind it.
+      if ((appSettings().backupEvery ?? "off") === "off") void turnBackupsOn();
+      else toast("Passphrase changed");
     })
     .catch((err) => toast(String(err)));
 });
@@ -5372,6 +5459,7 @@ $<HTMLButtonElement>("#app-backup-pick").addEventListener("click", () => {
     backupFolder.value = picked;
     state.app = { ...appSettings(), backupFolder: picked };
     save();
+    paintBackupSummary();
     void paintBackups();
   });
 });

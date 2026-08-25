@@ -921,6 +921,23 @@ fn backup_now(
     Ok(written.display().to_string())
 }
 
+/// Somewhere sensible to keep backups, so that switching them on is a switch.
+///
+/// iCloud Drive if this machine has it, because the whole point is a copy that
+/// is not on this machine and that is the folder most people already sync.
+/// Documents otherwise. Either way it is a suggestion: the folder is shown and
+/// can be changed, and nothing is written until the user asks.
+#[tauri::command]
+fn backup_default_folder() -> String {
+    let icloud = home().join("Library/Mobile Documents/com~apple~CloudDocs");
+    let base = if icloud.is_dir() {
+        icloud
+    } else {
+        home().join("Documents")
+    };
+    base.join("botcage-backups").display().to_string()
+}
+
 /// The archives in a folder, newest first.
 #[tauri::command]
 fn backup_list(folder: String) -> Vec<Value> {
@@ -1473,6 +1490,7 @@ pub fn run() {
             backup_ready,
             backup_passphrase,
             backup_now,
+            backup_default_folder,
             backup_list,
             backup_restore,
             take_routines,
