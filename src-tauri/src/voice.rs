@@ -459,8 +459,8 @@ fn envelope(wav: &[u8]) -> Option<Vec<f32>> {
     for block in samples.chunks(per_step * 2) {
         let mut sum = 0f64;
         let mut count = 0usize;
-        for pair in block.chunks_exact(2) {
-            let value = i16::from_le_bytes([pair[0], pair[1]]) as f64 / 32768.0;
+        for pair in block.as_chunks::<2>().0 {
+            let value = i16::from_le_bytes(*pair) as f64 / 32768.0;
             sum += value * value;
             count += 1;
         }

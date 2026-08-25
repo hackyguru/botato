@@ -1,0 +1,10 @@
+# CI used to install whatever "stable" meant that morning. That is a build
+# whose pass/fail depends on the calendar: a new stable adds a lint, clippy
+# runs with -D warnings, and a commit that touched nothing goes red. It also
+# meant my machine and CI disagreed — 1.97 here, 1.98 there — so a lint could
+# only be discovered after pushing.
+#
+# Pinned, both run the same compiler and the upgrade is a commit of its own.
+[toolchain]
+channel = "1.98.0"
+components = ["rustfmt", "clippy"]
