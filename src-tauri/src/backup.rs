@@ -398,18 +398,22 @@ pub fn prune(folder: &Path, keep: usize) -> usize {
     let Ok(entries) = std::fs::read_dir(folder) else {
         return 0;
     };
-    let mut ours: Vec<PathBuf> = entries
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| {
-            p.file_name()
-                .map(|n| {
-                    let n = n.to_string_lossy();
-                    n.starts_with("botcage-") && n.ends_with(".backup")
-                })
-                .unwrap_or(false)
-        })
-        .collect();
+    let mut ours: Vec<PathBuf> = Vec::new();
+    for path in entries.flatten().map(|e| e.path()) {
+        let Some(name) = path.file_name().map(|n| n.to_string_lossy().into_owned()) else {
+            continue;
+        };
+        if !name.starts_with("botcage-") {
+            continue;
+        }
+        if name.ends_with(".backup") {
+            ours.push(path);
+        } else if name.ends_with(".part") {
+            // A write that died before its rename. Nothing will ever finish it,
+            // and left alone it sits in somebody's iCloud folder for good.
+            let _ = std::fs::remove_file(&path);
+        }
+    }
     // The names carry the time, so sorting them sorts by age.
     ours.sort();
     let mut gone = 0;
@@ -632,8 +636,14 @@ mod tests {
         }
         // Something else living in the same folder is not ours to delete.
         std::fs::write(dir.join("notes.txt"), b"mine").expect("a note");
+        // A write that died before its rename, which nothing will ever finish.
+        std::fs::write(dir.join("botcage-2026-08-19-0900.part"), b"half").expect("a part");
 
         assert_eq!(prune(&dir, 2), 2);
+        assert!(
+            !dir.join("botcage-2026-08-19-0900.part").exists(),
+            "an abandoned half-written backup was left behind"
+        );
         assert!(dir.join("botcage-2026-08-23-0900.backup").exists());
         assert!(dir.join("botcage-2026-08-22-0900.backup").exists());
         assert!(!dir.join("botcage-2026-08-20-0900.backup").exists());
