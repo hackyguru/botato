@@ -25,6 +25,7 @@ import type { Bot, Channel, Message } from "../types";
 import Face from "../face";
 import Markdown from "../markdown";
 import { T } from "../theme";
+import { Initial, startsRun, Turn } from "../turn";
 
 export default function Room({
   channel,
@@ -98,10 +99,11 @@ export default function Room({
           </Text>
         ) : null}
 
-        {channel.messages.map((msg) => (
+        {channel.messages.map((msg, n) => (
           <Said
             key={msg.id}
             msg={msg}
+            prev={channel.messages[n - 1]}
             bots={bots}
             thread={threads.find((t) => t.from?.messageId === msg.id)}
             onOpenThread={onOpenThread}
@@ -132,14 +134,17 @@ export default function Room({
   );
 }
 
-/** One message, with the face of whoever said it. */
+/** One message, with the face of whoever said it — at the head of a run of
+ *  them, and nothing at all on the lines that continue it. */
 function Said({
   msg,
+  prev,
   bots,
   thread,
   onOpenThread,
 }: {
   msg: Message;
+  prev?: Message;
   bots: Bot[];
   thread?: Channel;
   onOpenThread: (thread: Channel) => void;
@@ -156,30 +161,28 @@ function Said({
   }
 
   const author = msg.from === "bot" ? bots.find((b) => b.id === msg.by) : undefined;
-  const mine = msg.from === "me";
   const said = thread ? Math.max(0, thread.messages.filter((m) => m.text.trim()).length - 1) : 0;
+  const head = startsRun(msg, prev);
+  const name = author ? author.name : "You";
 
   return (
-    <View style={[s.turn, mine ? s.turnMine : s.turnTheirs]}>
-      {author ? (
-        <View style={s.gutter}>
-          <Face bot={author} size={22} />
-        </View>
+    <Turn
+      head={head}
+      face={author ? <Face bot={author} size={26} still /> : <Initial name={name} />}
+      name={name}
+      at={msg.at}
+      fromPhone={msg.fromPhone}
+    >
+      {msg.pinned ? <Text style={s.pin}>📌</Text> : null}
+      <Markdown text={msg.text} />
+      {thread ? (
+        <Pressable style={s.strip} onPress={() => onOpenThread(thread)}>
+          <Text style={s.stripText}>
+            ↳ {said === 0 ? "Thread — nothing said yet" : said === 1 ? "1 reply" : `${said} replies`}
+          </Text>
+        </Pressable>
       ) : null}
-      <View style={mine ? s.stackMine : s.stack}>
-        <View style={[s.bubble, mine ? s.bubbleMine : s.bubbleTheirs]}>
-          {msg.pinned ? <Text style={s.pin}>📌</Text> : null}
-          <Markdown text={msg.text} />
-        </View>
-        {thread ? (
-          <Pressable style={s.strip} onPress={() => onOpenThread(thread)}>
-            <Text style={s.stripText}>
-              ↳ {said === 0 ? "Thread — nothing said yet" : said === 1 ? "1 reply" : `${said} replies`}
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
-    </View>
+    </Turn>
   );
 }
 
@@ -202,22 +205,15 @@ const s = StyleSheet.create({
   faces: { flexDirection: "row" },
   facePeek: { marginLeft: -6 },
 
-  list: { padding: 14, paddingBottom: 24, gap: 10 },
+  /* Rows sit flush; the air belongs to the head of a run. */
+  list: { padding: 14, paddingBottom: 24, gap: 0 },
   empty: { color: T.text2, fontSize: 14, lineHeight: 21, textAlign: "center", paddingVertical: 40 },
 
-  turn: { flexDirection: "row", gap: 8, alignItems: "flex-start", maxWidth: "100%" },
-  turnMine: { justifyContent: "flex-end" },
-  turnTheirs: { justifyContent: "flex-start" },
-  gutter: { paddingTop: 4 },
-  stack: { flexShrink: 1, alignItems: "flex-start", gap: 5 },
-  stackMine: { flexShrink: 1, alignItems: "flex-end", gap: 5 },
-
-  bubble: { maxWidth: "100%", paddingHorizontal: 13, paddingVertical: 9, borderRadius: 16 },
-  bubbleTheirs: { backgroundColor: T.field },
-  bubbleMine: { backgroundColor: T.bubbleMe },
-  pin: { position: "absolute", top: -8, right: -4, fontSize: 11 },
+  pin: { position: "absolute", top: -2, right: 0, fontSize: 11 },
 
   strip: {
+    alignSelf: "flex-start",
+    marginTop: 5,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,

@@ -23,6 +23,7 @@ import type { Bot, Message } from "../types";
 import Face from "../face";
 import Markdown from "../markdown";
 import { T } from "../theme";
+import { Initial, startsRun, Turn } from "../turn";
 
 export default function Chat({
   bot,
@@ -90,29 +91,29 @@ export default function Chat({
         {bot.messages.length === 0 ? (
           <Text style={s.empty}>Nothing yet. Say something.</Text>
         ) : null}
-        {bot.messages.map((message: Message) => (
-          <View
-            key={message.id}
-            style={[s.bubble, message.from === "me" ? s.mine : s.theirs]}
-          >
-            {message.from === "bot" ? (
-              // What a bot writes is markdown, and the desktop renders it. A
-              // phone showing the backticks is not a smaller app, just a worse
-              // one. What you type is left exactly as you typed it.
-              <Markdown text={message.text || (bot.busy ? "…" : "")} />
-            ) : (
-              <Text style={s.text}>{message.text}</Text>
-            )}
-            {message.fromPhone ? (
-              // The same mark the desktop puts on these, so one thread reads
-              // the same way on both screens. Drawn rather than set in a glyph:
-              // the phone symbol is not in every system font.
-              <View style={s.fromPhone}>
-                <View style={s.fromPhoneBar} />
-              </View>
-            ) : null}
-          </View>
-        ))}
+        {bot.messages.map((message: Message, n: number) => {
+          const head = startsRun(message, bot.messages[n - 1]);
+          const bots = message.from === "bot";
+          return (
+            <Turn
+              key={message.id}
+              head={head}
+              face={bots ? <Face bot={bot} size={26} still /> : <Initial name="You" />}
+              name={bots ? bot.name : "You"}
+              at={message.at}
+              fromPhone={message.fromPhone}
+            >
+              {bots ? (
+                // What a bot writes is markdown, and the desktop renders it. A
+                // phone showing the backticks is not a smaller app, just a
+                // worse one. What you type is left exactly as you typed it.
+                <Markdown text={message.text || (bot.busy ? "…" : "")} />
+              ) : (
+                <Text style={s.text}>{message.text}</Text>
+              )}
+            </Turn>
+          );
+        })}
         {bot.busy ? (
           <View style={s.working}>
             <ActivityIndicator size="small" color={T.text3} />
@@ -162,26 +163,10 @@ const s = StyleSheet.create({
   name: { color: T.text, fontSize: 17, fontWeight: "600" },
   role: { color: T.text2, fontSize: 12.5 },
   gear: { color: T.text2, fontSize: 22 },
-  thread: { padding: 14, paddingBottom: 20, gap: 8 },
+  /* Rows sit flush; the air belongs to the head of a run. */
+  thread: { padding: 14, paddingBottom: 20, gap: 0 },
   empty: { marginTop: 60, color: T.text3, fontSize: 14, textAlign: "center" },
-  bubble: { maxWidth: "86%", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
-  mine: { alignSelf: "flex-end", backgroundColor: T.bubbleMe },
-  theirs: { alignSelf: "flex-start", backgroundColor: T.bubbleBot },
   text: { color: T.text, fontSize: 15.5, lineHeight: 22 },
-  fromPhone: {
-    alignSelf: "flex-end",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    width: 8,
-    height: 12,
-    marginTop: 3,
-    paddingBottom: 1.5,
-    borderWidth: 1,
-    borderColor: T.text,
-    borderRadius: 2.5,
-    opacity: 0.45,
-  },
-  fromPhoneBar: { width: 3, height: 1, backgroundColor: T.text },
   working: { flexDirection: "row", gap: 10, alignItems: "center", paddingHorizontal: 6 },
   workingText: { flex: 1, color: T.text3, fontSize: 13 },
   stop: { color: T.red, fontSize: 13, fontWeight: "600" },

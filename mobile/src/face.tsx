@@ -263,7 +263,20 @@ function Mark({ bot, u }: { bot: Bot; u: number }) {
   }
 }
 
-export default function Face({ bot, size = 40 }: { bot: Bot; size?: number }) {
+export default function Face({
+  bot,
+  size = 40,
+  still = false,
+}: {
+  bot: Bot;
+  size?: number;
+  /** A portrait rather than a face: no blink.
+   *
+   *  A face that moves is worth watching in the list the bots live in, and is
+   *  something twitching beside the words you are trying to read anywhere
+   *  else — the same rule the laptop follows. */
+  still?: boolean;
+}) {
   const u = size;
   const face = faceOf(bot);
   // Its own beat, as on the laptop, so a list of bots does not blink in unison.
@@ -271,7 +284,7 @@ export default function Face({ bot, size = 40 }: { bot: Bot; size?: number }) {
   const lid = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (face.eyes === "sleepy") return;
+    if (still || face.eyes === "sleepy") return;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.delay(beat),
@@ -282,7 +295,7 @@ export default function Face({ bot, size = 40 }: { bot: Bot; size?: number }) {
     );
     loop.start();
     return () => loop.stop();
-  }, [beat, face.eyes, lid]);
+  }, [beat, face.eyes, lid, still]);
 
   // A lid rather than a fade: the eye squashes to nothing and springs back,
   // which is the closest the native driver gets to the laptop's clip.
