@@ -899,23 +899,44 @@ function restingMood(botId: string): string {
 
 /** Push moods onto the faces already on screen, rather than re-rendering them.
  *  A face is in the roster, the header, the thread and a sheet at once, and a
- *  mood change should not cost a repaint of any of them. */
+ *  mood change should not cost a repaint of any of them.
+ *
+ *  Only the living ones. A still face is rendered without a mood so that every
+ *  mood rule misses it, and this is the one place that would put one back —
+ *  which is the whole reason the two kinds are told apart by a class and not
+ *  only by what they were born with. */
 function paintMoods(): void {
-  for (const el of document.querySelectorAll<HTMLElement>(".face[data-bot]")) {
+  for (const el of document.querySelectorAll<HTMLElement>(".face[data-bot]:not(.face--still)")) {
     const botId = el.dataset.bot!;
     el.dataset.mood = moods.get(botId) ?? restingMood(botId);
   }
 }
 
-function faceHtml(bot: Bot, size: "xs" | "sm" | "md" | "lg" = "md"): string {
-  const cls = size === "md" ? "" : ` face--${size}`;
+/** A bot's face.
+ *
+ *  Still unless it is asked to be alive. A face blinks, thinks, jumps when a
+ *  turn lands and slumps when one fails — which is worth watching in the list
+ *  the bots live in, and is something twitching beside the words you are
+ *  trying to read anywhere else. So the roster asks for a living one, a call
+ *  asks for a living one because the mouth moving is the point, and everything
+ *  else gets a portrait.
+ *
+ *  A still face carries no mood at all rather than a frozen one: every mood
+ *  rule is keyed on the attribute, so leaving it off is what makes them all
+ *  miss, and only the blink needs turning off by hand. */
+function faceHtml(
+  bot: Bot,
+  size: "xs" | "sm" | "md" | "lg" = "md",
+  alive = false,
+): string {
+  const cls = `${size === "md" ? "" : ` face--${size}`}${alive ? "" : " face--still"}`;
   const face = faceOf(bot);
   const mood = moods.get(bot.id) ?? restingMood(bot.id);
   // Every face carries every part, whatever its traits say — a mouth a bot does
   // not normally show is hidden rather than absent, so a mood can still open
   // one in surprise without the renderer knowing that mood exists.
   return (
-    `<span class="face${cls}" data-bot="${bot.id}" data-mood="${mood}"` +
+    `<span class="face${cls}" data-bot="${bot.id}"${alive ? ` data-mood="${mood}"` : ""}` +
     ` data-head="${face.head}" data-eyes="${face.eyes}"` +
     ` data-brow="${face.brow}" data-smile="${face.smile}" data-mark="${face.mark}"` +
     // Its own blink rhythm, so a roster does not blink in unison.
@@ -1123,7 +1144,7 @@ function renderRoster(): void {
       return (
         `<button class="bot-row${bot.id === state.activeId && !state.activeChannel ? " is-active" : ""}` +
         `${news.unread ? " is-unread" : ""}" data-bot="${bot.id}">` +
-        faceHtml(bot) +
+        faceHtml(bot, "md", true) +
         `<span class="bot-row__body">` +
         // Name and time, and nothing else. The second line used to carry the
         // last thing said, which is a chat app's habit rather than this app's
@@ -4822,7 +4843,7 @@ function paintCallStage(): void {
     const bot = state.bots.find((b) => b.id === call?.botId);
     if (!bot) return;
     stage.className = "call__face";
-    stage.innerHTML = faceHtml(bot, "lg");
+    stage.innerHTML = faceHtml(bot, "lg", true);
     who.textContent = bot.name;
     $<HTMLDivElement>(".call__stage").classList.remove("call__stage--room");
     return;
@@ -4844,7 +4865,7 @@ function paintCallStage(): void {
           `<span class="tile${b.id === speaking ? " is-speaking" : ""}${
             inflight.has(b.id) ? " is-working" : ""
           }" style="--skin:${b.color}">` +
-          `<span class="tile__face">${faceHtml(b, "lg")}</span>` +
+          `<span class="tile__face">${faceHtml(b, "lg", true)}</span>` +
           `<span class="tile__name">${escapeHtml(b.name)}</span>` +
           `</span>`,
       )

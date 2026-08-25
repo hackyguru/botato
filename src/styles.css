@@ -1917,6 +1917,12 @@ textarea {
   animation: eye-blink var(--beat, 2.6s) linear infinite;
 }
 
+/* The one animation that is not keyed on a mood, so it is the one that has to
+   be turned off by hand for a face that is only a portrait. */
+.face--still .face__eyes i {
+  animation: none;
+}
+
 .face__eyes i:last-child {
   animation-delay: 0.06s;
 }
