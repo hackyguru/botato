@@ -5288,8 +5288,10 @@ function paintBackupSummary(): void {
 
   // Settings are worth offering once there is something set up to change.
   // Before that the switch does all of it, and a link to a panel of things
-  // already decided is one more thing to read past.
+  // already decided is one more thing to read past. It takes the panel down
+  // with it: a hidden link and an open panel is one nobody can close again.
   backupMore.hidden = !on;
+  if (!on) backupDetails.hidden = true;
 
   if (!on) {
     backupSummary.textContent = "Everything, in one encrypted file, kept where you like.";
