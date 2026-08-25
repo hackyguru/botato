@@ -779,7 +779,7 @@ Pty Language       Age/Gender VoiceName          File                 Other Lang
             let value = ((i as f32 * 0.3).sin() * 20_000.0) as i16;
             pcm.extend_from_slice(&value.to_le_bytes());
         }
-        pcm.extend(std::iter::repeat(0u8).take(quiet * 2));
+        pcm.extend(std::iter::repeat_n(0u8, quiet * 2));
 
         let mut wav: Vec<u8> = Vec::new();
         wav.extend_from_slice(b"RIFF");

@@ -398,11 +398,6 @@
                     placeholder="What should it do each time it runs?"></textarea>
 
           <div class="settings">
-            <label class="setting" id="routine-where-row" hidden>
-              <span class="setting__label">Reports to</span>
-              <select id="routine-where" class="picker"></select>
-            </label>
-
             <label class="setting" id="routine-bot-row" hidden>
               <span class="setting__label">Whose</span>
               <select id="routine-bot" class="picker"></select>
@@ -411,6 +406,16 @@
             <label class="setting" id="routine-where-row" hidden>
               <span class="setting__label">Reports to</span>
               <select id="routine-where" class="picker"></select>
+            </label>
+
+            <label class="setting" id="routine-format-row" hidden>
+              <span class="setting__label">Kind
+                <span class="setting__hint" id="routine-format-hint">One bot does the thing.</span>
+              </span>
+              <select id="routine-format" class="picker">
+                <option value="">An instruction</option>
+                <option value="standup">A stand-up</option>
+              </select>
             </label>
 
             <label class="setting">

@@ -92,6 +92,13 @@ interface Routine {
    *  routine is, because work on your calendar that you did not put there
    *  needs to say where it came from. */
   by?: string;
+  /** A meeting rather than an instruction.
+   *
+   *  A standup is a routine that, instead of asking one bot to do something,
+   *  gives everyone in the room a turn — each handed its own week rather than
+   *  an open question. Only means anything when it reports into a channel:
+   *  a meeting of one is a note to self. */
+  format?: "standup";
   /** Which channel it reports into. Absent means the bot's own chat, which is
    *  where every routine used to go — and the reason a watchdog that checks
    *  the build every half hour was shouting into a room nobody visits. */
@@ -3980,6 +3987,96 @@ async function channelTurn(
   }
 }
 
+/** What a bot has actually been doing, from botcage's own records.
+ *
+ *  The whole difference between a standup worth reading and five bots
+ *  generating three paragraphs of plausible progress. A bot is not asked what
+ *  it has been up to — it is told, from what ran and what broke, and asked to
+ *  report it. Everything here is counted from state; not one line of it costs
+ *  a model anything.
+ */
+function weekOf(bot: Bot, since: number): string {
+  const ran = (bot.routines ?? []).filter((r) => (r.lastRunAt ?? 0) > since);
+  const said = bot.messages.filter((m) => m.at > since && m.from === "bot" && m.text.trim());
+  const broke = bot.messages.filter((m) => m.at > since && m.error);
+
+  // What is coming, so "what's next" is a fact rather than an intention.
+  const soon = (bot.routines ?? [])
+    .filter((r) => r.active)
+    .map((r) => ({ r, at: nextRun(r, r.lastRunAt ?? Date.now()) }))
+    .sort((a, b) => a.at - b.at)
+    .slice(0, 3);
+
+  const lines = [
+    ran.length
+      ? `Routines that ran: ${ran.map((r) => r.name).join(", ")}`
+      : "Routines that ran: none",
+    `Turns taken: ${said.length}`,
+    broke.length
+      ? `Failed: ${broke.map((m) => m.error).slice(0, 3).join("; ")}`
+      : "Nothing failed",
+    soon.length
+      ? `Next due: ${soon.map(({ r, at }) => `${r.name} — ${clockDate(at)}`).join(", ")}`
+      : "Nothing scheduled",
+  ];
+  return lines.join("\n");
+}
+
+const clockDate = (at: number) =>
+  new Date(at).toLocaleString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+/** A standup: everyone in the room takes a turn, in order.
+ *
+ *  Round-robin because the format solves the hardest problem in a room full of
+ *  bots — who speaks next — without anyone having to decide. And because a
+ *  turn takes twenty seconds, which is dead air in a conversation and simply
+ *  somebody's slot in a standup.
+ *
+ *  Nobody is asked an open question. Each is handed what actually ran and
+ *  what broke, and told to report it; a bot with nothing to say is told that
+ *  saying so in one line is the right answer. Otherwise a standup is five bots
+ *  writing three paragraphs of plausible progress every morning, which is
+ *  worse than no standup because it looks like information. */
+async function runStandup(room: Channel, routine: Routine, since: number): Promise<void> {
+  room.messages.push({
+    id: uid(),
+    from: "bot",
+    text: "",
+    at: Date.now(),
+    kind: "routine",
+    meta: { steps: 0, frames: 0, slug: routine.id, name: `Standup · ${routine.name}` },
+  });
+  save();
+  renderRoster();
+  if (state.activeChannel === room.id) renderChannel();
+
+  const there = membersOf(room);
+  for (const bot of there) {
+    if (!channels().some((c) => c.id === room.id)) return;
+    const asked =
+      `Stand-up in #${room.name}. It is your turn.\n\n` +
+      `Here is your week, from botcage's own records rather than from memory:\n\n` +
+      `${weekOf(bot, since)}\n\n` +
+      (routine.instruction.trim() ? `What this stand-up is for:\n\n${routine.instruction}\n\n` : "") +
+      `Say what you did, what is next, and anything you are stuck on — two or three short lines, ` +
+      `no headings, no lists. If nothing has happened since the last one, say exactly that in one ` +
+      `line: it is the useful answer and it is what most days look like. Do not describe work you ` +
+      `have no record of doing.\n\n` +
+      `If something needs a person, tag ${userName() || "the user"}. If it needs one of the others, ` +
+      `name them — they take their turn after you either way.`;
+
+    // A slot at a time, and each waits for the last: a room where five bots
+    // answer at once is not a stand-up, it is a noise.
+    await channelTurn(room, bot, { left: 1 }, asked);
+  }
+}
+
 /** A routine firing into a channel rather than into the bot's own chat.
  *
  *  The room gets a badge naming the routine, because a bot that suddenly
@@ -5180,7 +5277,8 @@ function describeRoutine(routine: Routine): string {
   // is the difference between a bot muttering to itself and a bot posting to a
   // room, which is worth four characters.
   const into = room ? ` → #${room.name}` : "";
-  return `${howOften(routine)}${into}`;
+  const kind = routine.format === "standup" ? " · stand-up" : "";
+  return `${howOften(routine)}${into}${kind}`;
 }
 
 function howOften(routine: Routine): string {
@@ -5295,6 +5393,7 @@ function runRoutine(bot: Bot, routine: Routine): void {
     return;
   }
 
+  const was = routine.lastRunAt ?? 0;
   routine.lastRunAt = Date.now();
   // A task, not a routine: it has now happened, and should not happen again.
   if (routine.every === "once") routine.active = false;
@@ -5304,7 +5403,11 @@ function runRoutine(bot: Bot, routine: Routine): void {
   // it, and everyone else in the room sees it happen.
   const into = routine.channel ? channels().find((c) => c.id === routine.channel) : null;
   if (into && into.members.includes(bot.id)) {
-    void runRoutineInChannel(bot, routine, into);
+    // Since the last one, which is what "what have you been doing" means. The
+    // first standup has no last one, so it looks back a day.
+    const since = was || Date.now() - 24 * 60 * 60 * 1000;
+    if (routine.format === "standup") void runStandup(into, routine, since);
+    else void runRoutineInChannel(bot, routine, into);
     return;
   }
 
@@ -6567,6 +6670,7 @@ function draftRoutine(): Routine {
     // chosen yet" — but it is stored the same way, because a routine pointed
     // at nowhere and a routine pointed at its own thread do the same thing.
     channel: $<HTMLSelectElement>("#routine-where").value || undefined,
+    format: ($<HTMLSelectElement>("#routine-format").value || undefined) as Routine["format"],
     active: routineActive.checked,
   };
 }
@@ -6619,6 +6723,10 @@ function openRoutine(routine: Routine | null, seed?: { day: number; hour: number
   by.textContent = routine?.by ? `Added by ${routine.by}. Yours to keep, pause or delete.` : "";
 
   paintRoutineWhere(picker.value, routine?.channel);
+  $<HTMLSelectElement>("#routine-format").value = routine?.format ?? "";
+  paintRoutineFormat();
+  $<HTMLSelectElement>("#routine-format").value = routine?.format ?? "";
+  paintRoutineFormat();
 
   $<HTMLHeadingElement>("#routine-title").textContent = routine ? "Routine" : "New routine";
   $<HTMLButtonElement>("#routine-save").textContent = routine ? "Save" : "Add routine";
@@ -6631,6 +6739,27 @@ function openRoutine(routine: Routine | null, seed?: { day: number; hour: number
   routineWrap.hidden = false;
   routineName.focus();
 }
+
+/** Whether this routine is one bot doing a thing, or a room taking turns.
+ *
+ *  Only offered when it reports into a channel: a stand-up in a bot's own chat
+ *  is a bot talking to itself, which is not a meeting. */
+function paintRoutineFormat(): void {
+  const where = $<HTMLSelectElement>("#routine-where").value;
+  const room = channels().find((c) => c.id === where);
+  const row = $<HTMLLabelElement>("#routine-format-row");
+  row.hidden = !room;
+  if (!room) return;
+
+  const standup = $<HTMLSelectElement>("#routine-format").value === "standup";
+  const there = membersOf(room).length;
+  $<HTMLSpanElement>("#routine-format-hint").textContent = standup
+    ? `All ${there} take a turn, one at a time, each handed what actually ran.`
+    : "One bot does the thing and reports back.";
+}
+
+$<HTMLSelectElement>("#routine-format").addEventListener("change", paintRoutineFormat);
+$<HTMLSelectElement>("#routine-where").addEventListener("change", paintRoutineFormat);
 
 /** Where a routine reports: its own bot's chat, or a room that bot is in.
  *
