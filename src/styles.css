@@ -7,8 +7,6 @@
   --field: #1c1c1e;
   --hover: rgba(255, 255, 255, 0.055);
   --active: #1f1f21;
-  --bubble-bot: #1c1c1e;
-  --bubble-me: #3a3a3c;
   --line: rgba(255, 255, 255, 0.08);
   --text: #f2f2f2;
   --text-2: #8e8e93;
@@ -933,41 +931,111 @@ textarea {
 .thread {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px 18px 8px;
+  /* Rows are flush; the air belongs to the head of each run. */
+  gap: 0;
+  padding: 8px 4px 8px;
 }
 
+/* A flat list, the way Discord has one: everybody down the left, no bubbles,
+ * and a run of messages from one person carrying one face, one name and one
+ * time between them.
+ *
+ * The bubbles this replaced were readable but said the wrong thing — a
+ * right-aligned message is a text from a person to a person, and this is a room
+ * where several bots are working. Left-aligning everyone makes it a transcript
+ * of a meeting rather than a conversation with a friend, which is what it is.
+ *
+ * The rows sit flush and the space comes from the head of each run, so the eye
+ * gets a gap exactly where the speaker changes and nowhere else. */
 .turn {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
   max-width: 100%;
+  padding: 1px 14px 1px 10px;
+  border-radius: 6px;
 }
 
-.turn--bot {
-  justify-content: flex-start;
-  padding-right: 8%;
+/* Where a run begins: the only place with air above it. */
+.turn--head {
+  margin-top: 15px;
 }
 
-.turn--me {
-  justify-content: flex-end;
-  padding-left: 12%;
+/* Discord highlights the whole row under the pointer, which is also what tells
+   you the hover toolbar belongs to this line and not the one above. */
+.turn:hover {
+  background: var(--hover);
 }
 
+.turn__gutter {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  padding-top: 2px;
+}
+
+/* On a continuation line the gutter holds the time, and only under the
+   pointer: a column of timestamps down every line is the thing a flat list has
+   to avoid, and having none at all loses the one occasion you want it. */
+.turn__at {
+  font-size: 10.5px;
+  color: var(--text-3);
+  opacity: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.turn:hover .turn__at {
+  opacity: 1;
+}
+
+/* You, drawn the way the account row at the foot of the sidebar draws you. */
+.turn__me {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--active);
+  border-radius: 50%;
+}
+
+.turn__main {
+  min-width: 0;
+  flex: 1;
+}
+
+.turn__who {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 1px;
+}
+
+.turn__name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.turn__when {
+  font-size: 10.5px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* No longer a bubble: the body of a line, with nothing drawn around it. */
 .bubble {
   position: relative;
   min-width: 0;
-  padding: 10px 15px;
+  padding: 0;
   overflow-wrap: anywhere;
-  border-radius: 18px;
-}
-
-.turn--bot .bubble {
-  background: var(--bubble-bot);
-}
-
-.turn--me .bubble {
-  background: var(--bubble-me);
+  border-radius: 0;
+  background: none;
 }
 
 .bubble__body {
@@ -1456,6 +1524,7 @@ textarea {
    stands in for the prompt, and the bot's account of it follows below. */
 .turn--note {
   justify-content: center;
+  margin: 16px 0 4px;
   gap: 10px;
 }
 
@@ -1484,12 +1553,26 @@ textarea {
 }
 
 /* hover actions beside a bubble */
+/* Discord floats this at the top right of the row, overlapping the line above.
+   Absolute rather than in the flow so a long message is not shortened by it. */
 .acts {
+  position: absolute;
+  top: -12px;
+  right: 12px;
+  z-index: 2;
   display: flex;
   gap: 2px;
   flex: none;
+  padding: 2px;
   opacity: 0;
+  background: var(--active);
+  border: 1px solid var(--line);
+  border-radius: 8px;
   transition: opacity 0.13s;
+}
+
+.turn:hover .acts {
+  opacity: 1;
 }
 
 .turn:hover .acts,
@@ -4629,13 +4712,11 @@ a.detail__source:hover {
 
 /* A message you sent from your phone. Small and inside the bubble's corner: it
    is a note about where you were, not something to read. */
+/* On the line that names who spoke and when, beside the time. */
 .from-phone {
-  position: absolute;
-  right: 8px;
-  bottom: 4px;
   display: grid;
   place-items: center;
-  opacity: 0.45;
+  opacity: 0.5;
 }
 
 .from-phone svg {
@@ -4860,20 +4941,6 @@ a.detail__source:hover {
 }
 .chan__faces .face + .face {
   margin-left: -7px;
-}
-
-/* Whose face it is, in the gutter beside what they said.
-   Top-aligned rather than centred: a marker floating halfway down a six-line
-   answer reads as a label for the middle of it. */
-.turn--said {
-  align-items: flex-start;
-  margin-top: 14px;
-}
-.said {
-  display: flex;
-  flex: none;
-  padding-top: 4px;
-  cursor: default;
 }
 
 /* Making one. The sheet's body centres its children by default, which is right
@@ -5518,10 +5585,12 @@ a.detail__source:hover {
 }
 
 /* Pinned: a mark on the bubble, and a list behind the pin in the header. */
+/* It used to hook onto a bubble's corner. There is no corner now, so it sits
+   in the row's own right-hand padding, clear of the text. */
 .bubble__pin {
   position: absolute;
-  top: -6px;
-  right: -6px;
+  top: 2px;
+  right: -2px;
   display: grid;
   place-items: center;
   width: 18px;
@@ -5569,25 +5638,11 @@ a.detail__source:hover {
   }
 }
 
-/* A bubble with something hanging off it: the bubble and the way in, stacked,
-   so the strip lines up under the message it belongs to rather than beside
-   it. */
-.turn__stack {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
-  min-width: 0;
-  max-width: 100%;
-}
-.turn--me .turn__stack {
-  align-items: flex-end;
-}
-
 /* The way into a thread, from the line it was pulled out of. Quiet: it is a
    footnote on somebody's message, not a message of its own. */
 .thread-strip {
   display: flex;
+  margin-top: 5px;
   align-items: center;
   gap: 7px;
   max-width: 100%;

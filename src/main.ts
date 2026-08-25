@@ -1169,13 +1169,11 @@ function bubbleHtml(msg: Message): string {
   const clamp = msg.text.length > CLAMP_AT;
   const pinned = msg.pinned ? `<span class="bubble__pin" title="Pinned">${icon("pin")}</span>` : "";
   const react = msg.reaction ? `<div class="reacts"><span class="react">${msg.reaction}</span></div>` : "";
-  const phone = msg.fromPhone ? `<span class="from-phone" title="Sent from your phone">${icon("ios")}</span>` : "";
   return (
     `<div class="bubble${clamp ? " is-clamped" : ""}">` +
     `<div class="bubble__body">${body}</div>` +
     (clamp ? `<button type="button" class="more-btn">Show more ${icon("chev")}</button>` : "") +
     pinned +
-    phone +
     react +
     `</div>`
   );
@@ -1197,7 +1195,45 @@ function actsHtml(msg: Message): string {
   );
 }
 
-function turnEl(msg: Message, ch?: Channel): HTMLElement {
+/** Messages closer together than this, from the same person, are one run. */
+const SAME_BREATH = 5 * 60 * 1000;
+
+/** Whether this message opens a run rather than continuing one.
+ *
+ *  A run gets a face, a name and a time; the rest of it gets none of those and
+ *  reads as one person still speaking. That is the whole of what makes a flat
+ *  list readable — without it every line carries the same furniture and the eye
+ *  has nothing to skip. */
+function startsRun(msg: Message, prev?: Message): boolean {
+  if (!prev) return true;
+  // A note between two messages breaks the run: something happened in between.
+  if (prev.kind === "routine" || prev.kind === "teach") return true;
+  if (prev.from !== msg.from) return true;
+  if (msg.from === "bot" && prev.by !== msg.by) return true;
+  // The phone mark lives on the head of a run, so a change of device has to
+  // start one — otherwise it would speak for messages it does not describe.
+  if (!!prev.fromPhone !== !!msg.fromPhone) return true;
+  return msg.at - prev.at > SAME_BREATH;
+}
+
+/** Who said it, as a name and a face.
+ *
+ *  A bot in a room is named by the message; a bot in its own chat is the bot
+ *  whose chat it is. You are you, drawn the way the account row at the foot of
+ *  the sidebar draws you, so the same person looks the same in both places. */
+function saidBy(msg: Message, ch?: Channel): { name: string; face: string } {
+  if (msg.from === "me") {
+    const name = appSettings().name?.trim() || "You";
+    const initial = escapeHtml((name[0] ?? "?").toUpperCase());
+    return { name, face: `<span class="turn__me">${initial}</span>` };
+  }
+  const bot = ch ? state.bots.find((b) => b.id === msg.by) : activeBot();
+  return bot
+    ? { name: bot.name, face: faceHtml(bot, "sm") }
+    : { name: "", face: `<span class="turn__me">·</span>` };
+}
+
+function turnEl(msg: Message, ch?: Channel, prev?: Message): HTMLElement {
   const wrap = document.createElement("div");
   wrap.dataset.msg = msg.id;
 
@@ -1219,34 +1255,35 @@ function turnEl(msg: Message, ch?: Channel): HTMLElement {
     return wrap;
   }
 
-  wrap.className = `turn turn--${msg.from}`;
-
-  // In a room, whose face it is. Just the face: a name repeated down the side
-  // of every message is the same word over and over, and the face is already
-  // the thing the eye picks out — it is on the row in the sidebar, on the
-  // header of the room, and it is different for every bot. The name is on the
-  // face's tooltip for the one time you cannot place it.
   // A message with a thread hanging off it says so, and is the way in. Without
   // this a thread exists only in the sidebar, and the line it came from — the
   // thing you would go looking from — gives no sign anything happened.
   const hanging = ch ? channels().find((c) => c.from?.messageId === msg.id) : null;
-  const body = hanging
-    ? `<span class="turn__stack">${bubbleHtml(msg)}${threadStrip(hanging, msg)}</span>`
-    : bubbleHtml(msg);
+  const head = startsRun(msg, prev);
+  const who = saidBy(msg, ch);
 
-  const author = ch && msg.from === "bot" ? state.bots.find((b) => b.id === msg.by) : null;
-  if (author) {
-    wrap.classList.add("turn--said");
-    wrap.innerHTML =
-      `<span class="said" title="${escapeHtml(author.name)} · ${clock(msg.at)}">` +
-      faceHtml(author, "sm") +
-      `</span>` +
-      body +
-      actsHtml(msg);
-    return wrap;
-  }
-
-  wrap.innerHTML = msg.from === "me" ? actsHtml(msg) + body : body + actsHtml(msg);
+  wrap.className = `turn turn--${msg.from}${head ? " turn--head" : ""}`;
+  wrap.innerHTML =
+    // The gutter carries the face at the top of a run and the time on the rest,
+    // which only shows on hover: a column of timestamps down every line is the
+    // thing a flat list has to avoid.
+    `<div class="turn__gutter">` +
+    (head ? who.face : `<span class="turn__at">${clock(msg.at)}</span>`) +
+    `</div>` +
+    `<div class="turn__main">` +
+    (head
+      ? `<div class="turn__who">` +
+        `<span class="turn__name">${escapeHtml(who.name)}</span>` +
+        `<span class="turn__when">${clock(msg.at)}</span>` +
+        (msg.fromPhone
+          ? `<span class="from-phone" title="Sent from your phone">${icon("ios")}</span>`
+          : "") +
+        `</div>`
+      : "") +
+    bubbleHtml(msg) +
+    (hanging ? threadStrip(hanging, msg) : "") +
+    `</div>` +
+    actsHtml(msg);
   return wrap;
 }
 
@@ -1397,7 +1434,7 @@ function renderThread(): void {
       (bot.guide ? lessonsHtml() : "");
   } else {
     thread.innerHTML = "";
-    for (const msg of bot.messages) thread.append(turnEl(msg));
+    bot.messages.forEach((msg, n) => thread.append(turnEl(msg, undefined, bot.messages[n - 1])));
   }
 
   // Once it has been spoken to, the lessons move above the conversation: they
@@ -1585,7 +1622,7 @@ async function respond(bot: Bot, prompt: string, style?: string): Promise<void> 
   inflight.set(bot.id, { message, sawText: false, note: "" });
 
   if (bot.id === state.activeId) {
-    thread.append(turnEl(message));
+    thread.append(turnEl(message, undefined, bot.messages[bot.messages.length - 2]));
     waitingHtml(message.id, "");
     arrived();
   }
@@ -1873,7 +1910,7 @@ function send(text: string): void {
   bot.messages.push(msg);
 
   if (wasEmpty) thread.innerHTML = "";
-  thread.append(turnEl(msg));
+  thread.append(turnEl(msg, undefined, bot.messages[bot.messages.length - 2]));
   // Sending is a thing you did on purpose, so it always takes you to the end —
   // even if you were reading back through the conversation when you typed it.
   scrollToEnd(true);
@@ -4021,7 +4058,7 @@ async function channelTurn(
   inflight.set(bot.id, { message: post, sawText: false, note: "", channelId: ch.id });
 
   if (state.activeChannel === ch.id) {
-    thread.append(turnEl(post, ch));
+    thread.append(turnEl(post, ch, ch.messages[ch.messages.length - 2]));
     waitingHtml(post.id, "");
     arrived();
   }
@@ -4229,7 +4266,7 @@ function postToChannel(ch: Channel, text: string): void {
   const msg: Message = { id: uid(), from: "me", text, at: Date.now() };
   ch.messages.push(msg);
   if (ch.messages.length === 1) thread.innerHTML = "";
-  thread.append(turnEl(msg, ch));
+  thread.append(turnEl(msg, ch, ch.messages[ch.messages.length - 2]));
   scrollToEnd(true);
   input.value = "";
   autoGrow();
@@ -4296,7 +4333,7 @@ function renderChannel(): void {
       }</p></div>`;
   } else {
     thread.innerHTML = "";
-    for (const msg of ch.messages) thread.append(turnEl(msg, ch));
+    ch.messages.forEach((msg, n) => thread.append(turnEl(msg, ch, ch.messages[n - 1])));
   }
 
   // Re-attach the waiting indicator for anyone mid-turn in this room.
@@ -5849,7 +5886,7 @@ function runRoutine(bot: Bot, routine: Routine): void {
   bot.messages.push(note);
   if (bot.id === state.activeId) {
     if (bot.messages.length === 1) thread.innerHTML = "";
-    thread.append(turnEl(note));
+    thread.append(turnEl(note, undefined, bot.messages[bot.messages.length - 2]));
     arrived();
   }
   save();
@@ -6407,7 +6444,7 @@ async function stopTeaching(): Promise<void> {
   };
   bot.messages.push(msg);
   if (bot.messages.length === 1) thread.innerHTML = "";
-  thread.append(turnEl(msg));
+  thread.append(turnEl(msg, undefined, bot.messages[bot.messages.length - 2]));
   save();
   void respond(bot, prompt);
 }
@@ -8685,7 +8722,7 @@ function remoteSend(botId: string, text: string): Record<string, unknown> {
   bot.messages.push(msg);
   if (bot.id === state.activeId) {
     if (bot.messages.length === 1) thread.innerHTML = "";
-    thread.append(turnEl(msg));
+    thread.append(turnEl(msg, undefined, bot.messages[bot.messages.length - 2]));
     arrived();
   }
   save();
