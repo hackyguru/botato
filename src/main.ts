@@ -1075,8 +1075,14 @@ function renderRoster(): void {
             // on past it. CSS cannot see a following sibling, so it is said
             // here, where the order is known.
             const last = !!ch.from && !rows[n + 1]?.from;
+            // With the sidebar collapsed a thread is not drawn at all, so the
+            // room it belongs to stands in for it — otherwise opening a thread
+            // leaves nothing lit anywhere.
+            const hosting =
+              !ch.from && threadsOf(ch).some((t) => t.id === state.activeChannel);
             return (
               `<button class="bot-row chan-row${ch.id === state.activeChannel ? " is-active" : ""}` +
+              `${hosting ? " is-hosting" : ""}` +
               `${news.unread ? " is-unread" : ""}` +
               `${ch.from ? ` chan-row--thread${last ? " is-last" : ""}` : ""}" ` +
               `data-channel="${ch.id}">` +

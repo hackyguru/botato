@@ -197,6 +197,38 @@ textarea {
   cursor: pointer;
 }
 
+/* A group heading has nowhere to go in 66px — "CHANNELS" was clipping to
+   "CHAN". It becomes the thing the word was doing anyway: a divider between
+   the rooms and the bots. The first one is dropped, since a rule across the
+   top of a list separates it from nothing. */
+.is-rail .rail-group {
+  width: 24px;
+  height: 2px;
+  margin: 12px auto 10px;
+  padding: 0;
+  overflow: hidden;
+  font-size: 0;
+  color: transparent;
+  background: var(--line);
+  border-radius: 1px;
+}
+
+.is-rail .rail-group:first-child {
+  display: none;
+}
+
+/* A thread in a rail is a row with nothing in it: its name is hidden and it
+   has no icon of its own — that is what the branch was for, and the branch
+   needs the room above it to point at. So the room stands for them, and lights
+   up when you are in one of its threads. */
+.is-rail .chan-row--thread {
+  display: none;
+}
+
+.is-rail .chan-row.is-hosting {
+  background: var(--active);
+}
+
 /* ------------------------------------------------------------------ sidebar */
 .sidebar {
   display: flex;
