@@ -5051,6 +5051,55 @@ a.detail__source:hover {
 
 /* The sidebar splits into two lists once there is a room. Quiet enough to read
    as a divider rather than as a heading — the rows are the content. */
+/* Moving a room about.
+ *
+ * The line shows where it would land rather than the row lighting up, because
+ * "before this one" and "onto this one" are different answers and a highlight
+ * cannot tell them apart. */
+.bot-row.is-carried {
+  opacity: 0.4;
+}
+
+/* While a room is being carried, nothing else should be selecting itself as
+   the pointer sweeps across it. */
+body.is-dragging {
+  user-select: none;
+  cursor: grabbing;
+}
+
+.chan-row.is-over,
+.chan-row.is-over-below {
+  position: relative;
+}
+
+.chan-row.is-over::after,
+.chan-row.is-over-below::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: var(--blue);
+  border-radius: 1px;
+}
+
+.chan-row.is-over::after {
+  top: -1px;
+}
+
+.chan-row.is-over-below::after {
+  bottom: -1px;
+}
+
+/* A heading being dropped onto takes the whole room at its end, so it lights
+   rather than growing a line: there is no "before" about it. */
+.cat.is-target,
+.rail-group.is-target {
+  color: var(--text);
+  background: var(--hover);
+  border-radius: 6px;
+}
+
 /* A category: a heading with channels under it, the way Discord has them.
  *
  * It looks like the section labels around it rather than like a row, because

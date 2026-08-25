@@ -1054,6 +1054,12 @@ function load(): void {
       messages: ch.messages ?? [],
       seats: ch.seats ?? {},
     }));
+    // Named here or it is not loaded at all. save() writes the whole of state,
+    // so a category persisted perfectly and came back never: it survived until
+    // the window reloaded and then quietly was not there. Anything added to
+    // Persisted has to be added here too, which is the cost of loading field by
+    // field rather than trusting whatever was on disk.
+    state.categories = data.categories ?? [];
     state.activeId = data.activeId ?? state.bots[0].id;
     state.activeChannel = data.activeChannel ?? null;
     for (const bot of state.bots) freshenGuide(bot);
@@ -1110,7 +1116,7 @@ function renderRoster(): void {
   ];
 
   const roomsHtml = shown.length
-    ? `<p class="rail-group">Channels</p>` +
+    ? `<p class="rail-group" data-drop="">Channels</p>` +
       groups
         .map(({ cat, rooms: mine }) => {
           // An empty category still shows its heading: it is the thing you drop
@@ -1118,7 +1124,7 @@ function renderRoster(): void {
           if (!mine.length && !cat) return "";
 
           const head = cat
-            ? `<button type="button" class="cat${cat.shut ? " is-shut" : ""}" data-cat="${cat.id}">` +
+            ? `<button type="button" class="cat${cat.shut ? " is-shut" : ""}" data-cat="${cat.id}" data-drop="${cat.id}">` +
               `<svg class="cat__chev"><use href="#i-chev" /></svg>` +
               `<span class="cat__name">${escapeHtml(cat.name || "Untitled")}</span>` +
               `</button>`
@@ -1205,6 +1211,124 @@ function nameCategory(id: string): void {
     }
     if (event.key === "Escape") finish(false);
   });
+}
+
+/* ----------------------------------------------------- moving a room about */
+
+/** Dragging a room to reorder it, or into a category.
+ *
+ *  Pointer events rather than HTML5 drag-and-drop. That API needs the
+ *  platform's own drag session, which means it cannot be driven or tested from
+ *  outside the app — and it brings a drag image, a drop-effect cursor and a set
+ *  of quirks that differ between the webviews botcage runs in. This is a
+ *  mousedown, some movement and a mouseup, which behaves the same everywhere
+ *  and which I can watch actually work.
+ *
+ *  The order in the sidebar is the order of state.channels, so moving a room is
+ *  moving it in that array. There is no separate ordering to keep in step,
+ *  which is why a room can be dropped anywhere without a rank being invented
+ *  for it. */
+let carrying: { id: string; from: number; moved: boolean } | null = null;
+
+function unmark(): void {
+  for (const el of botsEl.querySelectorAll(".is-over, .is-over-below, .is-target")) {
+    el.classList.remove("is-over", "is-over-below", "is-target");
+  }
+}
+
+/** What is under the pointer, and where against it. */
+function landing(y: number, x: number): { on: HTMLElement; above: boolean } | null {
+  const el = document.elementFromPoint(x, y) as HTMLElement | null;
+  const on = el?.closest<HTMLElement>("[data-channel], [data-drop]") ?? null;
+  if (!on || !botsEl.contains(on)) return null;
+  const box = on.getBoundingClientRect();
+  return { on, above: y < box.top + box.height / 2 };
+}
+
+botsEl.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0) return;
+  const row = (event.target as HTMLElement).closest<HTMLElement>("[data-channel]");
+  // A thread is not picked up: it follows the room it hangs off, and there is
+  // nowhere else for it to be.
+  if (!row?.dataset.channel || row.classList.contains("chan-row--thread")) return;
+  carrying = { id: row.dataset.channel, from: event.clientY, moved: false };
+});
+
+window.addEventListener("pointermove", (event) => {
+  if (!carrying) return;
+  // Not a drag until it plainly is one, or every click on a room would be a
+  // tiny one and the room would never open.
+  if (!carrying.moved && Math.abs(event.clientY - carrying.from) < 5) return;
+  if (!carrying.moved) {
+    carrying.moved = true;
+    botsEl
+      .querySelector(`[data-channel="${CSS.escape(carrying.id)}"]`)
+      ?.classList.add("is-carried");
+    // Otherwise the sidebar's text highlights blue as the pointer sweeps it.
+    document.body.classList.add("is-dragging");
+  }
+
+  unmark();
+  const at = landing(event.clientY, event.clientX);
+  if (!at) return;
+  if (at.on.dataset.drop !== undefined) at.on.classList.add("is-target");
+  else at.on.classList.add(at.above ? "is-over" : "is-over-below");
+});
+
+window.addEventListener("pointerup", (event) => {
+  const held = carrying;
+  carrying = null;
+  document.body.classList.remove("is-dragging");
+  for (const el of botsEl.querySelectorAll(".is-carried")) el.classList.remove("is-carried");
+  if (!held?.moved) {
+    unmark();
+    return;
+  }
+
+  const at = landing(event.clientY, event.clientX);
+  unmark();
+  if (!at) return;
+
+  const ch = channels().find((c) => c.id === held.id);
+  if (!ch) return;
+
+  // Dropped on a heading: into that category, at the end of it. "Channels" is a
+  // heading too, with no id of its own, which is how a room comes back out.
+  if (at.on.dataset.drop !== undefined) {
+    if (at.on.dataset.drop) ch.category = at.on.dataset.drop;
+    else delete ch.category;
+    put(ch, null);
+    return;
+  }
+
+  const onto = channels().find((c) => c.id === at.on.dataset.channel);
+  if (!onto || onto.id === ch.id) return;
+  // Landing on a thread means landing on the room it belongs to.
+  const target = onto.from ? channels().find((c) => c.id === onto.from?.channelId) : onto;
+  if (!target || target.id === ch.id) return;
+
+  // It joins whatever the room it landed on belongs to, so dragging across a
+  // heading does the filing as well as the ordering.
+  if (target.category) ch.category = target.category;
+  else delete ch.category;
+  put(ch, target, at.above);
+});
+
+/** Put a room where it was dropped, and redraw.
+ *
+ *  `before` null means the end. A room's threads are not moved: they are drawn
+ *  under it wherever it goes, so they were never anywhere of their own. */
+function put(ch: Channel, target: Channel | null, above = false): void {
+  const all = channels();
+  all.splice(all.indexOf(ch), 1);
+  if (!target) {
+    all.push(ch);
+  } else {
+    const at = all.indexOf(target);
+    all.splice(above ? at : at + 1, 0, ch);
+  }
+  save();
+  renderRoster();
 }
 
 botsEl.addEventListener("click", (event) => {
