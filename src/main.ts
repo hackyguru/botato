@@ -1030,8 +1030,6 @@ function load(): void {
 
 const activeBot = () => state.bots.find((b) => b.id === state.activeId) ?? null;
 
-const lastOf = (bot: Bot): Message | undefined => bot.messages[bot.messages.length - 1];
-
 
 function renderRoster(): void {
   const q = searchEl.value.trim().toLowerCase();
@@ -1088,9 +1086,15 @@ function renderRoster(): void {
               (ch.from ? "" : `<span class="chan-row__hash">${icon("hash")}</span>`) +
               `<span class="bot-row__body"><span class="bot-row__top">` +
               `<span class="bot-row__name">${escapeHtml(ch.name)}</span>` +
-              // How many are in a room is worth saying; on a thread it is the
-              // same number again, so it is left off.
-              `<span class="bot-row__time">${ch.from || busy || news.unread ? "" : room.length || ""}</span>` +
+              // When it last had anything said in it, which is what this
+              // column means on every other row in the sidebar. It used to be
+              // the number of bots in the room — a bare number at the right
+              // end of a channel name, which is exactly where Discord and
+              // Slack put an unread count, so it read as "2 unread" and was
+              // not. Who is in a room is answered by the faces in its header.
+              `<span class="bot-row__time">${
+                busy || news.unread ? "" : lastSaid(ch.messages)
+              }</span>` +
               `</span></span>` +
               badgeHtml(news) +
               (busy ? `<span class="chan-row__live"></span>` : "") +
@@ -1106,7 +1110,6 @@ function renderRoster(): void {
     (roomsHtml ? `<p class="rail-group">Bots</p>` : "") +
     hits
     .map((bot) => {
-      const last = lastOf(bot);
       const news =
         bot.id === state.activeId && !state.activeChannel
           ? { unread: 0, mentions: 0 }
@@ -1122,7 +1125,7 @@ function renderRoster(): void {
         // you, and what a bot is doing this second is on its face — a thought
         // cloud says "typing" better than the word does.
         `<span class="bot-row__top"><span class="bot-row__name">${escapeHtml(bot.name)}</span>` +
-        `<span class="bot-row__time">${news.unread ? "" : last ? clock(last.at) : ""}</span></span>` +
+        `<span class="bot-row__time">${news.unread ? "" : lastSaid(bot.messages)}</span></span>` +
         `</span>` +
         badgeHtml(news) +
         `</button>`
@@ -1137,6 +1140,15 @@ function renderRoster(): void {
  *  number for every message would make a channel where two bots are working
  *  look like an emergency, and a room that chatters is not a room that asked
  *  you a question. */
+/** When this conversation last had anything said in it.
+ *
+ *  Empty rather than a fallback for one that has never been used: a row of
+ *  "--" down the sidebar says nothing anyone wanted to know. */
+function lastSaid(messages: Message[]): string {
+  const last = [...messages].reverse().find((m) => m.text.trim());
+  return last ? clock(last.at) : "";
+}
+
 function badgeHtml(news: { unread: number; mentions: number }): string {
   if (news.mentions) {
     return `<span class="row-badge">${news.mentions > 9 ? "9+" : news.mentions}</span>`;
