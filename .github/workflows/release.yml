@@ -66,8 +66,15 @@ jobs:
           cache: pnpm
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
+
+      # The action installs a toolchain called "stable". rust-toolchain.toml
+      # then tells cargo to use one called "1.98.0" — a separate rustup entry
+      # even when the two are the same compiler — so a target added above lands
+      # on the toolchain we are not building with. Asking rustup from inside the
+      # repo adds it to the one the file names, which is the one that matters.
+      - name: The target this leg builds for
+        run: rustup target add ${{ matrix.target }}
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
