@@ -8,6 +8,8 @@
   --hover: rgba(255, 255, 255, 0.055);
   --active: #1f1f21;
   --line: rgba(255, 255, 255, 0.08);
+  /* The line threads hang from in the sidebar. */
+  --branch: rgba(255, 255, 255, 0.13);
   --text: #f2f2f2;
   --text-2: #8e8e93;
   --text-3: #636366;
@@ -5694,49 +5696,64 @@ a.detail__source:hover {
    it and pointing back. */
 /* A thread hangs off a room; it is not another room.
  *
- * It had the same row height, the same gutter and the same rhythm as a channel
- * and was only tinted differently, so a channel with two threads read as three
- * channels. Now it is a shorter, tighter line tucked under the room it belongs
- * to, with a rule drawn down the gutter to say what it hangs from. */
+ * Drawn the way Discord draws it: no icon of its own, and a branch down the
+ * left with a short elbow into each name. The branch is the whole of what says
+ * "these belong to the room above" — an icon on every line only competes with
+ * that room's hash, and a row of arrows reads as four more channels.
+ *
+ * The last one turns the branch into an L, so the line stops at the thing it
+ * points to instead of running on into nothing. */
 .chan-row--thread {
   position: relative;
-  gap: 8px;
-  margin-left: 26px;
-  padding: 4px 10px 4px 6px;
-  width: calc(100% - 26px);
+  gap: 0;
+  margin-left: 22px;
+  width: calc(100% - 22px);
+  padding: 5px 10px 5px 20px;
 }
 
-/* The line the threads hang from, drawn once per row and joined up by their
-   being flush against each other. */
+/* Down the left, from the row above to the row below. */
 .chan-row--thread::before {
   content: "";
   position: absolute;
+  left: 0;
   top: 0;
   bottom: 0;
-  left: -8px;
-  width: 1px;
-  background: var(--line);
+  width: 2px;
+  background: var(--branch);
 }
 
-.chan-row--thread .chan-row__hash {
-  width: 16px;
-  height: 16px;
+/* And in, to the name. */
+.chan-row--thread::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 10px;
+  height: 2px;
+  background: var(--branch);
+  border-bottom-left-radius: 4px;
 }
 
-.chan-row--thread .chan-row__hash svg {
-  width: 13px;
-  height: 13px;
-  transform: scaleY(-1);
+/* The last: the line stops where it turns. */
+.chan-row--thread.is-last::before {
+  bottom: 50%;
+  border-bottom-left-radius: 4px;
 }
 
 .chan-row--thread .bot-row__name {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text-2);
 }
 
+/* Unread is what makes one of these worth looking at, so it is the only one
+   that is not grey. */
 .chan-row--thread.is-active .bot-row__name,
 .chan-row--thread.is-unread .bot-row__name {
   color: var(--text);
+}
+
+.chan-row--thread.is-unread .bot-row__name {
+  font-weight: 600;
 }
 
 .chan__parent {

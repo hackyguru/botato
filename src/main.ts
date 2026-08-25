@@ -1060,29 +1060,45 @@ function renderRoster(): void {
   const shown = rooms().filter((ch) => matches(ch) || threadsOf(ch).some(matches));
   const roomsHtml = shown.length
     ? `<p class="rail-group">Channels</p>` +
-      shown
-        .flatMap((ch) => [ch, ...threadsOf(ch).filter((t) => matches(t) || matches(ch))])
-        .map((ch) => {
-          const room = membersOf(ch);
-          const busy = room.some((b) => inflight.get(b.id)?.channelId === ch.id);
-          const news = ch.id === state.activeChannel
-            ? { unread: 0, mentions: 0 }
-            : unreadIn(ch.messages, ch.seenAt);
-          return (
-            `<button class="bot-row chan-row${ch.id === state.activeChannel ? " is-active" : ""}` +
-            `${news.unread ? " is-unread" : ""}${ch.from ? " chan-row--thread" : ""}" ` +
-            `data-channel="${ch.id}">` +
-            `<span class="chan-row__hash">${icon(ch.from ? "reply" : "hash")}</span>` +
-            `<span class="bot-row__body"><span class="bot-row__top">` +
-            `<span class="bot-row__name">${escapeHtml(ch.name)}</span>` +
-            `<span class="bot-row__time">${busy || news.unread ? "" : room.length || ""}</span>` +
-            `</span></span>` +
-            badgeHtml(news) +
-            (busy ? `<span class="chan-row__live"></span>` : "") +
-            `</button>`
-          );
-        })
-        .join("")
+      (() => {
+        const rows = shown.flatMap((ch) => [
+          ch,
+          ...threadsOf(ch).filter((t) => matches(t) || matches(ch)),
+        ]);
+        return rows
+          .map((ch, n) => {
+            const room = membersOf(ch);
+            const busy = room.some((b) => inflight.get(b.id)?.channelId === ch.id);
+            const news = ch.id === state.activeChannel
+              ? { unread: 0, mentions: 0 }
+              : unreadIn(ch.messages, ch.seenAt);
+            // The last thread under a room turns the branch into an elbow, so
+            // the line stops at the thing it is pointing to rather than running
+            // on past it. CSS cannot see a following sibling, so it is said
+            // here, where the order is known.
+            const last = !!ch.from && !rows[n + 1]?.from;
+            return (
+              `<button class="bot-row chan-row${ch.id === state.activeChannel ? " is-active" : ""}` +
+              `${news.unread ? " is-unread" : ""}` +
+              `${ch.from ? ` chan-row--thread${last ? " is-last" : ""}` : ""}" ` +
+              `data-channel="${ch.id}">` +
+              // A thread carries no icon of its own: the branch it hangs from
+              // says what it is, and a glyph on every line only competes with
+              // the room's own hash above it.
+              (ch.from ? "" : `<span class="chan-row__hash">${icon("hash")}</span>`) +
+              `<span class="bot-row__body"><span class="bot-row__top">` +
+              `<span class="bot-row__name">${escapeHtml(ch.name)}</span>` +
+              // How many are in a room is worth saying; on a thread it is the
+              // same number again, so it is left off.
+              `<span class="bot-row__time">${ch.from || busy || news.unread ? "" : room.length || ""}</span>` +
+              `</span></span>` +
+              badgeHtml(news) +
+              (busy ? `<span class="chan-row__live"></span>` : "") +
+              `</button>`
+            );
+          })
+          .join("");
+      })()
     : "";
 
   botsEl.innerHTML =
