@@ -5464,18 +5464,48 @@ a.detail__source:hover {
 
 /* Threads: a channel with a parent, and a row that says so by sitting under
    it and pointing back. */
+/* A thread hangs off a room; it is not another room.
+ *
+ * It had the same row height, the same gutter and the same rhythm as a channel
+ * and was only tinted differently, so a channel with two threads read as three
+ * channels. Now it is a shorter, tighter line tucked under the room it belongs
+ * to, with a rule drawn down the gutter to say what it hangs from. */
 .chan-row--thread {
-  padding-left: 18px;
+  position: relative;
+  gap: 8px;
+  margin-left: 26px;
+  padding: 4px 10px 4px 6px;
+  width: calc(100% - 26px);
 }
+
+/* The line the threads hang from, drawn once per row and joined up by their
+   being flush against each other. */
+.chan-row--thread::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -8px;
+  width: 1px;
+  background: var(--line);
+}
+
+.chan-row--thread .chan-row__hash {
+  width: 16px;
+  height: 16px;
+}
+
 .chan-row--thread .chan-row__hash svg {
-  width: 15px;
-  height: 15px;
+  width: 13px;
+  height: 13px;
   transform: scaleY(-1);
 }
+
 .chan-row--thread .bot-row__name {
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--text-2);
 }
+
 .chan-row--thread.is-active .bot-row__name,
 .chan-row--thread.is-unread .bot-row__name {
   color: var(--text);
