@@ -1626,8 +1626,12 @@ textarea {
   color: var(--text-3);
 }
 
+/* Run now and Save share a row. A delete is full width like every other
+   sheet's, so it wraps onto its own line above them rather than squeezing Save
+   off the edge — which is what it did the first time I moved it here. */
 .sheet--routine .sheet__foot {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
 }
@@ -5112,8 +5116,14 @@ body.is-dragging {
   cursor: pointer;
 }
 
+/* A category folds when you click it and the section labels above and beside
+   it do nothing at all, and the two were the same eleven-point grey word — the
+   chevron was the whole of the difference. Under the pointer this one lights
+   like a row, because it behaves like one. */
 .cat:hover {
   color: var(--text-2);
+  background: var(--hover);
+  border-radius: 6px;
 }
 
 .cat__chev {
