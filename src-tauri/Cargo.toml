@@ -34,6 +34,11 @@ tokio = { version = "1", features = ["rt-multi-thread", "io-util", "net", "time"
 # makes for a container engine, and the reason a 10 MB app can transcribe
 # speech without sending audio to anybody.
 whisper-rs = { version = "0.16", default-features = false }
+chacha20poly1305 = "0.10"
+argon2 = "0.5"
+tar = "0.4"
+flate2 = "1"
+rand = "0.8"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

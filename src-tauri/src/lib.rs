@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, RunEvent};
 
+mod backup;
 mod catalogue;
 mod connectors;
 mod engine;
