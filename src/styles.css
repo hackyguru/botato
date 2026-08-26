@@ -1,26 +1,84 @@
 /* ------------------------------------------------------------------ tokens */
+/* --- palette: written by scripts/tokens.py from design/tokens.json --- */
 :root {
   --sidebar-w: 268px;
 
+  /* The floor: the sidebar, the rail, the app behind everything. */
   --bg: #000000;
+  /* The conversation, a shade off the floor so the sidebar has an edge. */
   --bg-main: #0c0c0c;
+  /* A sheet, a drawer's list — a surface lifted off the app. */
+  --panel: #17171a;
+  /* Something you type in or choose from, on the app's own ground. */
   --field: #1c1c1e;
+  /* The top rung: what has to read as in front of a field. */
+  --raised: #3a3a3c;
+  /* A group of rows on a sheet. */
+  --fill-1: rgba(255, 255, 255, 0.035);
+  /* A control at rest: a chip, a tab. */
+  --fill-2: rgba(255, 255, 255, 0.06);
+  /* Chosen or pressed. */
+  --fill-3: rgba(255, 255, 255, 0.11);
+  /* Under the pointer, and only there. */
   --hover: rgba(255, 255, 255, 0.055);
+  /* The row you are in, in a list. */
   --active: #1f1f21;
-  --line: rgba(255, 255, 255, 0.08);
+  /* Every hairline in either app. */
+  --line: rgba(255, 255, 255, 0.09);
   /* The line threads hang from in the sidebar. */
   --branch: rgba(255, 255, 255, 0.13);
+  /* What you are reading. */
   --text: #f2f2f2;
+  /* What is beside it. */
   --text-2: #8e8e93;
+  /* What explains it. */
   --text-3: #636366;
-  --link: #4a9dff;
+  /* Type on blue, red or green. */
+  --on-accent: #ffffff;
+  /* The one accent: what is chosen, what is yours to press. */
   --blue: #0a84ff;
+  /* Blue that has to stay legible in a paragraph. */
+  --link: #4a9dff;
+  /* Ready, connected, alive. */
+  --green: #30d158;
+  /* Wants you: a mention, a warning that is not a failure. */
+  --amber: #f0b232;
+  /* Gone wrong, or about to be destroyed. */
   --red: #ff453a;
+
   --shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  --shadow-float: 0 4px 12px rgba(0, 0, 0, 0.45);
+
+  --space-hair: 2px;
+  --space-tight: 4px;
+  --space-snug: 8px;
+  --space-row: 12px;
+  --space-gutter-phone: 16px;
+  --space-gutter: 20px;
+  --space-loose: 24px;
+
+  --radius-pill: 999px;
+  --radius-chip: 8px;
+  --radius-control: 10px;
+  --radius-card: 12px;
+  --radius-surface: 16px;
+  --radius-sheet: 18px;
+
+  --type-caption: 11px;
+  --type-hint: 12.5px;
+  --type-small: 13.5px;
+  --type-body: 15px;
+  --type-title-sm: 16px;
+  --type-title: 19px;
+  --type-display: 26px;
+
+  --row-min-height: 52px;
+  --row-control-height: 30px;
 
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 }
+/* --- end palette --- */
 
 * {
   box-sizing: border-box;
@@ -1266,7 +1324,7 @@ select:focus-visible {
  * sideways by two pixels when it becomes a ping. */
 .turn--ping {
   background: rgba(240, 178, 50, 0.055);
-  box-shadow: inset 2px 0 0 #f0b232;
+  box-shadow: inset 2px 0 0 var(--amber);
 }
 
 /* Hover is a more specific selector than the ping, so without this the wash
@@ -1422,7 +1480,7 @@ select:focus-visible {
   padding: 1px 5px;
   font-family: var(--mono);
   font-size: 0.86em;
-  background: rgba(255, 255, 255, 0.09);
+  background: var(--fill-2);
   border-radius: 5px;
 }
 
@@ -1619,7 +1677,7 @@ select:focus-visible {
 }
 
 .cal__slot:hover {
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--fill-1);
 }
 
 .cal__col.is-today {
@@ -1700,7 +1758,7 @@ select:focus-visible {
   align-items: center;
   padding: 3px 9px;
   font-size: 11.5px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--fill-2);
   border-radius: 999px;
 }
 
@@ -1787,7 +1845,7 @@ select:focus-visible {
 }
 
 .cal__cell:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--fill-1);
 }
 
 /* The days either side of the month. Drawn at full strength, a month looks
@@ -1829,7 +1887,7 @@ select:focus-visible {
   font-size: 11px;
   line-height: 1.45;
   text-align: left;
-  background: rgba(255, 255, 255, 0.055);
+  background: var(--hover);
   border: 0;
   border-radius: 5px;
   cursor: pointer;
@@ -1860,7 +1918,7 @@ select:focus-visible {
 }
 
 .cal__pip:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--fill-3);
 }
 
 .cal__pip.is-off {
@@ -1963,7 +2021,7 @@ select:focus-visible {
   vertical-align: 1px;
   color: var(--text);
   white-space: nowrap;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--fill-3);
   border-radius: 999px;
 }
 
@@ -1974,15 +2032,15 @@ select:focus-visible {
 }
 
 .ref--memory svg {
-  color: #4a9dff;
+  color: var(--link);
 }
 
 .ref--task svg {
-  color: #30d158;
+  color: var(--green);
 }
 
 .ref--demo svg {
-  color: #ffb020;
+  color: var(--amber);
 }
 
 /* A demonstration reads as an event, not a wall of instructions: the badge
@@ -2001,7 +2059,7 @@ select:focus-visible {
   font-size: 13.5px;
   font-weight: 500;
   color: var(--text);
-  background: rgba(255, 255, 255, 0.09);
+  background: var(--fill-2);
   border-radius: 999px;
 }
 
@@ -2802,7 +2860,7 @@ select:focus-visible {
   z-index: 40;
   min-width: 176px;
   padding: 5px;
-  background: #1c1c1e;
+  background: var(--field);
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: var(--shadow);
@@ -2873,7 +2931,7 @@ select:focus-visible {
      Phone panel — with a QR square in it — pushed the sheet past the bottom of
      a laptop screen, taking the Done button with it. */
   max-height: 88vh;
-  background: #17171a;
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 18px;
   box-shadow: var(--shadow);
@@ -3081,14 +3139,14 @@ select:focus-visible {
   min-height: 92px;
   padding: 13px 15px;
   text-align: left;
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--fill-1);
   border: 1px solid var(--line);
   border-radius: 15px;
   transition: background 0.14s, border-color 0.14s, transform 0.14s;
 }
 
 .lesson:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--fill-2);
   border-color: rgba(255, 255, 255, 0.16);
   transform: translateY(-1px);
 }
@@ -3533,7 +3591,7 @@ select:focus-visible {
   position: absolute;
   width: 300px;
   padding: 16px 18px 14px;
-  background: #17171a;
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 16px;
   box-shadow: var(--shadow);
@@ -3596,14 +3654,14 @@ select:focus-visible {
   align-items: flex-start;
   padding: 13px 15px;
   text-align: left;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--fill-1);
   border: 1px solid transparent;
   border-radius: 11px;
   cursor: pointer;
 }
 
 .pick:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--fill-2);
 }
 
 .pick:has(input:checked) {
@@ -3703,11 +3761,11 @@ select:focus-visible {
 }
 
 .provider-row:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--hover);
 }
 
 .provider-row.is-on {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--fill-3);
 }
 
 .provider-row__name {
@@ -3739,7 +3797,7 @@ select:focus-visible {
 .provider-row__dot[data-ready="true"] {
   /* The same green as every other "this is on" light in the app. There is no
      --green token; the others spell it out too. */
-  background: #30d158;
+  background: var(--green);
   opacity: 1;
 }
 
@@ -3783,7 +3841,7 @@ select:focus-visible {
 }
 
 .model-row:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--hover);
 }
 
 .model-row.is-on {
@@ -3821,7 +3879,7 @@ select:focus-visible {
   padding: 1px 7px;
   font-size: 10.5px;
   color: var(--text-3);
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--fill-2);
   border-radius: 999px;
 }
 
@@ -4313,7 +4371,7 @@ a.detail__source:hover {
 
 .tab[aria-selected="true"] {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.11);
+  background: var(--fill-3);
 }
 
 /* A row naming a file, which may be longer than the sheet is wide. Without
@@ -4467,7 +4525,7 @@ a.detail__source:hover {
   display: flex;
   flex-direction: column;
   width: 100%;
-  background: rgba(255, 255, 255, 0.032);
+  background: var(--fill-1);
   border-radius: 12px;
   /* So a row lit by hover cannot square off the corner it sits in. */
   overflow: hidden;
@@ -4572,7 +4630,7 @@ label.setting {
 }
 
 .switch:checked {
-  background: #30d158;
+  background: var(--green);
 }
 
 .switch:checked::after {
@@ -4600,7 +4658,7 @@ label.setting {
 
 .swatch.is-on {
   transform: scale(1.1);
-  box-shadow: 0 0 0 2px #17171a, 0 0 0 4px currentColor;
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px currentColor;
 }
 
 /* The body scrolls between the head and this, and did so against no edge at
@@ -4765,18 +4823,18 @@ label.setting {
   padding: 2px 9px;
   font-size: 12px;
   color: var(--text-2);
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--fill-2);
   border-radius: 999px;
 }
 
 .state-pill.is-live {
   color: #0a0a0a;
-  background: #30d158;
+  background: var(--green);
 }
 
 .state-pill.is-busy {
   color: #0a0a0a;
-  background: #ffb020;
+  background: var(--amber);
 }
 
 .state-pill.is-bad {
@@ -4853,7 +4911,7 @@ label.setting {
   font-weight: 500;
   color: var(--text-2);
   white-space: nowrap;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--fill-2);
   border: 1px solid var(--line);
   border-radius: 999px;
   transition: background 0.14s, color 0.14s, border-color 0.14s;
@@ -4866,13 +4924,13 @@ label.setting {
 
 .chip:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.11);
+  background: var(--fill-3);
 }
 
 /* Holding control is a live state, so it reads like the settings switch. */
 .chip.is-on {
   color: #0a2a12;
-  background: #30d158;
+  background: var(--green);
   border-color: transparent;
 }
 
@@ -5127,7 +5185,7 @@ label.setting {
 }
 
 .setup__dot[data-state="ok"] {
-  background: #32d74b;
+  background: var(--green);
 }
 
 .setup__dot[data-state="missing"] {
@@ -5471,7 +5529,7 @@ label.setting {
 }
 
 .engine-row__light[data-ready="true"] {
-  background: #32d74b;
+  background: var(--green);
 }
 
 .engine-row__name {
@@ -6263,8 +6321,8 @@ body.is-dragging {
    ring means to anyone who has been in a voice channel, and the bot's own
    colour is already doing a different job three inches away. */
 .tile.is-speaking {
-  border-color: #3ba55d;
-  background: color-mix(in srgb, #3ba55d 8%, var(--field));
+  border-color: var(--green);
+  background: color-mix(in srgb, var(--green) 8%, var(--field));
 }
 .tile.is-speaking .face {
   animation: tile-talk 1.9s ease-in-out infinite;
@@ -6295,7 +6353,7 @@ body.is-dragging {
   font-weight: 500;
 }
 .tile--you.is-speaking .tile__you {
-  background: color-mix(in srgb, #3ba55d 22%, var(--active));
+  background: color-mix(in srgb, var(--green) 22%, var(--active));
   color: var(--text);
 }
 
