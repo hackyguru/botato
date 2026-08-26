@@ -1227,6 +1227,177 @@ function load(): void {
   }
 }
 
+/* ----------------------------------------------------------------- your desk */
+
+/** Something that is waiting on you rather than on a bot. */
+interface Waiting {
+  kind: "named" | "failed" | "engine";
+  /** Who or what it is about. */
+  who: string;
+  /** What happened, in one line. */
+  what: string;
+  when: number;
+  /** Where clicking it goes. */
+  go: () => void;
+}
+
+/** Everything blocked on you, in one list.
+ *
+ *  A company of agents makes the person the bottleneck: five bots working is
+ *  five things that can stop and wait, and the app's answer until now was that
+ *  you would notice the dot on a row. This is the other half of that — not
+ *  what is new, which the unread marks already say, but what will not move
+ *  until you do something.
+ *
+ *  Three things qualify, and they are three because those are the three the
+ *  app can actually tell. A bot said your name and you have not answered. A
+ *  turn failed. An engine a bot is set to use is not there, which is a bot
+ *  that cannot work at all. Anything else would be a guess dressed as a task.
+ */
+function onYourDesk(): Waiting[] {
+  const out: Waiting[] = [];
+
+  const lastFromYou = (messages: Message[]) =>
+    messages.reduce((at, m) => (m.from === "me" ? m.at : at), 0);
+
+  for (const bot of state.bots) {
+    const since = lastFromYou(bot.messages);
+    for (const m of bot.messages) {
+      if (m.from !== "bot" || m.at <= since) continue;
+      if (m.error) {
+        out.push({
+          kind: "failed",
+          who: bot.name,
+          what: m.error,
+          when: m.at,
+          go: () => {
+            openBot(bot.id);
+            gotoMessage(m.id);
+          },
+        });
+      } else if (mentionsYou(m.text)) {
+        out.push({
+          kind: "named",
+          who: bot.name,
+          what: m.text.replace(/\s+/g, " ").trim(),
+          when: m.at,
+          go: () => {
+            openBot(bot.id);
+            gotoMessage(m.id);
+          },
+        });
+      }
+    }
+  }
+
+  for (const ch of channels()) {
+    const since = lastFromYou(ch.messages);
+    for (const m of ch.messages) {
+      if (m.from !== "bot" || m.at <= since || !mentionsYou(m.text)) continue;
+      out.push({
+        kind: "named",
+        who: `${nameOf(m.by) || "A bot"} in ${ch.from ? "↳ " : "#"}${ch.name}`,
+        what: m.text.replace(/\s+/g, " ").trim(),
+        when: m.at,
+        go: () => {
+          openChannel(ch.id);
+          gotoMessage(m.id);
+        },
+      });
+    }
+  }
+
+  // An engine that cannot run is not a message anybody sent, so it has no time
+  // of its own — it sorts to the top, because a bot that cannot work at all
+  // outranks a bot waiting for an answer.
+  for (const engine of engineChoices) {
+    if (engine.ready.usable) continue;
+    const mine = state.bots.filter((b) => (b.engine ?? DEFAULT_ENGINE) === engine.key);
+    if (!mine.length) continue;
+    out.push({
+      kind: "engine",
+      who: engine.name,
+      what: `${engine.ready.missing ?? "Not ready"} — ${mine.length} bot${mine.length === 1 ? "" : "s"} set to use it`,
+      when: Date.now(),
+      go: () => void openAppSettings(),
+    });
+  }
+
+  return out.sort((a, b) => {
+    const rank = { engine: 0, failed: 1, named: 2 } as const;
+    return rank[a.kind] - rank[b.kind] || b.when - a.when;
+  });
+}
+
+/** Is the desk what the main pane is showing? */
+let deskOpen = false;
+
+const AGO = (at: number): string => {
+  const mins = Math.round((Date.now() - at) / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  return hours < 24 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`;
+};
+
+/** The desk itself. Kept between renders so a click can find the item it was
+ *  drawn from without the list being rebuilt underneath it. */
+let desk: Waiting[] = [];
+
+function renderDesk(): void {
+  desk = onYourDesk();
+
+  $<HTMLParagraphElement>("#desk-note").textContent = desk.length
+    ? `${desk.length} thing${desk.length === 1 ? "" : "s"} waiting on you`
+    : "";
+
+  $<HTMLDivElement>("#desk-list").innerHTML = desk.length
+    ? desk
+        .map(
+          (item, at) =>
+            `<button type="button" class="desk-item desk-item--${item.kind}" data-desk-at="${at}">` +
+            `<span class="desk-item__kind">${
+              item.kind === "engine" ? "Cannot run" : item.kind === "failed" ? "Failed" : "Named you"
+            }</span>` +
+            `<span class="desk-item__body">` +
+            `<span class="desk-item__who">${escapeHtml(item.who)}</span>` +
+            `<span class="desk-item__what">${escapeHtml(item.what.slice(0, 240))}</span>` +
+            `</span>` +
+            `<span class="desk-item__when">${item.kind === "engine" ? "" : AGO(item.when)}</span>` +
+            `</button>`,
+        )
+        .join("")
+    : `<div class="desk__clear">` +
+      `<p class="desk__clear-head">Nothing is waiting on you.</p>` +
+      `<p class="desk__clear-note">Bots that say your name, turns that failed, and engines that ` +
+      `cannot run turn up here. Everything else they can get on with themselves.</p>` +
+      `</div>`;
+}
+
+/** The main pane shows either the conversation, the calendar, or this. */
+function showDesk(open: boolean): void {
+  deskOpen = open;
+  $<HTMLElement>(".main").classList.toggle("is-desk", open);
+  $<HTMLElement>("#desk").hidden = !open;
+  if (!open) {
+    paintTopbarFor(activeBot());
+    renderThread();
+    renderRoster();
+    return;
+  }
+
+  // The calendar and the desk are both the whole pane; opening one closes the
+  // other rather than stacking them.
+  if (routinesOpen) showRoutines(false);
+  state.activeChannel = null;
+  paintTopbarFor(null);
+  $<HTMLButtonElement>("#btn-settings").hidden = true;
+  topbarId.innerHTML =
+    `<span class="chan__hash">${icon("note")}</span><span>Your desk</span>`;
+  renderDesk();
+  renderRoster();
+}
+
 /* --------------------------------------------------------------- bot roster */
 
 const activeBot = () => state.bots.find((b) => b.id === state.activeId) ?? null;
@@ -1303,7 +1474,18 @@ function renderRoster(): void {
   const botsHtml = "";
   void botsHtml;
 
+  const waiting = onYourDesk().length;
+  // Above everything, and only ever one line: it is not a channel and not a
+  // bot, it is the pile on your side of the table.
+  const deskHtml =
+    `<button type="button" class="desk-row${deskOpen ? " is-active" : ""}" data-desk-open>` +
+    `<span class="desk-row__icon">${icon("note")}</span>` +
+    `<span class="desk-row__name">Your desk</span>` +
+    (waiting ? `<span class="desk-row__count">${waiting > 99 ? "99+" : waiting}</span>` : "") +
+    `</button>`;
+
   botsEl.innerHTML =
+    deskHtml +
     roomsHtml +
     (roomsHtml ? `<p class="rail-group">Bots</p>` : "") +
     botRows(hits);
@@ -1486,6 +1668,11 @@ function put(ch: Channel, target: Channel | null, above = false): void {
 }
 
 botsEl.addEventListener("click", (event) => {
+  if ((event.target as HTMLElement).closest("[data-desk-open]")) {
+    showDesk(!deskOpen);
+    return;
+  }
+
   const head = (event.target as HTMLElement).closest<HTMLElement>("[data-cat]");
   if (!head?.dataset.cat) return;
   const cat = categories().find((c) => c.id === head.dataset.cat);
@@ -8199,6 +8386,17 @@ $<HTMLButtonElement>("#cal-today").addEventListener("click", () => {
 $<HTMLDivElement>("#cal-spans").addEventListener("click", (e) => {
   const pick = (e.target as HTMLElement).closest<HTMLElement>("[data-span]");
   if (pick) setCalSpan(pick.dataset.span as CalSpan);
+});
+
+$<HTMLElement>("#desk").addEventListener("click", (e) => {
+  const pick = (e.target as HTMLElement).closest<HTMLElement>("[data-desk-at]");
+  if (!pick) return;
+  const item = desk[Number(pick.dataset.deskAt)];
+  if (!item) return;
+  // Going somewhere is leaving here: the desk is a list of places to be, not a
+  // place to be.
+  showDesk(false);
+  item.go();
 });
 
 $<HTMLElement>("#routines").addEventListener("click", (e) => {

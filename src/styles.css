@@ -509,6 +509,184 @@ select:focus-visible {
   }
 }
 
+/* ------------------------------------------------------------- your desk */
+
+/* The row above everything, which is neither a channel nor a bot: it is the
+   pile on your side of the table. One line, and a count only when there is
+   something in it — a zero in a badge is a badge that has taught you to
+   ignore badges. */
+.desk-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 8px 10px;
+  text-align: left;
+  border-radius: var(--radius-card);
+  cursor: pointer;
+  transition: background 0.13s;
+}
+
+.desk-row:hover {
+  background: var(--hover);
+}
+
+.desk-row.is-active {
+  background: var(--active);
+}
+
+.desk-row__icon svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  color: var(--text-2);
+}
+
+.desk-row__name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--type-small);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.desk-row__count {
+  min-width: 19px;
+  height: 19px;
+  padding: 0 6px;
+  font-size: var(--type-caption);
+  font-weight: 600;
+  line-height: 19px;
+  color: var(--on-accent);
+  text-align: center;
+  background: var(--amber);
+  border-radius: var(--radius-pill);
+}
+
+/* The pane. Same furniture as the calendar's, because it is the same kind of
+   thing: the whole of the main column, standing in for the conversation. */
+.main.is-desk .scroll,
+.main.is-desk .dock {
+  display: none;
+}
+
+.desk-view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding: 18px 22px 20px;
+  overflow-y: auto;
+}
+
+.desk__note {
+  margin: 0 0 12px;
+  font-size: var(--type-hint);
+  color: var(--text-3);
+}
+
+.desk__note:empty {
+  margin: 0;
+}
+
+.desk__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 720px;
+}
+
+/* One thing waiting. The kind is a word rather than a colour alone: "Failed"
+   and "Named you" are different jobs, and a reader should not have to learn a
+   palette to tell them apart. */
+.desk-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  text-align: left;
+  background: var(--fill-1);
+  border-radius: var(--radius-card);
+  cursor: pointer;
+  transition: background 0.13s;
+}
+
+.desk-item:hover {
+  background: var(--fill-2);
+}
+
+.desk-item__kind {
+  flex: none;
+  width: 76px;
+  padding-top: 1px;
+  font-size: var(--type-caption);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.desk-item--failed .desk-item__kind {
+  color: var(--red);
+}
+
+.desk-item--engine .desk-item__kind {
+  color: var(--amber);
+}
+
+.desk-item--named .desk-item__kind {
+  color: var(--blue);
+}
+
+.desk-item__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.desk-item__who {
+  font-size: var(--type-small);
+  font-weight: 600;
+}
+
+.desk-item__what {
+  overflow: hidden;
+  font-size: var(--type-hint);
+  line-height: 1.45;
+  color: var(--text-2);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.desk-item__when {
+  flex: none;
+  padding-top: 1px;
+  font-size: var(--type-caption);
+  color: var(--text-3);
+}
+
+.desk__clear {
+  max-width: 420px;
+  padding: 40px 0;
+}
+
+.desk__clear-head {
+  margin: 0;
+  font-size: var(--type-title-sm);
+  font-weight: 600;
+}
+
+.desk__clear-note {
+  margin: 6px 0 0;
+  font-size: var(--type-small);
+  line-height: 1.55;
+  color: var(--text-3);
+}
+
 .bot-row {
   display: flex;
   align-items: center;
