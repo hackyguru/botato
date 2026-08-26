@@ -357,7 +357,13 @@ export default function App() {
         <Phone
           pairing={pairing}
           connected={connected}
-          onBack={() => setAside(true)}
+          // Leaving the screen, not opening the drawer. This screen is not
+          // inside the drawer — it replaces everything — so reopening one that
+          // is already open behind it did nothing at all, and the chevron was
+          // a button that could be pressed all day. What the drawer was doing
+          // is left alone: you came here from it, so it is open, and it comes
+          // back with you. Android's back button has always done this.
+          onBack={() => setScreen("chat")}
           onDisconnect={async () => {
             await clearPairing();
             setPairing(null);
