@@ -29,12 +29,14 @@ use std::sync::Mutex;
 /// that only accepted one of those shapes would exclude the tool somebody
 /// actually wanted.
 ///
-///     # writes a wav to stdout — botcage plays it
-///     BOTCAGE_TTS='pocket-tts generate --voice {voice} --output - --text -'
-///     BOTCAGE_TTS_VOICES='Alba,Giovanni,Estelle,Charles'
+/// ```text
+/// # writes a wav to stdout — botcage plays it
+/// BOTCAGE_TTS='pocket-tts generate --voice {voice} --output - --text -'
+/// BOTCAGE_TTS_VOICES='Alba,Giovanni,Estelle,Charles'
 ///
-///     # plays it itself
-///     BOTCAGE_TTS='piper -m {voice}.onnx --output-raw | aplay -q -r 22050 -f S16_LE -t raw -'
+/// # plays it itself
+/// BOTCAGE_TTS='piper -m {voice}.onnx --output-raw | aplay -q -r 22050 -f S16_LE -t raw -'
+/// ```
 ///
 /// This is how Kokoro, Piper, pocket-tts or whatever comes next speaks for a
 /// bot without botcage shipping a model, an inference engine and a Python
