@@ -42,6 +42,9 @@ export interface Routine {
   day?: number;
   /** Which date, YYYY-MM-DD, for the one-off kind. */
   date?: string;
+  /** Which room it reports into, if it does. The laptop sends this; the phone
+   *  uses it to answer "what is scheduled in here" for a channel. */
+  channel?: string;
   active: boolean;
   lastRunAt?: number;
 }

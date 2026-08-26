@@ -64,6 +64,9 @@ export default function App() {
   // Open when there is nothing to look at yet, which is also how the app opens.
   const [aside, setAside] = useState(true);
   const [botId, setBotId] = useState<string | null>(null);
+  /* Whose calendar is open. Null is everyone's, from the bar at the bottom of
+     the drawer; the two conversation headers open their own. */
+  const [calFor, setCalFor] = useState<{ kind: "bot" | "room"; id: string } | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -254,7 +257,11 @@ export default function App() {
         setScreen("chat");
         return true;
       }
-      if (screen === "phone" || screen === "calendar") {
+      if (screen === "calendar") {
+        setScreen(calFor?.kind === "room" ? "room" : "chat");
+        return true;
+      }
+      if (screen === "phone") {
         setScreen("chat");
         return true;
       }
@@ -268,7 +275,7 @@ export default function App() {
       return false;
     });
     return () => sub.remove();
-  }, [screen, aside]);
+  }, [screen, aside, calFor]);
 
   const act = useCallback(
     async (kind: string, payload: Record<string, unknown> = {}) => {
@@ -327,6 +334,23 @@ export default function App() {
 
   const called = String(snapshot?.settings?.name ?? "");
 
+  /* A calendar is everyone's, one bot's, or one room's. A room's is the bots
+     in it — a room has no routines of its own, its members do — narrowed to
+     the ones that report there. */
+  const calRoom = calFor?.kind === "room" ? channels.find((c) => c.id === calFor.id) : null;
+  const calBots =
+    calFor?.kind === "bot"
+      ? bots.filter((b) => b.id === calFor.id)
+      : calRoom
+        ? bots.filter((b) => calRoom.members.includes(b.id))
+        : bots;
+  const calTitle =
+    calFor?.kind === "bot"
+      ? (bots.find((b) => b.id === calFor.id)?.name ?? "Calendar")
+      : calRoom
+        ? `#${calRoom.name}`
+        : "Calendar";
+
   return (
     <>
       <StatusBar barStyle="light-content" />
@@ -338,9 +362,13 @@ export default function App() {
 
       {screen === "calendar" ? (
         <Calendar
-          bots={bots}
-          onBack={() => setScreen("chat")}
-          onSave={(botId, routine) => act("routine/save", { botId, routine })}
+          bots={calBots}
+          title={calTitle}
+          into={calFor?.kind === "room" ? calFor.id : undefined}
+          // Back to where the calendar was opened from: the room or the chat
+          // if it was one of those, and the drawer if it was the bar.
+          onBack={() => setScreen(calFor?.kind === "room" ? "room" : "chat")}
+          onSave={(whose, routine) => act("routine/save", { botId: whose, routine })}
           onOpen={(chosen) => {
             setBotId(chosen.id);
             setScreen("settings");
@@ -424,7 +452,10 @@ export default function App() {
                   both. */}
               <Foot
                 called={called}
-                onCalendar={() => setScreen("calendar")}
+                onCalendar={() => {
+                  setCalFor(null);
+                  setScreen("calendar");
+                }}
                 onSettings={() => setScreen("phone")}
               />
             </View>
@@ -438,6 +469,10 @@ export default function App() {
             parent={channels.find((c) => c.id === room.from?.channelId)}
             threads={channels.filter((c) => c.from)}
             onBack={() => setAside(true)}
+            onCalendar={() => {
+              setCalFor({ kind: "room", id: room.id });
+              setScreen("calendar");
+            }}
             onOpenThread={(thread) => {
               setRoomId(thread.id);
               void act("channel/seen", { channelId: thread.id });
@@ -486,6 +521,10 @@ export default function App() {
             note={notes[bot.id] ?? ""}
             called={String(snapshot?.settings?.name ?? "")}
             onBack={() => setAside(true)}
+            onCalendar={() => {
+              setCalFor({ kind: "bot", id: bot.id });
+              setScreen("calendar");
+            }}
             onSettings={() => setScreen("settings")}
             onSend={async (text) => {
               // Show it immediately; the laptop's own copy arrives with the next

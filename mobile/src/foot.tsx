@@ -11,31 +11,16 @@
  * be a fourth surface stacked on three, and the phone's own home indicator is
  * already sitting in that strip.
  *
- * The calendar is drawn rather than set in a glyph, for the reason the gear
- * next door was replaced: on iOS it is an emoji however it is coaxed, and an
- * emoji beside a typographic mark looks like something that fell in from
- * another application.
+ * The calendar mark is drawn rather than set in a glyph — see `marks.tsx` for
+ * why — and it is the same drawing the two conversation headers use, since it
+ * opens the same screen scoped differently.
  */
 
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { Cal } from "./marks";
 import { T } from "./theme";
-
-/** A pad with two rings on top and its head filled in — the shape every
- *  calendar icon is, because at twenty points the rings are the only thing
- *  that separates it from a note. */
-function Cal() {
-  return (
-    <View style={s.cal}>
-      <View style={s.calRing} />
-      <View style={[s.calRing, s.calRingTwo]} />
-      <View style={s.calPad}>
-        <View style={s.calHead} />
-      </View>
-    </View>
-  );
-}
 
 export default function Foot({
   called,
@@ -109,31 +94,5 @@ const s = StyleSheet.create({
   act: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   gear: { color: T.text2, fontSize: 22, lineHeight: 24 },
 
-  /* A calendar in a 20-point box: rings, then the pad, then the block across
-     its head. Outlined rather than filled, so it sits at the same weight as
-     the mark beside it. */
-  cal: { width: 20, height: 20 },
-  calRing: {
-    position: "absolute",
-    top: 0,
-    left: 5.5,
-    width: 1.8,
-    height: 4,
-    borderRadius: 1,
-    backgroundColor: T.text3,
-  },
-  calRingTwo: { left: 12.7 },
-  calPad: {
-    position: "absolute",
-    top: 2.5,
-    left: 1,
-    width: 18,
-    height: 17,
-    borderWidth: 1.8,
-    borderColor: T.text3,
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  calHead: { height: 3.4, backgroundColor: T.text3 },
 
 });

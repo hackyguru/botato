@@ -25,6 +25,7 @@ import type { Bot, Channel, Message } from "../types";
 import Face from "../face";
 import Composer from "../composer";
 import Markdown, { type Mentionable } from "../markdown";
+import { Cal } from "../marks";
 import { T } from "../theme";
 import { Initial, startsRun, Turn } from "../turn";
 
@@ -37,6 +38,7 @@ export default function Room({
   onBack,
   onSend,
   onOpenThread,
+  onCalendar,
 }: {
   channel: Channel;
   bots: Bot[];
@@ -47,6 +49,8 @@ export default function Room({
   onBack: () => void;
   onSend: (text: string) => Promise<void>;
   onOpenThread: (thread: Channel) => void;
+  /** What is scheduled to happen in this room. */
+  onCalendar: () => void;
 }) {
   const [draft, setDraft] = useState("");
   const scroller = useRef<ScrollView>(null);
@@ -93,6 +97,9 @@ export default function Room({
           </Text>
           {parent ? <Text style={s.parent}>in #{parent.name}</Text> : null}
         </View>
+        <Pressable style={s.headAct} onPress={onCalendar} hitSlop={10}>
+          <Cal size={19} />
+        </Pressable>
         <View style={s.faces}>
           {inside.slice(0, 3).map((bot) => (
             <View key={bot.id} style={s.facePeek}>
@@ -223,6 +230,7 @@ const s = StyleSheet.create({
   heading: { flex: 1, minWidth: 0 },
   title: { color: T.text, fontSize: 17, fontWeight: "600" },
   parent: { color: T.text3, fontSize: 12, marginTop: 1 },
+  headAct: { paddingHorizontal: 4 },
   faces: { flexDirection: "row" },
   facePeek: { marginLeft: -6 },
 

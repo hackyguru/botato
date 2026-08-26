@@ -121,11 +121,21 @@ function dayTitle(day: Date, on: number): string {
 
 export default function Calendar({
   bots,
+  title = "Calendar",
+  into,
   onBack,
   onOpen,
   onSave,
 }: {
+  /** Whose routines this calendar is: everyone's, one bot's, or the ones the
+   *  bots in a room have. It is also who the picker offers when you add one. */
   bots: Bot[];
+  title?: string;
+  /** A room, when this is a room's calendar. Only routines reporting into it
+   *  are shown, and a new one is given the same destination — which is the
+   *  whole difference between "what is scheduled" and "what is scheduled in
+   *  here". */
+  into?: string;
   onBack: () => void;
   /** An existing routine belongs to a bot, and a bot's routines are edited in
    *  its own settings — so that is where tapping one goes. */
@@ -172,6 +182,7 @@ export default function Calendar({
         ...(every === "week" ? { day: dow } : {}),
         ...(every === "once" ? { date } : {}),
         ...(every === "minutes" ? { minutes: Math.max(1, Number(mins) || 15) } : {}),
+        ...(into ? { channel: into } : {}),
         active: true,
       });
       setName("");
@@ -184,8 +195,11 @@ export default function Calendar({
 
   // One flat list, each item remembering whose it is.
   const all = useMemo(
-    () => bots.flatMap((bot) => (bot.routines ?? []).map((routine) => ({ bot, routine }))),
-    [bots],
+    () =>
+      bots
+        .flatMap((bot) => (bot.routines ?? []).map((routine) => ({ bot, routine })))
+        .filter(({ routine }) => !into || routine.channel === into),
+    [bots, into],
   );
 
   const often = all.filter(
@@ -210,7 +224,9 @@ export default function Calendar({
         <Pressable onPress={onBack} hitSlop={14}>
           <Text style={s.back}>‹</Text>
         </Pressable>
-        <Text style={s.title}>Calendar</Text>
+        <Text style={s.title} numberOfLines={1}>
+          {title}
+        </Text>
         <View style={s.spacer} />
         {bots.length ? (
           <Pressable onPress={() => (adding ? setAdding(false) : begin())} hitSlop={12}>
@@ -226,6 +242,7 @@ export default function Calendar({
                 up on the shared calendar; here every calendar is the shared
                 one, so it is the first thing rather than something to discover
                 after saving to the wrong bot. */}
+            {bots.length > 1 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.whoRow}>
               {bots.map((bot) => (
                 <Pressable
@@ -240,6 +257,7 @@ export default function Calendar({
                 </Pressable>
               ))}
             </ScrollView>
+            ) : null}
 
             <TextInput
               style={s.input}
@@ -399,7 +417,9 @@ export default function Calendar({
 
         {all.length === 0 ? (
           <Text style={s.empty}>
-            Nothing scheduled yet. Tap + to give a bot something to do.
+            {into
+              ? "Nothing scheduled in here yet. Tap + to give one of its bots standing work that reports to this room."
+              : "Nothing scheduled yet. Tap + to give a bot something to do."}
           </Text>
         ) : (
           // Four more weeks, as many times as you like. Nothing here is bounded
@@ -427,7 +447,7 @@ const s = StyleSheet.create({
     borderBottomColor: T.line,
   },
   back: { color: T.blue, fontSize: 30, lineHeight: 34 },
-  title: { color: T.text, fontSize: 19, fontWeight: "600" },
+  title: { flexShrink: 1, color: T.text, fontSize: 19, fontWeight: "600" },
   spacer: { flex: 1 },
   plus: { color: T.blue, fontSize: 26, lineHeight: 30, fontWeight: "400" },
 

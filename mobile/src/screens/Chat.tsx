@@ -23,6 +23,7 @@ import type { Bot, Message } from "../types";
 import Face from "../face";
 import Composer from "../composer";
 import Markdown, { type Mentionable } from "../markdown";
+import { Cal } from "../marks";
 import { T } from "../theme";
 import { Initial, startsRun, Turn } from "../turn";
 
@@ -34,6 +35,7 @@ export default function Chat({
   onSettings,
   onSend,
   onCancel,
+  onCalendar,
 }: {
   bot: Bot;
   /** What the bot is doing right now, from the event stream. */
@@ -44,6 +46,8 @@ export default function Chat({
   onSettings: () => void;
   onSend: (text: string) => Promise<void>;
   onCancel: () => void;
+  /** What this bot has standing, on the calendar. */
+  onCalendar: () => void;
 }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -93,6 +97,9 @@ export default function Chat({
             {bot.busy ? note || "Working…" : bot.role || "Ready"}
           </Text>
         </View>
+        <Pressable style={s.headAct} onPress={onCalendar} hitSlop={10}>
+          <Cal size={19} />
+        </Pressable>
         <Pressable onPress={onSettings} hitSlop={14}>
           <Text style={s.gear}>⋯</Text>
         </Pressable>
@@ -163,6 +170,7 @@ const s = StyleSheet.create({
   headBody: { flex: 1, minWidth: 0 },
   name: { color: T.text, fontSize: 17, fontWeight: "600" },
   role: { color: T.text2, fontSize: 12.5 },
+  headAct: { paddingHorizontal: 2 },
   gear: { color: T.text2, fontSize: 22 },
   /* Rows sit flush; the air belongs to the head of a run. */
   thread: { padding: 14, paddingBottom: 20, gap: 0 },
