@@ -117,7 +117,7 @@ interface Routine {
    *  gives everyone in the room a turn — each handed its own week rather than
    *  an open question. Only means anything when it reports into a channel:
    *  a meeting of one is a note to self. */
-  format?: "standup";
+  format?: "standup" | "review";
   /** Which channel it reports into. Absent means the bot's own chat, which is
    *  where every routine used to go — and the reason a watchdog that checks
    *  the build every half hour was shouting into a room nobody visits. */
@@ -5545,6 +5545,30 @@ const clockDate = (at: number) =>
     minute: "2-digit",
   });
 
+/** A review: one bot, its own week, read back to it.
+ *
+ *  The same trick as the standup and for the same reason — a bot asked "how
+ *  did the week go" writes three plausible paragraphs, and a bot handed what
+ *  actually ran writes four honest lines. What is different is that this one
+ *  is about the bot rather than about the room, which is what makes it worth
+ *  having in a private chat: it is the conversation you would have with
+ *  somebody on a Friday, and it is the only one where the answer can be
+ *  checked against the record it was written from.
+ */
+function reviewPrompt(bot: Bot, routine: Routine, since: number, room?: Channel): string {
+  return (
+    (room ? `Your week, reported in #${room.name}.` : `Your week.`) +
+    `\n\nFrom botcage's own records rather than from memory:\n\n` +
+    `${weekOf(bot, since)}\n\n` +
+    (routine.instruction.trim() ? `What this review is for:\n\n${routine.instruction}\n\n` : "") +
+    `Report on it in a few short lines: what you actually did, anything that failed and whether it ` +
+    `is still failing, and what is next. No headings and no lists. A quiet week said in one line is ` +
+    `a useful report — do not describe work you have no record of doing, and do not pad it out to ` +
+    `look busy.\n\n` +
+    `If something needs ${userName() || "the user"}, say so plainly at the end.`
+  );
+}
+
 /** A standup: everyone in the room takes a turn, in order.
  *
  *  Round-robin because the format solves the hardest problem in a room full of
@@ -7128,7 +7152,8 @@ function describeRoutine(routine: Routine): string {
   // is the difference between a bot muttering to itself and a bot posting to a
   // room, which is worth four characters.
   const into = room ? ` → #${room.name}` : "";
-  const kind = routine.format === "standup" ? " · stand-up" : "";
+  const kind =
+    routine.format === "standup" ? " · stand-up" : routine.format === "review" ? " · review" : "";
   return `${howOften(routine)}${into}${kind}`;
 }
 
@@ -7258,7 +7283,9 @@ function runRoutine(bot: Bot, routine: Routine): void {
     // first standup has no last one, so it looks back a day.
     const since = was || Date.now() - 24 * 60 * 60 * 1000;
     if (routine.format === "standup") void runStandup(into, routine, since);
-    else void runRoutineInChannel(bot, routine, into);
+    else if (routine.format === "review") {
+      void channelTurn(into, bot, { left: 1 }, reviewPrompt(bot, routine, since, into));
+    } else void runRoutineInChannel(bot, routine, into);
     return;
   }
 
@@ -7280,7 +7307,14 @@ function runRoutine(bot: Bot, routine: Routine): void {
   }
   save();
   renderRoster();
-  void respond(bot, routine.instruction);
+  // A review writes its own prompt out of the record; everything else says
+  // what you told it to say.
+  void respond(
+    bot,
+    routine.format === "review"
+      ? reviewPrompt(bot, routine, was || Date.now() - 7 * 24 * 60 * 60 * 1000)
+      : routine.instruction,
+  );
 }
 
 /** Fire anything due. This runs while the app is open; there is no daemon. */
@@ -8645,15 +8679,28 @@ function openRoutine(routine: Routine | null, seed?: { day: number; hour: number
 function paintRoutineFormat(): void {
   const where = $<HTMLSelectElement>("#routine-where").value;
   const room = channels().find((c) => c.id === where);
-  const row = $<HTMLLabelElement>("#routine-format-row");
-  row.hidden = !room;
-  if (!room) return;
+  const picker = $<HTMLSelectElement>("#routine-format");
 
-  const standup = $<HTMLSelectElement>("#routine-format").value === "standup";
-  const there = membersOf(room).length;
-  $<HTMLSpanElement>("#routine-format-hint").textContent = standup
-    ? `All ${there} take a turn, one at a time, each handed what actually ran.`
-    : "One bot does the thing and reports back.";
+  // A review is one bot reading its own week back, which it can do anywhere. A
+  // stand-up needs a room to go round, so that option is only offered where
+  // there is one — and taken away from a routine that had it and then lost the
+  // room, which would otherwise sit there meaning nothing.
+  const standupOption = picker.querySelector<HTMLOptionElement>('option[value="standup"]');
+  if (standupOption) standupOption.hidden = !room;
+  if (!room && picker.value === "standup") picker.value = "";
+
+  // Always shown now: two of the three formats work in a private chat.
+  $<HTMLLabelElement>("#routine-format-row").hidden = false;
+
+  const hint = $<HTMLSpanElement>("#routine-format-hint");
+  if (picker.value === "standup" && room) {
+    hint.textContent = `All ${membersOf(room).length} take a turn, one at a time, each handed what actually ran.`;
+  } else if (picker.value === "review") {
+    hint.textContent =
+      "It is handed its own week from botcage's records — what ran, what failed, what is next — and reports on it.";
+  } else {
+    hint.textContent = "One bot does the thing and reports back.";
+  }
 }
 
 $<HTMLSelectElement>("#routine-format").addEventListener("change", paintRoutineFormat);
@@ -8762,8 +8809,14 @@ routineForm.addEventListener("submit", (e) => {
   e.preventDefault();
 
   const draft = draftRoutine();
-  if (!draft.name || !draft.instruction) {
-    toast("A routine needs a name and an instruction");
+  // A stand-up and a review write their own prompt out of the record, so they
+  // need a name and nothing else. Asking for an instruction there was asking
+  // for something the format then ignored.
+  const writesItsOwn = draft.format === "standup" || draft.format === "review";
+  if (!draft.name || (!draft.instruction && !writesItsOwn)) {
+    toast(
+      writesItsOwn ? "A routine needs a name" : "A routine needs a name and an instruction",
+    );
     (draft.name ? routineInstruction : routineName).focus();
     return;
   }
