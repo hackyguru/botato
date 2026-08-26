@@ -266,9 +266,72 @@ textarea {
 .sidebar__head {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  /* The mark on the left, the two buttons on the right. */
+  justify-content: space-between;
+  gap: 8px;
   height: 34px;
   flex: none;
+}
+
+/* The name of the thing you are looking at, top left, where every application
+   puts it. Until now the corner held two icons and nothing said what this was.
+ *
+ * Drawn rather than set in an image so it takes the colour it is given and
+ * stays sharp at any size — and drawn as a face because that is the app's
+ * whole visual language: the same squircle head, dot eyes and soft smile the
+ * roster is full of. */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding-left: 10px;
+  /* The header is a drag region; the mark is not a control and should not look
+     like one. */
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.brand__mark {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.brand__head {
+  fill: var(--blue);
+}
+
+.brand__ink {
+  fill: rgba(0, 0, 0, 0.72);
+}
+
+.brand__smile {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.72);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.brand__name {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* In a rail there is no room for the word, and the mark alone is the logo —
+   which is the point of having one that works without it. */
+.is-rail .brand__name {
+  display: none;
+}
+
+.is-rail .brand {
+  padding-left: 0;
 }
 
 .icon-btn {

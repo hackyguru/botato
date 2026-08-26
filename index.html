@@ -131,6 +131,19 @@
     <div class="app">
       <aside class="sidebar" data-tauri-drag-region>
         <div class="sidebar__head" data-tauri-drag-region="deep">
+          <!-- The mark is a bot's face, because that is what the app is full of:
+               the same squircle head, dot eyes and soft smile every bot in the
+               roster is drawn with, in botcage blue. A separate symbol would be
+               a second identity for one product. -->
+          <span class="brand" title="botcage">
+            <svg class="brand__mark" viewBox="0 0 24 24" aria-hidden="true">
+              <rect class="brand__head" x="2" y="3" width="20" height="18" rx="5.4" />
+              <circle class="brand__ink" cx="9.1" cy="11" r="1.65" />
+              <circle class="brand__ink" cx="14.9" cy="11" r="1.65" />
+              <path class="brand__smile" d="M9.4 15.1a3.4 3.4 0 0 0 5.2 0" />
+            </svg>
+            <span class="brand__name">botcage</span>
+          </span>
           <button class="icon-btn" id="btn-rail" title="Collapse sidebar  (⌘B)" aria-label="Collapse sidebar">
             <svg><use href="#i-sidebar" /></svg>
           </button>
