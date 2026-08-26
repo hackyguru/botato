@@ -392,7 +392,7 @@ const s = StyleSheet.create({
   addText: { color: "#fff", fontSize: 15, fontWeight: "600" },
   /* The last row clears the bar floating over it, which the list scrolls
      underneath. */
-  list: { paddingHorizontal: 14, paddingBottom: 96 },
+  list: { paddingHorizontal: 14, paddingBottom: 114 },
   empty: { marginTop: 60, color: T.text3, fontSize: 14, textAlign: "center" },
   row: {
     flexDirection: "row",

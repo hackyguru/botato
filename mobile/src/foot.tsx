@@ -94,7 +94,10 @@ const s = StyleSheet.create({
   bar: {
     position: "absolute",
     right: 10,
-    bottom: 12,
+    // Clear of the home indicator, by the same allowance the composer makes
+    // for it: a bar with its bottom corners behind that strip looks cut off
+    // rather than inset.
+    bottom: 30,
     left: 10,
     flexDirection: "row",
     alignItems: "center",

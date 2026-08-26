@@ -122,7 +122,7 @@ const s = StyleSheet.create({
   crest: { paddingTop: 64, paddingBottom: 8, alignItems: "center" },
   /* The last icon clears the bar that floats across the bottom of the drawer,
      this strip included. */
-  list: { paddingTop: 8, paddingBottom: 86, alignItems: "center", gap: 6 },
+  list: { paddingTop: 8, paddingBottom: 104, alignItems: "center", gap: 6 },
   rule: {
     alignSelf: "center",
     width: 24,
