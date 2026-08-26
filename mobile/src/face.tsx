@@ -263,10 +263,16 @@ function Mark({ bot, u }: { bot: Bot; u: number }) {
   }
 }
 
+/** What a face is doing, which is a fact about this minute rather than about
+ *  the bot. The laptop keeps a longer list; these are the ones the phone can
+ *  tell from what it is sent. */
+export type Mood = "idle" | "think" | "work" | "sleep";
+
 export default function Face({
   bot,
   size = 40,
   still = false,
+  mood = "idle",
 }: {
   bot: Bot;
   size?: number;
@@ -276,15 +282,47 @@ export default function Face({
    *  something twitching beside the words you are trying to read anywhere
    *  else — the same rule the laptop follows. */
   still?: boolean;
+  /** Thinking, working, asleep — or nothing in particular. */
+  mood?: Mood;
 }) {
   const u = size;
   const face = faceOf(bot);
   // Its own beat, as on the laptop, so a list of bots does not blink in unison.
   const beat = (seedOf(bot.id) % 1700) + 2200;
   const lid = useRef(new Animated.Value(0)).current;
+  /** One value drives whichever loop the mood wants: they never run together,
+   *  and a face has only so many parts to move. */
+  const busy = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (still || face.eyes === "sleepy") return;
+    if (still || (mood !== "think" && mood !== "work")) {
+      busy.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(busy, {
+          toValue: 1,
+          duration: mood === "work" ? 380 : 1400,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(busy, {
+          toValue: 0,
+          duration: mood === "work" ? 380 : 1400,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [busy, mood, still]);
+
+  useEffect(() => {
+    // Asleep, a face does not blink: the eyes are shut, which the lid value
+    // below holds them at.
+    if (still || mood === "sleep" || face.eyes === "sleepy") return;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.delay(beat),
@@ -295,31 +333,88 @@ export default function Face({
     );
     loop.start();
     return () => loop.stop();
-  }, [beat, face.eyes, lid, still]);
+  }, [beat, face.eyes, lid, mood, still]);
 
   // A lid rather than a fade: the eye squashes to nothing and springs back,
   // which is the closest the native driver gets to the laptop's clip.
-  const blink = { transform: [{ scaleY: lid.interpolate({ inputRange: [0, 1], outputRange: [1, 0.05] }) }] };
+  const blink = {
+    transform: [
+      {
+        scaleY:
+          mood === "sleep"
+            ? 0.06
+            : lid.interpolate({ inputRange: [0, 1], outputRange: [1, 0.05] }),
+      },
+    ],
+  };
+
+  // Thinking looks up and away, the way anyone does; working leans in. Small
+  // numbers on purpose — a face in a list that moves more than a hair is a
+  // face that pulls the eye off the words beside it.
+  const eyesMove =
+    mood === "think"
+      ? {
+          transform: [
+            { translateX: busy.interpolate({ inputRange: [0, 1], outputRange: [0, -u * 0.03] }) },
+            { translateY: busy.interpolate({ inputRange: [0, 1], outputRange: [0, -u * 0.035] }) },
+          ],
+        }
+      : null;
+  const browsMove =
+    mood === "work"
+      ? { transform: [{ translateY: busy.interpolate({ inputRange: [0, 1], outputRange: [0, u * 0.045] }) }] }
+      : null;
+  // Working bobs, slightly, on the beat the brows move on: the whole head
+  // rather than a part of it, which is what reads as effort.
+  const headMove =
+    mood === "work"
+      // A pixel and a half at roster size. Less than this and two frames a
+      // second apart are the same picture; more and a list of eight bots is a
+      // list that will not sit still.
+      ? { transform: [{ translateY: busy.interpolate({ inputRange: [0, 1], outputRange: [0, u * 0.04] }) }] }
+      : null;
 
   return (
-    <View style={{ width: u, height: u, backgroundColor: bot.color, ...headShape(face.head, u) }}>
-      {face.brow !== "none" ? (
-        <View style={{ position: "absolute", top: u * 0.31, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: u * 0.16 }}>
-          <View style={{ width: u * 0.2, height: face.brow === "thick" ? u * 0.085 : u * 0.045, borderRadius: u * 0.03, backgroundColor: "rgba(0,0,0,0.56)", transform: [{ rotate: face.brow === "angled" ? "12deg" : "0deg" }, { translateY: face.brow === "quirk" ? -u * 0.05 : 0 }] }} />
-          <View style={{ width: u * 0.2, height: face.brow === "thick" ? u * 0.085 : u * 0.045, borderRadius: u * 0.03, backgroundColor: "rgba(0,0,0,0.56)", transform: [{ rotate: face.brow === "angled" ? "-12deg" : "0deg" }] }} />
-        </View>
+    <Animated.View
+      style={[
+        { width: u, height: u, backgroundColor: bot.color, ...headShape(face.head, u) },
+        headMove,
+      ]}
+    >
+      {/* What it is thinking with. A dot above the head rather than a cloud:
+          at twenty-six points a cloud is a smudge. */}
+      {mood === "think" ? (
+        <Animated.View
+          style={{
+            position: "absolute",
+            top: -u * 0.16,
+            right: -u * 0.04,
+            width: u * 0.13,
+            height: u * 0.13,
+            borderRadius: u * 0.07,
+            backgroundColor: "rgba(255,255,255,0.75)",
+            opacity: busy.interpolate({ inputRange: [0, 1], outputRange: [0.15, 1] }),
+          }}
+        />
       ) : null}
 
-      <View style={{ position: "absolute", top: u * 0.42, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: u * 0.16 }}>
+      {face.brow !== "none" ? (
+        <Animated.View style={[browsMove, { position: "absolute", top: u * 0.31, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: u * 0.16 }]}>
+          <View style={{ width: u * 0.2, height: face.brow === "thick" ? u * 0.085 : u * 0.045, borderRadius: u * 0.03, backgroundColor: "rgba(0,0,0,0.56)", transform: [{ rotate: face.brow === "angled" ? "12deg" : "0deg" }, { translateY: face.brow === "quirk" ? -u * 0.05 : 0 }] }} />
+          <View style={{ width: u * 0.2, height: face.brow === "thick" ? u * 0.085 : u * 0.045, borderRadius: u * 0.03, backgroundColor: "rgba(0,0,0,0.56)", transform: [{ rotate: face.brow === "angled" ? "-12deg" : "0deg" }] }} />
+        </Animated.View>
+      ) : null}
+
+      <Animated.View style={[eyesMove, { position: "absolute", top: u * 0.42, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: u * 0.16 }]}>
         <Animated.View style={[eyeShape(face.eyes, u, false), blink]} />
         <Animated.View style={[eyeShape(face.eyes, u, true), face.eyes === "wink" ? undefined : blink]} />
-      </View>
+      </Animated.View>
 
       <View style={{ position: "absolute", top: u * 0.64, left: 0, right: 0, alignItems: "center" }}>
         <View style={smileShape(face.smile, u)} />
       </View>
 
       <Mark bot={bot} u={u} />
-    </View>
+    </Animated.View>
   );
 }

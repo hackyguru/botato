@@ -28,7 +28,7 @@ import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import Brand from "./brand";
-import Face from "./face";
+import Face, { type Mood } from "./face";
 import { T } from "./theme";
 import type { Bot, Channel } from "./types";
 
@@ -61,6 +61,7 @@ function Seat({
 
 export default function Rail({
   bots,
+  moodOf,
   rooms,
   openBot,
   openRoom,
@@ -68,6 +69,8 @@ export default function Rail({
   onOpenChannel,
 }: {
   bots: Bot[];
+  /** What each face is doing, worked out where the event stream is. */
+  moodOf: (bot: Bot) => Mood;
   /** Rooms only. A thread has no icon of its own here for the same reason it
    *  has none in the laptop's rail: there is no room for a name, and a thread
    *  without its name is a dot. */
@@ -102,7 +105,7 @@ export default function Rail({
             here={bot.id === openBot && !openRoom}
             onPress={() => onOpen(bot)}
           >
-            <Face bot={bot} size={38} />
+            <Face bot={bot} size={38} mood={moodOf(bot)} />
           </Seat>
         ))}
       </ScrollView>

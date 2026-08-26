@@ -42,6 +42,7 @@ import Chat from "./src/screens/Chat";
 import BotSettings from "./src/screens/BotSettings";
 import Calendar from "./src/screens/Calendar";
 import Drawer from "./src/drawer";
+import type { Mood } from "./src/face";
 import Foot from "./src/foot";
 import Rail from "./src/rail";
 import Phone from "./src/screens/Phone";
@@ -334,6 +335,22 @@ export default function App() {
 
   const called = String(snapshot?.settings?.name ?? "");
 
+  /* What each face is doing. The laptop keeps a longer list of moods and works
+     them out from its own event stream; the phone can tell three of them from
+     what it is sent, which is three more than a still face.
+
+     Three days, the same as the laptop: a bot nobody has spoken to since
+     Tuesday is asleep rather than merely idle, and it is judged on the
+     conversation because that is the thing that actually stopped. */
+  const SLEEPS_AFTER = 3 * 24 * 60 * 60 * 1000;
+  const moodOf = (bot: Bot): Mood => {
+    if (bot.busy) {
+      return (notes[bot.id] ?? "").toLowerCase().includes("using") ? "work" : "think";
+    }
+    const last = bot.messages[bot.messages.length - 1]?.at ?? 0;
+    return last && Date.now() - last > SLEEPS_AFTER ? "sleep" : "idle";
+  };
+
   /* A calendar is everyone's, one bot's, or one room's. A room's is the bots
      in it — a room has no routines of its own, its members do — narrowed to
      the ones that report there. */
@@ -423,6 +440,7 @@ export default function App() {
             <View style={s.aside}>
               <Rail
                 bots={bots}
+                moodOf={moodOf}
                 rooms={channels.filter((c) => !c.from)}
                 openBot={botId}
                 openRoom={
@@ -435,6 +453,7 @@ export default function App() {
               />
               <Bots
                 bots={bots}
+                moodOf={moodOf}
                 channels={channels}
                 called={called}
                 connected={connected}

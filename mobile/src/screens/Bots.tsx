@@ -19,7 +19,7 @@ import {
   View,
 } from "react-native";
 import type { Bot, Channel, Message } from "../types";
-import Face from "../face";
+import Face, { type Mood } from "../face";
 import { Gauge } from "../marks";
 import { T } from "../theme";
 import { unreadIn } from "../unread";
@@ -87,6 +87,7 @@ function Light({ connected }: { connected: boolean }) {
 
 export default function Bots({
   bots,
+  moodOf,
   channels,
   called,
   connected,
@@ -97,6 +98,8 @@ export default function Bots({
   onCreate,
 }: {
   bots: Bot[];
+  /** What each face is doing, worked out where the event stream is. */
+  moodOf: (bot: Bot) => Mood;
   channels: Channel[];
   called: string;
   connected: boolean;
@@ -279,7 +282,7 @@ export default function Bots({
             skim — which is the opposite of what a list of names is for. */}
         {shown.map((bot) => (
           <Pressable key={bot.id} style={s.card} onPress={() => onOpen(bot)}>
-            <Face bot={bot} />
+            <Face bot={bot} mood={moodOf(bot)} />
             <Text style={s.cardName} numberOfLines={1}>
               {bot.name}
             </Text>
