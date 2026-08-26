@@ -239,22 +239,32 @@
           <div class="cal__head">
             <div class="cal__nav">
               <button type="button" class="icon-btn icon-btn--sm cal__back" id="cal-prev"
-                      title="Previous week" aria-label="Previous week">
+                      title="Back" aria-label="Back">
                 <svg><use href="#i-chev" /></svg>
               </button>
               <button type="button" class="icon-btn icon-btn--sm cal__fwd" id="cal-next"
-                      title="Next week" aria-label="Next week">
+                      title="Forward" aria-label="Forward">
                 <svg><use href="#i-chev" /></svg>
               </button>
               <span class="cal__range" id="cal-range"></span>
               <button type="button" class="chip" id="cal-today"><span>Today</span></button>
             </div>
+
+            <!-- How much is on screen at once. The grid goes as far in either
+                 direction as you care to click; this is only how big a bite of
+                 it you are looking at. -->
+            <div class="cal__spans" id="cal-spans" role="group" aria-label="How much to show">
+              <button type="button" class="cal__span" data-span="day">Day</button>
+              <button type="button" class="cal__span" data-span="week">Week</button>
+              <button type="button" class="cal__span" data-span="month">Month</button>
+            </div>
+
             <button type="button" class="chip" id="routine-add">
               <svg><use href="#i-plus" /></svg><span>New routine</span>
             </button>
           </div>
 
-          <div class="cal">
+          <div class="cal" id="cal">
             <div class="cal__days" id="cal-days"></div>
             <!-- Anything that repeats faster than the grid can show sits in a
                  band of its own, the way an all-day event does. -->

@@ -323,6 +323,8 @@ interface AppSettings {
   backupKeep?: number;
   /** When the last good one was written. */
   backupAt?: number;
+  /** How much of the calendar was last on screen: a day, a week, or a month. */
+  calSpan?: CalSpan;
   /** Music under the setup carousel. Absent means it has not been turned off,
    *  which is not the same as having been turned on: it plays the first time
    *  and then only if it was left alone. */
@@ -2571,8 +2573,119 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 const isoDate = (day: Date) =>
   `${day.getFullYear()}-${pad2(day.getMonth() + 1)}-${pad2(day.getDate())}`;
 
-/** Which week the calendar is showing. */
+/** Parse an ISO date back into a local midnight. `new Date("2026-08-26")` is
+ *  parsed as UTC and lands on the day before in half the world. */
+function fromIso(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/** Midnight on the day `when` falls in. */
+function dayStart(when: number | Date): Date {
+  const day = new Date(when);
+  day.setHours(0, 0, 0, 0);
+  return day;
+}
+
+/** How much of the calendar is on screen at once.
+ *
+ *  A day and a week are the same hour grid with a different number of columns.
+ *  A month is a different drawing — twenty-four hours a day across five weeks
+ *  is four hundred rows of nothing, so a month shows what happens on each day
+ *  rather than when in the day it happens. */
+type CalSpan = "day" | "week" | "month";
+
+let calSpan: CalSpan = "week";
+
+/** The first day of what the calendar is showing.
+ *
+ *  Nothing bounds this in either direction: every number below comes out of
+ *  date arithmetic on this one date, so a routine can be put on a Tuesday four
+ *  years out the same way it is put on tomorrow. */
 let calAt = weekStart(Date.now());
+
+/** The first day of the range `when` falls in. */
+function spanStart(when: number | Date, span: CalSpan): Date {
+  if (span === "week") return weekStart(+new Date(when));
+  const day = dayStart(when);
+  if (span === "month") day.setDate(1);
+  return day;
+}
+
+/** The days the grid draws.
+ *
+ *  A month is drawn as whole weeks — the greyed days either side that every
+ *  month grid has — because a month that started mid-row would put Wednesday
+ *  under the Monday heading. */
+function spanDays(at: Date, span: CalSpan): Date[] {
+  if (span === "day") return [at];
+  if (span === "week") return Array.from({ length: 7 }, (_, n) => dayOfWeek(at, n));
+
+  const first = weekStart(+at);
+  const last = new Date(at.getFullYear(), at.getMonth() + 1, 0);
+  // Rounded, not floored: a month containing a clock change is 23 or 25 hours
+  // short of a whole number of days, and flooring loses the last row of it.
+  const days = Math.round((+dayStart(last) - +first) / 86_400_000) + 1;
+  return Array.from({ length: Math.ceil(days / 7) * 7 }, (_, n) => dayOfWeek(first, n));
+}
+
+/** The same range, one step earlier or later. Months step as months rather
+ *  than as thirty days: a calendar that goes 31 January → 2 March is one
+ *  nobody trusts again. */
+function stepSpan(at: Date, span: CalSpan, by: number): Date {
+  const next = new Date(at);
+  if (span === "day") next.setDate(next.getDate() + by);
+  else if (span === "week") next.setDate(next.getDate() + by * 7);
+  else next.setMonth(next.getMonth() + by, 1);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+/** What the range is called, above the grid. The year appears once it is not
+ *  this one — the calendar goes on forever, and "3–9 August" alone would not
+ *  say which August you had scrolled to. */
+function calRange(at: Date, span: CalSpan): string {
+  const month = (day: Date) => day.toLocaleDateString(undefined, { month: "long" });
+  if (span === "month") return `${month(at)} ${at.getFullYear()}`;
+
+  const thisYear = new Date().getFullYear();
+  const year = (day: Date) => (day.getFullYear() === thisYear ? "" : ` ${day.getFullYear()}`);
+  if (span === "day") return `${DAY_FULL[at.getDay()]} ${at.getDate()} ${month(at)}${year(at)}`;
+
+  // Named from the last day of the week rather than the first, so the week that
+  // runs from December into January says which January.
+  const last = dayOfWeek(at, 6);
+  return at.getMonth() === last.getMonth()
+    ? `${at.getDate()}\u2013${last.getDate()} ${month(at)}${year(last)}`
+    : `${at.getDate()} ${month(at)} \u2013 ${last.getDate()} ${month(last)}${year(last)}`;
+}
+
+/** What Back and Forward do from here, said out loud for the button titles. */
+const SPAN_STEP: Record<CalSpan, string> = { day: "day", week: "week", month: "month" };
+
+/** Show a different amount, keeping the day you were looking at.
+ *
+ *  Today wins when it is inside what is on screen, which is the reading anyone
+ *  makes of switching to Day while looking at this week. */
+function setCalSpan(span: CalSpan): void {
+  const today = dayStart(Date.now());
+  const shown = spanDays(calAt, calSpan).map(isoDate);
+  const keep = shown.includes(isoDate(today)) ? today : calAt;
+  calSpan = span;
+  calAt = spanStart(keep, span);
+  state.app = { ...appSettings(), calSpan: span };
+  save();
+  renderRoutines();
+  paintCalScroll();
+}
+
+/** Start where the day is rather than at midnight, with enough above it to see
+ *  what has just been and gone. A month has no hours to scroll to. */
+function paintCalScroll(): void {
+  const body = $<HTMLDivElement>("#cal-body");
+  body.scrollTop =
+    calSpan === "month" ? 0 : Math.max(0, (new Date().getHours() - 2) * HOUR_PX);
+}
 
 /** Does this routine land on that day? False for the kinds that repeat faster
  *  than the grid can draw — those live in the band above it. */
@@ -2595,31 +2708,55 @@ function renderRoutines(): void {
   const drawn = calBots();
   if (!drawn.length) return;
   // One flat list, each item remembering whose it is — everything below this
-  // draws a routine without caring whether one bot's week is on screen or
+  // draws a routine without caring whether one bot's calendar is on screen or
   // everybody's.
   const routines = drawn.flatMap((bot) => (bot.routines ?? []).map((routine) => ({ bot, routine })));
   const now = new Date();
   const today = isoDate(now);
 
-  const first = dayOfWeek(calAt, 0);
-  const last = dayOfWeek(calAt, 6);
-  const month = (day: Date) => day.toLocaleDateString(undefined, { month: "long" });
-  $<HTMLSpanElement>("#cal-range").textContent =
-    first.getMonth() === last.getMonth()
-      ? `${first.getDate()}–${last.getDate()} ${month(first)}`
-      : `${first.getDate()} ${month(first)} – ${last.getDate()} ${month(last)}`;
+  const month = calSpan === "month";
+  const days = spanDays(calAt, calSpan);
 
-  const days = Array.from({ length: 7 }, (_, at) => dayOfWeek(calAt, at));
+  $<HTMLSpanElement>("#cal-range").textContent = calRange(calAt, calSpan);
 
-  $<HTMLDivElement>("#cal-days").innerHTML =
-    `<div class="cal__day"></div>` +
-    days
-      .map(
-        (day) =>
-          `<div class="cal__day${isoDate(day) === today ? " is-today" : ""}">` +
-          `${DAY_NAME[day.getDay()]}<b>${day.getDate()}</b></div>`,
-      )
-      .join("");
+  const step = SPAN_STEP[calSpan];
+  for (const [id, way] of [["#cal-prev", "Previous"], ["#cal-next", "Next"]] as const) {
+    const button = $<HTMLButtonElement>(id);
+    button.title = `${way} ${step}`;
+    button.setAttribute("aria-label", button.title);
+  }
+  for (const button of document.querySelectorAll<HTMLButtonElement>(".cal__span")) {
+    const on = button.dataset.span === calSpan;
+    button.classList.toggle("is-on", on);
+    button.setAttribute("aria-pressed", String(on));
+  }
+
+  const cal = $<HTMLDivElement>("#cal");
+  cal.classList.toggle("cal--month", month);
+
+  // The gutter is the hours' column, and a month has none. Set here rather than
+  // in the stylesheet because the number of columns is data: one on a day,
+  // seven on a week.
+  $<HTMLDivElement>("#cal-days").style.gridTemplateColumns = month
+    ? "repeat(7, 1fr)"
+    : `52px repeat(${days.length}, 1fr)`;
+  $<HTMLDivElement>("#cal-cols").style.gridTemplateColumns = `repeat(${month ? 7 : days.length}, 1fr)`;
+
+  $<HTMLDivElement>("#cal-days").innerHTML = month
+    ? // The weekday names only: the dates are in the cells, and printing them
+      // twice would say the first week's dates over every other week's.
+      days
+        .slice(0, 7)
+        .map((day) => `<div class="cal__day">${DAY_NAME[day.getDay()]}</div>`)
+        .join("")
+    : `<div class="cal__day"></div>` +
+      days
+        .map(
+          (day) =>
+            `<div class="cal__day${isoDate(day) === today ? " is-today" : ""}">` +
+            `${DAY_NAME[day.getDay()]}<b>${day.getDate()}</b></div>`,
+        )
+        .join("");
 
   $<HTMLDivElement>("#cal-hours").innerHTML = Array.from(
     { length: 24 },
@@ -2651,72 +2788,114 @@ function renderRoutines(): void {
           : `Click any slot to give ${escapeHtml(drawn[0].name)} a standing instruction`
       } — routines run while botcage is open.</div>`;
 
+  /** What this bot has to do on that day, earliest first. */
+  const dueOn = (day: Date) =>
+    routines
+      .filter(({ routine }) => fallsOn(routine, day))
+      .sort((one, two) => one.routine.at.localeCompare(two.routine.at));
+
   $<HTMLDivElement>("#cal-cols").innerHTML = days
-    .map((day, column) => {
-      const slots = Array.from(
-        { length: 24 },
-        (_, hour) => `<div class="cal__slot" data-col="${column}" data-hour="${hour}"></div>`,
-      ).join("");
+    .map((day) => (month ? monthCell(day, dueOn(day), today) : hourColumn(day, dueOn(day), now, today)))
+    .join("");
+}
 
-      const due = routines.filter(({ routine }) => fallsOn(routine, day));
+/** One day as hours: the grid a day and a week are both made of. */
+function hourColumn(day: Date, due: { bot: Bot; routine: Routine }[], now: Date, today: string): string {
+  const iso = isoDate(day);
+  const slots = Array.from(
+    { length: 24 },
+    (_, hour) => `<div class="cal__slot" data-day="${iso}" data-hour="${hour}"></div>`,
+  ).join("");
 
-      // Two routines in the same hour would sit exactly on top of each other,
-      // and the one underneath would be a routine nobody could see was there.
-      // They share the width of the hour instead.
-      //
-      // And they never take all of it: an event that filled its hour would be
-      // the only thing there to click, so that hour could never be given a
-      // second routine — clicking it would open the first one, and saving would
-      // edit it rather than add to it. The strip down the right stays empty and
-      // clickable, which is what makes an hour able to hold two.
-      const crowd = new Map<number, number>();
-      for (const { routine } of due) {
-        const hour = Number(routine.at.split(":")[0]) || 0;
-        crowd.set(hour, (crowd.get(hour) ?? 0) + 1);
-      }
-      const placed = new Map<number, number>();
+  // Two routines in the same hour would sit exactly on top of each other, and
+  // the one underneath would be a routine nobody could see was there. They
+  // share the width of the hour instead.
+  //
+  // And they never take all of it: an event that filled its hour would be the
+  // only thing there to click, so that hour could never be given a second
+  // routine — clicking it would open the first one, and saving would edit it
+  // rather than add to it. The strip down the right stays empty and clickable,
+  // which is what makes an hour able to hold two.
+  const crowd = new Map<number, number>();
+  for (const { routine } of due) {
+    const hour = Number(routine.at.split(":")[0]) || 0;
+    crowd.set(hour, (crowd.get(hour) ?? 0) + 1);
+  }
+  const placed = new Map<number, number>();
 
-      const events = due
-        .map(({ bot, routine }) => {
-          const [hh, mm] = routine.at.split(":").map(Number);
-          const hour = hh || 0;
-          const of = crowd.get(hour) ?? 1;
-          const lane = placed.get(hour) ?? 0;
-          placed.set(hour, lane + 1);
-          const top = (hour + (mm || 0) / 60) * HOUR_PX;
-          // Stacked within the hour rather than side by side. A calendar
-          // splits the width when two things overlap because both last an
-          // hour; a routine is a moment, not a span, so splitting only makes
-          // two unreadable slivers where the names should be.
-          const slice = (HOUR_PX - 6) / of;
-          const solo = of === 1;
-          return (
-            `<button type="button" class="cal__event${solo ? "" : " cal__event--tight"}` +
-            `${routine.active ? "" : " is-off"}" data-edit="${routine.id}" ` +
-            `style="top:${top + lane * slice}px;height:${slice - (solo ? 0 : 2)}px;` +
-            `right:${FREE_PX}px;--tint:${bot.color}">` +
-            // On everybody's week, whose it is comes first: the same face as
-            // in the sidebar, on a block already in that bot's colour.
-            (calEveryone ? faceHtml(bot, "xs") : "") +
-            `<b>${escapeHtml(routine.name)}</b>` +
-            // Who put it there beats when it runs: the hour is already legible
-            // from where the block sits, and a tile this narrow fits one line.
-            (solo
-              ? `<span>${routine.by ? `by ${escapeHtml(routine.by)}` : routine.at}</span>`
-              : "") +
-            `</button>`
-          );
-        })
-        .join("");
-
-      const isToday = isoDate(day) === today;
-      const line = isToday
-        ? `<div class="cal__now" style="top:${((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR_PX}px"></div>`
-        : "";
-
-      return `<div class="cal__col${isToday ? " is-today" : ""}">${slots}${events}${line}</div>`;
+  const events = due
+    .map(({ bot, routine }) => {
+      const [hh, mm] = routine.at.split(":").map(Number);
+      const hour = hh || 0;
+      const of = crowd.get(hour) ?? 1;
+      const lane = placed.get(hour) ?? 0;
+      placed.set(hour, lane + 1);
+      const top = (hour + (mm || 0) / 60) * HOUR_PX;
+      // Stacked within the hour rather than side by side. A calendar splits the
+      // width when two things overlap because both last an hour; a routine is a
+      // moment, not a span, so splitting only makes two unreadable slivers
+      // where the names should be.
+      const slice = (HOUR_PX - 6) / of;
+      const solo = of === 1;
+      return (
+        `<button type="button" class="cal__event${solo ? "" : " cal__event--tight"}` +
+        `${routine.active ? "" : " is-off"}" data-edit="${routine.id}" ` +
+        `style="top:${top + lane * slice}px;height:${slice - (solo ? 0 : 2)}px;` +
+        `right:${FREE_PX}px;--tint:${bot.color}">` +
+        // On everybody's calendar, whose it is comes first: the same face as in
+        // the sidebar, on a block already in that bot's colour.
+        (calEveryone ? faceHtml(bot, "xs") : "") +
+        `<b>${escapeHtml(routine.name)}</b>` +
+        // Who put it there beats when it runs: the hour is already legible from
+        // where the block sits, and a tile this narrow fits one line.
+        (solo ? `<span>${routine.by ? `by ${escapeHtml(routine.by)}` : routine.at}</span>` : "") +
+        `</button>`
+      );
     })
     .join("");
+
+  const isToday = iso === today;
+  const line = isToday
+    ? `<div class="cal__now" style="top:${((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR_PX}px"></div>`
+    : "";
+
+  return `<div class="cal__col${isToday ? " is-today" : ""}">${slots}${events}${line}</div>`;
+}
+
+/** How many routines a month's cell shows before it gives up and counts. */
+const CELL_FITS = 3;
+
+/** One day as a square: what happens, not when in the day it happens. */
+function monthCell(day: Date, due: { bot: Bot; routine: Routine }[], today: string): string {
+  const iso = isoDate(day);
+  // The days either side of the month, greyed. Drawing them at full strength
+  // makes a month look like it starts on the 28th of the one before.
+  const outside = day.getMonth() !== calAt.getMonth();
+
+  const pips = due
+    .slice(0, CELL_FITS)
+    .map(
+      ({ bot, routine }) =>
+        `<button type="button" class="cal__pip${routine.active ? "" : " is-off"}" ` +
+        `data-edit="${routine.id}" style="--tint:${bot.color}" ` +
+        `title="${escapeHtml(routine.name)} — ${routine.at}">` +
+        `<i></i><b>${escapeHtml(routine.name)}</b><span>${routine.at}</span></button>`,
+    )
+    .join("");
+
+  // Not a tooltip listing the rest: it opens that day, which is the view that
+  // can actually show them.
+  const more =
+    due.length > CELL_FITS
+      ? `<button type="button" class="cal__more" data-open="${iso}">` +
+        `${due.length - CELL_FITS} more</button>`
+      : "";
+
+  return (
+    `<div class="cal__cell${outside ? " is-outside" : ""}${iso === today ? " is-today" : ""}" ` +
+    `data-day="${iso}">` +
+    `<span class="cal__date">${day.getDate()}</span>${pips}${more}</div>`
+  );
 }
 
 /** Which voice this bot speaks in, and every other one it could have.
@@ -4257,7 +4436,7 @@ function freshenGuide(bot: Bot): void {
 function openBot(id: string): void {
   const opening = state.bots.find((bot) => bot.id === id);
   if (opening) freshenGuide(opening);
-  // Everybody's week belongs to nobody, so picking somebody leaves it.
+  // The shared calendar belongs to nobody, so picking somebody leaves it.
   if (calEveryone) {
     calEveryone = false;
     showRoutines(false);
@@ -6359,7 +6538,7 @@ function whenNext(routine: Routine): string {
 
 let routinesOpen = false;
 
-/** Whose week the calendar is showing: the bot you have open, or the lot.
+/** Whose routines the calendar is showing: the bot you have open, or the lot.
  *
  *  Everything a bot does on a schedule is invisible from every other bot's
  *  calendar, which is fine until you have five of them and want to know what
@@ -6381,19 +6560,19 @@ function ownerOf(routineId: string): { bot: Bot; routine: Routine } | null {
   return null;
 }
 
-/** Everybody's week at once, from the account menu.
+/** Every bot's routines on one calendar, from the account menu.
  *
  *  Reached from there rather than from the clock in a bot's header because it
  *  is not about a bot: the clock belongs to whoever is on screen, and this is
  *  the one calendar that belongs to you. */
-function openEveryonesWeek(): void {
+function openCalendar(): void {
   if (!state.bots.length) return;
   calEveryone = true;
   state.activeChannel = null;
   showRoutines(true);
 }
 
-/** The main pane shows either the conversation or this bot's week. */
+/** The main pane shows either the conversation or the calendar. */
 function showRoutines(open: boolean): void {
   routinesOpen = open;
   $<HTMLElement>(".main").classList.toggle("is-routines", open);
@@ -6407,27 +6586,27 @@ function showRoutines(open: boolean): void {
     return;
   }
 
-  // Whose week, in the bar where a bot's face usually is. Everybody's is the
-  // one view in the app that belongs to no bot, so it says so — and the top
+  // Whose calendar, in the bar where a bot's face usually is. The shared one is
+  // the one view in the app that belongs to no bot, so it says so — and the top
   // right is emptied, because a plug, a screen and a clock all belong to a
   // single bot and none of them mean anything here.
   if (calEveryone) {
     paintTopbarFor(null);
     $<HTMLButtonElement>("#btn-settings").hidden = true;
     topbarId.innerHTML =
-      `<span class="chan__hash">${icon("clock")}</span><span>Everyone's week</span>` +
+      `<span class="chan__hash">${icon("clock")}</span><span>Calendar</span>` +
       `<span class="chan__faces">${state.bots.map((b) => faceHtml(b, "sm")).join("")}</span>`;
   } else {
     $<HTMLButtonElement>("#btn-settings").hidden = false;
   }
 
-  // Opening always lands on this week, wherever it was left.
-  calAt = weekStart(Date.now());
+  // Opening always lands on now, wherever it was left — but at the size it was
+  // last read at, because how much of a calendar you want on screen is a habit
+  // rather than a decision to be made again every time.
+  calSpan = appSettings().calSpan ?? "week";
+  calAt = spanStart(Date.now(), calSpan);
   renderRoutines();
-  // Start where the day is rather than at midnight, with enough above it to see
-  // what has just been and gone.
-  const body = $<HTMLDivElement>("#cal-body");
-  body.scrollTop = Math.max(0, (new Date().getHours() - 2) * HOUR_PX);
+  paintCalScroll();
 }
 
 /** Run a routine now, from the clock or from the Run now button. */
@@ -7293,8 +7472,8 @@ input.addEventListener("keydown", (e) => {
 });
 
 $<HTMLButtonElement>("#btn-routines").addEventListener("click", () => {
-  // The clock in a bot's header is that bot's week, even if you arrived at the
-  // calendar from the account menu and then clicked a bot.
+  // The clock in a bot's header is that bot's own calendar, even if you arrived
+  // at the shared one from the account menu and then clicked a bot.
   const back = routinesOpen && !calEveryone;
   calEveryone = false;
   showRoutines(!back);
@@ -7336,7 +7515,7 @@ $<HTMLButtonElement>("#btn-account").addEventListener("click", (event) => {
   openMenu(
     event.currentTarget as HTMLElement,
       `<button type="button" class="menu-item" data-app="calendar">${icon("clock")}` +
-      `<span class="menu-item__body"><span class="menu-item__name">Everyone's week</span></span></button>` +
+      `<span class="menu-item__body"><span class="menu-item__name">Calendar</span></span></button>` +
       `<button type="button" class="menu-item" data-app="settings">${icon("gear")}` +
       `<span class="menu-item__body"><span class="menu-item__name">Settings</span></span></button>` +
       `<button type="button" class="menu-item" data-app="tour">${icon("eye")}` +
@@ -7513,7 +7692,7 @@ menu.addEventListener("click", (e) => {
   const app = target.closest<HTMLButtonElement>("[data-app]")?.dataset.app;
   if (app) {
     closeMenu();
-    if (app === "calendar") openEveryonesWeek();
+    if (app === "calendar") openCalendar();
     else if (app === "settings") void openAppSettings();
     else if (app === "tour") startTour();
     else if (app === "setup") void openSetup(appSettings().onboarded ? "answers" : "welcome");
@@ -7740,7 +7919,7 @@ function paintRoutineForm(): void {
 function openRoutine(routine: Routine | null, seed?: { day: number; hour: number; date: string }): void {
   editingRoutine = routine?.id ?? null;
 
-  // Whose calendar this lands on. On one bot's week that is never in question;
+  // Whose calendar this lands on. On one bot's own that is never in question;
   // on everybody's it is the first thing the form has to answer, so it is the
   // first row rather than something to discover after saving to the wrong bot.
   const owner = routine ? ownerOf(routine.id)?.bot : null;
@@ -7843,16 +8022,22 @@ routineWrap.addEventListener("mousedown", (e) => {
 });
 
 $<HTMLButtonElement>("#cal-prev").addEventListener("click", () => {
-  calAt = dayOfWeek(calAt, -7);
+  calAt = stepSpan(calAt, calSpan, -1);
   renderRoutines();
 });
 $<HTMLButtonElement>("#cal-next").addEventListener("click", () => {
-  calAt = dayOfWeek(calAt, 7);
+  calAt = stepSpan(calAt, calSpan, 1);
   renderRoutines();
 });
 $<HTMLButtonElement>("#cal-today").addEventListener("click", () => {
-  calAt = weekStart(Date.now());
+  calAt = spanStart(Date.now(), calSpan);
   renderRoutines();
+  paintCalScroll();
+});
+
+$<HTMLDivElement>("#cal-spans").addEventListener("click", (e) => {
+  const pick = (e.target as HTMLElement).closest<HTMLElement>("[data-span]");
+  if (pick) setCalSpan(pick.dataset.span as CalSpan);
 });
 
 $<HTMLElement>("#routines").addEventListener("click", (e) => {
@@ -7865,14 +8050,25 @@ $<HTMLElement>("#routines").addEventListener("click", (e) => {
     return;
   }
 
+  // A day with more on it than its cell can hold. Opening that day is the
+  // answer, since that is the view able to show them all.
+  const open = target.closest<HTMLElement>("[data-open]");
+  if (open) {
+    calAt = spanStart(fromIso(open.dataset.open ?? ""), "day");
+    setCalSpan("day");
+    return;
+  }
+
   if (!calBots().length) return;
 
-  const slot = target.closest<HTMLElement>(".cal__slot");
+  // An hour on the grid, or a whole day in a month — which has no hour to read
+  // off it, so it opens at nine like a working day.
+  const slot = target.closest<HTMLElement>(".cal__slot, .cal__cell");
   if (slot) {
-    const day = dayOfWeek(calAt, Number(slot.dataset.col));
+    const day = fromIso(slot.dataset.day ?? "");
     openRoutine(null, {
       day: day.getDay(),
-      hour: Number(slot.dataset.hour),
+      hour: Number(slot.dataset.hour ?? 9),
       date: isoDate(day),
     });
   }
@@ -7889,8 +8085,8 @@ routineForm.addEventListener("submit", (e) => {
   }
 
   const was = editingRoutine ? ownerOf(editingRoutine) : null;
-  // Where it is going: what the picker says on the shared week, and the bot
-  // whose week you are looking at everywhere else.
+  // Where it is going: what the picker says on the shared calendar, and the bot
+  // whose calendar you are looking at everywhere else.
   const picked = calEveryone ? $<HTMLSelectElement>("#routine-bot").value : "";
   const bot = state.bots.find((b) => b.id === picked) ?? was?.bot ?? activeBot();
   if (!bot) return;

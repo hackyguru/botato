@@ -1526,10 +1526,11 @@ textarea {
 }
 
 /* The gutter width is repeated in every row so the columns line up; changing it
-   means changing it in .cal__days, .cal__often and .cal__hours together. */
+   means changing it in .cal__often and .cal__hours together. How many columns
+   follow it is data — one on a day, seven on a week — so the template itself is
+   set from the script. */
 .cal__days {
   display: grid;
-  grid-template-columns: 52px repeat(7, 1fr);
   border-bottom: 1px solid var(--line);
 }
 
@@ -1595,7 +1596,6 @@ textarea {
 .cal__cols {
   display: grid;
   flex: 1;
-  grid-template-columns: repeat(7, 1fr);
   min-width: 0;
 }
 
@@ -1719,6 +1719,160 @@ textarea {
   padding: 3px 2px;
   font-size: 12px;
   color: var(--text-3);
+}
+
+/* How much is on screen: a day, a week, a month. One control, three states,
+   the way a segmented control has always worked — three separate buttons that
+   happen to be adjacent would let two look pressed at once. */
+.cal__spans {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--field);
+  border-radius: 9px;
+}
+
+.cal__span {
+  padding: 4px 11px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  background: none;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.cal__span:hover {
+  color: var(--text);
+}
+
+.cal__span.is-on {
+  color: var(--text);
+  background: var(--active);
+}
+
+/* ------------------------------------------------------------ the month */
+
+/* No hours to scroll to, so the gutter that names them goes as well. */
+.cal--month .cal__hours {
+  display: none;
+}
+
+/* Tall enough for the date and three routines under it, and taller when the
+   pane can afford it — a month in a maximised window should use the height
+   rather than leave it below the last row. */
+.cal--month .cal__cols {
+  grid-auto-rows: minmax(104px, 1fr);
+}
+
+.cal__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 4px 5px 6px;
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.cal__cell:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* The days either side of the month. Drawn at full strength, a month looks
+   like it begins on the 28th of the one before. */
+.cal__cell.is-outside {
+  opacity: 0.42;
+}
+
+.cal__cell.is-today {
+  background: rgba(10, 132, 255, 0.05);
+}
+
+.cal__date {
+  align-self: center;
+  min-width: 19px;
+  height: 19px;
+  font-size: 11.5px;
+  line-height: 19px;
+  color: var(--text-3);
+  text-align: center;
+  border-radius: 999px;
+}
+
+.cal__cell.is-today .cal__date {
+  color: #fff;
+  font-weight: 600;
+  background: var(--blue);
+}
+
+/* A routine in a month: a dot in its bot's colour, its name, and the time.
+   Not a block in the colour — thirty days of solid tiles is a heat map, and
+   the thing being asked of this view is "what happens on the 14th". */
+.cal__pip {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  min-width: 0;
+  padding: 1px 5px;
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.055);
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.cal__pip i {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  background: var(--tint, var(--blue));
+  border-radius: 50%;
+}
+
+.cal__pip b {
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal__pip span {
+  flex: none;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.cal__pip:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.cal__pip.is-off {
+  opacity: 0.45;
+}
+
+/* What did not fit. It opens that day rather than growing the cell: a cell
+   that grew would push the row below it off the bottom of the month. */
+.cal__more {
+  padding: 0 5px;
+  font-size: 10.5px;
+  color: var(--text-3);
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.cal__more:hover {
+  color: var(--text);
 }
 
 .sheet--routine textarea,
