@@ -560,6 +560,15 @@
         <div class="sheet__body">
           <div class="settings-panel" data-tab="general" role="tabpanel">
             <div class="sheet__preview" id="sheet-preview"></div>
+
+            <!-- Only when hiring. Editing somebody who already works here and
+                 being offered a list of other people to be is not a control,
+                 it is a trapdoor. -->
+            <div class="hires" id="sheet-hires" hidden>
+              <p class="hires__cap">Start from</p>
+              <div class="hires__row" id="sheet-hires-row"></div>
+            </div>
+
             <input id="sheet-name" placeholder="Name, e.g. Engineer" spellcheck="false" />
             <div class="swatches" id="swatches"></div>
 

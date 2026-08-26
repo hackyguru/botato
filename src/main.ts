@@ -2588,6 +2588,98 @@ const closeMenu = () => {
  *
  *  Still, like every face outside the roster: a preview that blinks at you
  *  while you pick a colour is not showing you the colour. */
+/** Somebody to start from.
+ *
+ *  A blank box asking for a "role and job description" is the hardest question
+ *  this app asks, and it asks it before anything has happened: the difference
+ *  between a bot that is useful and one that answers like a search engine is
+ *  almost entirely what is written there, and nobody knows that on day one.
+ *  These are the job descriptions I would write, offered as a starting point
+ *  and editable to nothing.
+ *
+ *  Deliberately no routines and no connectors. A template that quietly put
+ *  standing work on a schedule would be a template that starts spending your
+ *  usage before you have met the bot — the calendar is a decision, and it stays
+ *  one. What a hire comes with is words. */
+const HIRES: { name: string; blurb: string; colour: string; shape: Shape; role: string }[] = [
+  {
+    name: "Engineer",
+    blurb: "Writes and ships",
+    colour: "#0a84ff",
+    shape: "squircle",
+    role:
+      "You write and ship code. You own the build: when something is broken you say so plainly, " +
+      "and when it is fixed you say what changed and why. Prefer the small diff to the clever one. " +
+      "Run things rather than guessing at their output, and when you cannot run something, say that " +
+      "instead of predicting what it would have printed.",
+  },
+  {
+    name: "Researcher",
+    blurb: "Finds out",
+    colour: "#bf5af2",
+    shape: "circle",
+    role:
+      "You find things out and report back. Go to sources rather than to memory, and say where each " +
+      "claim came from. Keep what you found and what you think of it in separate paragraphs. Short " +
+      "answers with the working underneath them, and when the answer is 'nobody knows', that is the " +
+      "answer.",
+  },
+  {
+    name: "Ops",
+    blurb: "Keeps it running",
+    colour: "#30d158",
+    shape: "drop",
+    role:
+      "You keep things running. Watch what is up, report what changed, and raise problems with the " +
+      "facts attached rather than with an alarm. Write down what you did as you do it, so the next " +
+      "person — or the next you — does not start from nothing. A quiet day reported as a quiet day is " +
+      "a useful report.",
+  },
+  {
+    name: "Writer",
+    blurb: "Turns work into words",
+    colour: "#ff5a00",
+    shape: "circle",
+    role:
+      "You turn work into words other people can read. Draft, then cut. Keep one voice across " +
+      "everything you write here. Ask who the reader is when it is not obvious, because the same " +
+      "facts go to a customer and to a colleague in two different shapes.",
+  },
+  {
+    name: "Analyst",
+    blurb: "Answers with numbers",
+    colour: "#ffb020",
+    shape: "squircle",
+    role:
+      "You answer questions with numbers. Say what the number is, how you arrived at it, and what " +
+      "would change it. Never round a fact into a story: if the data does not support the question " +
+      "as asked, say which question it does answer.",
+  },
+];
+
+/** The strip of them, and what picking one does. */
+function paintHires(hiring: boolean): void {
+  const wrap = $<HTMLDivElement>("#sheet-hires");
+  wrap.hidden = !hiring;
+  if (!hiring) return;
+
+  $<HTMLDivElement>("#sheet-hires-row").innerHTML = HIRES.map(
+    (hire) =>
+      `<button type="button" class="hire" data-hire="${escapeHtml(hire.name)}">` +
+      faceHtml(
+        {
+          id: `hire:${hire.name}`,
+          color: hire.colour,
+          shape: hire.shape,
+          face: { head: hire.shape },
+        } as unknown as Bot,
+        "sm",
+      ) +
+      `<span class="hire__name">${escapeHtml(hire.name)}</span>` +
+      `<span class="hire__blurb">${escapeHtml(hire.blurb)}</span></button>`,
+  ).join("");
+}
+
 function renderSheetPreview(bot?: Bot | null): void {
   const shown: Bot = bot
     ? { ...bot, color: draftColor }
@@ -3480,6 +3572,7 @@ function openSheet(bot: Bot | null = null): void {
   sheetWindow.value = bot?.machine?.window ?? "";
   sheetFonts.value = bot?.machine?.fonts ?? "";
   sheetLanguage.value = bot?.machine?.language ?? "";
+  paintHires(!bot);
   renderSheetPreview(bot);
   // Only an existing bot can be deleted, and the confirm never carries over
   // from a previous visit to this sheet.
@@ -8205,6 +8298,27 @@ $<HTMLButtonElement>("#routine-delete").addEventListener("click", () => {
   renderRoutines();
   renderThread();
   toast(`Deleted ${found.routine.name}`);
+});
+
+$<HTMLDivElement>("#sheet-hires-row").addEventListener("click", (e) => {
+  const pick = (e.target as HTMLElement).closest<HTMLElement>("[data-hire]");
+  if (!pick) return;
+  const hire = HIRES.find((h) => h.name === pick.dataset.hire);
+  if (!hire) return;
+
+  // The name is filled only if you have not written one, or if it is another
+  // template's — so picking a second one to compare the wording does not throw
+  // away the name you chose, and does not leave you with an Engineer called
+  // Researcher either.
+  const typed = sheetName.value.trim();
+  if (!typed || HIRES.some((h) => h.name === typed)) sheetName.value = hire.name;
+  sheetRole.value = hire.role;
+  draftColor = hire.colour;
+  renderSheetPreview();
+
+  for (const el of document.querySelectorAll(".hire.is-on")) el.classList.remove("is-on");
+  pick.classList.add("is-on");
+  sheetName.focus();
 });
 
 swatches.addEventListener("click", (e) => {
