@@ -1011,6 +1011,53 @@ function restingMood(botId: string): string {
   return "idle";
 }
 
+/** How full a bot's hands are, and what to say about it.
+ *
+ *  Every part of this is a reading of something botcage already knows: whether
+ *  a turn is in flight, how many of its routines come due within the hour, and
+ *  how many rooms have said its name since it last spoke there. Nothing here is
+ *  invented for flavour — a gauge that is partly made up is a gauge nobody can
+ *  use, and the moment one number is decorative the others stop being believed.
+ *
+ *  Four jobs fills the ring. Not because four is a limit — a bot will take a
+ *  fifth — but because a gauge needs a top, and past four the difference
+ *  between busy and busier is not a thing anybody acts on. */
+function loadOf(bot: Bot): { press: number; working: boolean; says: string } {
+  const working = inflight.has(bot.id);
+  const soon = Date.now() + 60 * 60_000;
+  const due = (bot.routines ?? []).filter(
+    (r) => r.active && nextRun(r, r.lastRunAt ?? Date.now()) <= soon,
+  ).length;
+
+  // Rooms where it has been named since it last said anything there. This is
+  // the same question `addressees` answers when a message arrives, asked of
+  // the backlog instead.
+  const called = channels().filter((ch) => {
+    if (!ch.members.includes(bot.id)) return false;
+    const spoke = ch.messages.map((m) => m.by).lastIndexOf(bot.id);
+    // Bounded: this runs for every bot on every repaint of the roster, and a
+    // bot that has never spoken in a busy room would otherwise mean parsing
+    // the room's whole history for a gauge. Forty messages back is as far as
+    // "still waiting on you" reaches anyway.
+    return ch.messages
+      .slice(Math.max(spoke + 1, ch.messages.length - 40))
+      .some((m) => m.from === "me" && addressees(ch, m.text).some((b) => b.id === bot.id));
+  }).length;
+
+  const jobs = (working ? 1 : 0) + due + called;
+  const said = [
+    working ? (inflight.get(bot.id)?.note ?? "Working") : "",
+    due ? `${due} routine${due === 1 ? "" : "s"} due within the hour` : "",
+    called ? `named in ${called} room${called === 1 ? "" : "s"}` : "",
+  ].filter(Boolean);
+
+  return {
+    press: Math.min(1, jobs / 4),
+    working,
+    says: said.length ? said.join(" · ") : "Nothing on",
+  };
+}
+
 /** Push moods onto the faces already on screen, rather than re-rendering them.
  *  A face is in the roster, the header, the thread and a sheet at once, and a
  *  mood change should not cost a repaint of any of them.
@@ -1509,10 +1556,18 @@ function botRows(hits: Bot[]): string {
         bot.id === state.activeId && !state.activeChannel
           ? { unread: 0, mentions: 0 }
           : unreadIn(bot.messages, bot.seenAt);
+      const load = loadOf(bot);
       return (
         `<button class="bot-row${bot.id === state.activeId && !state.activeChannel ? " is-active" : ""}` +
         `${news.unread ? " is-unread" : ""}" data-bot="${bot.id}">` +
+        // A ring around the face for how full its hands are, and the reading
+        // spelled out on hover. The ring is drawn even at nothing-on, as a
+        // groove — a gauge that appears only when it has something to say
+        // gives you nothing to read the rest against.
+        `<span class="load${load.working ? " is-working" : ""}" style="--press:${load.press.toFixed(3)}" ` +
+        `title="${escapeHtml(`${bot.name} — ${load.says}`)}">` +
         faceHtml(bot, "md", true) +
+        `</span>` +
         `<span class="bot-row__body">` +
         // Name and time, and nothing else. The second line used to carry the
         // last thing said, which is a chat app's habit rather than this app's

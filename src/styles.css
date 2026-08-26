@@ -451,6 +451,82 @@ select:focus-visible {
   padding-bottom: 6px;
 }
 
+/* How full a bot's hands are, drawn around its face.
+ *
+ * An arc rather than a bar or a number: a bar down a roster is a chart, and a
+ * number is something to do arithmetic on. An arc reads at a glance and stops
+ * at a top, which is the honest shape for "how much is on" — past four jobs
+ * the difference between busy and busier is not a thing anybody acts on.
+ *
+ * The groove is drawn whether or not there is anything in it. A gauge that
+ * appears only when it has something to say gives the eye nothing to read the
+ * rest against, and a roster that grows rings as bots get busy flickers.
+ *
+ * A conic gradient with a hole punched through the middle: the mask keeps the
+ * ring two pixels thick whatever size the face beside it happens to be. */
+.load {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+/* Behind the face, not over it. A bot's ears, hat or antenna live outside its
+   box, and a ring drawn on top slices through them; drawn underneath it reads
+   as a halo the head is sitting in front of. */
+.load > .face {
+  position: relative;
+  z-index: 1;
+}
+
+.load::before,
+.load::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  -webkit-mask: radial-gradient(circle, transparent calc(50% - 2px), #000 calc(50% - 2px));
+  mask: radial-gradient(circle, transparent calc(50% - 2px), #000 calc(50% - 2px));
+  pointer-events: none;
+}
+
+.load::before {
+  background: var(--fill-2);
+}
+
+.load::after {
+  background: conic-gradient(
+    from -90deg,
+    var(--ring, var(--blue)) calc(var(--press, 0) * 360deg),
+    transparent 0
+  );
+  transition: background 0.4s ease;
+}
+
+/* Hands full. Amber rather than red: four jobs is a bot having a day, not a
+   bot in trouble, and red in a roster is a word this app keeps for damage. */
+.load[style*="--press:1"] {
+  --ring: var(--amber);
+}
+
+/* Mid-turn, so the arc turns while the turn does. The face beside it is
+   already thinking or working — this says the same thing from further away,
+   for the roster you are not looking directly at. */
+.load.is-working::after {
+  animation: load-turn 2.4s linear infinite;
+}
+
+@keyframes load-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .load.is-working::after {
+    animation: none;
+  }
+}
+
 .bot-row {
   display: flex;
   align-items: center;
