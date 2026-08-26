@@ -154,6 +154,12 @@ interface Bot {
   provider?: string;
   /** When you last had this bot's chat open. See `Channel.seenAt`. */
   seenAt?: number;
+  /** When it works, if it does not work all the time.
+   *
+   *  Routines only. A message you send at midnight is you talking to it and it
+   *  answers — hours are about the work it does on its own, which is the work
+   *  that spends money while nobody is watching. */
+  hours?: { from: string; to: string; days: number[] };
   /** What it has cost, and what it has cost this week.
    *
    *  Kept per bot and saved, because the interesting question is not what this
@@ -3071,6 +3077,60 @@ function paintSheetManners(bot: Bot | null): void {
   picker.value = bot?.manner ?? "";
 }
 
+/** The hours row: a switch, two times, and the days.
+ *
+ *  Days as seven toggles rather than a dropdown of "weekdays / every day /
+ *  custom", because custom is what everybody picks in the end and a dropdown
+ *  that leads to a second control is two controls with an extra step. */
+function paintSheetHours(bot: Bot | null): void {
+  const on = $<HTMLInputElement>("#sheet-hours-on");
+  const when = $<HTMLDivElement>("#sheet-hours-when");
+  const hours = bot?.hours;
+
+  on.checked = !!hours;
+  when.hidden = !hours;
+  $<HTMLInputElement>("#sheet-hours-from").value = hours?.from ?? "09:00";
+  $<HTMLInputElement>("#sheet-hours-to").value = hours?.to ?? "18:00";
+  $<HTMLSpanElement>("#sheet-hours-says").textContent = bot
+    ? `${saysHours(bot)}. Routines only — a message you send is always answered.`
+    : "Routines only — a message you send is always answered.";
+
+  const days = hours?.days ?? [1, 2, 3, 4, 5];
+  // Monday first: a working week starts on Monday however Date#getDay counts.
+  $<HTMLDivElement>("#sheet-hours-days").innerHTML = [1, 2, 3, 4, 5, 6, 0]
+    .map(
+      (day) =>
+        `<button type="button" class="shift__day${days.includes(day) ? " is-on" : ""}" ` +
+        `data-day="${day}">${DAY_NAME[day]}</button>`,
+    )
+    .join("");
+}
+
+/** What the hours row is currently saying, as a value to save. */
+function hoursFromSheet(): Bot["hours"] {
+  if (!$<HTMLInputElement>("#sheet-hours-on").checked) return undefined;
+  const days = [...document.querySelectorAll<HTMLElement>(".shift__day.is-on")].map((el) =>
+    Number(el.dataset.day),
+  );
+  return {
+    from: tidyClock($<HTMLInputElement>("#sheet-hours-from").value),
+    to: tidyClock($<HTMLInputElement>("#sheet-hours-to").value),
+    // No days at all is not a shift, it is a bot that never works — which
+    // nobody means by unticking the last one.
+    days: days.length ? days : [1, 2, 3, 4, 5],
+  };
+}
+
+/** Whatever was typed, as HH:MM. The phone's calendar learned this lesson
+ *  first: a time saved as "9" never comes round. */
+function tidyClock(typed: string): string {
+  const digits = typed.replace(/\D/g, "").slice(0, 4);
+  if (!digits) return "09:00";
+  const hh = digits.length <= 2 ? Number(digits) : Number(digits.slice(0, digits.length - 2));
+  const mm = digits.length <= 2 ? 0 : Number(digits.slice(-2));
+  return `${pad2(Math.min(23, hh))}:${pad2(Math.min(59, mm))}`;
+}
+
 function renderSheetPreview(bot?: Bot | null): void {
   const shown: Bot = bot
     ? { ...bot, color: draftColor }
@@ -3948,6 +4008,7 @@ function openSheet(bot: Bot | null = null): void {
     model: bot?.model ?? (appSettings().engine ? appSettings().model : ""),
   };
   paintSheetManners(bot);
+  paintSheetHours(bot);
   paintSheetEngines(bot);
   void paintSheetVoices(bot);
   sheetBrowser.value = bot?.machine?.browser ?? "";
@@ -4889,6 +4950,7 @@ function saveSheet(): void {
       voice: $<HTMLSelectElement>("#sheet-voice").value || undefined,
       // Empty means the one its id chose, for the same reason as the voice.
       manner: $<HTMLSelectElement>("#sheet-manner").value || undefined,
+      hours: hoursFromSheet(),
       machine: machineFromSheet(),
     });
 
@@ -7222,12 +7284,53 @@ function runRoutine(bot: Bot, routine: Routine): void {
 }
 
 /** Fire anything due. This runs while the app is open; there is no daemon. */
+/** Is this bot on the clock?
+ *
+ *  A bot with no hours set works whenever, which is what every bot did before
+ *  this existed and what most of them should keep doing. A shift that runs
+ *  past midnight — 22:00 to 06:00 — is a night shift rather than an empty one,
+ *  and the day it belongs to is the day it started.
+ */
+function onTheClock(bot: Bot, when = new Date()): boolean {
+  const hours = bot.hours;
+  if (!hours) return true;
+
+  const at = `${pad2(when.getHours())}:${pad2(when.getMinutes())}`;
+  const day = when.getDay();
+  const overnight = hours.to <= hours.from;
+
+  if (!overnight) {
+    return hours.days.includes(day) && at >= hours.from && at < hours.to;
+  }
+  // Before the shift ends, it is still yesterday's shift: a Tuesday-night bot
+  // is still working at one on Wednesday morning.
+  if (at < hours.to) return hours.days.includes((day + 6) % 7);
+  return hours.days.includes(day) && at >= hours.from;
+}
+
+/** What its hours say, in a line. */
+function saysHours(bot: Bot): string {
+  const hours = bot.hours;
+  if (!hours) return "Any time";
+  const days = hours.days.length === 7
+    ? "every day"
+    : hours.days.length === 5 && [1, 2, 3, 4, 5].every((d) => hours.days.includes(d))
+      ? "weekdays"
+      : hours.days.map((d) => DAY_NAME[d]).join(", ");
+  return `${hours.from}–${hours.to}, ${days}`;
+}
+
 function tickRoutines(): void {
   if (!appSettings().routinesOn) return;
   const now = Date.now();
 
   for (const bot of state.bots) {
     if (inflight.has(bot.id)) continue;
+    // Off the clock, a routine waits rather than being missed: nothing here
+    // moves `lastRunAt`, so whatever came due overnight is still due when the
+    // shift opens and fires once — not once for every half hour it slept
+    // through, which is the way to wake up to forty messages.
+    if (!onTheClock(bot)) continue;
 
     for (const routine of bot.routines ?? []) {
       if (!routine.active) continue;
@@ -8718,6 +8821,15 @@ $<HTMLButtonElement>("#routine-delete").addEventListener("click", () => {
   renderRoutines();
   renderThread();
   toast(`Deleted ${found.routine.name}`);
+});
+
+$<HTMLInputElement>("#sheet-hours-on").addEventListener("change", (e) => {
+  $<HTMLDivElement>("#sheet-hours-when").hidden = !(e.target as HTMLInputElement).checked;
+});
+
+$<HTMLDivElement>("#sheet-hours-days").addEventListener("click", (e) => {
+  const day = (e.target as HTMLElement).closest<HTMLElement>("[data-day]");
+  if (day) day.classList.toggle("is-on");
 });
 
 $<HTMLDivElement>("#sheet-hires-row").addEventListener("click", (e) => {

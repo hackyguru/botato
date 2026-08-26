@@ -603,6 +603,30 @@
               <button type="button" class="picker picker--open" id="sheet-model-open" hidden></button>
             </label>
 
+            <div class="setting setting--stack">
+              <span class="setting__label">Working hours
+                <span class="setting__hint" id="sheet-hours-says">Any time.</span>
+              </span>
+              <!-- Routines only, which is what the hint says: a message you
+                   send at midnight is you talking to it. -->
+              <div class="shift">
+                <label class="shift__on">
+                  <input type="checkbox" id="sheet-hours-on" class="switch" />
+                  <span>Only work during these hours</span>
+                </label>
+                <div class="shift__when" id="sheet-hours-when" hidden>
+                  <div class="row">
+                    <input id="sheet-hours-from" class="picker picker--text" value="09:00"
+                           inputmode="numeric" spellcheck="false" />
+                    <span class="shift__to">to</span>
+                    <input id="sheet-hours-to" class="picker picker--text" value="18:00"
+                           inputmode="numeric" spellcheck="false" />
+                  </div>
+                  <div class="shift__days" id="sheet-hours-days"></div>
+                </div>
+              </div>
+            </div>
+
             <label class="setting">
               <span class="setting__label">Manner
                 <span class="setting__hint">How it writes, not what it says. Its own is chosen by

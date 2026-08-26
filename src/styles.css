@@ -4968,6 +4968,72 @@ a.detail__source:hover {
   color: var(--text-3);
 }
 
+/* When a bot works. Only its own work: a message you send is you talking to
+   it, and a colleague who ignored you after six would not last. */
+.shift {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.shift__on {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--type-small);
+  cursor: pointer;
+}
+
+.shift__when {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shift__to {
+  flex: none;
+  font-size: var(--type-hint);
+  color: var(--text-3);
+}
+
+.shift__when .picker--text {
+  width: 88px;
+  max-width: none;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Seven toggles rather than a dropdown of "weekdays / every day / custom",
+   because custom is what everybody picks in the end and a dropdown that leads
+   to a second control is two controls with a step in between. */
+.shift__days {
+  display: flex;
+  gap: 4px;
+}
+
+.shift__day {
+  flex: 1;
+  padding: 5px 0;
+  font-size: var(--type-caption);
+  font-weight: 500;
+  color: var(--text-3);
+  background: var(--fill-1);
+  border: 0;
+  border-radius: var(--radius-chip);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.shift__day:hover {
+  color: var(--text-2);
+}
+
+.shift__day.is-on {
+  color: var(--on-accent);
+  background: var(--blue);
+}
+
 .machine__note {
   margin: 0 2px;
   font-size: 12px;
