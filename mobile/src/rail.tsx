@@ -1,21 +1,27 @@
 /**
  * The strip of icons down the left of the drawer.
  *
- * The laptop's sidebar collapsed to 66px, in the place Discord keeps its
- * server rail: a panel of hashes for the rooms, a panel of faces for the bots,
- * with whatever is open lit. Everything here is a shortcut — nothing is only
- * reachable from the rail, which is what lets it be wordless.
+ * The laptop's sidebar collapsed to 62px, in the place Discord keeps its server
+ * rail: a hash per room, a rule, then a face per bot, with whatever is open
+ * lit. Everything here is a shortcut — nothing is only reachable from the rail,
+ * which is what lets it be wordless.
+ *
+ * It is told apart from the list beside it by shade, which is how Discord tells
+ * its own rail apart and is the only thing that works at this width. The
+ * alternatives were tried: a hairline down the right is a detail you have to go
+ * looking for, and standing the icons on panels made the strip read as two
+ * cards floating on the list rather than as the edge of the app. Here the rail
+ * is the darkest surface in the drawer and the list steps up from it, so the
+ * boundary is a change of ground rather than a mark somebody drew.
  *
  * No search icon, unlike the collapsed laptop sidebar. There it is the only way
  * to search, because a 66px column has nowhere to put a field; here the field
  * is nine pixels to the right, and a button that focuses a visible field is a
  * button pretending to do something.
  *
- * The mark sits at the top of it, where Discord keeps its home button and where
- * the laptop keeps the same mark: level with the wordmark beside it, and on the
- * black rather than on either panel, so it reads as the app rather than as the
- * first thing in the list. It is not a button — there is nowhere for it to go
- * that you are not already looking at.
+ * The mark sits at the top, where Discord keeps its home button and where the
+ * laptop keeps the same mark: level with the wordmark beside it. It is not a
+ * button — there is nowhere for it to go that you are not already looking at.
  */
 
 import React from "react";
@@ -27,6 +33,31 @@ import { T } from "./theme";
 import type { Bot, Channel } from "./types";
 
 export const RAIL_W = 62;
+
+/** One icon in the strip, with the marker for whether you are in it.
+ *
+ *  The white tab at the left edge is Discord's, and it is worth copying: at
+ *  this size a tinted tile is a thing you notice only once you are looking for
+ *  it, and a tab breaking the rail's edge is visible from the other side of
+ *  the screen. */
+function Seat({
+  here,
+  onPress,
+  children,
+}: {
+  here: boolean;
+  onPress: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={s.seat}>
+      {here ? <View style={s.tab} /> : null}
+      <Pressable style={[s.slot, here ? s.slotHere : null]} onPress={onPress}>
+        {children}
+      </Pressable>
+    </View>
+  );
+}
 
 export default function Rail({
   bots,
@@ -51,91 +82,72 @@ export default function Rail({
       <View style={s.crest}>
         <Brand size={26} />
       </View>
+      <View style={s.rule} />
 
       <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
-        {rooms.length ? (
-          <View style={[s.block, bots.length ? null : s.tail]}>
-            {rooms.map((room) => {
-              // A room you are in through one of its threads counts as the
-              // room you are in: the thread is not drawn here, so nothing else
-              // would be lit at all.
-              const here = room.id === openRoom;
-              return (
-                <Pressable
-                  key={room.id}
-                  style={[s.slot, here ? s.slotHere : null]}
-                  onPress={() => onOpenChannel(room)}
-                >
-                  <Text style={[s.hash, here ? s.hashHere : null]}>#</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        ) : null}
+        {rooms.map((room) => (
+          // A room you are in through one of its threads counts as the room you
+          // are in: the thread is not drawn here, so nothing else would be lit
+          // at all.
+          <Seat key={room.id} here={room.id === openRoom} onPress={() => onOpenChannel(room)}>
+            <Text style={[s.hash, room.id === openRoom ? s.hashHere : null]}>#</Text>
+          </Seat>
+        ))}
 
-        {bots.length ? (
-          <View style={[s.block, s.tail]}>
-            {bots.map((bot) => {
-              const here = bot.id === openBot && !openRoom;
-              return (
-                <Pressable
-                  key={bot.id}
-                  style={[s.slot, here ? s.slotHere : null]}
-                  onPress={() => onOpen(bot)}
-                >
-                  <Face bot={bot} size={38} />
-                </Pressable>
-              );
-            })}
-          </View>
-        ) : null}
+        {rooms.length && bots.length ? <View style={s.rule} /> : null}
+
+        {bots.map((bot) => (
+          <Seat
+            key={bot.id}
+            here={bot.id === openBot && !openRoom}
+            onPress={() => onOpen(bot)}
+          >
+            <Face bot={bot} size={38} />
+          </Seat>
+        ))}
       </ScrollView>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  /* No dividing line down its right any more: the strip is black, and what is
-     drawn on it are the two panels below — the edge of those is the edge of
-     the rail, and a hairline as well would be a second one saying the same
-     thing a pixel away. */
-  rail: { width: RAIL_W },
+  /* The darkest surface in the drawer, and the whole of how the strip is told
+     apart from the list. Painted rather than left transparent: the drawer
+     behind it is this colour too, and a rail that only looks right because of
+     what is underneath it stops looking right the moment anything changes
+     there. */
+  rail: { width: RAIL_W, backgroundColor: T.bg },
   /* Level with the "botcage" beside it: the same 64 the list's header uses,
      and the same 26 its title is set in. */
-  crest: { paddingTop: 64, paddingBottom: 9, alignItems: "center" },
-  /* `flexGrow` so the last panel has room to run into: without it the content
-     is only as tall as the icons and there is nothing below them to fill. */
-  list: { flexGrow: 1, paddingTop: 8, alignItems: "center", gap: 10 },
-  /* The rooms on one panel, the bots on another, both in the colour of the
-     search field across the way. The gap between them is what says where one
-     ends — a rule between two things already sitting apart is a third mark for
-     a job two are doing. */
-  block: {
-    padding: 4,
-    gap: 4,
-    alignItems: "center",
-    backgroundColor: T.field,
-    borderRadius: 17,
+  crest: { paddingTop: 64, paddingBottom: 8, alignItems: "center" },
+  list: { paddingTop: 8, paddingBottom: 24, alignItems: "center", gap: 6 },
+  rule: {
+    alignSelf: "center",
+    width: 24,
+    height: 2,
+    marginVertical: 5,
+    borderRadius: 1,
+    backgroundColor: "rgba(255,255,255,0.11)",
   },
-  /* The last panel runs off the bottom of the screen rather than stopping
-     under the final face. Square at that end, because a rounded corner an inch
-     above the edge says the panel ends there and the black below it is
-     something else. */
-  tail: {
-    flex: 1,
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
-  },
+  seat: { width: RAIL_W, alignItems: "center", justifyContent: "center" },
   slot: {
     width: 46,
     height: 46,
-    borderRadius: 14,
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
   },
-  /* Lit, not filled: the panel underneath is already the field's colour, so
-     what is open is the tile a shade above it. */
-  slotHere: { backgroundColor: "rgba(255,255,255,0.11)" },
+  slotHere: { backgroundColor: T.field },
+  /* Half of it hangs off the left edge, so what is drawn is a tab with two
+     corners rather than a floating lozenge. */
+  tab: {
+    position: "absolute",
+    left: -4,
+    width: 8,
+    height: 26,
+    borderRadius: 4,
+    backgroundColor: T.text,
+  },
   hash: { color: T.text2, fontSize: 21 },
   hashHere: { color: T.text },
 });

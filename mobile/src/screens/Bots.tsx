@@ -320,7 +320,11 @@ export default function Bots({
 }
 
 const s = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: T.bg },
+  /* A step up from the rail beside it, which is what tells the two apart —
+     Discord's own arrangement, and the only one that reads at a glance on a
+     screen this narrow. The fields on it stay their own colour, so a search box
+     on this ground still looks like something you can type in. */
+  fill: { flex: 1, backgroundColor: T.panel },
 
   // A count when a bot addressed you by name, a dot when a room merely
   // carried on — two marks because they mean two different things.
