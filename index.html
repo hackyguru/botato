@@ -794,10 +794,13 @@
 
             <p class="settings__cap">This machine</p>
             <div class="settings">
-              <div class="setting">
+              <div class="setting setting--stack">
                 <span class="setting__label">Usage
                   <span class="setting__hint" id="app-usage">No turns yet this session.</span>
                 </span>
+                <!-- Who is costing what. Empty until somebody has taken a turn,
+                     which is also the only time the question has an answer. -->
+                <div class="payroll" id="app-payroll"></div>
               </div>
 
               <div class="setting setting--stack">

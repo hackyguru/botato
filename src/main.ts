@@ -154,6 +154,12 @@ interface Bot {
   provider?: string;
   /** When you last had this bot's chat open. See `Channel.seenAt`. */
   seenAt?: number;
+  /** What it has cost, and what it has cost this week.
+   *
+   *  Kept per bot and saved, because the interesting question is not what this
+   *  window has spent since it opened — it is which of them is expensive. The
+   *  week resets itself by holding the Monday it belongs to. */
+  spend?: { turns: number; usd: number; week: string; weekTurns: number; weekUsd: number };
   /** How it sounds on a call. Absent means the one its id chose for it, which
    *  is what almost every bot will have — the picker exists for the one you
    *  want to sound different, not because anybody wants to choose fifty
@@ -2564,6 +2570,86 @@ async function respond(bot: Bot, prompt: string, style?: string): Promise<void> 
   }
 }
 
+/** The week's tab, per bot.
+ *
+ *  Turns first and money second, because for a bot answering on a local model
+ *  the money is zero and the turns are the whole story — and because "which of
+ *  them is busy" is a question people ask more often than "which of them is
+ *  expensive". A bot that has never taken a turn is not listed: a row of
+ *  zeroes is a row that has to be read to learn nothing.
+ */
+function paintPayroll(): void {
+  const week = isoDate(weekStart(Date.now()));
+  const paid = state.bots
+    .filter((bot) => bot.spend?.turns)
+    .sort((a, b) => (b.spend?.weekTurns ?? 0) - (a.spend?.weekTurns ?? 0));
+
+  const wrap = $<HTMLDivElement>("#app-payroll");
+  if (!paid.length) {
+    wrap.innerHTML = "";
+    return;
+  }
+
+  const money = (usd: number) => (usd >= 0.005 ? `$${usd.toFixed(2)}` : "—");
+  const turns = (n: number) => `${n} turn${n === 1 ? "" : "s"}`;
+
+  const week_ = paid.filter((bot) => bot.spend?.week === week && bot.spend.weekTurns);
+  const totalTurns = week_.reduce((all, bot) => all + (bot.spend?.weekTurns ?? 0), 0);
+  const totalUsd = week_.reduce((all, bot) => all + (bot.spend?.weekUsd ?? 0), 0);
+
+  wrap.innerHTML =
+    `<p class="payroll__cap">This week</p>` +
+    (week_.length
+      ? week_
+          .map((bot) => {
+            const tab = bot.spend!;
+            return (
+              `<div class="payroll__row">` +
+              faceHtml(bot, "xs") +
+              `<span class="payroll__who">${escapeHtml(bot.name)}</span>` +
+              `<span class="payroll__turns">${turns(tab.weekTurns)}</span>` +
+              `<span class="payroll__usd">${money(tab.weekUsd)}</span>` +
+              `</div>`
+            );
+          })
+          .join("") +
+        `<div class="payroll__row payroll__row--sum">` +
+        `<span class="payroll__who">Everyone</span>` +
+        `<span class="payroll__turns">${turns(totalTurns)}</span>` +
+        `<span class="payroll__usd">${money(totalUsd)}</span>` +
+        `</div>`
+      : `<p class="payroll__none">Nothing yet this week.</p>`) +
+    // All time, one line: the week is the useful number and the total is the
+    // one people want once and then rarely again.
+    `<p class="payroll__all">All time: ${turns(
+      paid.reduce((all, bot) => all + (bot.spend?.turns ?? 0), 0),
+    )} · ${money(paid.reduce((all, bot) => all + (bot.spend?.usd ?? 0), 0))}</p>`;
+}
+
+/** Put a turn on a bot's tab.
+ *
+ *  Every turn counts, whether or not it came with a price. Claude Code reports
+ *  what a turn cost; Ollama on this machine costs nothing and says so by
+ *  saying nothing, and a bot answering fifty times a day for free is still a
+ *  bot answering fifty times a day. Counting only the priced ones would make
+ *  the cheap bots invisible, which is the opposite of what a ledger is for.
+ */
+function bill(bot: Bot, usd: number): void {
+  const week = isoDate(weekStart(Date.now()));
+  const tab = bot.spend ?? { turns: 0, usd: 0, week, weekTurns: 0, weekUsd: 0 };
+  // A new week starts the week's columns again and leaves the totals alone.
+  if (tab.week !== week) {
+    tab.week = week;
+    tab.weekTurns = 0;
+    tab.weekUsd = 0;
+  }
+  tab.turns += 1;
+  tab.weekTurns += 1;
+  tab.usd += usd;
+  tab.weekUsd += usd;
+  bot.spend = tab;
+}
+
 function finish(botId: string, event: BotEvent): void {
   const pending = inflight.get(botId);
   const bot = state.bots.find((b) => b.id === botId);
@@ -2572,10 +2658,12 @@ function finish(botId: string, event: BotEvent): void {
 
   if (event.kind === "done") {
     const spend = event.detail as { costUsd?: number } | null;
-    if (spend?.costUsd) {
-      session.costUsd += spend.costUsd;
-      session.turns += 1;
-    }
+    // The turn happened whether or not anybody charged for it: the count used
+    // to be inside the price check, so a session of Ollama turns reported none
+    // at all.
+    session.turns += 1;
+    session.costUsd += spend?.costUsd ?? 0;
+    bill(bot, spend?.costUsd ?? 0);
     // The result field is authoritative; deltas can be shed under load.
     if (event.text && event.text.length > pending.message.text.length) {
       pending.message.text = event.text;
@@ -6845,6 +6933,8 @@ async function openAppSettings(): Promise<void> {
     : "Claude Code missing";
   $<HTMLSpanElement>("#app-environment").textContent =
     `${cli} · ${docker.version ?? "no container engine"}`;
+
+  paintPayroll();
 
   const spent = session.turns
     ? `$${session.costUsd.toFixed(2)} over ${session.turns} turn${session.turns === 1 ? "" : "s"} this session`

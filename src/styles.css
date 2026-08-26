@@ -4896,6 +4896,78 @@ a.detail__source:hover {
   align-self: center;
 }
 
+/* Who is costing what.
+ *
+ * Turns before money: for a bot answering on a model running downstairs the
+ * money is zero and the turns are the whole story, and "which of them is busy"
+ * is asked more often than "which of them is expensive". Both columns are
+ * right-aligned and tabular, because a column of numbers that does not line up
+ * is a column nobody adds up. */
+.payroll {
+  width: 100%;
+}
+
+.payroll__cap {
+  margin: 0 0 4px;
+  font-size: var(--type-caption);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.payroll__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: var(--type-hint);
+}
+
+.payroll__who {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payroll__turns,
+.payroll__usd {
+  flex: none;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.payroll__turns {
+  width: 74px;
+}
+
+.payroll__usd {
+  width: 54px;
+}
+
+/* The line under the list. Bordered rather than bold: it is a sum, not a
+   headline. */
+.payroll__row--sum {
+  margin-top: 2px;
+  padding-top: 7px;
+  border-top: 1px solid var(--line);
+}
+
+.payroll__row--sum .payroll__who {
+  color: var(--text-2);
+}
+
+.payroll__none,
+.payroll__all {
+  margin: 6px 0 0;
+  font-size: var(--type-caption);
+  color: var(--text-3);
+}
+
 .machine__note {
   margin: 0 2px;
   font-size: 12px;
