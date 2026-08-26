@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import type { Bot, Channel, Message } from "../types";
 import Face from "../face";
+import Foot from "../foot";
 import { T } from "../theme";
 
 /** What has happened somewhere you were not looking.
@@ -129,6 +130,23 @@ export default function Bots({
   const [find, setFind] = useState("");
   const q = find.trim().toLowerCase();
 
+  // What is waiting, over everything rather than over what the search happens
+  // to be showing: a bell that went quiet because you typed a name would be
+  // lying about the thing it exists to report.
+  const waiting = [
+    ...channels.map((ch) => ({
+      news: unreadIn(ch.messages, ch.seenAt, called),
+      go: () => onOpenChannel(ch),
+    })),
+    ...bots.map((bot) => ({
+      news: unreadIn(bot.messages, bot.seenAt, called),
+      go: () => onOpen(bot),
+    })),
+  ].filter((one) => one.news.unread > 0);
+  const mentions = waiting.reduce((all, one) => all + one.news.mentions, 0);
+  // Somewhere to go: whoever said your name, or failing that whatever spoke.
+  const first = waiting.find((one) => one.news.mentions > 0) ?? waiting[0];
+
   // Rooms, each followed by its threads. Flattened once rather than inside the
   // map, so a row can ask what comes after it — which is how the last thread
   // under a room knows to close the branch it hangs from.
@@ -171,14 +189,9 @@ export default function Bots({
           <Light connected={connected} />
         </View>
         <View style={s.actions}>
-          <Pressable onPress={onSettings} hitSlop={12}>
-            {/* The same glyph a bot's chat header uses, in the same font as
-                the plus beside it. A gear is an emoji on iOS however it is
-                coaxed, and sat next to a typographic plus looking like
-                something that fell in from another app. Both places now mean
-                one thing — settings for whatever you are looking at. */}
-            <Text style={s.gear}>⋯</Text>
-          </Pressable>
+          {/* Settings used to sit here as well. It is in the bar at the bottom
+              now, with the name it belongs to — two controls opening one screen
+              is one of them pretending to do something else. */}
           <Pressable onPress={() => setAdding((on) => !on)} hitSlop={12}>
             <Text style={s.plus}>{adding ? "×" : "+"}</Text>
           </Pressable>
@@ -315,6 +328,14 @@ export default function Bots({
         })}
 
       </ScrollView>
+
+      <Foot
+        called={called}
+        unread={waiting.length}
+        mentions={mentions}
+        onNews={first ? () => first.go() : undefined}
+        onSettings={onSettings}
+      />
     </View>
   );
 }
@@ -392,7 +413,6 @@ const s = StyleSheet.create({
   },
   plus: { color: T.blue, fontSize: 30, fontWeight: "300" },
   actions: { flexDirection: "row", gap: 18, alignItems: "center" },
-  gear: { color: T.text2, fontSize: 24, lineHeight: 30 },
   form: { paddingHorizontal: 20, paddingBottom: 12, gap: 8 },
   input: {
     height: 44,
@@ -411,7 +431,9 @@ const s = StyleSheet.create({
   },
   addOff: { opacity: 0.4 },
   addText: { color: "#fff", fontSize: 15, fontWeight: "600" },
-  list: { paddingHorizontal: 14, paddingBottom: 40 },
+  /* The last row clears the bar floating over it, which the list scrolls
+     underneath. */
+  list: { paddingHorizontal: 14, paddingBottom: 96 },
   empty: { marginTop: 60, color: T.text3, fontSize: 14, textAlign: "center" },
   row: {
     flexDirection: "row",

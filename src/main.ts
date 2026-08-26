@@ -9527,7 +9527,11 @@ interface RemoteRequest {
 function remoteSnapshot(): Record<string, unknown> {
   return {
     activeId: state.activeId,
-    settings: appSettings(),
+    // The name resolved rather than the field: with nothing set, the laptop
+    // falls back to the login name, and the phone has no way of knowing what
+    // that is. Sending the empty field left the phone calling you "You" and,
+    // worse, unable to tell when a bot had said your name.
+    settings: { ...appSettings(), name: userName() },
     claudeReady,
     // What could answer for a bot, so the phone offers the same choice as the
     // laptop rather than a list of its own that drifts.
