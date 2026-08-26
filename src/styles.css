@@ -2992,6 +2992,160 @@ select:focus-visible {
   animation: mood-stretch 1.5s ease-in-out;
 }
 
+/* ------------------------------------------------------- five more actions */
+
+/* Answering. The words are arriving, which is a different thing from the pause
+   before them — a bot that had been writing for a minute looked exactly like
+   one staring into space. The eyes track along the line it is putting down and
+   flick back, the way anybody's do, and the mouth sets. */
+.face[data-mood="write"] .face__eyes {
+  animation: eyes-track 1.5s ease-in-out infinite;
+}
+
+.face[data-mood="write"] .face__mouth {
+  width: calc(var(--u) * 0.16);
+  height: calc(var(--u) * 0.04);
+  background: var(--ink);
+  border: 0;
+  border-radius: calc(var(--u) * 0.03);
+}
+
+.face[data-mood="write"] {
+  animation: mood-write 1.5s ease-in-out infinite;
+}
+
+@keyframes eyes-track {
+  0% {
+    transform: translateX(calc(var(--u) * -0.035));
+  }
+  70% {
+    transform: translateX(calc(var(--u) * 0.045));
+  }
+  /* The flick back, which is the part that reads as a line ending. */
+  80%,
+  100% {
+    transform: translateX(calc(var(--u) * -0.035));
+  }
+}
+
+@keyframes mood-write {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  50% {
+    transform: translateY(calc(var(--u) * 0.02)) rotate(-1.5deg);
+  }
+}
+
+/* Reading what it has just been handed: the same sweep, twice, and brows up.
+   An event rather than a state — it is over before the answer starts. */
+.face[data-mood="read"] .face__eyes {
+  animation: eyes-track 0.55s ease-in-out 2;
+}
+
+.face[data-mood="read"] .face__brows {
+  transform: translateY(calc(var(--u) * -0.03));
+}
+
+/* Waking. A bot asleep for three days does not simply start reading: the eyes
+   open with a start and the head comes up. */
+.face[data-mood="wake"] {
+  animation: mood-wake 1.4s ease-out;
+}
+
+.face[data-mood="wake"] .face__eyes i {
+  animation: eyes-open 1.4s ease-out;
+}
+
+@keyframes mood-wake {
+  0% {
+    transform: translateY(calc(var(--u) * 0.06)) rotate(-4deg);
+  }
+  40% {
+    transform: translateY(calc(var(--u) * -0.05)) rotate(2deg);
+  }
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+}
+
+@keyframes eyes-open {
+  0% {
+    clip-path: inset(85% 0 0 0);
+  }
+  35%,
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* Naming somebody. The other end of `alert`: one bot looks up because it was
+   called, and this is the one doing the calling. An arm out to the side, held,
+   then dropped — the wave's hand without the swing, because a point is a wave
+   that means something. */
+.face[data-mood="point"] .face__aura::before {
+  content: "";
+  position: absolute;
+  top: 46%;
+  right: calc(var(--u) * -0.26);
+  width: calc(var(--u) * 0.32);
+  height: calc(var(--u) * 0.11);
+  background: var(--skin);
+  border-radius: calc(var(--u) * 0.06);
+  transform-origin: 0 50%;
+  animation: hand-point 1.3s ease-out;
+}
+
+.face[data-mood="point"] {
+  animation: mood-point 1.3s ease-out;
+}
+
+@keyframes hand-point {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.2);
+  }
+  25%,
+  75% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(0.2);
+  }
+}
+
+@keyframes mood-point {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  30%,
+  70% {
+    transform: rotate(-5deg);
+  }
+}
+
+/* You put a reaction on something it said, and it notices. Two dips, which is
+   what a nod is; one is a flinch. */
+.face[data-mood="nod"] {
+  animation: mood-nod 0.9s ease-in-out;
+}
+
+@keyframes mood-nod {
+  0%,
+  50%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  25%,
+  75% {
+    transform: translateY(calc(var(--u) * 0.07)) rotate(2deg);
+  }
+}
+
 @keyframes mood-stretch {
   0%,
   100% {

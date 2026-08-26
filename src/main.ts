@@ -951,9 +951,20 @@ const MOODS: Record<string, { hold?: number }> = {
   idle: {},
   think: {},
   work: {},
+  /** Answering: the words are arriving. Held like the other states, because it
+   *  lasts exactly as long as the writing does — `done` replaces it. */
+  write: {},
   sleep: {},
   // Events: they play and hand the face back to whatever the bot is doing.
   wave: { hold: 1300 },
+  /** Reading what it has just been handed. */
+  read: { hold: 1200 },
+  /** Waking up, for one that had gone to sleep. */
+  wake: { hold: 1500 },
+  /** Naming somebody else in a room — the other end of `alert`. */
+  point: { hold: 1300 },
+  /** You put a reaction on something it said. */
+  nod: { hold: 900 },
   happy: { hold: 1800 },
   sad: { hold: 1800 },
   shrug: { hold: 1700 },
@@ -2500,6 +2511,9 @@ async function respond(bot: Bot, prompt: string, style?: string): Promise<void> 
   const message: Message = { id: uid(), from: "bot", text: "", at: Date.now() };
   bot.messages.push(message);
   inflight.set(bot.id, { message, sawText: false, note: "" });
+  // A bot that had gone to sleep wakes rather than simply starting to read:
+  // three days is long enough that coming back should look like coming back.
+  setMood(bot.id, restingMood(bot.id) === "sleep" ? "wake" : "read");
 
   if (bot.id === state.activeId) {
     thread.append(turnEl(message, undefined, bot.messages[bot.messages.length - 2]));
@@ -2690,6 +2704,13 @@ function handleBotEvent(event: BotEvent): void {
         toast(`${bot.name} changed how it looks`);
       })
       .catch(() => {});
+  }
+
+  // The words arriving is a different thing from the pause before them, and
+  // the face said the same for both: a bot that had been writing for a minute
+  // still looked like a bot staring into space.
+  if (event.kind === "delta") {
+    if (moods.get(event.botId) !== "write") setMood(event.botId, "write");
   }
 
   if (event.kind === "done") setMood(event.botId, "happy");
@@ -5248,6 +5269,7 @@ async function channelTurn(
   const post: Message = { id: uid(), from: "bot", by: bot.id, text: "", at: Date.now() };
   ch.messages.push(post);
   inflight.set(bot.id, { message: post, sawText: false, note: "", channelId: ch.id });
+  setMood(bot.id, restingMood(bot.id) === "sleep" ? "wake" : "read");
 
   if (state.activeChannel === ch.id) {
     thread.append(turnEl(post, ch, ch.messages[ch.messages.length - 2]));
@@ -5317,6 +5339,11 @@ async function channelTurn(
     call?.channelId === ch.id
       ? spokenAddressees(ch, post.text, false).filter((b) => b.id !== bot.id)
       : addressees(ch, post.text, bot.id);
+  // It named somebody. The one being named already looks up; this is the other
+  // end of that, and it is what makes a handover in a room legible from the
+  // roster rather than only in the text.
+  if (onward.length) setMood(bot.id, "point");
+
   for (const next of onward) {
     if (budget.left <= 0 || hushed.has(ch.id)) return;
     budget.left -= 1;
@@ -8157,6 +8184,10 @@ menu.addEventListener("click", (e) => {
     const msg = bot.messages.find((m) => m.id === emoji.dataset.for);
     if (msg) {
       msg.reaction = msg.reaction === emoji.dataset.emoji ? undefined : emoji.dataset.emoji;
+      // It notices. Only when one is put on rather than taken off, and only on
+      // something it said — a reaction on your own message is you talking to
+      // yourself.
+      if (msg.reaction && msg.from === "bot") setMood(bot.id, "nod");
       save();
       renderThread();
     }
