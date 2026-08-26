@@ -40,12 +40,12 @@ import Bots from "./src/screens/Bots";
 import Room from "./src/screens/Room";
 import Chat from "./src/screens/Chat";
 import BotSettings from "./src/screens/BotSettings";
+import Calendar from "./src/screens/Calendar";
 import Drawer from "./src/drawer";
 import Foot from "./src/foot";
 import Rail from "./src/rail";
 import Phone from "./src/screens/Phone";
 import { T } from "./src/theme";
-import { unreadIn } from "./src/unread";
 
 // "settings" is one bot's; "phone" is this device's own — the link to the
 // laptop, and the one destructive thing a phone can do.
@@ -54,7 +54,7 @@ import { unreadIn } from "./src/unread";
  *  The list used to be one of these — you went to it and came back. It is a
  *  drawer now, which is a different thing: the conversation stays, and the list
  *  slides over it. Settings and pairing genuinely do replace the screen. */
-type Screen = "chat" | "room" | "settings" | "phone";
+type Screen = "chat" | "room" | "settings" | "phone" | "calendar";
 
 export default function App() {
   const [pairing, setPairing] = useState<Pairing | null>(null);
@@ -254,7 +254,7 @@ export default function App() {
         setScreen("chat");
         return true;
       }
-      if (screen === "phone") {
+      if (screen === "phone" || screen === "calendar") {
         setScreen("chat");
         return true;
       }
@@ -327,23 +327,6 @@ export default function App() {
 
   const called = String(snapshot?.settings?.name ?? "");
 
-  /* What is waiting, everywhere. The bell reports the whole app, so it is
-     counted here rather than inside either list — one of which is filtered by
-     a search box, and a bell that went quiet because you typed a name would be
-     lying about the thing it exists to report. */
-  const waiting = [
-    ...channels.map((ch) => ({
-      news: unreadIn(ch.messages, ch.seenAt, called),
-      go: () => goToRoom(ch),
-    })),
-    ...bots.map((bot) => ({
-      news: unreadIn(bot.messages, bot.seenAt, called),
-      go: () => goToBot(bot),
-    })),
-  ].filter((one) => one.news.unread > 0);
-  // Somewhere to go: whoever said your name, or failing that whatever spoke.
-  const news = waiting.find((one) => one.news.mentions > 0) ?? waiting[0];
-
   return (
     <>
       <StatusBar barStyle="light-content" />
@@ -353,7 +336,17 @@ export default function App() {
         </View>
       ) : null}
 
-      {screen === "phone" ? (
+      {screen === "calendar" ? (
+        <Calendar
+          bots={bots}
+          onBack={() => setScreen("chat")}
+          onSave={(botId, routine) => act("routine/save", { botId, routine })}
+          onOpen={(chosen) => {
+            setBotId(chosen.id);
+            setScreen("settings");
+          }}
+        />
+      ) : screen === "phone" ? (
         <Phone
           pairing={pairing}
           connected={connected}
@@ -431,9 +424,7 @@ export default function App() {
                   both. */}
               <Foot
                 called={called}
-                unread={waiting.length}
-                mentions={waiting.reduce((all, one) => all + one.news.mentions, 0)}
-                onNews={news ? () => news.go() : undefined}
+                onCalendar={() => setScreen("calendar")}
                 onSettings={() => setScreen("phone")}
               />
             </View>
