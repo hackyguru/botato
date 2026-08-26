@@ -2927,7 +2927,10 @@ select:focus-visible {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 12px 6px 18px;
+  /* 20 down both sides, which is the gutter the body and the footer use. The
+     close button carries its own padding, hence the smaller number on its
+     side: what lines up is the glyph, not the box around it. */
+  padding: 16px 14px 10px 20px;
 }
 
 .sheet__head h2 {
@@ -2945,8 +2948,12 @@ select:focus-visible {
   /* The part that scrolls when there is more than fits: the head stays put and
      the footer's buttons stay reachable. */
   min-height: 0;
-  padding: 8px 18px 18px;
+  padding: 10px 20px 20px;
   overflow-y: auto;
+  /* Room kept for the scrollbar whether or not there is one, so switching to a
+     longer tab does not shift every row four pixels left. */
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
 }
 
 .sheet__preview {
@@ -3007,7 +3014,27 @@ select:focus-visible {
 /* A picker that is a text field rather than a menu. */
 .picker--text {
   width: 46%;
-  text-align: right;
+}
+
+/* On a card, a field in the field's own colour disappears: the two are within
+   a few percent of each other. Inside a settings group they are cut into the
+   surface instead, which is what a control on a panel has always looked like
+   and what makes the name box read as somewhere to type. */
+.settings .picker {
+  background: rgba(0, 0, 0, 0.32);
+}
+
+/* Everything on the right of a row is the same height, so a column of rows —
+   a field, then a select, then a chip, then a switch — has one line down its
+   right rather than four boxes of different sizes. */
+.setting > .picker,
+.setting > .chip {
+  height: 30px;
+}
+
+.setting > .picker--text {
+  width: 172px;
+  max-width: 50%;
 }
 
 .prose__note {
@@ -3846,7 +3873,12 @@ select:focus-visible {
    the content meant the window jumped every time a tab was clicked, moving the
    tabs themselves out from under the pointer. Switching a tab now moves the
    content and nothing else. */
+/* A sheet with tabs is a settings window rather than a question, and 380px
+   was the width of the question. Rows in it carry a label, a sentence about
+   the label, and a control; at that width the sentence wrapped to four lines
+   and the control was squeezed into whatever was left. */
 .sheet:has(.tabs) {
+  width: min(460px, 92vw);
   height: min(620px, 88vh);
 }
 
@@ -4259,7 +4291,7 @@ a.detail__source:hover {
 .tabs {
   display: flex;
   gap: 2px;
-  margin: 2px 18px 0;
+  margin: 2px 20px 0;
   padding: 3px;
   background: var(--field);
   border-radius: 10px;
@@ -4298,6 +4330,7 @@ a.detail__source:hover {
 .quiet-row {
   display: flex;
   gap: 16px;
+  padding: 12px 14px;
 }
 
 .quiet-btn {
@@ -4422,24 +4455,62 @@ a.detail__source:hover {
   color: var(--text-3);
 }
 
+/* A group of settings, drawn as one surface with hairlines between its rows.
+ *
+ * They were loose rows on the sheet's own background, separated by a two-pixel
+ * gap with a border in it — which reads as neither a divider nor a gap, and
+ * left the eye no way to tell one group from the next except that the spacing
+ * changed slightly. A card says "these belong together" without a word, which
+ * is the whole reason every settings screen on both of this app's platforms is
+ * built out of them. */
 .settings {
   display: flex;
   flex-direction: column;
-  gap: 2px;
   width: 100%;
-  margin-top: 6px;
+  background: rgba(255, 255, 255, 0.032);
+  border-radius: 12px;
+  /* So a row lit by hover cannot square off the corner it sits in. */
+  overflow: hidden;
+}
+
+.settings + .settings {
+  margin-top: 14px;
+}
+
+/* Every child after the first, so a wrapper around some rows — the backup
+   panel has one it can hide — is divided from what is above it like a row. */
+.settings > * + *,
+.settings .setting + .setting {
+  border-top: 1px solid var(--line);
+}
+
+/* What a group is, when a panel has more than one and the difference between
+   them is worth a word. A panel with a single group needs no caption: the tab
+   above it already said that. */
+.settings__cap {
+  margin: 4px 4px -4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
 }
 
 .setting {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 11px 2px;
-  cursor: pointer;
+  /* One height for a row with a label and one with a label and a sentence
+     under it, so a group of mixed rows still has a rhythm. */
+  min-height: 52px;
+  padding: 11px 14px;
 }
 
-.setting + .setting {
-  border-top: 1px solid var(--line);
+/* Only the rows that are actually a control. A div with a chip in it is not
+   clickable along its whole width, and saying so with the cursor is a promise
+   the row does not keep. */
+label.setting {
+  cursor: pointer;
 }
 
 .setting__label {
@@ -4453,12 +4524,13 @@ a.detail__source:hover {
 
 .setting__hint {
   font-size: 12px;
-  line-height: 1.35;
+  line-height: 1.45;
   color: var(--text-3);
 }
 
 .picker {
-  height: 28px;
+  flex: none;
+  height: 30px;
   /* A select is as wide as its widest option, so one long entry — an engine
      with a long name — would squeeze the label beside it into a column of
      single words. Half the row, and the option can ellipsise. */
@@ -4535,7 +4607,7 @@ a.detail__source:hover {
    all — a row could be sliced in half by the bottom of the panel and read as
    the end of the sheet rather than as more to come. A rule says which it is. */
 .sheet__foot {
-  padding: 12px 18px 18px;
+  padding: 14px 20px 20px;
   border-top: 1px solid var(--line);
 }
 
@@ -5183,8 +5255,21 @@ a.detail__source:hover {
    in the widest, most unambiguous shape the sheet allows. */
 .setting--stack {
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 10px;
+  padding: 14px;
+}
+
+/* A stack's own controls sit under its label at full width rather than
+   floating at whatever width they happen to be. */
+.setting--stack > .chip,
+.setting--stack > .btn-primary {
+  align-self: flex-start;
+}
+
+.setting--stack > .pairing-qr,
+.setting--stack > .pairing-code {
+  align-self: center;
 }
 
 .pairing-code {

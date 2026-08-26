@@ -9311,6 +9311,9 @@ const appRemote = $<HTMLInputElement>("#app-remote");
 const remoteQr = $<HTMLCanvasElement>("#app-remote-qr");
 const remoteWhere = $<HTMLSpanElement>("#app-remote-where");
 const remotePairing = $<HTMLDivElement>("#app-remote-pairing");
+// The caption belongs to the card and goes with it: a heading over nothing is
+// worse than no heading.
+const remotePairingCap = $<HTMLParagraphElement>("#app-remote-pairing-cap");
 const remoteCode = $<HTMLSpanElement>("#app-remote-code");
 const remoteHint = $<HTMLSpanElement>("#app-remote-hint");
 const remoteDevices = $<HTMLSpanElement>("#app-remote-devices");
@@ -9324,6 +9327,7 @@ let codeTimer: ReturnType<typeof setInterval> | null = null;
 function paintRemote(status: RemoteStatus): void {
   appRemote.checked = status.running;
   remotePairing.hidden = !status.running;
+  remotePairingCap.hidden = !status.running;
 
   // There is one way in and it is the same everywhere, so this says what the
   // connection is rather than listing addresses that no longer mean anything.
