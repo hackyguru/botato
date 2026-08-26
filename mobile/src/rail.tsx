@@ -80,7 +80,7 @@ export default function Rail({
   return (
     <View style={s.rail}>
       <View style={s.crest}>
-        <Brand size={26} />
+        <Brand size={44} />
       </View>
       <View style={s.rule} />
 
@@ -117,9 +117,12 @@ const s = StyleSheet.create({
      what is underneath it stops looking right the moment anything changes
      there. */
   rail: { width: RAIL_W, backgroundColor: T.bg },
-  /* Level with the "botcage" beside it: the same 64 the list's header uses,
-     and the same 26 its title is set in. */
-  crest: { paddingTop: 64, paddingBottom: 8, alignItems: "center" },
+  /* Level with the "botcage" beside it — by the head, not by the box. The
+     mark's head sits at 56% of its own height (the antenna is above it), so
+     aligning the two boxes would hang the face nine points below the word. It
+     is drawn big enough to hold its own against a bot's face two rows down: at
+     26 the app's own mark was the smallest thing in the strip. */
+  crest: { paddingTop: 55, paddingBottom: 6, alignItems: "center" },
   /* The last icon clears the bar that floats across the bottom of the drawer,
      this strip included. */
   list: { paddingTop: 8, paddingBottom: 104, alignItems: "center", gap: 6 },
