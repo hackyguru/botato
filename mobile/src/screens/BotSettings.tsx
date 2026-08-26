@@ -41,6 +41,7 @@ export default function BotSettings({
   onBack,
   onUpdate,
   onDelete,
+  manners,
   onRoutineSave,
   onRoutineDelete,
   onDesktop,
@@ -51,6 +52,8 @@ export default function BotSettings({
   onBack: () => void;
   onUpdate: (patch: Record<string, unknown>) => Promise<void>;
   onDelete: () => void;
+  /** What a bot can be told to write like, as the laptop lists them. */
+  manners?: { key: string; name: string }[];
   onRoutineSave: (routine: Routine) => Promise<void>;
   onRoutineDelete: (id: string) => Promise<void>;
   onDesktop: (start: boolean) => Promise<void>;
@@ -182,6 +185,71 @@ export default function BotSettings({
             ))}
           </View>
         </View>
+
+        {manners?.length ? (
+          <>
+            <Text style={s.group}>Manner</Text>
+            <View style={s.card}>
+              <View style={s.segmentWrap}>
+                {/* "Its own" first: the default is picked from the bot's id the
+                    way its face and voice are, and most bots should keep it. */}
+                <Pressable
+                  style={[s.choice, s.choiceFit, !bot.manner && s.choiceOn]}
+                  onPress={() => onUpdate({ manner: "" })}
+                >
+                  <Text style={[s.choiceText, !bot.manner && s.choiceTextOn]}>Its own</Text>
+                </Pressable>
+                {manners.map((manner) => (
+                  <Pressable
+                    key={manner.key}
+                    style={[s.choice, s.choiceFit, bot.manner === manner.key && s.choiceOn]}
+                    onPress={() => onUpdate({ manner: manner.key })}
+                  >
+                    <Text style={[s.choiceText, bot.manner === manner.key && s.choiceTextOn]}>
+                      {manner.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={s.note}>How it writes, not what it says.</Text>
+            </View>
+          </>
+        ) : null}
+
+        {bot.hours || bot.spend ? (
+          <>
+            <Text style={s.group}>The job</Text>
+            <View style={s.card}>
+              {/* Both read-only. The hours are set on the laptop, where the
+                  seven day toggles have room; the tab is a fact and is nobody's
+                  to edit. */}
+              <View style={s.row}>
+                <View style={s.rowBody}>
+                  <Text style={s.rowLabel}>Working hours</Text>
+                  <Text style={s.rowHint}>
+                    {bot.hours
+                      ? `${bot.hours.from}–${bot.hours.to} · routines only`
+                      : "Any time"}
+                  </Text>
+                </View>
+              </View>
+              {bot.spend?.turns ? (
+                <View style={s.row}>
+                  <View style={s.rowBody}>
+                    <Text style={s.rowLabel}>This week</Text>
+                    <Text style={s.rowHint}>
+                      {bot.spend.weekTurns} turn{bot.spend.weekTurns === 1 ? "" : "s"}
+                      {bot.spend.weekUsd >= 0.005 ? ` · $${bot.spend.weekUsd.toFixed(2)}` : ""}
+                      {"  ·  all time "}
+                      {bot.spend.turns} turn{bot.spend.turns === 1 ? "" : "s"}
+                      {bot.spend.usd >= 0.005 ? ` · $${bot.spend.usd.toFixed(2)}` : ""}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+            </View>
+          </>
+        ) : null}
 
         <Text style={s.group}>Computer</Text>
         <View style={s.card}>
@@ -384,8 +452,21 @@ const s = StyleSheet.create({
   row: { flexDirection: "row", gap: 10, alignItems: "center" },
   rowBody: { flex: 1, minWidth: 0 },
   rowLabel: { color: T.text, fontSize: 15 },
+  /* A line under a set of choices, saying what they are. */
+  note: {
+    paddingHorizontal: 12,
+    paddingBottom: 11,
+    color: T.text3,
+    fontSize: 12.5,
+    lineHeight: 17,
+  },
   rowHint: { marginTop: 2, color: T.text2, fontSize: 12.5 },
   segment: { flexDirection: "row", gap: 6 },
+  /* Seven of them do not fit across a phone, and squeezing them turns
+     "Precise" into two lines of four letters. They wrap and size to their
+     words instead — a row and a bit, which is what seven short labels want. */
+  segmentWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  choiceFit: { flex: 0, paddingHorizontal: 12 },
   choice: {
     flex: 1,
     alignItems: "center",

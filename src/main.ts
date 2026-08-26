@@ -10314,6 +10314,10 @@ function remoteSnapshot(): Record<string, unknown> {
     // What could answer for a bot, so the phone offers the same choice as the
     // laptop rather than a list of its own that drifts.
     engines: engineChoices,
+    // The same reason: the manners are derived from a hash the phone has no
+    // business reimplementing, and a list of its own would go stale the day
+    // one is added.
+    manners: MANNERS.map((m) => ({ key: m.key, name: m.name })),
     bots: state.bots.map((bot) => ({
       id: bot.id,
       name: bot.name,
@@ -10331,6 +10335,12 @@ function remoteSnapshot(): Record<string, unknown> {
       network: bot.network,
       plugins: bot.plugins ?? [],
       routines: bot.routines ?? [],
+      // How it writes, when it works, and what it has cost. The phone shows
+      // all three and can change the first two; the tab is a fact and is
+      // read-only wherever it is shown.
+      manner: bot.manner,
+      hours: bot.hours,
+      spend: bot.spend,
       busy: inflight.has(bot.id),
       // How full its hands are, worked out here rather than there. The phone
       // has the routines and the rooms and could reach the same number, but
@@ -10507,6 +10517,24 @@ const REMOTE_ACTIONS: Record<string, (payload: Record<string, unknown>) => unkno
     }
     if (typeof p.computer === "boolean") bot.computer = p.computer;
     if (Array.isArray(p.plugins)) bot.plugins = p.plugins.map(String);
+    // How it writes. Empty means back to the one its id chose, which is not
+    // the same as "plain" and has to stay tellable apart.
+    if (typeof p.manner === "string") {
+      bot.manner = MANNERS.some((m) => m.key === p.manner) ? p.manner : undefined;
+    }
+    // When it works. Null is a shift removed; anything else is checked here
+    // rather than trusted, because a phone from a newer build must not be able
+    // to write a shape this one cannot read.
+    if (p.hours === null) bot.hours = undefined;
+    else if (p.hours && typeof p.hours === "object") {
+      const shift = p.hours as { from?: unknown; to?: unknown; days?: unknown };
+      const days = Array.isArray(shift.days)
+        ? shift.days.map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6)
+        : [];
+      if (typeof shift.from === "string" && typeof shift.to === "string" && days.length) {
+        bot.hours = { from: tidyClock(shift.from), to: tidyClock(shift.to), days };
+      }
+    }
     save();
     renderRoster();
     return {};

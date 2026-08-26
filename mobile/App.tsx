@@ -413,6 +413,7 @@ export default function App() {
         <BotSettings
           bot={bot}
           engines={snapshot?.engines ?? []}
+          manners={snapshot?.manners}
           onBack={() => setScreen("chat")}
           onUpdate={(patch) => act("bot/update", { botId: bot.id, ...patch })}
           onDelete={async () => {

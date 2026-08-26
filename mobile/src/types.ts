@@ -85,6 +85,12 @@ export interface Bot {
   network: "full" | "no-lan" | "offline";
   plugins: string[];
   routines: Routine[];
+  /** How it writes. Absent means the one its id chose. */
+  manner?: string;
+  /** When its routines are allowed to run. Absent means whenever. */
+  hours?: { from: string; to: string; days: number[] };
+  /** What it has cost. A fact, and read-only wherever it is shown. */
+  spend?: { turns: number; usd: number; week: string; weekTurns: number; weekUsd: number };
   busy: boolean;
   /** How full its hands are, as the laptop worked it out. Sent rather than
    *  recomputed here: two implementations of one gauge is two gauges that
@@ -112,6 +118,9 @@ export interface Snapshot {
   settings: Record<string, unknown>;
   /** Absent from a laptop running a build older than engines. */
   engines?: EngineInfo[];
+  /** How a bot can be told to write. Sent rather than listed here: the default
+   *  is picked from a hash of the bot's id, which is the laptop's to know. */
+  manners?: { key: string; name: string }[];
   bots: Bot[];
   /** Absent from a laptop running a build older than channels — which is why
    *  everything that reads it copes with there being none. */
