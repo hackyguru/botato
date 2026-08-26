@@ -707,7 +707,15 @@ function renderMd(src: string): string {
 /* ------------------------------------------------------------------ mentions */
 
 /** Someone an "@" can reach from here. */
-type Mentionable = { name: string; kind: "bot" | "room" | "you" };
+type Mentionable = {
+  name: string;
+  kind: "bot" | "room" | "you";
+  /** A bot's own colour. The name lights up in it, so "@Engineer" in a room of
+   *  five is the orange one at a glance rather than a word you have to read.
+   *  Not a second setting: it is the colour already chosen for the bot, which
+   *  is what its face and its blocks on the calendar are drawn in. */
+  tint?: string;
+};
 
 /** Who is reachable in this conversation.
  *
@@ -721,7 +729,11 @@ type Mentionable = { name: string; kind: "bot" | "room" | "you" };
  *  it decides who actually gets the message. */
 function mentionable(ch?: Channel): Mentionable[] {
   const here = ch ? membersOf(ch) : [activeBot()].filter((b): b is Bot => Boolean(b));
-  const people: Mentionable[] = here.map((bot) => ({ name: bot.name, kind: "bot" }));
+  const people: Mentionable[] = here.map((bot) => ({
+    name: bot.name,
+    kind: "bot",
+    tint: bot.color,
+  }));
 
   // The three spellings `callsTheRoom` accepts, and only in a room: there is
   // no "everyone" in a chat with one bot.
@@ -757,7 +769,8 @@ function lightUp(text: string, wanted: (Mentionable & { look: string })[]): stri
       from = at + 1;
       continue;
     }
-    out += `<span class="men men--${hit.kind}">${text.slice(at, at + 1 + hit.look.length)}</span>`;
+    out += `<span class="men men--${hit.kind}"${hit.tint ? ` style="--tint:${hit.tint}"` : ""}>` +
+      `${text.slice(at, at + 1 + hit.look.length)}</span>`;
     from = at + 1 + hit.look.length;
   }
 }

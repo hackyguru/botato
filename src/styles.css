@@ -1540,7 +1540,24 @@ select:focus-visible {
   font-weight: 500;
 }
 
-/* Calling the whole room is louder than calling one person, because it is. */
+/* A bot's name in a bot's colour.
+ *
+ * Not a new setting: it is the colour already chosen for it, the one its face
+ * is drawn in and its blocks on the calendar are. In a room of five that turns
+ * "@Engineer" from a word you have to read into the orange one, which is the
+ * whole use of naming somebody in a room.
+ *
+ * Mixed rather than used raw, twice over: a fifth of the colour makes a
+ * background that a bright green does not shout from, and the text is the
+ * colour lifted towards white so that dark blue and mid grey both stay
+ * legible on this ground. */
+.men--bot[style*="--tint"] {
+  background: color-mix(in srgb, var(--tint) 20%, transparent);
+  color: color-mix(in srgb, var(--tint) 62%, #ffffff);
+}
+
+/* Calling the whole room is louder than calling one person, because it is —
+   and it belongs to no bot, so it keeps the app's own blue. */
 .men--room {
   background: rgba(10, 132, 255, 0.22);
 }

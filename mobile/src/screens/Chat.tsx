@@ -55,7 +55,7 @@ export default function Chat({
   // A chat has two people in it, so that is the whole guest list: no
   // "@everyone" here, because there is no room to call.
   const mentions: Mentionable[] = [
-    { name: bot.name, kind: "bot" },
+    { name: bot.name, kind: "bot", tint: bot.color },
     ...(called?.trim() ? [{ name: called.trim(), kind: "you" as const }] : []),
   ];
   const scroll = useRef<ScrollView>(null);

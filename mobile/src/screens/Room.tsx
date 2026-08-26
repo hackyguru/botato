@@ -61,7 +61,7 @@ export default function Room({
   // The same set the laptop lights up: the room's members, the three spellings
   // that call the whole room, and you.
   const mentions: Mentionable[] = [
-    ...inside.map((bot) => ({ name: bot.name, kind: "bot" as const })),
+    ...inside.map((bot) => ({ name: bot.name, kind: "bot" as const, tint: bot.color })),
     ...(inside.length
       ? ["everyone", "channel", "here"].map((name) => ({ name, kind: "room" as const }))
       : []),

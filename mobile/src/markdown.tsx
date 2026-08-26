@@ -18,6 +18,7 @@ interface Piece {
   code?: boolean;
   href?: string;
   men?: Mentionable["kind"];
+  tint?: string;
 }
 
 /** Someone an "@" can reach in this conversation. The laptop lights up exactly
@@ -27,6 +28,9 @@ interface Piece {
 export interface Mentionable {
   name: string;
   kind: "bot" | "room" | "you";
+  /** A bot's own colour, so its name reads as that bot at a glance. The same
+   *  colour its face is drawn in — not a second setting. */
+  tint?: string;
 }
 
 const INLINE =
@@ -97,11 +101,30 @@ function summons(piece: Piece, who: Mentionable[]): Piece[] {
     }
     if (held) out.push({ ...piece, text: held });
     held = "";
-    out.push({ ...piece, text: rest.slice(at, at + 1 + hit.name.length), men: hit.kind });
+    out.push({
+      ...piece,
+      text: rest.slice(at, at + 1 + hit.name.length),
+      men: hit.kind,
+      tint: hit.tint,
+    });
     rest = rest.slice(at + 1 + hit.name.length);
   }
   if (held + rest) out.push({ ...piece, text: held + rest });
   return out;
+}
+
+/** The colour at an opacity, as a solid on this app's black. RN accepts eight
+ *  digits of hex, which is the shortest way to say "a fifth of this". */
+function wash(hex: string, alpha: number): string {
+  return `${hex}${Math.round(alpha * 255).toString(16).padStart(2, "0")}`;
+}
+
+/** The colour lifted towards white, so a dark blue is still legible on black. */
+function lift(hex: string, keep: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const mix = (c: number) => Math.round(c * keep + 255 * (1 - keep));
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(mix);
+  return `rgb(${r},${g},${b})`;
 }
 
 function Line({ text, who }: { text: string; who: Mentionable[] }) {
@@ -118,6 +141,12 @@ function Line({ text, who }: { text: string; who: Mentionable[] }) {
             piece.men ? s.men : null,
             piece.men === "you" ? s.menYou : null,
             piece.men === "room" ? s.menRoom : null,
+            // React Native has no color-mix, so the two shades are worked out
+            // here: a fifth of the colour behind, and the colour lifted most
+            // of the way to white in front.
+            piece.men === "bot" && piece.tint
+              ? { backgroundColor: wash(piece.tint, 0.2), color: lift(piece.tint, 0.62) }
+              : null,
           ]}
           onPress={piece.href ? () => void Linking.openURL(piece.href!) : undefined}
         >
