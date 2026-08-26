@@ -1024,10 +1024,12 @@ function restingMood(botId: string): string {
  *  between busy and busier is not a thing anybody acts on. */
 function loadOf(bot: Bot): { press: number; working: boolean; says: string } {
   const working = inflight.has(bot.id);
-  const soon = Date.now() + 60 * 60_000;
-  const due = (bot.routines ?? []).filter(
-    (r) => r.active && nextRun(r, r.lastRunAt ?? Date.now()) <= soon,
-  ).length;
+  const now = Date.now();
+
+  const next = (r: Routine) => nextRun(r, r.lastRunAt ?? now);
+  const live = (bot.routines ?? []).filter((r) => r.active);
+  const soon = live.filter((r) => next(r) <= now + 60 * 60_000).length;
+  const today = live.filter((r) => next(r) <= now + 24 * 60 * 60_000).length;
 
   // Rooms where it has been named since it last said anything there. This is
   // the same question `addressees` answers when a message arrives, asked of
@@ -1044,11 +1046,22 @@ function loadOf(bot: Bot): { press: number; working: boolean; says: string } {
       .some((m) => m.from === "me" && addressees(ch, m.text).some((b) => b.id === bot.id));
   }).length;
 
-  const jobs = (working ? 1 : 0) + due + called;
+  // Two kinds of load, and they are not the same thing. What is happening now
+  // counts as a whole job each; what is merely coming counts as a quarter.
+  //
+  // Without the quarters the ring was empty almost always — a routine at nine
+  // is imminent for one hour in twenty-four, and the rest of the day a bot
+  // carrying four of them looked exactly like a bot carrying none. Without the
+  // whole jobs it would read the same at eight in the morning as it does with
+  // three rooms waiting on an answer. A bot that simply has a lot on sits at a
+  // sliver; a bot being asked for things fills.
+  const jobs = (working ? 1 : 0) + called + soon + (today - soon) * 0.25;
+
   const said = [
     working ? (inflight.get(bot.id)?.note ?? "Working") : "",
-    due ? `${due} routine${due === 1 ? "" : "s"} due within the hour` : "",
     called ? `named in ${called} room${called === 1 ? "" : "s"}` : "",
+    soon ? `${soon} routine${soon === 1 ? "" : "s"} due within the hour` : "",
+    today - soon ? `${today - soon} more in the next day` : "",
   ].filter(Boolean);
 
   return {
@@ -1560,14 +1573,7 @@ function botRows(hits: Bot[]): string {
       return (
         `<button class="bot-row${bot.id === state.activeId && !state.activeChannel ? " is-active" : ""}` +
         `${news.unread ? " is-unread" : ""}" data-bot="${bot.id}">` +
-        // A ring around the face for how full its hands are, and the reading
-        // spelled out on hover. The ring is drawn even at nothing-on, as a
-        // groove — a gauge that appears only when it has something to say
-        // gives you nothing to read the rest against.
-        `<span class="load${load.working ? " is-working" : ""}" style="--press:${load.press.toFixed(3)}" ` +
-        `title="${escapeHtml(`${bot.name} — ${load.says}`)}">` +
         faceHtml(bot, "md", true) +
-        `</span>` +
         `<span class="bot-row__body">` +
         // Name and time, and nothing else. The second line used to carry the
         // last thing said, which is a chat app's habit rather than this app's
@@ -1577,6 +1583,13 @@ function botRows(hits: Bot[]): string {
         `<span class="bot-row__top"><span class="bot-row__name">${escapeHtml(bot.name)}</span>` +
         `<span class="bot-row__time">${news.unread ? "" : lastSaid(bot.messages)}</span></span>` +
         `</span>` +
+        // The gauge stands on its own rather than ringing the face. A circle
+        // drawn around a square head is a circle a square head hides: the
+        // corners of a squircle reach past the arc and cover the part of it
+        // that was carrying the reading. Out here it is the same size whatever
+        // shape a bot happens to be.
+        `<span class="gauge${load.working ? " is-working" : ""}" style="--press:${load.press.toFixed(3)}" ` +
+        `title="${escapeHtml(`${bot.name} — ${load.says}`)}"></span>` +
         badgeHtml(news) +
         `</button>`
       );

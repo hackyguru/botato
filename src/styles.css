@@ -451,67 +451,49 @@ select:focus-visible {
   padding-bottom: 6px;
 }
 
-/* How full a bot's hands are, drawn around its face.
+/* How full a bot's hands are.
  *
- * An arc rather than a bar or a number: a bar down a roster is a chart, and a
- * number is something to do arithmetic on. An arc reads at a glance and stops
+ * A ring rather than a bar or a number: a bar down a roster is a chart, and a
+ * number is something to do arithmetic on. A ring reads at a glance and stops
  * at a top, which is the honest shape for "how much is on" — past four jobs
  * the difference between busy and busier is not a thing anybody acts on.
  *
- * The groove is drawn whether or not there is anything in it. A gauge that
- * appears only when it has something to say gives the eye nothing to read the
- * rest against, and a roster that grows rings as bots get busy flickers.
+ * On its own rather than around the face, which is where it started. A circle
+ * drawn around a squircle is a circle the squircle hides: its corners reach
+ * past the arc and cover exactly the part carrying the reading, and every bot
+ * has a different head. Out here it is the same gauge whatever shape a bot is.
  *
- * A conic gradient with a hole punched through the middle: the mask keeps the
- * ring two pixels thick whatever size the face beside it happens to be. */
-.load {
-  position: relative;
-  display: inline-flex;
+ * The groove is drawn whether or not there is anything in it, so the eye has
+ * something to read the rest against and a roster does not flicker with rings
+ * appearing as bots pick work up.
+ *
+ * One element: the conic gradient is the arc, the colour under it is the
+ * groove, and the mask punches out the middle. */
+.gauge {
   flex: none;
-}
-
-/* Behind the face, not over it. A bot's ears, hat or antenna live outside its
-   box, and a ring drawn on top slices through them; drawn underneath it reads
-   as a halo the head is sitting in front of. */
-.load > .face {
-  position: relative;
-  z-index: 1;
-}
-
-.load::before,
-.load::after {
-  content: "";
-  position: absolute;
-  inset: -5px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
-  -webkit-mask: radial-gradient(circle, transparent calc(50% - 2px), #000 calc(50% - 2px));
-  mask: radial-gradient(circle, transparent calc(50% - 2px), #000 calc(50% - 2px));
-  pointer-events: none;
-}
-
-.load::before {
-  background: var(--fill-2);
-}
-
-.load::after {
-  background: conic-gradient(
+  background-color: rgba(255, 255, 255, 0.13);
+  background-image: conic-gradient(
     from -90deg,
     var(--ring, var(--blue)) calc(var(--press, 0) * 360deg),
     transparent 0
   );
-  transition: background 0.4s ease;
+  -webkit-mask: radial-gradient(circle, transparent 4.5px, #000 4.5px);
+  mask: radial-gradient(circle, transparent 4.5px, #000 4.5px);
 }
 
 /* Hands full. Amber rather than red: four jobs is a bot having a day, not a
    bot in trouble, and red in a roster is a word this app keeps for damage. */
-.load[style*="--press:1"] {
+.gauge[style*="--press:1"] {
   --ring: var(--amber);
 }
 
-/* Mid-turn, so the arc turns while the turn does. The face beside it is
-   already thinking or working — this says the same thing from further away,
-   for the roster you are not looking directly at. */
-.load.is-working::after {
+/* Mid-turn, so the ring turns while the turn does. The face two inches away is
+   already thinking or working — this says the same thing from further off, for
+   the roster you are not looking directly at. */
+.gauge.is-working {
   animation: load-turn 2.4s linear infinite;
 }
 
@@ -522,7 +504,7 @@ select:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .load.is-working::after {
+  .gauge.is-working {
     animation: none;
   }
 }
