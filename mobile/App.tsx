@@ -34,16 +34,18 @@ import {
   type BotEvent,
   type Pairing,
 } from "./src/api";
-import type { Bot, Routine, Snapshot } from "./src/types";
+import type { Bot, Channel, Routine, Snapshot } from "./src/types";
 import Pair from "./src/screens/Pair";
 import Bots from "./src/screens/Bots";
 import Room from "./src/screens/Room";
 import Chat from "./src/screens/Chat";
 import BotSettings from "./src/screens/BotSettings";
 import Drawer from "./src/drawer";
+import Foot from "./src/foot";
 import Rail from "./src/rail";
 import Phone from "./src/screens/Phone";
 import { T } from "./src/theme";
+import { unreadIn } from "./src/unread";
 
 // "settings" is one bot's; "phone" is this device's own — the link to the
 // laptop, and the one destructive thing a phone can do.
@@ -282,6 +284,23 @@ export default function App() {
     [refresh],
   );
 
+  /* Opening something, from wherever it was tapped. One pair of these rather
+     than a copy per list: the rail, the names beside it and the bell in the
+     bar all mean the same thing by "open this", and three copies of it is
+     three places for the drawer to forget to close. */
+  const goToBot = (chosen: Bot) => {
+    setBotId(chosen.id);
+    setScreen("chat");
+    setAside(false);
+    void act("open", { botId: chosen.id });
+  };
+  const goToRoom = (chosen: Channel) => {
+    setRoomId(chosen.id);
+    setScreen("room");
+    setAside(false);
+    void act("channel/seen", { channelId: chosen.id });
+  };
+
   if (!ready) {
     return (
       <View style={s.middle}>
@@ -305,6 +324,25 @@ export default function App() {
   // copes with there being none rather than assuming the field exists.
   const channels = snapshot?.channels ?? [];
   const room = channels.find((c) => c.id === roomId);
+
+  const called = String(snapshot?.settings?.name ?? "");
+
+  /* What is waiting, everywhere. The bell reports the whole app, so it is
+     counted here rather than inside either list — one of which is filtered by
+     a search box, and a bell that went quiet because you typed a name would be
+     lying about the thing it exists to report. */
+  const waiting = [
+    ...channels.map((ch) => ({
+      news: unreadIn(ch.messages, ch.seenAt, called),
+      go: () => goToRoom(ch),
+    })),
+    ...bots.map((bot) => ({
+      news: unreadIn(bot.messages, bot.seenAt, called),
+      go: () => goToBot(bot),
+    })),
+  ].filter((one) => one.news.unread > 0);
+  // Somewhere to go: whoever said your name, or failing that whatever spoke.
+  const news = waiting.find((one) => one.news.mentions > 0) ?? waiting[0];
 
   return (
     <>
@@ -365,41 +403,31 @@ export default function App() {
                     ? (room?.from?.channelId ?? room?.id ?? null)
                     : null
                 }
-                onOpen={(chosen) => {
-                  setBotId(chosen.id);
-                  setScreen("chat");
-                  setAside(false);
-                  void act("open", { botId: chosen.id });
-                }}
-                onOpenChannel={(chosen) => {
-                  setRoomId(chosen.id);
-                  setScreen("room");
-                  setAside(false);
-                  void act("channel/seen", { channelId: chosen.id });
-                }}
+                onOpen={goToBot}
+                onOpenChannel={goToRoom}
               />
               <Bots
                 bots={bots}
                 channels={channels}
-                called={String(snapshot?.settings?.name ?? "")}
+                called={called}
                 connected={connected}
                 loading={loading}
                 onRefresh={refresh}
-                onOpen={(chosen) => {
-                  setBotId(chosen.id);
-                  setScreen("chat");
-                  setAside(false);
-                  void act("open", { botId: chosen.id });
-                }}
-                onOpenChannel={(chosen) => {
-                  setRoomId(chosen.id);
-                  setScreen("room");
-                  setAside(false);
-                  void act("channel/seen", { channelId: chosen.id });
-                }}
+                onOpen={goToBot}
+                onOpenChannel={goToRoom}
                 onCreate={async (name, role) => {
                   await act("bot/create", { name, role });
                 }}
+              />
+
+              {/* Over the rail as well as the list, because it is about you and
+                  not about either of them. Last child so it sits in front of
+                  both. */}
+              <Foot
+                called={called}
+                unread={waiting.length}
+                mentions={waiting.reduce((all, one) => all + one.news.mentions, 0)}
+                onNews={news ? () => news.go() : undefined}
                 onSettings={() => setScreen("phone")}
               />
             </View>

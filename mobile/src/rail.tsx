@@ -120,7 +120,9 @@ const s = StyleSheet.create({
   /* Level with the "botcage" beside it: the same 64 the list's header uses,
      and the same 26 its title is set in. */
   crest: { paddingTop: 64, paddingBottom: 8, alignItems: "center" },
-  list: { paddingTop: 8, paddingBottom: 24, alignItems: "center", gap: 6 },
+  /* The last icon clears the bar that floats across the bottom of the drawer,
+     this strip included. */
+  list: { paddingTop: 8, paddingBottom: 86, alignItems: "center", gap: 6 },
   rule: {
     alignSelf: "center",
     width: 24,

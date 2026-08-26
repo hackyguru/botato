@@ -20,25 +20,9 @@ import {
 } from "react-native";
 import type { Bot, Channel, Message } from "../types";
 import Face from "../face";
-import Foot from "../foot";
 import { T } from "../theme";
+import { unreadIn } from "../unread";
 
-/** What has happened somewhere you were not looking.
- *
- *  The same two numbers the laptop keeps, meaning the same two things: unread
- *  is "there is something here", mentions is "somebody wanted you". A room of
- *  bots working is not a room that asked you a question. */
-function unreadIn(messages: Message[], seenAt = 0, called = "") {
-  let unread = 0;
-  let mentions = 0;
-  const at = called ? new RegExp(`@${called.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i") : null;
-  for (const msg of messages) {
-    if (msg.from === "me" || msg.at <= seenAt || !msg.text.trim()) continue;
-    unread += 1;
-    if (at?.test(msg.text)) mentions += 1;
-  }
-  return { unread, mentions };
-}
 
 function Badge({ unread, mentions }: { unread: number; mentions: number }) {
   if (mentions) {
@@ -110,7 +94,6 @@ export default function Bots({
   onOpen,
   onOpenChannel,
   onCreate,
-  onSettings,
 }: {
   bots: Bot[];
   channels: Channel[];
@@ -121,7 +104,6 @@ export default function Bots({
   onOpen: (bot: Bot) => void;
   onOpenChannel: (channel: Channel) => void;
   onCreate: (name: string, role: string) => Promise<void>;
-  onSettings: () => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
@@ -130,22 +112,6 @@ export default function Bots({
   const [find, setFind] = useState("");
   const q = find.trim().toLowerCase();
 
-  // What is waiting, over everything rather than over what the search happens
-  // to be showing: a bell that went quiet because you typed a name would be
-  // lying about the thing it exists to report.
-  const waiting = [
-    ...channels.map((ch) => ({
-      news: unreadIn(ch.messages, ch.seenAt, called),
-      go: () => onOpenChannel(ch),
-    })),
-    ...bots.map((bot) => ({
-      news: unreadIn(bot.messages, bot.seenAt, called),
-      go: () => onOpen(bot),
-    })),
-  ].filter((one) => one.news.unread > 0);
-  const mentions = waiting.reduce((all, one) => all + one.news.mentions, 0);
-  // Somewhere to go: whoever said your name, or failing that whatever spoke.
-  const first = waiting.find((one) => one.news.mentions > 0) ?? waiting[0];
 
   // Rooms, each followed by its threads. Flattened once rather than inside the
   // map, so a row can ask what comes after it — which is how the last thread
@@ -189,9 +155,10 @@ export default function Bots({
           <Light connected={connected} />
         </View>
         <View style={s.actions}>
-          {/* Settings used to sit here as well. It is in the bar at the bottom
-              now, with the name it belongs to — two controls opening one screen
-              is one of them pretending to do something else. */}
+          {/* Settings used to sit here as well. It is in the bar across the
+              bottom of the drawer now, with the name it belongs to — two
+              controls opening one screen is one of them pretending to do
+              something else. */}
           <Pressable onPress={() => setAdding((on) => !on)} hitSlop={12}>
             <Text style={s.plus}>{adding ? "×" : "+"}</Text>
           </Pressable>
@@ -328,14 +295,6 @@ export default function Bots({
         })}
 
       </ScrollView>
-
-      <Foot
-        called={called}
-        unread={waiting.length}
-        mentions={mentions}
-        onNews={first ? () => first.go() : undefined}
-        onSettings={onSettings}
-      />
     </View>
   );
 }
