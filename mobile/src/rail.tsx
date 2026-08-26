@@ -10,11 +10,18 @@
  * to search, because a 66px column has nowhere to put a field; here the field
  * is nine pixels to the right, and a button that focuses a visible field is a
  * button pretending to do something.
+ *
+ * The mark sits at the top of it, where Discord keeps its home button and where
+ * the laptop keeps the same mark: level with the wordmark beside it, with a
+ * rule under it so it reads as the app rather than as the first thing in the
+ * list. It is not a button — there is nowhere for it to go that you are not
+ * already looking at.
  */
 
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import Brand from "./brand";
 import Face from "./face";
 import { T } from "./theme";
 import type { Bot, Channel } from "./types";
@@ -41,6 +48,11 @@ export default function Rail({
 }) {
   return (
     <View style={s.rail}>
+      <View style={s.crest}>
+        <Brand size={26} />
+      </View>
+      <View style={s.rule} />
+
       <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
         {rooms.map((room) => {
           // A room you are in through one of its threads counts as the room
@@ -83,7 +95,10 @@ const s = StyleSheet.create({
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: T.line,
   },
-  list: { paddingTop: 62, paddingBottom: 24, alignItems: "center", gap: 6 },
+  /* Level with the "botcage" beside it: the same 64 the list's header uses,
+     and the same 26 its title is set in. */
+  crest: { paddingTop: 64, paddingBottom: 9, alignItems: "center" },
+  list: { paddingTop: 8, paddingBottom: 24, alignItems: "center", gap: 6 },
   slot: {
     width: 46,
     height: 46,
@@ -94,5 +109,12 @@ const s = StyleSheet.create({
   slotHere: { backgroundColor: T.field },
   hash: { color: T.text2, fontSize: 21 },
   hashHere: { color: T.text },
-  rule: { width: 22, height: 2, borderRadius: 1, backgroundColor: T.line, marginVertical: 6 },
+  rule: {
+    width: 22,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: T.line,
+    marginVertical: 6,
+    alignSelf: "center",
+  },
 });
