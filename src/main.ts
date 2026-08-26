@@ -9626,6 +9626,12 @@ function remoteSnapshot(): Record<string, unknown> {
       plugins: bot.plugins ?? [],
       routines: bot.routines ?? [],
       busy: inflight.has(bot.id),
+      // How full its hands are, worked out here rather than there. The phone
+      // has the routines and the rooms and could reach the same number, but
+      // two implementations of one gauge is two gauges that disagree by
+      // Thursday — the same reason the faces are derived from one hash and the
+      // engine list is sent rather than guessed.
+      load: loadOf(bot),
       messages: bot.messages,
       seenAt: bot.seenAt,
       // the phone renders the same mark on its own side
