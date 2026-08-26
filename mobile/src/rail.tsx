@@ -2,9 +2,9 @@
  * The strip of icons down the left of the drawer.
  *
  * The laptop's sidebar collapsed to 66px, in the place Discord keeps its
- * server rail: a hash per room, a rule, then a face per bot, with whatever is
- * open lit. Everything here is a shortcut — nothing is only reachable from the
- * rail, which is what lets it be wordless.
+ * server rail: a panel of hashes for the rooms, a panel of faces for the bots,
+ * with whatever is open lit. Everything here is a shortcut — nothing is only
+ * reachable from the rail, which is what lets it be wordless.
  *
  * No search icon, unlike the collapsed laptop sidebar. There it is the only way
  * to search, because a 66px column has nowhere to put a field; here the field
@@ -12,10 +12,10 @@
  * button pretending to do something.
  *
  * The mark sits at the top of it, where Discord keeps its home button and where
- * the laptop keeps the same mark: level with the wordmark beside it, with a
- * rule under it so it reads as the app rather than as the first thing in the
- * list. It is not a button — there is nowhere for it to go that you are not
- * already looking at.
+ * the laptop keeps the same mark: level with the wordmark beside it, and on the
+ * black rather than on either panel, so it reads as the app rather than as the
+ * first thing in the list. It is not a button — there is nowhere for it to go
+ * that you are not already looking at.
  */
 
 import React from "react";
@@ -51,54 +51,70 @@ export default function Rail({
       <View style={s.crest}>
         <Brand size={26} />
       </View>
-      <View style={s.rule} />
 
       <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
-        {rooms.map((room) => {
-          // A room you are in through one of its threads counts as the room
-          // you are in: the thread is not drawn here, so nothing else would be
-          // lit at all.
-          const here = room.id === openRoom;
-          return (
-            <Pressable
-              key={room.id}
-              style={[s.slot, here && s.slotHere]}
-              onPress={() => onOpenChannel(room)}
-            >
-              <Text style={[s.hash, here && s.hashHere]}>#</Text>
-            </Pressable>
-          );
-        })}
+        {rooms.length ? (
+          <View style={s.block}>
+            {rooms.map((room) => {
+              // A room you are in through one of its threads counts as the
+              // room you are in: the thread is not drawn here, so nothing else
+              // would be lit at all.
+              const here = room.id === openRoom;
+              return (
+                <Pressable
+                  key={room.id}
+                  style={[s.slot, here ? s.slotHere : null]}
+                  onPress={() => onOpenChannel(room)}
+                >
+                  <Text style={[s.hash, here ? s.hashHere : null]}>#</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
 
-        {rooms.length && bots.length ? <View style={s.rule} /> : null}
-
-        {bots.map((bot) => {
-          const here = bot.id === openBot && !openRoom;
-          return (
-            <Pressable
-              key={bot.id}
-              style={[s.slot, here && s.slotHere]}
-              onPress={() => onOpen(bot)}
-            >
-              <Face bot={bot} size={38} />
-            </Pressable>
-          );
-        })}
+        {bots.length ? (
+          <View style={s.block}>
+            {bots.map((bot) => {
+              const here = bot.id === openBot && !openRoom;
+              return (
+                <Pressable
+                  key={bot.id}
+                  style={[s.slot, here ? s.slotHere : null]}
+                  onPress={() => onOpen(bot)}
+                >
+                  <Face bot={bot} size={38} />
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
       </ScrollView>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  rail: {
-    width: RAIL_W,
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: T.line,
-  },
+  /* No dividing line down its right any more: the strip is black, and what is
+     drawn on it are the two panels below — the edge of those is the edge of
+     the rail, and a hairline as well would be a second one saying the same
+     thing a pixel away. */
+  rail: { width: RAIL_W },
   /* Level with the "botcage" beside it: the same 64 the list's header uses,
      and the same 26 its title is set in. */
   crest: { paddingTop: 64, paddingBottom: 9, alignItems: "center" },
-  list: { paddingTop: 8, paddingBottom: 24, alignItems: "center", gap: 6 },
+  list: { paddingTop: 8, paddingBottom: 24, alignItems: "center", gap: 10 },
+  /* The rooms on one panel, the bots on another, both in the colour of the
+     search field across the way. The gap between them is what says where one
+     ends — a rule between two things already sitting apart is a third mark for
+     a job two are doing. */
+  block: {
+    padding: 4,
+    gap: 4,
+    alignItems: "center",
+    backgroundColor: T.field,
+    borderRadius: 17,
+  },
   slot: {
     width: 46,
     height: 46,
@@ -106,15 +122,9 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  slotHere: { backgroundColor: T.field },
+  /* Lit, not filled: the panel underneath is already the field's colour, so
+     what is open is the tile a shade above it. */
+  slotHere: { backgroundColor: "rgba(255,255,255,0.11)" },
   hash: { color: T.text2, fontSize: 21 },
   hashHere: { color: T.text },
-  rule: {
-    width: 22,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: T.line,
-    marginVertical: 6,
-    alignSelf: "center",
-  },
 });

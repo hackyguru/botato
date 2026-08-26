@@ -236,14 +236,8 @@ export default function Bots({
 
         {/* Rooms first, then the people in them — the order every app with
             both has settled on, and for the same reason. A thread sits under
-            the room it came out of.
-
-            Each list sits on a panel of its own, in the field's colour: two
-            surfaces rather than one long one, so where the channels stop and
-            the bots start is a thing you see rather than a heading you read. */}
+            the room it came out of. */}
         {rooms.length ? <Text style={s.group}>CHANNELS</Text> : null}
-        {rooms.length ? (
-        <View style={s.block}>
         {rooms.map((ch, n) => {
           const news = unreadIn(ch.messages, ch.seenAt, called);
           const inside = ch.members
@@ -294,15 +288,10 @@ export default function Bots({
           );
         })}
 
-        </View>
-        ) : null}
-
         {rooms.length && shown.length ? (
           <Text style={s.group}>BOTS</Text>
         ) : null}
 
-        {shown.length ? (
-        <View style={s.block}>
         {shown.map((bot) => {
           const last = bot.messages[bot.messages.length - 1];
           return (
@@ -324,8 +313,6 @@ export default function Bots({
             </Pressable>
           );
         })}
-        </View>
-        ) : null}
 
       </ScrollView>
     </View>
@@ -421,21 +408,13 @@ const s = StyleSheet.create({
   addOff: { opacity: 0.4 },
   addText: { color: "#fff", fontSize: 15, fontWeight: "600" },
   list: { paddingHorizontal: 14, paddingBottom: 40 },
-  /* The surface the rows sit on, in the colour of the field above them.
-     `overflow: hidden` so a row pressed at the top of the list cannot square
-     off the corner it is sitting in. */
-  block: {
-    paddingVertical: 4,
-    backgroundColor: T.field,
-    borderRadius: 14,
-    overflow: "hidden",
-  },
   empty: { marginTop: 60, color: T.text3, fontSize: 14, textAlign: "center" },
   row: {
     flexDirection: "row",
     gap: 12,
     alignItems: "center",
     padding: 12,
+    borderRadius: 14,
   },
   rowBody: { flex: 1, minWidth: 0 },
   name: { color: T.text, fontSize: 16, fontWeight: "600" },
