@@ -57,6 +57,7 @@ export function Turn({
   name,
   at,
   fromPhone,
+  ping,
   children,
 }: {
   head: boolean;
@@ -64,10 +65,12 @@ export function Turn({
   name: string;
   at: number;
   fromPhone?: boolean;
+  /** A bot said your name here. */
+  ping?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <View style={[s.turn, head && s.turnHead]}>
+    <View style={[s.turn, head && s.turnHead, ping ? s.turnPing : null]}>
       {/* Empty on a continuation, and exactly as wide, so the text under a run
           stays in one column. */}
       <View style={s.gutter}>{head ? face : null}</View>
@@ -92,6 +95,17 @@ const s = StyleSheet.create({
   /* The only place with air above it: a gap where the speaker changes, and
      nowhere else. */
   turnHead: { marginTop: 14 },
+  /* The one message in a busy room you cannot afford to scroll past, marked
+     the way the laptop marks it: a bar down the left and the faintest wash.
+     The negative margin pays for the bar and the padding, so a row that
+     becomes a ping does not shift sideways from the ones above it. */
+  turnPing: {
+    marginLeft: -8,
+    paddingLeft: 6,
+    borderLeftWidth: 2,
+    borderLeftColor: "#f0b232",
+    backgroundColor: "rgba(240,178,50,0.055)",
+  },
   gutter: { width: 28, alignItems: "center", paddingTop: 1 },
   main: { flex: 1, minWidth: 0 },
   who: { flexDirection: "row", alignItems: "baseline", gap: 7, marginBottom: 1 },

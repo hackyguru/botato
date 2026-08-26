@@ -24,13 +24,14 @@ import {
 import type { Bot, Channel, Message } from "../types";
 import Face from "../face";
 import Composer from "../composer";
-import Markdown from "../markdown";
+import Markdown, { type Mentionable } from "../markdown";
 import { T } from "../theme";
 import { Initial, startsRun, Turn } from "../turn";
 
 export default function Room({
   channel,
   bots,
+  called,
   parent,
   threads,
   onBack,
@@ -39,6 +40,8 @@ export default function Room({
 }: {
   channel: Channel;
   bots: Bot[];
+  /** What you are called, so a bot saying it is visibly saying it to you. */
+  called?: string;
   parent?: Channel;
   threads: Channel[];
   onBack: () => void;
@@ -50,6 +53,16 @@ export default function Room({
   const inside = channel.members
     .map((id) => bots.find((b) => b.id === id))
     .filter((b): b is Bot => Boolean(b));
+
+  // The same set the laptop lights up: the room's members, the three spellings
+  // that call the whole room, and you.
+  const mentions: Mentionable[] = [
+    ...inside.map((bot) => ({ name: bot.name, kind: "bot" as const })),
+    ...(inside.length
+      ? ["everyone", "channel", "here"].map((name) => ({ name, kind: "room" as const }))
+      : []),
+    ...(called?.trim() ? [{ name: called.trim(), kind: "you" as const }] : []),
+  ];
 
   useEffect(() => {
     const to = setTimeout(() => scroller.current?.scrollToEnd({ animated: false }), 60);
@@ -106,6 +119,8 @@ export default function Room({
             msg={msg}
             prev={channel.messages[n - 1]}
             bots={bots}
+            mentions={mentions}
+            called={called}
             thread={threads.find((t) => t.from?.messageId === msg.id)}
             onOpenThread={onOpenThread}
           />
@@ -134,12 +149,16 @@ function Said({
   msg,
   prev,
   bots,
+  mentions,
+  called,
   thread,
   onOpenThread,
 }: {
   msg: Message;
   prev?: Message;
   bots: Bot[];
+  mentions: Mentionable[];
+  called?: string;
   thread?: Channel;
   onOpenThread: (thread: Channel) => void;
 }) {
@@ -158,6 +177,13 @@ function Said({
   const said = thread ? Math.max(0, thread.messages.filter((m) => m.text.trim()).length - 1) : 0;
   const head = startsRun(msg, prev);
   const name = author ? author.name : "You";
+  // Not "does your name appear" — a bot discussing a file called guru.md is
+  // not talking to you. The "@" is what makes it a summons, here as on the
+  // laptop.
+  const ping =
+    msg.from === "bot" &&
+    !!called?.trim() &&
+    new RegExp(`@${called.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(msg.text);
 
   return (
     <Turn
@@ -166,9 +192,10 @@ function Said({
       name={name}
       at={msg.at}
       fromPhone={msg.fromPhone}
+      ping={ping}
     >
       {msg.pinned ? <Text style={s.pin}>📌</Text> : null}
-      <Markdown text={msg.text} />
+      <Markdown text={msg.text} mentions={mentions} />
       {thread ? (
         <Pressable style={s.strip} onPress={() => onOpenThread(thread)}>
           <Text style={s.stripText}>

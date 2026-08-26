@@ -1220,6 +1220,54 @@ textarea {
   background: var(--hover);
 }
 
+/* A name that was actually summoned.
+ *
+ * Only names that reach somebody are lit — the room's members, the room
+ * itself, and you — so the highlight means "a turn was spent here", not "this
+ * word began with an at sign". A tint rather than a link colour: it is not
+ * clickable, and colouring it like the links two lines up would say it was.
+ *
+ * Kept on one line: `display: inline` and padding that does not grow the line
+ * box, because a pill that shifts the leading makes a paragraph with a mention
+ * in it sit differently from one without. */
+.men {
+  padding: 0 2px;
+  border-radius: 3px;
+  background: rgba(10, 132, 255, 0.16);
+  color: #7ab6ff;
+  font-weight: 500;
+}
+
+/* Calling the whole room is louder than calling one person, because it is. */
+.men--room {
+  background: rgba(10, 132, 255, 0.22);
+}
+
+/* Your own name, which is the one you are scanning for. */
+.men--you {
+  background: rgba(240, 178, 50, 0.22);
+  color: #f5c26b;
+}
+
+/* The row a bot said your name in.
+ *
+ * The whole line, not just the name: in a room where five bots are talking the
+ * one message addressed to you has to be findable by colour from across the
+ * scrollback, and a two-pixel bar down the left is what Discord uses for
+ * exactly this. Inset shadow rather than a border, so the row does not move
+ * sideways by two pixels when it becomes a ping. */
+.turn--ping {
+  background: rgba(240, 178, 50, 0.055);
+  box-shadow: inset 2px 0 0 #f0b232;
+}
+
+/* Hover is a more specific selector than the ping, so without this the wash
+   disappears under the pointer — on the one row you are most likely to point
+   at. */
+.turn--ping:hover {
+  background: rgba(240, 178, 50, 0.085);
+}
+
 .turn__gutter {
   display: grid;
   place-items: center;

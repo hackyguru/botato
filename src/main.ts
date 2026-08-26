@@ -686,6 +686,93 @@ function renderMd(src: string): string {
     .join("");
 }
 
+/* ------------------------------------------------------------------ mentions */
+
+/** Someone an "@" can reach from here. */
+type Mentionable = { name: string; kind: "bot" | "room" | "you" };
+
+/** Who is reachable in this conversation.
+ *
+ *  Deliberately the same set `addressees` reads. What lights up is exactly
+ *  what summons somebody: an "@" in front of a word that reaches nobody stays
+ *  plain text, because a highlight is a promise that a turn is about to be
+ *  spent, and lighting up "@lunch" would be a lie about what the app just did.
+ *
+ *  Longest name first, so "@Research and Writing" is one person rather than
+ *  "@Research" followed by a conjunction — the rule `addressees` follows when
+ *  it decides who actually gets the message. */
+function mentionable(ch?: Channel): Mentionable[] {
+  const here = ch ? membersOf(ch) : [activeBot()].filter((b): b is Bot => Boolean(b));
+  const people: Mentionable[] = here.map((bot) => ({ name: bot.name, kind: "bot" }));
+
+  // The three spellings `callsTheRoom` accepts, and only in a room: there is
+  // no "everyone" in a chat with one bot.
+  const room: Mentionable[] = ch && here.length
+    ? ["everyone", "channel", "here"].map((name) => ({ name, kind: "room" as const }))
+    : [];
+
+  const you = userName().trim();
+  const mine: Mentionable[] = you ? [{ name: you, kind: "you" }] : [];
+
+  return [...people, ...room, ...mine]
+    .filter((m) => m.name)
+    .sort((a, b) => b.name.length - a.name.length);
+}
+
+/** Light up the mentions in a run of already-escaped text. */
+function lightUp(text: string, wanted: (Mentionable & { look: string })[]): string {
+  let out = "";
+  let from = 0;
+  for (;;) {
+    const at = text.indexOf("@", from);
+    if (at === -1) return out + text.slice(from);
+    out += text.slice(from, at);
+
+    const rest = text.slice(at + 1).toLowerCase();
+    const hit = wanted.find(
+      // Followed by a word character it is a longer name that happens to start
+      // with this one, and belongs to somebody else.
+      (w) => rest.startsWith(w.look) && !/[a-z0-9]/.test(rest[w.look.length] ?? " "),
+    );
+    if (!hit) {
+      out += "@";
+      from = at + 1;
+      continue;
+    }
+    out += `<span class="men men--${hit.kind}">${text.slice(at, at + 1 + hit.look.length)}</span>`;
+    from = at + 1 + hit.look.length;
+  }
+}
+
+/** Light up the mentions in rendered markup.
+ *
+ *  Run over the finished HTML rather than the source, because the source has
+ *  to survive escaping, link-making and code spans first — and only over the
+ *  parts of it that are text. An "@" turns up inside an href often enough
+ *  (`x.com/@someone`), and a span opened in the middle of an attribute is not
+ *  a highlight, it is broken markup. Tags are stepped over, and anything
+ *  inside a link, a code span or a fenced block is left alone: the "@" in an
+ *  email address in a code block summons nobody. */
+function markMentions(html: string, targets: Mentionable[]): string {
+  if (!targets.length || !html.includes("@")) return html;
+  const wanted = targets.map((t) => ({ ...t, look: escapeHtml(t.name).toLowerCase() }));
+
+  let out = "";
+  let quiet = 0;
+  for (const part of html.split(/(<[^>]*>)/)) {
+    if (!part.startsWith("<")) {
+      out += quiet > 0 ? part : lightUp(part, wanted);
+      continue;
+    }
+    const tag = /^<(\/?)([a-z]+)/i.exec(part);
+    if (tag && ["a", "code", "pre"].includes(tag[2].toLowerCase()) && !part.endsWith("/>")) {
+      quiet = Math.max(0, quiet + (tag[1] ? -1 : 1));
+    }
+    out += part;
+  }
+  return out;
+}
+
 function toast(msg: string): void {
   toastEl.textContent = msg;
   toastEl.hidden = false;
@@ -1503,8 +1590,8 @@ function lessonsHtml(pinned = false): string {
 
 const CLAMP_AT = 420;
 
-function bubbleHtml(msg: Message): string {
-  const body = `<div class="md">${renderMd(msg.text)}</div>`;
+function bubbleHtml(msg: Message, ch?: Channel): string {
+  const body = `<div class="md">${markMentions(renderMd(msg.text), mentionable(ch))}</div>`;
   const clamp = msg.text.length > CLAMP_AT;
   const pinned = msg.pinned ? `<span class="bubble__pin" title="Pinned">${icon("pin")}</span>` : "";
   const react = msg.reaction ? `<div class="reacts"><span class="react">${msg.reaction}</span></div>` : "";
@@ -1601,7 +1688,12 @@ function turnEl(msg: Message, ch?: Channel, prev?: Message): HTMLElement {
   const head = startsRun(msg, prev);
   const who = saidBy(msg, ch);
 
-  wrap.className = `turn turn--${msg.from}${head ? " turn--head" : ""}`;
+  // A bot saying your name is the one message in a busy room you cannot afford
+  // to scroll past, so the row itself is marked and not only the name in it.
+  const ping = msg.from === "bot" && mentionsYou(msg.text);
+
+  wrap.className =
+    `turn turn--${msg.from}${head ? " turn--head" : ""}${ping ? " turn--ping" : ""}`;
   wrap.innerHTML =
     // The gutter carries the face at the top of a run and the time on the rest,
     // which only shows on hover: a column of timestamps down every line is the
@@ -1619,7 +1711,7 @@ function turnEl(msg: Message, ch?: Channel, prev?: Message): HTMLElement {
           : "") +
         `</div>`
       : "") +
-    bubbleHtml(msg) +
+    bubbleHtml(msg, ch) +
     (hanging ? threadStrip(hanging, msg) : "") +
     `</div>` +
     actsHtml(msg);
@@ -2330,7 +2422,8 @@ function handleBotEvent(event: BotEvent): void {
 
   const body = bodyOf(pending.message.id);
   if (!body) return;
-  body.innerHTML = `<div class="md">${renderMd(pending.message.text)}</div>`;
+  body.innerHTML =
+    `<div class="md">${markMentions(renderMd(pending.message.text), mentionable())}</div>`;
   body.querySelector(".md")?.lastElementChild?.classList.add("caret");
   if (nearBottom()) scrollToEnd();
 }

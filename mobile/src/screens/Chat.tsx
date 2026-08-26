@@ -22,13 +22,14 @@ import {
 import type { Bot, Message } from "../types";
 import Face from "../face";
 import Composer from "../composer";
-import Markdown from "../markdown";
+import Markdown, { type Mentionable } from "../markdown";
 import { T } from "../theme";
 import { Initial, startsRun, Turn } from "../turn";
 
 export default function Chat({
   bot,
   note,
+  called,
   onBack,
   onSettings,
   onSend,
@@ -37,6 +38,8 @@ export default function Chat({
   bot: Bot;
   /** What the bot is doing right now, from the event stream. */
   note: string;
+  /** What you are called, so a bot saying it is visibly saying it to you. */
+  called?: string;
   onBack: () => void;
   onSettings: () => void;
   onSend: (text: string) => Promise<void>;
@@ -44,6 +47,13 @@ export default function Chat({
 }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+
+  // A chat has two people in it, so that is the whole guest list: no
+  // "@everyone" here, because there is no room to call.
+  const mentions: Mentionable[] = [
+    { name: bot.name, kind: "bot" },
+    ...(called?.trim() ? [{ name: called.trim(), kind: "you" as const }] : []),
+  ];
   const scroll = useRef<ScrollView>(null);
 
   // Follow the reply as it grows, the way the desktop thread does.
@@ -108,7 +118,7 @@ export default function Chat({
                 // What a bot writes is markdown, and the desktop renders it. A
                 // phone showing the backticks is not a smaller app, just a
                 // worse one. What you type is left exactly as you typed it.
-                <Markdown text={message.text || (bot.busy ? "…" : "")} />
+                <Markdown text={message.text || (bot.busy ? "…" : "")} mentions={mentions} />
               ) : (
                 <Text style={s.text}>{message.text}</Text>
               )}

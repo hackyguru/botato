@@ -409,6 +409,7 @@ export default function App() {
           <Room
             channel={room}
             bots={bots}
+            called={String(snapshot?.settings?.name ?? "")}
             parent={channels.find((c) => c.id === room.from?.channelId)}
             threads={channels.filter((c) => c.from)}
             onBack={() => setAside(true)}
@@ -458,6 +459,7 @@ export default function App() {
           <Chat
             bot={bot}
             note={notes[bot.id] ?? ""}
+            called={String(snapshot?.settings?.name ?? "")}
             onBack={() => setAside(true)}
             onSettings={() => setScreen("settings")}
             onSend={async (text) => {

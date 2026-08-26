@@ -17,6 +17,16 @@ interface Piece {
   italic?: boolean;
   code?: boolean;
   href?: string;
+  men?: Mentionable["kind"];
+}
+
+/** Someone an "@" can reach in this conversation. The laptop lights up exactly
+ *  the names that summon somebody, and so does this: a phone that highlighted
+ *  every word after an at sign would be telling you a turn had been spent when
+ *  none had. */
+export interface Mentionable {
+  name: string;
+  kind: "bot" | "room" | "you";
 }
 
 const INLINE =
@@ -24,7 +34,7 @@ const INLINE =
 
 /** Cut a line into styled runs. Same order of precedence as the desktop: code
  *  first, so asterisks inside a command are left alone. */
-function pieces(line: string): Piece[] {
+function pieces(line: string, who: Mentionable[]): Piece[] {
   const out: Piece[] = [];
   let rest = line;
 
@@ -52,13 +62,52 @@ function pieces(line: string): Piece[] {
       out.push({ text: match.slice(1, -1), italic: true });
     }
   }
+  // Mentions last, and only in what is left as prose: the "@" in a link or in
+  // a command is not a summons.
+  return out.flatMap((piece) =>
+    piece.code || piece.href ? [piece] : summons(piece, who),
+  );
+}
+
+/** Cut one plain run around the names in it. */
+function summons(piece: Piece, who: Mentionable[]): Piece[] {
+  if (!who.length || !piece.text.includes("@")) return [piece];
+  // Longest first, so "@Research and Writing" is one person rather than one
+  // person and a conjunction — the rule the laptop follows when it decides
+  // who actually gets the message.
+  const wanted = [...who].sort((a, b) => b.name.length - a.name.length);
+
+  const out: Piece[] = [];
+  let rest = piece.text;
+  let held = "";
+  while (rest.length > 0) {
+    const at = rest.indexOf("@");
+    if (at < 0) break;
+    held += rest.slice(0, at);
+    const after = rest.slice(at + 1).toLowerCase();
+    const hit = wanted.find(
+      (w) =>
+        after.startsWith(w.name.toLowerCase()) &&
+        !/[a-z0-9]/.test(after[w.name.length] ?? " "),
+    );
+    if (!hit) {
+      held += "@";
+      rest = rest.slice(at + 1);
+      continue;
+    }
+    if (held) out.push({ ...piece, text: held });
+    held = "";
+    out.push({ ...piece, text: rest.slice(at, at + 1 + hit.name.length), men: hit.kind });
+    rest = rest.slice(at + 1 + hit.name.length);
+  }
+  if (held + rest) out.push({ ...piece, text: held + rest });
   return out;
 }
 
-function Line({ text }: { text: string }) {
+function Line({ text, who }: { text: string; who: Mentionable[] }) {
   return (
     <Text style={s.body}>
-      {pieces(text).map((piece, at) => (
+      {pieces(text, who).map((piece, at) => (
         <Text
           key={at}
           style={[
@@ -66,6 +115,9 @@ function Line({ text }: { text: string }) {
             piece.italic && s.italic,
             piece.code && s.code,
             piece.href && s.link,
+            piece.men ? s.men : null,
+            piece.men === "you" ? s.menYou : null,
+            piece.men === "room" ? s.menRoom : null,
           ]}
           onPress={piece.href ? () => void Linking.openURL(piece.href!) : undefined}
         >
@@ -76,7 +128,13 @@ function Line({ text }: { text: string }) {
   );
 }
 
-export default function Markdown({ text }: { text: string }) {
+export default function Markdown({
+  text,
+  mentions = [],
+}: {
+  text: string;
+  mentions?: Mentionable[];
+}) {
   const blocks: React.ReactNode[] = [];
   const lines = text.split("\n");
   let at = 0;
@@ -120,7 +178,7 @@ export default function Markdown({ text }: { text: string }) {
         <View key={key++} style={s.bullet}>
           <Text style={s.dot}>•</Text>
           <View style={s.bulletBody}>
-            <Line text={bullet[1]} />
+            <Line text={bullet[1]} who={mentions} />
           </View>
         </View>,
       );
@@ -135,7 +193,7 @@ export default function Markdown({ text }: { text: string }) {
       continue;
     }
 
-    blocks.push(<Line key={key++} text={line} />);
+    blocks.push(<Line key={key++} text={line} who={mentions} />);
     at += 1;
   }
 
@@ -155,6 +213,11 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.09)",
   },
   link: { color: T.link, textDecorationLine: "underline" },
+  /* A tint rather than the link colour: a mention is not tappable, and
+     colouring it like the link on the line above would say that it was. */
+  men: { color: "#7ab6ff", backgroundColor: "rgba(10,132,255,0.16)", fontWeight: "500" },
+  menRoom: { backgroundColor: "rgba(10,132,255,0.22)" },
+  menYou: { color: "#f5c26b", backgroundColor: "rgba(240,178,50,0.22)" },
   heading: { marginTop: 4, color: T.text, fontSize: 16, fontWeight: "600", lineHeight: 23 },
   block: {
     marginVertical: 6,
