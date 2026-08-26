@@ -272,27 +272,23 @@ export default function Bots({
           <Text style={s.group}>BOTS</Text>
         ) : null}
 
-        {shown.map((bot) => {
-          const last = bot.messages[bot.messages.length - 1];
-          return (
-            <Pressable key={bot.id} style={s.row} onPress={() => onOpen(bot)}>
-              <Face bot={bot} />
-              <View style={s.rowBody}>
-                <Text style={s.name} numberOfLines={1}>
-                  {bot.name}
-                </Text>
-                <Text style={s.preview} numberOfLines={1}>
-                  {bot.busy ? "Working…" : last ? last.text.slice(0, 90) : bot.role || "No messages yet"}
-                </Text>
-              </View>
-              {bot.busy ? (
-                <View style={s.dot} />
-              ) : (
-                <Badge {...unreadIn(bot.messages, bot.seenAt, called)} />
-              )}
-            </Pressable>
-          );
-        })}
+        {/* A card each, and the name alone on it. The line of chat under the
+            name was a digest of a conversation you are one tap from reading in
+            full, and eight of them turned the list into a page of prose to
+            skim — which is the opposite of what a list of names is for. */}
+        {shown.map((bot) => (
+          <Pressable key={bot.id} style={s.card} onPress={() => onOpen(bot)}>
+            <Face bot={bot} />
+            <Text style={s.cardName} numberOfLines={1}>
+              {bot.name}
+            </Text>
+            {bot.busy ? (
+              <View style={s.dot} />
+            ) : (
+              <Badge {...unreadIn(bot.messages, bot.seenAt, called)} />
+            )}
+          </Pressable>
+        ))}
 
       </ScrollView>
     </View>
@@ -402,6 +398,19 @@ const s = StyleSheet.create({
     borderRadius: 14,
   },
   rowBody: { flex: 1, minWidth: 0 },
+  /* One bot, on a surface of its own. The channels above stay plain rows: they
+     are a list of places, and places belong in a list. A bot is somebody, and
+     the card is what stops eight of them reading as eight lines of text. */
+  card: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
+    marginBottom: 8,
+    padding: 11,
+    backgroundColor: T.field,
+    borderRadius: 16,
+  },
+  cardName: { flex: 1, minWidth: 0, color: T.text, fontSize: 16, fontWeight: "600" },
   name: { color: T.text, fontSize: 16, fontWeight: "600" },
   preview: { marginTop: 2, color: T.text2, fontSize: 13.5 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: T.blue },
