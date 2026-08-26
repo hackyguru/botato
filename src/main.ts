@@ -1054,7 +1054,11 @@ function loadOf(bot: Bot): { press: number; working: boolean; says: string } {
   const now = Date.now();
 
   const next = (r: Routine) => nextRun(r, r.lastRunAt ?? now);
-  const live = (bot.routines ?? []).filter((r) => r.active);
+  // Only what will actually run. A routine that comes due while its bot is off
+  // the clock does not fire then — it waits for the shift — so counting it as
+  // pressure now would be the gauge reporting work that is not about to
+  // happen, which is the one thing it is not allowed to do.
+  const live = (bot.routines ?? []).filter((r) => r.active && onTheClock(bot, new Date(next(r))));
   const soon = live.filter((r) => next(r) <= now + 60 * 60_000).length;
   const today = live.filter((r) => next(r) <= now + 24 * 60 * 60_000).length;
 
@@ -1086,6 +1090,9 @@ function loadOf(bot: Bot): { press: number; working: boolean; says: string } {
 
   const said = [
     working ? (inflight.get(bot.id)?.note ?? "Working") : "",
+    // Worth saying: a bot with three routines and an empty ring is not a bot
+    // with nothing to do, it is a bot that has gone home.
+    !working && bot.hours && !onTheClock(bot) ? `off the clock · ${saysHours(bot)}` : "",
     called ? `named in ${called} room${called === 1 ? "" : "s"}` : "",
     soon ? `${soon} routine${soon === 1 ? "" : "s"} due within the hour` : "",
     today - soon ? `${today - soon} more in the next day` : "",
