@@ -263,6 +263,7 @@ const s = StyleSheet.create({
   },
   label: { marginTop: 10, color: T.text2, fontSize: 13 },
   input: {
+    letterSpacing: 0,
     minHeight: 48,
     paddingHorizontal: 14,
     paddingVertical: 12,

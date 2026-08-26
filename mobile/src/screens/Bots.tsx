@@ -326,7 +326,13 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
   findWrap: { paddingHorizontal: 16, paddingBottom: 8 },
+  /* The tracking is stated rather than left out. React Native only writes
+     kerning to the native field when a style asks for it, so a field that says
+     nothing inherits whatever the last input to use that view had — and one of
+     them, the pairing code, is deliberately spaced out by six points. That is
+     how the search box came to be set in "S e a r c h". */
   find: {
+    letterSpacing: 0,
     height: 36,
     paddingHorizontal: 12,
     backgroundColor: T.field,
@@ -370,6 +376,7 @@ const s = StyleSheet.create({
   actions: { flexDirection: "row", gap: 18, alignItems: "center" },
   form: { paddingHorizontal: 20, paddingBottom: 12, gap: 8 },
   input: {
+    letterSpacing: 0,
     height: 44,
     paddingHorizontal: 12,
     color: T.text,

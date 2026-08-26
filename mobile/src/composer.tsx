@@ -73,6 +73,7 @@ const s = StyleSheet.create({
     borderRadius: 22,
   },
   input: {
+    letterSpacing: 0,
     flex: 1,
     maxHeight: 130,
     paddingVertical: 6,

@@ -372,6 +372,7 @@ const s = StyleSheet.create({
   addSmall: { marginBottom: 7, marginRight: 6, color: T.blue, fontSize: 13.5 },
   card: { gap: 10, padding: 14, backgroundColor: T.panel, borderRadius: 14 },
   input: {
+    letterSpacing: 0,
     height: 44,
     paddingHorizontal: 12,
     color: T.text,
