@@ -54,7 +54,7 @@ export default function Rail({
 
       <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
         {rooms.length ? (
-          <View style={s.block}>
+          <View style={[s.block, bots.length ? null : s.tail]}>
             {rooms.map((room) => {
               // A room you are in through one of its threads counts as the
               // room you are in: the thread is not drawn here, so nothing else
@@ -74,7 +74,7 @@ export default function Rail({
         ) : null}
 
         {bots.length ? (
-          <View style={s.block}>
+          <View style={[s.block, s.tail]}>
             {bots.map((bot) => {
               const here = bot.id === openBot && !openRoom;
               return (
@@ -103,7 +103,9 @@ const s = StyleSheet.create({
   /* Level with the "botcage" beside it: the same 64 the list's header uses,
      and the same 26 its title is set in. */
   crest: { paddingTop: 64, paddingBottom: 9, alignItems: "center" },
-  list: { paddingTop: 8, paddingBottom: 24, alignItems: "center", gap: 10 },
+  /* `flexGrow` so the last panel has room to run into: without it the content
+     is only as tall as the icons and there is nothing below them to fill. */
+  list: { flexGrow: 1, paddingTop: 8, alignItems: "center", gap: 10 },
   /* The rooms on one panel, the bots on another, both in the colour of the
      search field across the way. The gap between them is what says where one
      ends — a rule between two things already sitting apart is a third mark for
@@ -114,6 +116,15 @@ const s = StyleSheet.create({
     alignItems: "center",
     backgroundColor: T.field,
     borderRadius: 17,
+  },
+  /* The last panel runs off the bottom of the screen rather than stopping
+     under the final face. Square at that end, because a rounded corner an inch
+     above the edge says the panel ends there and the black below it is
+     something else. */
+  tail: {
+    flex: 1,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
   },
   slot: {
     width: 46,
