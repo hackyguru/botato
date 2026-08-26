@@ -46,6 +46,13 @@
         <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
       </symbol>
       <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></symbol>
+      <symbol id="i-sound" viewBox="0 0 24 24">
+        <path d="M5 9.5h3l4-3.5v12l-4-3.5H5z" /><path d="M16 9.2a4 4 0 0 1 0 5.6" />
+        <path d="M18.6 6.6a7.6 7.6 0 0 1 0 10.8" />
+      </symbol>
+      <symbol id="i-hush" viewBox="0 0 24 24">
+        <path d="M5 9.5h3l4-3.5v12l-4-3.5H5z" /><path d="m16.5 10 5 4M21.5 10l-5 4" />
+      </symbol>
       <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></symbol>
       <symbol id="i-power" viewBox="0 0 24 24">
         <path d="M12 3v9" /><path d="M6.3 6.3a8 8 0 1 0 11.4 0" />
@@ -1083,7 +1090,8 @@
                 <input type="radio" name="setup-route" value="ollama" />
                 <span class="pick__body">
                   <span class="pick__name">Ollama, on this machine</span>
-                  <span class="pick__what">Free and private, no account. Chat only — no tools yet.</span>
+                  <span class="pick__what">Free and private, no account. Bots get connectors
+                    and a computer — not files or the web.</span>
                 </span>
               </label>
 
@@ -1092,7 +1100,7 @@
                 <span class="pick__body">
                   <span class="pick__name">A hosted model</span>
                   <span class="pick__what">Any of thousands on models.dev, with your own API key.
-                    Chat only — no tools yet.</span>
+                    Bots get connectors and a computer — not files or the web.</span>
                 </span>
               </label>
             </div>
@@ -1147,6 +1155,12 @@
         </div>
 
         <div class="sheet__foot setup__foot">
+          <!-- Sound is a thing an application should never make without saying
+               where it came from and how to stop it. This is that. -->
+          <button type="button" class="icon-btn icon-btn--sm setup__mute" id="setup-mute"
+                  title="Music" aria-label="Music">
+            <svg><use href="#i-sound" /></svg>
+          </button>
           <button type="button" class="chip" id="setup-back" hidden><span>Back</span></button>
           <button type="button" class="chip" id="setup-skip" hidden><span>Skip</span></button>
           <button type="button" class="btn-primary" id="setup-next">Get started</button>

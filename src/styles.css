@@ -4696,7 +4696,9 @@ a.detail__source:hover {
   height: 3px;
   background: var(--line);
   border-radius: 2px;
-  transition: background 0.2s ease;
+  /* The same duration as a step's arrival, so the rail filling and the panel
+     moving read as one thing going forward rather than two. */
+  transition: background 0.28s ease;
 }
 
 .setup__seg[data-on="true"] {
@@ -4723,7 +4725,83 @@ a.detail__source:hover {
   justify-content: center;
   min-height: 0;
   text-align: center;
-  animation: pop 0.16s ease both;
+}
+
+/* The carousel.
+ *
+ * A step used to be un-hidden, which does not restart an animation — the pop
+ * that was on this rule played once, on the first step, and never again. Both
+ * steps are on screen while it moves: the one leaving is taken out of the flow
+ * so the one arriving can have the same place, and the two pass each other in
+ * the direction of travel.
+ *
+ * The distance is small and the fade does most of the work. A panel that flies
+ * across the sheet is a slideshow; this should feel like a page turning. */
+.setup__body {
+  position: relative;
+}
+
+.setup__step.is-leaving {
+  position: absolute;
+  inset: 24px 28px 10px;
+  pointer-events: none;
+}
+
+.setup__step.is-on {
+  animation: step-in-on 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.setup__step.is-back {
+  animation: step-in-back 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.setup__step.is-leaving.is-on {
+  animation: step-out-on 0.24s ease-in both;
+}
+
+.setup__step.is-leaving.is-back {
+  animation: step-out-back 0.24s ease-in both;
+}
+
+@keyframes step-in-on {
+  from {
+    opacity: 0;
+    transform: translateX(26px);
+  }
+}
+
+@keyframes step-in-back {
+  from {
+    opacity: 0;
+    transform: translateX(-26px);
+  }
+}
+
+@keyframes step-out-on {
+  to {
+    opacity: 0;
+    transform: translateX(-22px);
+  }
+}
+
+@keyframes step-out-back {
+  to {
+    opacity: 0;
+    transform: translateX(22px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup__step.is-on,
+  .setup__step.is-back,
+  .setup__step.is-leaving.is-on,
+  .setup__step.is-leaving.is-back {
+    animation: none;
+  }
+
+  .setup__seg {
+    transition: none;
+  }
 }
 
 .setup__title {
@@ -4865,6 +4943,21 @@ a.detail__source:hover {
    at the bottom of a dialog. */
 .setup__foot .btn-primary {
   flex: 1;
+}
+
+/* The music control sits away from Back and Continue: it is not a step in the
+   flow, it is a thing about the room you are in. */
+.setup__mute {
+  margin-right: auto;
+  color: var(--text-3);
+}
+
+.setup__mute:hover {
+  color: var(--text-2);
+}
+
+.setup__mute.is-off {
+  opacity: 0.7;
 }
 
 .setup__foot .chip {

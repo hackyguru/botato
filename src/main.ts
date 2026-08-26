@@ -8,6 +8,7 @@
 import QRCode from "qrcode";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { Music } from "./music";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import RFB from "@novnc/novnc";
 
@@ -322,6 +323,10 @@ interface AppSettings {
   backupKeep?: number;
   /** When the last good one was written. */
   backupAt?: number;
+  /** Music under the setup carousel. Absent means it has not been turned off,
+   *  which is not the same as having been turned on: it plays the first time
+   *  and then only if it was left alone. */
+  hush?: boolean;
 }
 
 const DEFAULT_APP: AppSettings = {
@@ -7949,6 +7954,28 @@ void listen<string>("claude-setup", (event) => {
   paintSetup();
 });
 
+/* ------------------------------------------------------------- setup music */
+
+const music = new Music();
+const setupMute = $<HTMLButtonElement>("#setup-mute");
+
+function paintMute(): void {
+  const off = Boolean(appSettings().hush);
+  setupMute.querySelector("use")?.setAttribute("href", off ? "#i-hush" : "#i-sound");
+  setupMute.title = off ? "Play music" : "Stop the music";
+  setupMute.setAttribute("aria-label", setupMute.title);
+  setupMute.classList.toggle("is-off", off);
+}
+
+setupMute.addEventListener("click", () => {
+  const off = !appSettings().hush;
+  state.app = { ...appSettings(), hush: off };
+  save();
+  paintMute();
+  if (off) music.stop();
+  else void music.start();
+});
+
 async function openSetup(at: SetupStep = "welcome"): Promise<void> {
   setupAt = at;
   $<HTMLInputElement>("#setup-name").value = appSettings().name ?? "";
@@ -7970,6 +7997,9 @@ async function openSetup(at: SetupStep = "welcome"): Promise<void> {
     });
   setupLog = [];
   setupWrap.hidden = false;
+  setupShown = null;
+  paintMute();
+  if (!appSettings().hush) void music.start();
   paintSetup();
   await Promise.all([refreshClaude(), refreshEngine()]);
   paintSetup();
@@ -7977,6 +8007,7 @@ async function openSetup(at: SetupStep = "welcome"): Promise<void> {
 
 function closeSetup(): void {
   setupWrap.hidden = true;
+  music.stop();
   stopSignInWatch();
   // Shown once. Someone who skipped a step can reopen it from the account menu,
   // and a missing CLI still warns on its own.
@@ -8486,14 +8517,64 @@ function somethingCanAnswer(): boolean {
   return Boolean(settings.model);
 }
 
+/** Which step is on screen, as opposed to which one is current. They differ
+ *  only while one is sliding off. */
+let setupShown: SetupStep | null = null;
+let setupWay: "on" | "back" = "on";
+
+/** Move the carousel to a step.
+ *
+ *  paintSetup runs on every log line and every poll, so this does nothing at
+ *  all unless the step actually changed — otherwise the panel would restart its
+ *  animation every time the installer said something.
+ *
+ *  Both steps are on screen while it moves: the one leaving is taken out of the
+ *  flow so the one arriving can occupy the same place, and put back afterwards.
+ *  Without that they stack and the sheet lurches. */
+function showStep(to: SetupStep): void {
+  const all = [...setupWrap.querySelectorAll<HTMLElement>(".setup__step")];
+  const next = all.find((s) => s.dataset.step === to);
+  if (!next) return;
+
+  if (setupShown === to) {
+    for (const s of all) if (s !== next && !s.classList.contains("is-leaving")) s.hidden = true;
+    next.hidden = false;
+    return;
+  }
+
+  const from = all.find((s) => s.dataset.step === setupShown);
+  setupShown = to;
+
+  for (const s of all) {
+    if (s !== next && s !== from) s.hidden = true;
+  }
+
+  next.hidden = false;
+  next.classList.remove("is-leaving", "is-on", "is-back");
+  // Reading offsetWidth between removing and adding is what makes the browser
+  // start the animation again rather than treating it as never having stopped.
+  void next.offsetWidth;
+  next.classList.add(setupWay === "back" ? "is-back" : "is-on");
+
+  if (!from || from === next) return;
+  from.classList.remove("is-on", "is-back");
+  from.classList.add("is-leaving", setupWay === "back" ? "is-back" : "is-on");
+  const done = (): void => {
+    from.classList.remove("is-leaving", "is-on", "is-back");
+    from.hidden = true;
+  };
+  from.addEventListener("animationend", done, { once: true });
+  // A belt for the case the animation never runs — reduced motion, a hidden
+  // window — where animationend does not fire and the old step would stay.
+  window.setTimeout(done, 400);
+}
+
 function paintSetup(): void {
   const index = SETUP_STEPS.indexOf(setupAt);
   setupRail.querySelectorAll<HTMLElement>(".setup__seg").forEach((seg, at) => {
     seg.dataset.on = String(at <= index);
   });
-  setupWrap.querySelectorAll<HTMLElement>(".setup__step").forEach((section) => {
-    section.hidden = section.dataset.step !== setupAt;
-  });
+  showStep(setupAt);
 
   const busy = installing || (Boolean(claudeBusy) && !signInWaiting);
   setupBack.hidden = index === 0 || busy;
@@ -8770,6 +8851,10 @@ function rememberRoute(): void {
 }
 
 function goTo(step: SetupStep): void {
+  // Which way the carousel is travelling, so a step arrives from the side you
+  // are going towards and leaves towards the side you came from.
+  setupWay =
+    SETUP_STEPS.indexOf(step) < SETUP_STEPS.indexOf(setupAt) ? "back" : "on";
   setupAt = step;
   setupLog = [];
   paintSetup();
