@@ -95,11 +95,19 @@ textarea {
   outline-offset: 2px;
 }
 
-/* Except where you always are. Opening a conversation puts the caret in the
-   composer, so a ring there is not news — it would simply be drawn around the
-   bottom of the window at all times. The caret says the same thing quietly. */
-#input:focus-visible,
-#search:focus-visible {
+/* Except on anything you type into.
+ *
+ * A field already says where you are: the caret is in it, blinking, which is
+ * the oldest and quietest indicator in the interface. A ring around it as well
+ * is a second answer to a question already answered, and it is the loudest
+ * thing on a sheet the moment you click a name — which is what it looked like,
+ * a box lit up in blue around a word you were only editing.
+ *
+ * Buttons, links and tabs keep theirs. Nothing else marks them, and a keyboard
+ * tabbing to Save with no ring is a keyboard lost. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
   outline: none;
 }
 
