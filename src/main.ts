@@ -159,6 +159,10 @@ interface Bot {
    *  want to sound different, not because anybody wants to choose fifty
    *  times. */
   voice?: string;
+  /** How it writes, as distinct from what it says. Absent means the one its id
+   *  chose, the same way its face and its voice are chosen; "plain" is the way
+   *  to say no. */
+  manner?: string;
   /** Which of that engine's models. Named in the engine's own vocabulary, so
    *  "opus", "gemini-2.5-pro" and "anthropic/claude-sonnet-4" all live here. */
   model: string;
@@ -2350,6 +2354,80 @@ function waitingHtml(msgId: string, note: string): void {
 
 /* ------------------------------------------------------------------ turns */
 
+/** How a bot writes.
+ *
+ *  Register only: how long its sentences run, how it opens, how warm it is on
+ *  the surface. Nothing here touches what it is willing to say, how sure it
+ *  claims to be, or whether it agrees with you — a "manner" that reached those
+ *  would be a personality prompt, and a personality prompt is how a competent
+ *  assistant is made worse. That is what the last line guards, and it is sent
+ *  with every one of them.
+ *
+ *  Picked by the id like the face and the voice, so a bot sounds like itself
+ *  from the first message and keeps sounding like itself. "Plain" is nothing
+ *  at all, for anyone who wants the model's own voice.
+ */
+const MANNERS: { key: string; name: string; line: string }[] = [
+  { key: "plain", name: "Plain", line: "" },
+  {
+    key: "brisk",
+    name: "Brisk",
+    line:
+      "Answer in as few words as the question needs. Lead with the answer and put the reasoning " +
+      "after it, if it is load-bearing at all.",
+  },
+  {
+    key: "warm",
+    name: "Warm",
+    line:
+      "Write the way a helpful colleague talks: whole sentences, and a word of acknowledgement when " +
+      "somebody has hit a wall. The warmth is in the phrasing and never in the facts — a problem is " +
+      "still a problem.",
+  },
+  {
+    key: "dry",
+    name: "Dry",
+    line:
+      "Understated. Say the awkward part plainly, without softening it and without dressing it up. " +
+      "No exclamation marks and no enthusiasm you do not have.",
+  },
+  {
+    key: "precise",
+    name: "Precise",
+    line:
+      "Say exactly what you mean, with the qualifications attached to the claim rather than trailing " +
+      "after it. Prefer a number to an adjective, and name the thing rather than calling it 'it'.",
+  },
+  {
+    key: "plan-first",
+    name: "Plan first",
+    line:
+      "Open with one line saying what you are about to do, then do it. If a job has more than three " +
+      "steps, list them before you start.",
+  },
+];
+
+/** A guard sent with every manner: the manner is a way of writing, and it is
+ *  never a reason to be less straight with somebody. */
+const MANNER_GUARD =
+  "This is how you write, not what you say. Never soften a fact, overstate a result, or agree with " +
+  "something you do not agree with in order to sound a particular way.";
+
+function mannerOf(bot: Bot): { key: string; name: string; line: string } {
+  const chosen = bot.manner && MANNERS.find((m) => m.key === bot.manner);
+  if (chosen) return chosen;
+  // The same trick the face uses, on its own slice of the hash so two bots
+  // with the same eyes do not have to have the same manner.
+  const picked = MANNERS.slice(1);
+  return picked[(seedOf(bot.id) >> 15) % picked.length];
+}
+
+/** The line to put in a prompt, if there is one. */
+function mannerLine(bot: Bot): string {
+  const manner = mannerOf(bot);
+  return manner.line ? `How you write: ${manner.line} ${MANNER_GUARD}` : "";
+}
+
 function systemPromptFor(bot: Bot): string {
   return [
     `You are "${bot.name}", one of several bots the user keeps in botcage, a desktop app where each bot is a persistent chat.`,
@@ -2362,6 +2440,7 @@ function systemPromptFor(bot: Bot): string {
     // is passed through rather than dressed up as a sentence.
     bot.role ? `What you are here to do, as the user described it:\n\n${bot.role}` : "",
     `You are talking in a chat window, so reply conversationally and keep it tight — a couple of short paragraphs unless depth is asked for. Markdown is rendered: bold, lists, and fenced code blocks all display properly.`,
+    mannerLine(bot),
     `Your working directory is a private scratch folder for this bot. You can read and write files there, and search the web, but you have no shell access and no access to the rest of the machine.`,
     `CLAUDE.md in that folder is loaded automatically at the start of every turn — it is your memory across sessions. When you learn something that will still matter next time (a decision, a preference, context that took work to establish), add it to the Memory section with the Edit tool. Don't record what the chat already shows.`,
   ]
@@ -2865,6 +2944,22 @@ function paintHires(hiring: boolean): void {
       `<span class="hire__name">${escapeHtml(hire.name)}</span>` +
       `<span class="hire__blurb">${escapeHtml(hire.blurb)}</span></button>`,
   ).join("");
+}
+
+/** The manner picker: what its id chose, then the rest by name.
+ *
+ *  The first entry is the default and says what it resolved to, so a bot that
+ *  has never been touched still tells you how it writes rather than leaving
+ *  "Its own" to mean anything. */
+function paintSheetManners(bot: Bot | null): void {
+  const picker = $<HTMLSelectElement>("#sheet-manner");
+  const own = bot ? mannerOf({ ...bot, manner: undefined }) : null;
+  picker.innerHTML =
+    `<option value="">${own ? `${escapeHtml(own.name)} — chosen by its id` : "Chosen by its id"}</option>` +
+    MANNERS.map(
+      (m) => `<option value="${m.key}">${escapeHtml(m.name)}</option>`,
+    ).join("");
+  picker.value = bot?.manner ?? "";
 }
 
 function renderSheetPreview(bot?: Bot | null): void {
@@ -3743,6 +3838,7 @@ function openSheet(bot: Bot | null = null): void {
     provider: bot?.provider ?? (bot ? undefined : appSettings().provider),
     model: bot?.model ?? (appSettings().engine ? appSettings().model : ""),
   };
+  paintSheetManners(bot);
   paintSheetEngines(bot);
   void paintSheetVoices(bot);
   sheetBrowser.value = bot?.machine?.browser ?? "";
@@ -4682,6 +4778,8 @@ function saveSheet(): void {
       // storing the resolved name would freeze it against a better one being
       // installed later.
       voice: $<HTMLSelectElement>("#sheet-voice").value || undefined,
+      // Empty means the one its id chose, for the same reason as the voice.
+      manner: $<HTMLSelectElement>("#sheet-manner").value || undefined,
       machine: machineFromSheet(),
     });
 
@@ -4971,6 +5069,9 @@ function channelPromptFor(ch: Channel, bot: Bot): string {
     userName() ? `The person you are talking to is called ${userName()}.` : "",
     ch.purpose ? `What this channel is for:\n\n${ch.purpose}` : "",
     bot.role ? `What you are here to do, as the user described it:\n\n${bot.role}` : "",
+    // The same manner it has in its own chat: a bot that writes one way alone
+    // and another in a room is two bots wearing one name.
+    mannerLine(bot),
     others.length
       ? `Also in this channel: ${others.map((b) => `${b.name}${b.role ? ` (${b.role.split("\n")[0].slice(0, 120)})` : ""}`).join("; ")}.`
       : `You are the only bot in this channel for now.`,
