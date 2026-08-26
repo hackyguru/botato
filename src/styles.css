@@ -303,6 +303,12 @@ textarea {
   fill: var(--blue);
 }
 
+/* The antenna's stem and the ears, a shade back so they read as behind the
+   head rather than as part of its outline. */
+.brand__deep {
+  fill: #005cbe;
+}
+
 .brand__ink {
   fill: rgba(0, 0, 0, 0.72);
 }
@@ -310,7 +316,7 @@ textarea {
 .brand__smile {
   fill: none;
   stroke: rgba(0, 0, 0, 0.72);
-  stroke-width: 1.6;
+  stroke-width: 1.1;
   stroke-linecap: round;
 }
 
