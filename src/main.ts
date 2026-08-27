@@ -3547,17 +3547,37 @@ function renderRoutines(): void {
       .sort((one, two) => one.routine.at.localeCompare(two.routine.at));
 
   $<HTMLDivElement>("#cal-cols").innerHTML = days
-    .map((day) => (month ? monthCell(day, dueOn(day), today) : hourColumn(day, dueOn(day), now, today)))
+    .map((day) =>
+      month
+        ? monthCell(day, dueOn(day), today)
+        : hourColumn(day, dueOn(day), now, today, drawn.length === 1 ? drawn[0] : undefined),
+    )
     .join("");
 }
 
 /** One day as hours: the grid a day and a week are both made of. */
-function hourColumn(day: Date, due: { bot: Bot; routine: Routine }[], now: Date, today: string): string {
+function hourColumn(
+  day: Date,
+  due: { bot: Bot; routine: Routine }[],
+  now: Date,
+  today: string,
+  /** Whose hours to draw, when the calendar is one bot's. On everybody's it is
+   *  nobody's: five shifts laid over each other is a grid with no clear hours
+   *  at all, which is worse than not saying. */
+  shift?: Bot,
+): string {
   const iso = isoDate(day);
-  const slots = Array.from(
-    { length: 24 },
-    (_, hour) => `<div class="cal__slot" data-day="${iso}" data-hour="${hour}"></div>`,
-  ).join("");
+  const slots = Array.from({ length: 24 }, (_, hour) => {
+    // The hour is off if the bot is off for the whole of it. Judged on the
+    // half hour rather than the start: a shift that ends at 09:30 leaves half
+    // an hour of work in the nine o'clock slot, and greying it would be a lie
+    // about a routine that will run.
+    const off =
+      shift?.hours &&
+      !onTheClock(shift, new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour, 0)) &&
+      !onTheClock(shift, new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour, 30));
+    return `<div class="cal__slot${off ? " is-off" : ""}" data-day="${iso}" data-hour="${hour}"></div>`;
+  }).join("");
 
   // Two routines in the same hour would sit exactly on top of each other, and
   // the one underneath would be a routine nobody could see was there. They

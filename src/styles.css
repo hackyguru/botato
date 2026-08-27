@@ -1933,6 +1933,20 @@ select:focus-visible {
   background: var(--fill-1);
 }
 
+/* Outside this bot's hours. Darker rather than hatched or greyed: the grid is
+   already dark, and the eye reads "less lit" as "less of a working hour"
+   without anything having to be explained.
+
+   Still clickable. Putting a routine in an hour a bot does not work is a thing
+   somebody might mean, and it will simply wait for the morning. */
+.cal__slot.is-off {
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.cal__slot.is-off:hover {
+  background: rgba(0, 0, 0, 0.24);
+}
+
 .cal__col.is-today {
   background: rgba(10, 132, 255, 0.045);
 }
