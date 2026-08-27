@@ -5327,6 +5327,11 @@ function freshenGuide(bot: Bot): void {
 function openBot(id: string): void {
   const opening = state.bots.find((bot) => bot.id === id);
   if (opening) freshenGuide(opening);
+  // The desk is a list of places to be rather than a place to be, and picking
+  // somebody is going to one of them. Without this, choosing a bot from the
+  // sidebar changed the name at the top and left the desk underneath it,
+  // which reads as the click having done nothing.
+  if (deskOpen) showDesk(false);
   // The shared calendar belongs to nobody, so picking somebody leaves it.
   if (calEveryone) {
     calEveryone = false;
@@ -6013,6 +6018,7 @@ function renderChannel(): void {
 }
 
 function openChannel(id: string): void {
+  if (deskOpen) showDesk(false);
   state.activeChannel = id;
   // A room has no calendar of its own, so leave the one that was open.
   if (routinesOpen) {
@@ -9130,9 +9136,8 @@ $<HTMLElement>("#desk").addEventListener("click", (e) => {
   if (!pick) return;
   const item = desk[Number(pick.dataset.deskAt)];
   if (!item) return;
-  // Going somewhere is leaving here: the desk is a list of places to be, not a
-  // place to be.
-  showDesk(false);
+  // Going somewhere is leaving here — which openBot and openChannel now do on
+  // their own, from wherever they were called.
   if (item.at.channelId) openChannel(item.at.channelId);
   else if (item.at.botId) openBot(item.at.botId);
   else void openAppSettings();
