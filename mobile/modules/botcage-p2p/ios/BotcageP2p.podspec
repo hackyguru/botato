@@ -19,25 +19,6 @@ Pod::Spec.new do |s|
   # state through SystemConfiguration, and reaches the keychain through Security.
   s.frameworks = 'SystemConfiguration', 'Security'
 
-  # Swift/Objective-C compatibility
-  s.pod_target_xcconfig = {
-    'DEFINES_MODULE' => 'YES',
-    # Where CocoaPods unpacks the xcframework's slice. Without this the
-    # generated bindings' `#if canImport(botcage_p2pFFI)` quietly fails and
-    # every Rust symbol goes missing at compile time — a silent guard around a
-    # missing search path, which is a miserable thing to debug.
-    'SWIFT_INCLUDE_PATHS' => '"$(PODS_XCFRAMEWORKS_BUILD_DIR)/BotcageP2p"',
-    'LIBRARY_SEARCH_PATHS' => '"$(PODS_XCFRAMEWORKS_BUILD_DIR)/BotcageP2p"',
-  }
-
-  # The app target does the final link, and CocoaPods only puts the pod's own
-  # build directory on its search path — not the one the xcframework's slice is
-  # unpacked into. Without this the link fails with "library 'botcage_p2p' not
-  # found" even though the framework is present and correctly declared.
-  s.user_target_xcconfig = {
-    'LIBRARY_SEARCH_PATHS' => '"$(PODS_XCFRAMEWORKS_BUILD_DIR)/BotcageP2p"',
-  }
-
   # Everything except the xcframework's own contents: sweeping its headers into
   # source_files makes CocoaPods try to compile them.
   s.source_files = "*.{h,m,mm,swift,hpp,cpp}"
@@ -56,10 +37,19 @@ Pod::Spec.new do |s|
   # than referenced directly, and the linker would otherwise drop the archive.
   xcframework = '$(PODS_ROOT)/../../modules/botcage-p2p/ios/BotcageP2P.xcframework'
 
+  # `$(inherited)` here for the same reason it is on the linker flags below, and
+  # it took a broken build to notice it was missing: an SDK-conditional
+  # assignment replaces the value for that SDK outright, and the value it
+  # replaced is where Swift finds ExpoModulesCore. Without it this module
+  # compiles against a world with no `Module` type in it and every line of the
+  # definition fails at once — nineteen errors that say nothing about search
+  # paths.
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
-    'SWIFT_INCLUDE_PATHS[sdk=iphonesimulator*]' => "\"#{xcframework}/ios-arm64_x86_64-simulator/Headers\"",
-    'SWIFT_INCLUDE_PATHS[sdk=iphoneos*]' => "\"#{xcframework}/ios-arm64/Headers\"",
+    'SWIFT_INCLUDE_PATHS[sdk=iphonesimulator*]' =>
+      "$(inherited) \"#{xcframework}/ios-arm64_x86_64-simulator/Headers\"",
+    'SWIFT_INCLUDE_PATHS[sdk=iphoneos*]' =>
+      "$(inherited) \"#{xcframework}/ios-arm64/Headers\"",
   }
 
   # $(inherited) is not optional: an SDK-conditional assignment replaces the
