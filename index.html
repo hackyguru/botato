@@ -969,6 +969,25 @@
                 <button type="button" class="btn-primary" id="app-remote-new-code">Show a pairing code</button>
               </div>
               <div class="setting setting--stack">
+                <span class="setting__label">Notifications to your phone
+                  <span class="setting__hint" id="app-push-says">Not set up.</span>
+                </span>
+                <!-- This machine talks to Apple itself. What it needs is the
+                     key, which only the person with the developer account can
+                     get, so the row asks for it rather than pretending. -->
+                <div class="row">
+                  <input id="app-push-key-id" class="picker picker--text" placeholder="Key ID"
+                         spellcheck="false" maxlength="10" />
+                  <input id="app-push-team" class="picker picker--text" placeholder="Team ID"
+                         spellcheck="false" maxlength="10" />
+                </div>
+                <div class="row">
+                  <button type="button" class="chip" id="app-push-pick"><span>Choose the .p8…</span></button>
+                  <button type="button" class="chip" id="app-push-forget" hidden><span>Forget the key</span></button>
+                </div>
+              </div>
+
+              <div class="setting setting--stack">
                 <span class="setting__label">Paired devices
                   <span class="setting__hint" id="app-remote-devices">None yet.</span>
                 </span>

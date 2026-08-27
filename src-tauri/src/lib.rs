@@ -30,6 +30,7 @@ mod mcp;
 mod mcp_client;
 mod oauth;
 mod p2p;
+mod push;
 mod plugins;
 mod remote;
 mod sandbox;
@@ -1499,6 +1500,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             ask,
             bundled,
+            push::push_state,
+            push::push_setup,
+            push::push_forget,
+            push::push_send,
             cancel,
             forget_bot,
             clear_thread,

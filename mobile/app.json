@@ -13,6 +13,9 @@
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "botcage connects directly to your own laptop.",
         "NSCameraUsageDescription": "botcage uses the camera once, to scan the pairing code your laptop shows."
+      },
+      "entitlements": {
+        "aps-environment": "development"
       }
     },
     "android": {
@@ -35,7 +38,8 @@
         {
           "cameraPermission": "botcage uses the camera once, to scan the pairing code your laptop shows."
         }
-      ]
+      ],
+      "expo-notifications"
     ],
     "scheme": "botcage"
   }

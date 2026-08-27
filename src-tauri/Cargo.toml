@@ -41,6 +41,10 @@ flate2 = "1"
 rand = "0.8"
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2.3.3"
+# ES256 for the APNs bearer token, and nothing else: no PEM-less builds, no
+# aws-lc, no TLS stack. `rust_crypto` keeps it to pure Rust, which keeps the
+# binary small and the build honest on both platforms.
+jsonwebtoken = { version = "11.0.0", default-features = false, features = ["use_pem", "rust_crypto"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

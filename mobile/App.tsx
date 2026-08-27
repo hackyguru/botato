@@ -44,6 +44,7 @@ import Calendar from "./src/screens/Calendar";
 import Drawer from "./src/drawer";
 import type { Mood } from "./src/face";
 import Foot from "./src/foot";
+import { pushWhere, showThemWhileOpen } from "./src/push";
 import Rail from "./src/rail";
 import Phone from "./src/screens/Phone";
 import { T } from "./src/theme";
@@ -277,6 +278,26 @@ export default function App() {
     });
     return () => sub.remove();
   }, [screen, aside, calFor]);
+
+  /* Where Apple should deliver, when this app is not running.
+   *
+   * Sent on every launch rather than once and remembered: a token changes when
+   * the app is reinstalled or the phone is restored, and a laptop pushing to a
+   * token that has moved on is a laptop that thinks it told you. */
+  useEffect(() => {
+    if (!pairing) return;
+    let gone = false;
+    showThemWhileOpen();
+    void pushWhere().then((where) => {
+      if (gone || !where) return;
+      // Its own call rather than part of the state fetch: this is the phone
+      // telling the laptop something, and everything else is the phone asking.
+      void call(pairing, "phone/push", { ...where }).catch(() => {});
+    });
+    return () => {
+      gone = true;
+    };
+  }, [pairing]);
 
   const act = useCallback(
     async (kind: string, payload: Record<string, unknown> = {}) => {

@@ -298,6 +298,10 @@ const MODEL = "opus";
 
 interface Persisted {
   bots: Bot[];
+  /** Phones that have said where Apple should deliver to them. Kept per token
+   *  rather than per device: a reinstall issues a new one, and the old one is
+   *  a phone that no longer exists. */
+  phones?: { token: string; sandbox: boolean; name: string; at: number }[];
   /** Absent on every state saved before rooms existed. */
   channels?: Channel[];
   /** Absent on every state saved before categories existed. */
@@ -834,6 +838,45 @@ async function nudge(title: string, body: string): Promise<void> {
     // takes you anyway.
     body: body.replace(/\s+/g, " ").trim().slice(0, 160),
   });
+}
+
+/** Which routine started the turn a bot is taking, so a notification can say
+ *  what it was. Cleared when the turn ends: a bot's next turn is yours unless
+ *  something says otherwise. */
+const fromRoutine = new Map<string, string>();
+
+/** Tell the phones, if any have said where they are.
+ *
+ *  Same rule as the notification on this machine: only what is blocked on you,
+ *  and only while you are looking at something else. A phone that buzzes for a
+ *  message you are watching arrive is a phone you leave face down.
+ *
+ *  One at a time and quietly. A phone that has been reinstalled leaves a token
+ *  Apple will refuse, and a refusal is not worth a message in front of
+ *  somebody who is not even at this machine — it drops out of the list instead.
+ */
+async function nudgePhones(title: string, body: string): Promise<void> {
+  const phones = state.phones ?? [];
+  if (!phones.length || !appSettings().notify || document.hasFocus()) return;
+
+  const line = body.replace(/\s+/g, " ").trim().slice(0, 160);
+  const gone: string[] = [];
+  for (const phone of phones) {
+    await invoke("push_send", {
+      tokenHex: phone.token,
+      sandbox: phone.sandbox,
+      title,
+      body: line,
+    }).catch((err) => {
+      // Apple's own words. A token it will never accept again is dropped; a
+      // network that was down for a second is not.
+      if (/BadDeviceToken|Unregistered|ExpiredToken/i.test(String(err))) gone.push(phone.token);
+    });
+  }
+  if (gone.length) {
+    state.phones = phones.filter((one) => !gone.includes(one.token));
+    save();
+  }
 }
 
 function toast(msg: string): void {
@@ -2890,10 +2933,22 @@ function handleBotEvent(event: BotEvent): void {
   // The two things that wait for you, said out loud if you are elsewhere.
   const whose = state.bots.find((b) => b.id === event.botId);
   const said = inflight.get(event.botId)?.message.text ?? "";
-  if (whose && event.kind === "done" && mentionsYou(said)) {
+  // Work that happened while you were not here. This is the one the phone was
+  // asked for: a routine ran, a bot reported, and nobody was watching.
+  const ran = fromRoutine.get(event.botId);
+  if (ran && (event.kind === "done" || event.kind === "error" || event.kind === "cancelled")) {
+    fromRoutine.delete(event.botId);
+  }
+
+  if (whose && event.kind === "done" && ran) {
+    void nudge(`${whose.name} · ${ran}`, said);
+    void nudgePhones(`${whose.name} · ${ran}`, said);
+  } else if (whose && event.kind === "done" && mentionsYou(said)) {
     void nudge(`${whose.name} needs you`, said);
+    void nudgePhones(`${whose.name} needs you`, said);
   } else if (whose && event.kind === "error") {
     void nudge(`${whose.name} stopped`, event.text ?? "Something went wrong");
+    void nudgePhones(`${whose.name} stopped`, event.text ?? "Something went wrong");
   }
   else if (event.kind === "thinking") setMood(event.botId, "think");
   else if (event.kind === "tool") setMood(event.botId, "work");
@@ -5683,6 +5738,7 @@ async function runStandup(room: Channel, routine: Routine, since: number): Promi
   const there = membersOf(room);
   for (const bot of there) {
     if (!channels().some((c) => c.id === room.id)) return;
+    fromRoutine.set(bot.id, routine.name);
     const asked =
       `Stand-up in #${room.name}. It is your turn.\n\n` +
       `Here is your week, from botcage's own records rather than from memory:\n\n` +
@@ -7104,6 +7160,7 @@ async function openAppSettings(): Promise<void> {
   appWrap.hidden = false;
 
   void refreshRemote();
+  void paintPush();
   // Unqualified on purpose: this function has a local named `window` (the usage
   // limit window), which shadows the global.
   if (codeTimer !== null) clearInterval(codeTimer);
@@ -7391,6 +7448,10 @@ function runRoutine(bot: Bot, routine: Routine): void {
 
   const was = routine.lastRunAt ?? 0;
   routine.lastRunAt = Date.now();
+  // So the notification can say "Build check" rather than "Engineer said
+  // something", which is the difference between a notification worth having
+  // and one worth switching off.
+  fromRoutine.set(bot.id, routine.name);
   // A task, not a routine: it has now happened, and should not happen again.
   if (routine.every === "once") routine.active = false;
 
@@ -10223,6 +10284,25 @@ let peerId: string | null = null;
 const appRemote = $<HTMLInputElement>("#app-remote");
 const remoteQr = $<HTMLCanvasElement>("#app-remote-qr");
 const remoteWhere = $<HTMLSpanElement>("#app-remote-where");
+/* --------------------------------------------------------- push to a phone */
+
+/** Say where this stands: set up and for which app, or what is missing.
+ *
+ *  The key is the one thing botcage cannot do for you — Apple issues it once,
+ *  to the person with the account — so the row says so plainly rather than
+ *  offering a switch that would do nothing. */
+async function paintPush(): Promise<void> {
+  const says = $<HTMLSpanElement>("#app-push-says");
+  const forget = $<HTMLButtonElement>("#app-push-forget");
+  const state = await invoke<{ ready: boolean; keyId?: string; topic?: string }>("push_state").catch(
+    () => ({ ready: false }) as { ready: boolean; keyId?: string; topic?: string },
+  );
+  forget.hidden = !state.ready;
+  says.textContent = state.ready
+    ? `Key ${state.keyId} · sending to ${state.topic}. Your laptop talks to Apple directly; nothing else is in between.`
+    : "Needs an APNs key from your Apple developer account — Keys, then a key with Apple Push Notifications on. The .p8 downloads once.";
+}
+
 const remotePairing = $<HTMLDivElement>("#app-remote-pairing");
 // The caption belongs to the card and goes with it: a heading over nothing is
 // worse than no heading.
@@ -10418,6 +10498,39 @@ $<HTMLButtonElement>("#app-remote-copy").addEventListener("click", async () => {
     return;
   }
   await copy(address);
+});
+
+$<HTMLButtonElement>("#app-push-pick").addEventListener("click", async () => {
+  const keyId = $<HTMLInputElement>("#app-push-key-id").value.trim();
+  const team = $<HTMLInputElement>("#app-push-team").value.trim();
+  if (!keyId || !team) {
+    toast("The key id and team id are on the page Apple gave you the key from");
+    return;
+  }
+  // The same lazy import the folder pickers use: the dialog plugin is a
+  // hundred kilobytes nobody needs until they open a picker.
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const picked = await open({
+    title: "The .p8 Apple gave you",
+    filters: [{ name: "APNs key", extensions: ["p8"] }],
+    multiple: false,
+    directory: false,
+  }).catch(() => null);
+  if (typeof picked !== "string") return;
+  try {
+    // The phone's own identifier, which is what Apple calls the topic.
+    await invoke("push_setup", { path: picked, keyId, teamId: team, topic: "com.botcage.phone" });
+    toast("Key saved — your phone will be told the next time something happens");
+  } catch (err) {
+    toast(String(err));
+  }
+  void paintPush();
+});
+
+$<HTMLButtonElement>("#app-push-forget").addEventListener("click", async () => {
+  await invoke("push_forget").catch(() => {});
+  toast("Key forgotten and deleted");
+  void paintPush();
 });
 
 $<HTMLButtonElement>("#app-remote-forget").addEventListener("click", async () => {
@@ -10681,6 +10794,25 @@ const REMOTE_ACTIONS: Record<string, (payload: Record<string, unknown>) => unkno
     }
     save();
     renderRoster();
+    return {};
+  },
+
+  /** Where Apple should deliver to this phone. Sent on every launch, so this
+   *  replaces rather than accumulates: a token that has moved on is a phone
+   *  the laptop only thinks it told. */
+  "phone/push": (p) => {
+    const token = String(p.token ?? "");
+    if (!/^[0-9a-f]{32,200}$/i.test(token)) throw new Error("that is not a device token");
+    const phones = (state.phones ?? []).filter((one) => one.token !== token);
+    phones.push({
+      token,
+      sandbox: Boolean(p.sandbox),
+      name: String(p.name ?? "a phone").slice(0, 60),
+      at: Date.now(),
+    });
+    // Two phones is a person with two phones; twenty is a list nobody pruned.
+    state.phones = phones.slice(-8);
+    save();
     return {};
   },
 
