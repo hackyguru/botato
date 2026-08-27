@@ -1407,7 +1407,7 @@ function load(): void {
 
 /** Something that is waiting on you rather than on a bot. */
 interface Waiting {
-  kind: "named" | "failed" | "engine";
+  kind: "named" | "asked" | "failed" | "engine";
   /** Who or what it is about. */
   who: string;
   /** What happened, in one line. */
@@ -1420,6 +1420,22 @@ interface Waiting {
    *  wire. Naming the destination instead lets both screens work out what
    *  going there means for them. */
   at: { botId?: string; channelId?: string; messageId?: string };
+}
+
+/** The question out of a turn that is mostly other things.
+ *
+ *  A desk row is one line and a notification is one line, and the line worth
+ *  having is the one that asks — not whatever the bot opened with. A turn that
+ *  spends three paragraphs explaining itself and ends "want me to log it?" is
+ *  waiting on that last sentence, so that is the sentence shown.
+ *
+ *  The last question rather than the first: a bot that asks something and then
+ *  narrows it is waiting on the narrower one. */
+function theAsk(text: string): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  const sentences = flat.match(/[^.!?]+[.!?]+/g);
+  const asks = sentences?.filter((one) => one.includes("?")) ?? [];
+  return (asks[asks.length - 1] ?? flat).trim();
 }
 
 /** Everything blocked on you, in one list.
@@ -1440,6 +1456,42 @@ function onYourDesk(): Waiting[] {
 
   const lastFromYou = (messages: Message[]) =>
     messages.reduce((at, m) => (m.from === "me" ? m.at : at), 0);
+
+  /** The bot's question left hanging at the end of a conversation, if there
+   *  is one.
+   *
+   *  A bot that finishes its turn by asking something is waiting on you, and
+   *  until now the desk only knew that if it happened to say your name. It
+   *  usually does not: a routine that fires at eight in the evening and asks
+   *  what you had for dinner is talking to whoever is there, and nobody is —
+   *  which is the exact case a page called "your desk" exists for.
+   *
+   *  Only the last thing said counts. A question three answers ago was
+   *  answered, and a list that keeps bringing it back is a list you learn to
+   *  scroll past.
+   *
+   *  A question mark, rather than a guess at what a question looks like.
+   *  Something that ends a turn and has one in it is asking; the alternative
+   *  is a rule about wording that would be wrong in both directions. */
+  const leftAsking = (messages: Message[]): Message | undefined => {
+    const since = lastFromYou(messages);
+    // Everything the bot has said since you last said anything. The routine
+    // markers are notes that a routine ran rather than something somebody
+    // said, and an empty turn is a turn still arriving.
+    const said = messages.filter(
+      (m) => m.at > since && m.from === "bot" && m.kind !== "routine" && m.text.trim(),
+    );
+    if (!said.length) return undefined;
+    // A failure is already on the list as a failure.
+    if (said.some((m) => m.error)) return undefined;
+    // Already on the list under its own name — a question that says your name
+    // is one thing waiting on you, not two.
+    if (said.some((m) => mentionsYou(m.text))) return undefined;
+    // The question itself, not whatever the bot said after it. A turn ends
+    // "…and I'll log it" as often as it ends with the question mark, and the
+    // line worth showing is the one that asked.
+    return said.find((m) => m.text.includes("?"));
+  };
 
   for (const bot of state.bots) {
     const since = lastFromYou(bot.messages);
@@ -1463,6 +1515,17 @@ function onYourDesk(): Waiting[] {
         });
       }
     }
+
+    const asking = leftAsking(bot.messages);
+    if (asking) {
+      out.push({
+        kind: "asked",
+        who: bot.name,
+        what: theAsk(asking.text),
+        when: asking.at,
+        at: { botId: bot.id, messageId: asking.id },
+      });
+    }
   }
 
   for (const ch of channels()) {
@@ -1475,6 +1538,17 @@ function onYourDesk(): Waiting[] {
         what: m.text.replace(/\s+/g, " ").trim(),
         when: m.at,
         at: { channelId: ch.id, messageId: m.id },
+      });
+    }
+
+    const asking = leftAsking(ch.messages);
+    if (asking) {
+      out.push({
+        kind: "asked",
+        who: `${nameOf(asking.by) || "A bot"} in ${ch.from ? "↳ " : "#"}${ch.name}`,
+        what: theAsk(asking.text),
+        when: asking.at,
+        at: { channelId: ch.id, messageId: asking.id },
       });
     }
   }
@@ -1496,7 +1570,7 @@ function onYourDesk(): Waiting[] {
   }
 
   return out.sort((a, b) => {
-    const rank = { engine: 0, failed: 1, named: 2 } as const;
+    const rank = { engine: 0, failed: 1, asked: 2, named: 3 } as const;
     return rank[a.kind] - rank[b.kind] || b.when - a.when;
   });
 }
@@ -1529,7 +1603,13 @@ function renderDesk(): void {
           (item, at) =>
             `<button type="button" class="desk-item desk-item--${item.kind}" data-desk-at="${at}">` +
             `<span class="desk-item__kind">${
-              item.kind === "engine" ? "Cannot run" : item.kind === "failed" ? "Failed" : "Named you"
+              item.kind === "engine"
+                ? "Cannot run"
+                : item.kind === "failed"
+                  ? "Failed"
+                  : item.kind === "asked"
+                    ? "Asked you"
+                    : "Named you"
             }</span>` +
             `<span class="desk-item__body">` +
             `<span class="desk-item__who">${escapeHtml(item.who)}</span>` +
@@ -1541,8 +1621,9 @@ function renderDesk(): void {
         .join("")
     : `<div class="desk__clear">` +
       `<p class="desk__clear-head">Nothing is waiting on you.</p>` +
-      `<p class="desk__clear-note">Bots that say your name, turns that failed, and engines that ` +
-      `cannot run turn up here. Everything else they can get on with themselves.</p>` +
+      `<p class="desk__clear-note">Bots that asked you something or said your name, turns that ` +
+      `failed, and engines that cannot run turn up here. Everything else they can get on with ` +
+      `themselves.</p>` +
       `</div>`;
 }
 
@@ -2971,6 +3052,13 @@ function handleBotEvent(event: BotEvent): void {
   } else if (whose && event.kind === "done" && mentionsYou(said)) {
     void nudge(`${whose.name} needs you`, said);
     void nudgePhones(`${whose.name} needs you`, said);
+  } else if (whose && event.kind === "done" && said.includes("?")) {
+    // A bot that finished by asking something is waiting on you as surely as
+    // one that said your name, and most of them do not say your name. Both
+    // nudges are already silent while this window has focus, so this is only
+    // ever a question asked while you were somewhere else.
+    void nudge(`${whose.name} asked you something`, theAsk(said));
+    void nudgePhones(`${whose.name} asked you something`, theAsk(said));
   } else if (whose && event.kind === "error") {
     void nudge(`${whose.name} stopped`, event.text ?? "Something went wrong");
     void nudgePhones(`${whose.name} stopped`, event.text ?? "Something went wrong");

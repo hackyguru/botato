@@ -119,9 +119,10 @@ export interface Snapshot {
   /** Absent from a laptop running a build older than engines. */
   engines?: EngineInfo[];
   /** What is blocked on you, as the laptop worked it out: a bot said your name
-   *  and you have not answered, a turn failed, an engine cannot run. */
+   *  and you have not answered, a bot asked you something and is waiting on
+ *  the answer, a turn failed, an engine cannot run. */
   desk?: {
-    kind: "named" | "failed" | "engine";
+    kind: "named" | "asked" | "failed" | "engine";
     who: string;
     what: string;
     when: number;

@@ -336,7 +336,13 @@ export default function Bots({
                     item.kind === "engine" ? s.waitingWarn : null,
                   ]}
                 >
-                  {item.kind === "engine" ? "CANNOT RUN" : item.kind === "failed" ? "FAILED" : "NAMED YOU"}
+                  {item.kind === "engine"
+                    ? "CANNOT RUN"
+                    : item.kind === "failed"
+                      ? "FAILED"
+                      : item.kind === "asked"
+                        ? "ASKED YOU"
+                        : "NAMED YOU"}
                 </Text>
                 <Text style={s.waitingWho} numberOfLines={1}>
                   {item.who}

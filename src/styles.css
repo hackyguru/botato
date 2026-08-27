@@ -639,6 +639,13 @@ select:focus-visible {
   color: var(--blue);
 }
 
+/* A question and a mention are both a bot waiting on you, and they sort next
+   to each other — so they read as one family rather than as two unrelated
+   things that happen to share a page. */
+.desk-item--asked .desk-item__kind {
+  color: var(--blue);
+}
+
 .desk-item__body {
   display: flex;
   flex: 1;
