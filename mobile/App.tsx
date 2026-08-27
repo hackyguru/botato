@@ -465,6 +465,20 @@ export default function App() {
                 onCreate={async (name, role) => {
                   await act("bot/create", { name, role });
                 }}
+                desk={snapshot?.desk}
+                onOpenDesk={(item) => {
+                  // The same three destinations the laptop's desk has, minus
+                  // the one it keeps for itself: an engine that cannot run is
+                  // fixed on the machine it cannot run on.
+                  const room = item.at.channelId
+                    ? channels.find((c) => c.id === item.at.channelId)
+                    : undefined;
+                  const whose = item.at.botId
+                    ? bots.find((b) => b.id === item.at.botId)
+                    : undefined;
+                  if (room) goToRoom(room);
+                  else if (whose) goToBot(whose);
+                }}
               />
 
               {/* Over the rail as well as the list, because it is about you and

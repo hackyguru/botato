@@ -1284,8 +1284,13 @@ interface Waiting {
   /** What happened, in one line. */
   what: string;
   when: number;
-  /** Where clicking it goes. */
-  go: () => void;
+  /** Where it is, as a place rather than as a click.
+   *
+   *  It used to be a closure, which was tidy on the laptop and useless the
+   *  moment the phone wanted the same list: a function does not go over a
+   *  wire. Naming the destination instead lets both screens work out what
+   *  going there means for them. */
+  at: { botId?: string; channelId?: string; messageId?: string };
 }
 
 /** Everything blocked on you, in one list.
@@ -1317,10 +1322,7 @@ function onYourDesk(): Waiting[] {
           who: bot.name,
           what: m.error,
           when: m.at,
-          go: () => {
-            openBot(bot.id);
-            gotoMessage(m.id);
-          },
+          at: { botId: bot.id, messageId: m.id },
         });
       } else if (mentionsYou(m.text)) {
         out.push({
@@ -1328,10 +1330,7 @@ function onYourDesk(): Waiting[] {
           who: bot.name,
           what: m.text.replace(/\s+/g, " ").trim(),
           when: m.at,
-          go: () => {
-            openBot(bot.id);
-            gotoMessage(m.id);
-          },
+          at: { botId: bot.id, messageId: m.id },
         });
       }
     }
@@ -1346,10 +1345,7 @@ function onYourDesk(): Waiting[] {
         who: `${nameOf(m.by) || "A bot"} in ${ch.from ? "↳ " : "#"}${ch.name}`,
         what: m.text.replace(/\s+/g, " ").trim(),
         when: m.at,
-        go: () => {
-          openChannel(ch.id);
-          gotoMessage(m.id);
-        },
+        at: { channelId: ch.id, messageId: m.id },
       });
     }
   }
@@ -1366,7 +1362,7 @@ function onYourDesk(): Waiting[] {
       who: engine.name,
       what: `${engine.ready.missing ?? "Not ready"} — ${mine.length} bot${mine.length === 1 ? "" : "s"} set to use it`,
       when: Date.now(),
-      go: () => void openAppSettings(),
+      at: {},
     });
   }
 
@@ -8788,7 +8784,10 @@ $<HTMLElement>("#desk").addEventListener("click", (e) => {
   // Going somewhere is leaving here: the desk is a list of places to be, not a
   // place to be.
   showDesk(false);
-  item.go();
+  if (item.at.channelId) openChannel(item.at.channelId);
+  else if (item.at.botId) openBot(item.at.botId);
+  else void openAppSettings();
+  if (item.at.messageId) gotoMessage(item.at.messageId);
 });
 
 $<HTMLElement>("#routines").addEventListener("click", (e) => {
@@ -10331,6 +10330,11 @@ function remoteSnapshot(): Record<string, unknown> {
     // business reimplementing, and a list of its own would go stale the day
     // one is added.
     manners: MANNERS.map((m) => ({ key: m.key, name: m.name })),
+    // What is blocked on you. Worked out here because the answer depends on
+    // things the phone does not have — which engines this machine can run —
+    // and because a second implementation would disagree with the first about
+    // what counts, which is the one thing a list like this cannot afford.
+    desk: onYourDesk(),
     bots: state.bots.map((bot) => ({
       id: bot.id,
       name: bot.name,

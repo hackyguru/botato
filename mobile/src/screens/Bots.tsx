@@ -18,7 +18,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import type { Bot, Channel, Message } from "../types";
+import type { Bot, Channel, Message, Snapshot } from "../types";
 import Face, { type Mood } from "../face";
 import { Gauge } from "../marks";
 import { T } from "../theme";
@@ -96,6 +96,8 @@ export default function Bots({
   onOpen,
   onOpenChannel,
   onCreate,
+  desk,
+  onOpenDesk,
 }: {
   bots: Bot[];
   /** What each face is doing, worked out where the event stream is. */
@@ -108,6 +110,9 @@ export default function Bots({
   onOpen: (bot: Bot) => void;
   onOpenChannel: (channel: Channel) => void;
   onCreate: (name: string, role: string) => Promise<void>;
+  /** What is blocked on you, as the laptop worked it out. */
+  desk?: Snapshot["desk"];
+  onOpenDesk: (item: NonNullable<Snapshot["desk"]>[number]) => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
@@ -216,6 +221,39 @@ export default function Bots({
       >
         {bots.length === 0 && !loading ? (
           <Text style={s.empty}>No bots yet. Tap + to make one.</Text>
+        ) : null}
+
+        {/* What is waiting on you, above everything else that is merely new.
+            An unread mark says something was said; this says nothing moves
+            until you look. Only when there is something — a heading over an
+            empty list is a heading that teaches you to skip it. */}
+        {desk?.length ? (
+          <>
+            <Text style={s.group}>WAITING ON YOU</Text>
+            {desk.slice(0, 6).map((item, at) => (
+              <Pressable
+                key={`${item.kind}-${at}`}
+                style={s.waiting}
+                onPress={() => onOpenDesk(item)}
+              >
+                <Text
+                  style={[
+                    s.waitingKind,
+                    item.kind === "failed" ? s.waitingBad : null,
+                    item.kind === "engine" ? s.waitingWarn : null,
+                  ]}
+                >
+                  {item.kind === "engine" ? "CANNOT RUN" : item.kind === "failed" ? "FAILED" : "NAMED YOU"}
+                </Text>
+                <Text style={s.waitingWho} numberOfLines={1}>
+                  {item.who}
+                </Text>
+                <Text style={s.waitingWhat} numberOfLines={2}>
+                  {item.what}
+                </Text>
+              </Pressable>
+            ))}
+          </>
         ) : null}
 
         {/* Rooms first, then the people in them — the order every app with
@@ -417,6 +455,23 @@ const s = StyleSheet.create({
     borderRadius: 14,
   },
   rowBody: { flex: 1, minWidth: 0 },
+  waiting: {
+    marginBottom: 6,
+    padding: 11,
+    backgroundColor: T.field,
+    borderRadius: 14,
+  },
+  waitingKind: {
+    color: T.blue,
+    fontSize: 10.5,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  waitingBad: { color: T.red },
+  waitingWarn: { color: T.amber },
+  waitingWho: { marginTop: 3, color: T.text, fontSize: 14.5, fontWeight: "600" },
+  waitingWhat: { marginTop: 1, color: T.text2, fontSize: 12.5, lineHeight: 17 },
+
   /* One bot, on a surface of its own. The channels above stay plain rows: they
      are a list of places, and places belong in a list. A bot is somebody, and
      the card is what stops eight of them reading as eight lines of text. */

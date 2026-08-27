@@ -118,6 +118,15 @@ export interface Snapshot {
   settings: Record<string, unknown>;
   /** Absent from a laptop running a build older than engines. */
   engines?: EngineInfo[];
+  /** What is blocked on you, as the laptop worked it out: a bot said your name
+   *  and you have not answered, a turn failed, an engine cannot run. */
+  desk?: {
+    kind: "named" | "failed" | "engine";
+    who: string;
+    what: string;
+    when: number;
+    at: { botId?: string; channelId?: string; messageId?: string };
+  }[];
   /** How a bot can be told to write. Sent rather than listed here: the default
    *  is picked from a hash of the bot's id, which is the laptop's to know. */
   manners?: { key: string; name: string }[];
