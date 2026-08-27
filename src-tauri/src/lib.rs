@@ -378,6 +378,19 @@ struct Asked {
     arguments: String,
 }
 
+/// Is this the packaged app, or a binary run straight out of `target`?
+///
+/// macOS hangs notifications off a bundle identifier, and a bare binary has
+/// none — so under `tauri dev` the notification goes nowhere and says nothing
+/// about it. The window that offers to send them asks this first, so a switch
+/// that cannot work says why instead of lying.
+#[tauri::command]
+fn bundled() -> bool {
+    std::env::current_exe()
+        .map(|path| path.to_string_lossy().contains(".app/Contents/MacOS/"))
+        .unwrap_or(false)
+}
+
 #[tauri::command]
 fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Result<(), String> {
     if running.0.lock().unwrap().contains_key(&req.bot_id) {
@@ -1479,10 +1492,13 @@ pub fn run() {
         // Only so a person can point at a folder for their backups. botcage
         // never opens one on its own.
         .plugin(tauri_plugin_dialog::init())
+        // Notifications when botcage is not the window you are looking at.
+        .plugin(tauri_plugin_notification::init())
         .manage(Running::default())
         .manage(sandbox::Sandboxes::default())
         .invoke_handler(tauri::generate_handler![
             ask,
+            bundled,
             cancel,
             forget_bot,
             clear_thread,

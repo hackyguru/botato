@@ -8,6 +8,12 @@
 import QRCode from "qrcode";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from "@tauri-apps/plugin-notification";
+
 import { Music } from "./music";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import RFB from "@novnc/novnc";
@@ -341,6 +347,10 @@ interface AppSettings {
   backupAt?: number;
   /** How much of the calendar was last on screen: a day, a week, or a month. */
   calSpan?: CalSpan;
+  /** Tell me when I am needed, while I am looking at something else. Off
+   *  until switched on, because switching it on is when macOS asks — and a
+   *  permission prompt nobody went looking for is a bad first minute. */
+  notify?: boolean;
   /** Music under the setup carousel. Absent means it has not been turned off,
    *  which is not the same as having been turned on: it plays the first time
    *  and then only if it was left alone. */
@@ -802,6 +812,28 @@ function markMentions(html: string, targets: Mentionable[]): string {
     out += part;
   }
   return out;
+}
+
+/** A notification, when botcage is not the window you are looking at.
+ *
+ *  The rule is the desk's rule: this is for things that are blocked on you, not
+ *  for things that happened. Every turn a bot takes is something that happened;
+ *  a bot saying your name and a turn that failed are the two that wait. Notify
+ *  on the rest and the notifications become a thing to switch off, which is the
+ *  same as not having them.
+ *
+ *  And never while you are looking at the app. A notification for the message
+ *  arriving on the screen in front of you is a notification about your own eyes.
+ */
+async function nudge(title: string, body: string): Promise<void> {
+  if (!canNotify || !appSettings().notify || document.hasFocus()) return;
+  if (!(await isPermissionGranted().catch(() => false))) return;
+  sendNotification({
+    title,
+    // One line's worth. The rest is in the app, which is where the button
+    // takes you anyway.
+    body: body.replace(/\s+/g, " ").trim().slice(0, 160),
+  });
 }
 
 function toast(msg: string): void {
@@ -2854,6 +2886,15 @@ function handleBotEvent(event: BotEvent): void {
 
   if (event.kind === "done") setMood(event.botId, "happy");
   else if (event.kind === "error") setMood(event.botId, "sad");
+
+  // The two things that wait for you, said out loud if you are elsewhere.
+  const whose = state.bots.find((b) => b.id === event.botId);
+  const said = inflight.get(event.botId)?.message.text ?? "";
+  if (whose && event.kind === "done" && mentionsYou(said)) {
+    void nudge(`${whose.name} needs you`, said);
+  } else if (whose && event.kind === "error") {
+    void nudge(`${whose.name} stopped`, event.text ?? "Something went wrong");
+  }
   else if (event.kind === "thinking") setMood(event.botId, "think");
   else if (event.kind === "tool") setMood(event.botId, "work");
   else if (event.kind === "cancelled") setMood(event.botId, "dizzy");
@@ -6670,6 +6711,31 @@ const appModel = $<HTMLSelectElement>("#app-model");
 const appScreen = $<HTMLSelectElement>("#app-screen");
 const appIdle = $<HTMLSelectElement>("#app-idle");
 const appRoutines = $<HTMLInputElement>("#app-routines");
+const appNotify = $<HTMLInputElement>("#app-notify");
+/** Whether this build can send a notification at all. Asked once: it cannot
+ *  change while the app is open. */
+let canNotify = true;
+void invoke<boolean>("bundled")
+  .then((yes) => {
+    canNotify = yes;
+    if (!yes) paintNotifyRow();
+  })
+  .catch(() => {});
+
+/** The row says what it can do. A switch that silently does nothing is worse
+ *  than no switch: you turn it on, believe it, and find out days later that
+ *  the thing you were waiting for never arrived. */
+function paintNotifyRow(): void {
+  const row = appNotify.closest(".setting");
+  const hint = row?.querySelector<HTMLElement>(".setting__hint");
+  appNotify.disabled = !canNotify;
+  row?.classList.toggle("is-off", !canNotify);
+  if (hint) {
+    hint.textContent = canNotify
+      ? "A notification when a bot says your name or a turn fails, and only while you are looking at something else."
+      : "Not from a development build: macOS hangs notifications off an app bundle, and this one is a bare binary. It works in the packaged app.";
+  }
+}
 const appAwake = $<HTMLInputElement>("#app-awake");
 const appLid = $<HTMLInputElement>("#app-lid");
 const appLogin = $<HTMLInputElement>("#app-login");
@@ -7032,6 +7098,8 @@ async function openAppSettings(): Promise<void> {
   appScreen.value = settings.screen;
   appIdle.value = String(settings.idleMinutes);
   appRoutines.checked = settings.routinesOn;
+  appNotify.checked = Boolean(settings.notify);
+  paintNotifyRow();
   appAwake.checked = settings.awake;
   appWrap.hidden = false;
 
@@ -7125,12 +7193,19 @@ void invoke<string>("user_name")
   .catch(() => {});
 
 function saveAppSettings(): void {
+  // Spread first. This rebuilt the whole object from the controls on screen,
+  // so every setting that has no control in this panel — the backup folder and
+  // its passphrase schedule, the calendar's span, whether the setup music is
+  // hushed — was dropped on the floor the moment anybody touched a switch.
+  // Toggling "Run routines" forgot where your backups went.
   state.app = {
+    ...appSettings(),
     model: appModel.value,
     screen: appScreen.value,
     idleMinutes: Number(appIdle.value),
     routinesOn: appRoutines.checked,
     awake: appAwake.checked,
+    notify: appNotify.checked,
     name: $<HTMLInputElement>("#app-name").value.trim() || undefined,
     engine: appSettings().engine,
     provider: appSettings().provider,
@@ -8562,6 +8637,29 @@ sheet.addEventListener("submit", (e) => {
 for (const control of [appModel, appScreen, appIdle, appRoutines, appAwake]) {
   control.addEventListener("change", saveAppSettings);
 }
+
+// Switching it on is when the machine asks — which is the whole reason it
+// starts off. A refusal turns the switch back rather than leaving it on and
+// silently doing nothing, which is the way a setting loses your trust.
+appNotify.addEventListener("change", async () => {
+  if (appNotify.checked && !(await isPermissionGranted().catch(() => false))) {
+    const answer = await requestPermission().catch(() => "denied");
+    if (answer !== "granted") {
+      appNotify.checked = false;
+      toast("macOS is not letting botcage send notifications");
+    }
+  }
+  saveAppSettings();
+  // One, now, so you know what they look like and that they arrive. This is
+  // the only one that fires while you are looking at the app, because it is
+  // the only one that is about the setting rather than about a bot.
+  if (appNotify.checked) {
+    sendNotification({
+      title: "botcage will tell you",
+      body: "When a bot says your name or a turn fails, and you are elsewhere.",
+    });
+  }
+});
 
 // A name is typed rather than picked, so it saves as it is typed — a change
 // event on a text field only fires when focus leaves it, and a settings panel

@@ -5116,6 +5116,17 @@ label.setting {
   cursor: pointer;
 }
 
+/* A row whose control cannot do anything here. Dimmed rather than hidden: the
+   setting exists, and knowing it exists is half of why you would go looking
+   for it in the packaged app. */
+.setting.is-off {
+  cursor: default;
+}
+
+.setting.is-off .setting__label {
+  opacity: 0.55;
+}
+
 .setting__label {
   flex: 1;
   min-width: 0;
