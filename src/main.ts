@@ -6068,20 +6068,37 @@ $<HTMLFormElement>("#channel-form").addEventListener("submit", (e) => {
   input.focus();
 });
 
+/** Take a room away, and everything that hung off it.
+ *
+ *  Its threads go too. A thread is a channel whose parent is this one, and a
+ *  thread whose parent is gone is drawn nowhere and reachable by nothing — it
+ *  would sit in the store for ever, holding a transcript, as a room that
+ *  cannot be opened. Each member kept its own conversation for each of them,
+ *  and those go with the rooms they belong to.
+ *
+ *  Returns how many rooms went, so the caller can say so. */
+function removeChannel(ch: Channel): number {
+  const going = [ch, ...channels().filter((c) => c.from?.channelId === ch.id)];
+  const gone = new Set(going.map((c) => c.id));
+  state.channels = channels().filter((c) => !gone.has(c.id));
+  for (const room of going) {
+    for (const botId of Object.keys(room.seats)) {
+      void invoke("clear_thread", { botId, thread: room.id }).catch(() => {});
+    }
+  }
+  if (state.activeChannel && gone.has(state.activeChannel)) state.activeChannel = null;
+  return going.length;
+}
+
 $<HTMLButtonElement>("#channel-delete").addEventListener("click", () => {
   const ch = channels().find((c) => c.id === editingChannel);
   if (!ch) return;
-  state.channels = channels().filter((c) => c.id !== ch.id);
-  // Each member kept a conversation for this room; it goes with the room.
-  for (const botId of Object.keys(ch.seats)) {
-    void invoke("clear_thread", { botId, thread: ch.id }).catch(() => {});
-  }
+  const went = removeChannel(ch);
   channelWrap.hidden = true;
-  state.activeChannel = null;
   save();
   renderRoster();
   renderThread();
-  toast(`Deleted #${ch.name}`);
+  toast(went > 1 ? `Deleted #${ch.name} and ${went - 1} thread${went > 2 ? "s" : ""}` : `Deleted #${ch.name}`);
 });
 
 $<HTMLButtonElement>("#channel-close").addEventListener("click", () => {
@@ -10763,6 +10780,45 @@ const REMOTE_ACTIONS: Record<string, (payload: Record<string, unknown>) => unkno
     save();
     renderRoster();
     return { id: made.id };
+  },
+
+  /** Rename a room, say what it is for, or change who is in it.
+   *
+   *  Only what the laptop's own form offers, and only fields that were sent:
+   *  a phone editing the name should not silently empty the purpose it never
+   *  showed. */
+  "channel/update": (p) => {
+    const room = channels().find((c) => c.id === String(p.channelId ?? ""));
+    if (!room) throw new Error("no such channel");
+
+    if (typeof p.name === "string") {
+      const name = handle(p.name);
+      if (!name) throw new Error("that name has nothing in it");
+      const taken = channels().some((c) => !c.from && c.name === name && c.id !== room.id);
+      if (taken) throw new Error(`there is already a #${name}`);
+      room.name = name;
+    }
+    if (typeof p.purpose === "string") room.purpose = p.purpose.trim();
+    if (Array.isArray(p.members)) {
+      room.members = p.members.map(String).filter((id) => state.bots.some((b) => b.id === id));
+    }
+
+    save();
+    renderRoster();
+    renderChannel();
+    return { ok: true };
+  },
+
+  /** Close a room for good, from the phone. Its threads go with it, by the
+   *  same route the laptop's own button takes. */
+  "channel/delete": (p) => {
+    const room = channels().find((c) => c.id === String(p.channelId ?? ""));
+    if (!room) throw new Error("no such channel");
+    const went = removeChannel(room);
+    save();
+    renderRoster();
+    renderThread();
+    return { went };
   },
 
   /** Mark a room read, because reading it on the phone is reading it. */

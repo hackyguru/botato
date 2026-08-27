@@ -22,6 +22,7 @@ import {
 import type { Bot, Message } from "../types";
 import Face from "../face";
 import Composer from "../composer";
+import Sheet from "../sheet";
 import Markdown, { type Mentionable } from "../markdown";
 import { Cal } from "../marks";
 import { T } from "../theme";
@@ -36,6 +37,7 @@ export default function Chat({
   onSend,
   onCancel,
   onCalendar,
+  onPin,
 }: {
   bot: Bot;
   /** What the bot is doing right now, from the event stream. */
@@ -48,9 +50,17 @@ export default function Chat({
   onCancel: () => void;
   /** What this bot has standing, on the calendar. */
   onCalendar: () => void;
+  /** Pin or unpin one message. No threads here — a thread hangs off a message
+   *  in a room, and this is not one. */
+  onPin: (messageId: string) => Promise<void>;
 }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  /** Held by id, so the sheet follows the message across a refresh rather
+   *  than going on describing how it used to be. */
+  const [acting, setActing] = useState<string | null>(null);
+  const chosen = bot.messages.find((m) => m.id === acting);
+  const [working, setWorking] = useState(false);
 
   // A chat has two people in it, so that is the whole guest list: no
   // "@everyone" here, because there is no room to call.
@@ -120,7 +130,9 @@ export default function Chat({
               name={bots ? bot.name : "You"}
               at={message.at}
               fromPhone={message.fromPhone}
+              onHold={() => setActing(message.id)}
             >
+              {message.pinned ? <Text style={s.pin}>📌</Text> : null}
               {bots ? (
                 // What a bot writes is markdown, and the desktop renders it. A
                 // phone showing the backticks is not a smaller app, just a
@@ -143,6 +155,47 @@ export default function Chat({
         ) : null}
       </ScrollView>
 
+      <Sheet open={!!chosen} title="Message" onClose={() => setActing(null)}>
+        {chosen ? (
+          <>
+            <Text style={s.quoted} numberOfLines={3}>
+              {chosen.text.trim() || "…"}
+            </Text>
+            <Pressable
+              style={s.act}
+              disabled={working}
+              onPress={async () => {
+                setWorking(true);
+                try {
+                  await onPin(chosen.id);
+                  setActing(null);
+                } finally {
+                  setWorking(false);
+                }
+              }}
+            >
+              <Text style={s.actText}>{chosen.pinned ? "Unpin message" : "Pin message"}</Text>
+            </Pressable>
+            <Pressable
+              style={s.act}
+              onPress={() => {
+                setDraft(
+                  `${chosen.text
+                    .split("\n")
+                    .slice(0, 2)
+                    .map((line) => `> ${line}`)
+                    .join("\n")}\n\n${draft}`,
+                );
+                setActing(null);
+              }}
+            >
+              <Text style={s.actText}>Quote in a reply</Text>
+            </Pressable>
+            {working ? <ActivityIndicator color={T.text3} style={s.acting} /> : null}
+          </>
+        ) : null}
+      </Sheet>
+
       <Composer
         value={draft}
         onChange={setDraft}
@@ -155,6 +208,26 @@ export default function Chat({
 }
 
 const s = StyleSheet.create({
+  pin: { marginBottom: 2, fontSize: 12 },
+  quoted: {
+    marginBottom: 4,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    color: T.text2,
+    fontSize: 14,
+    lineHeight: 19,
+    backgroundColor: T.field,
+    borderRadius: 10,
+  },
+  act: {
+    justifyContent: "center",
+    height: 46,
+    paddingHorizontal: 13,
+    backgroundColor: T.field,
+    borderRadius: 11,
+  },
+  actText: { color: T.text, fontSize: 15 },
+  acting: { paddingTop: 6 },
   fill: { flex: 1, backgroundColor: T.bg },
   head: {
     flexDirection: "row",

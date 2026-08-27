@@ -10,9 +10,19 @@
  * to attach — a button that opens nothing is worse than a missing button.
  */
 
-import React from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useRef, useState } from "react";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
+import Face from "./face";
+import { accept, matches, offers, query, type Offer } from "./mention";
+import type { Bot } from "./types";
 import { T } from "./theme";
 
 export default function Composer({
@@ -21,6 +31,7 @@ export default function Composer({
   onSend,
   placeholder,
   busy,
+  members,
 }: {
   value: string;
   onChange: (text: string) => void;
@@ -28,15 +39,83 @@ export default function Composer({
   placeholder: string;
   /** Mid-turn: what you type is kept, and sending waits. */
   busy?: boolean;
+  /** Who is in this room, for finishing an "@". Absent in a one-to-one
+   *  conversation, where there is nobody to summon but the bot you are
+   *  already talking to. */
+  members?: Bot[];
 }) {
   const ready = !!value.trim() && !busy;
+
+  /** Where the caret is, because an "@" is only being typed if the caret is
+   *  after it — and on a phone the caret moves by tap as often as by typing. */
+  const [caret, setCaret] = useState(0);
+  const field = useRef<TextInput>(null);
+
+  const asking = members?.length ? query(value, caret) : null;
+  const found: Offer[] = asking ? matches(offers(members ?? []), asking.query) : [];
+
+  function finish(pick: Offer) {
+    if (!asking) return;
+    const done = accept(value, caret, asking.at, pick.name);
+    onChange(done.text);
+    setCaret(done.caret);
+    // The keyboard stays up and the caret goes after the name rather than to
+    // the end: picking a mention is the middle of typing a sentence, not the
+    // end of one.
+    field.current?.setNativeProps({ selection: { start: done.caret, end: done.caret } });
+  }
+
   return (
     <View style={s.dock}>
+      {/* Above the bar, where the laptop puts it and where a thumb can reach
+          it without covering what it is choosing from. Scrolls rather than
+          growing: a room with a dozen bots in it must not push the field off
+          the top of the keyboard. */}
+      {found.length ? (
+        <View style={s.list}>
+          <ScrollView keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
+            {found.map((pick) => {
+              const bot = members?.find((b) => b.id === pick.botId);
+              return (
+                <Pressable
+                  key={pick.botId ?? pick.name}
+                  style={s.pick}
+                  onPress={() => finish(pick)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Mention ${pick.name}`}
+                >
+                  {bot ? (
+                    <Face bot={bot} size={22} mood="idle" />
+                  ) : (
+                    // "everyone" is not a bot and gets no face; a hash stands
+                    // for the room, the same mark the room wears everywhere
+                    // else in the app.
+                    <View style={s.all}>
+                      <Text style={s.allMark}>#</Text>
+                    </View>
+                  )}
+                  <Text style={s.pickName} numberOfLines={1}>
+                    {pick.name}
+                  </Text>
+                  {pick.hint ? (
+                    <Text style={s.pickHint} numberOfLines={1}>
+                      {pick.hint}
+                    </Text>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
+
       <View style={s.field}>
         <TextInput
+          ref={field}
           style={s.input}
           value={value}
           onChangeText={onChange}
+          onSelectionChange={(e) => setCaret(e.nativeEvent.selection.start)}
           placeholder={placeholder}
           placeholderTextColor={T.text3}
           multiline
@@ -55,6 +134,33 @@ export default function Composer({
 }
 
 const s = StyleSheet.create({
+  list: {
+    maxHeight: 188,
+    marginHorizontal: 4,
+    marginBottom: 8,
+    paddingVertical: 4,
+    backgroundColor: T.raised,
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+  pick: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    paddingVertical: 7,
+    paddingHorizontal: 11,
+  },
+  all: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 22,
+    height: 22,
+    backgroundColor: T.field,
+    borderRadius: 6,
+  },
+  allMark: { color: T.text3, fontSize: 13, fontWeight: "700" },
+  pickName: { color: T.text, fontSize: 15, fontWeight: "600" },
+  pickHint: { flexShrink: 1, color: T.text3, fontSize: 13 },
   dock: {
     paddingHorizontal: 10,
     paddingTop: 8,

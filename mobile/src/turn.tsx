@@ -12,7 +12,7 @@
  */
 
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { T } from "./theme";
 import type { Message } from "./types";
@@ -58,6 +58,7 @@ export function Turn({
   at,
   fromPhone,
   ping,
+  onHold,
   children,
 }: {
   head: boolean;
@@ -67,10 +68,23 @@ export function Turn({
   fromPhone?: boolean;
   /** A bot said your name here. */
   ping?: boolean;
+  /** Held down. The laptop shows a row of buttons when the pointer crosses a
+   *  message, which a phone has no way to do — holding is where those buttons
+   *  went. */
+  onHold?: () => void;
   children: React.ReactNode;
 }) {
   return (
-    <View style={[s.turn, head && s.turnHead, ping ? s.turnPing : null]}>
+    <Pressable
+      style={[s.turn, head && s.turnHead, ping ? s.turnPing : null]}
+      onLongPress={onHold}
+      // Long enough not to fire while scrolling past, short enough to feel
+      // like a press rather than a wait.
+      delayLongPress={320}
+      disabled={!onHold}
+      accessibilityRole={onHold ? "button" : undefined}
+      accessibilityHint={onHold ? "Hold for what can be done with this message" : undefined}
+    >
       {/* Empty on a continuation, and exactly as wide, so the text under a run
           stays in one column. */}
       <View style={s.gutter}>{head ? face : null}</View>
@@ -86,7 +100,7 @@ export function Turn({
         ) : null}
         {children}
       </View>
-    </View>
+    </Pressable>
   );
 }
 

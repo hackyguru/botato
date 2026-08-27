@@ -299,15 +299,22 @@ export default function App() {
     };
   }, [pairing]);
 
+  /** Do something on the laptop and read the result back.
+   *
+   *  What it answers is passed on rather than dropped: most actions have
+   *  nothing to say, but starting a thread names the thread it made, and the
+   *  only useful thing to do next is open it. */
   const act = useCallback(
-    async (kind: string, payload: Record<string, unknown> = {}) => {
+    async <T,>(kind: string, payload: Record<string, unknown> = {}): Promise<T | undefined> => {
       const p = current.current;
-      if (!p) return;
+      if (!p) return undefined;
       try {
-        await call(p, kind, payload);
+        const answered = await call<T>(p, kind, payload);
         await refresh();
+        return answered;
       } catch (err) {
         setProblem(err instanceof Error ? err.message : String(err));
+        return undefined;
       }
     },
     [refresh],
@@ -329,6 +336,27 @@ export default function App() {
     setAside(false);
     void act("channel/seen", { channelId: chosen.id });
   };
+
+  // A room can be deleted while you are standing in it — from the laptop, or
+  // from another phone. What is left is a screen with nothing on it and a
+  // closed list, which reads as the app having lost its place. Slide the list
+  // out instead: the room is gone, so the only thing left to do is pick
+  // another one.
+  //
+  // Above the early returns below, not beside the room it is about: a hook
+  // that some renders reach and others do not is not a hook, and React stops
+  // the app rather than guess which one it was.
+  useEffect(() => {
+    if (screen !== "room" || !roomId) return;
+    const here = snapshot?.channels ?? [];
+    // Only once there is a snapshot to be sure with. Before the first read
+    // every room is missing, and closing the one you opened because nothing
+    // has loaded yet is its own bug.
+    if (snapshot && !here.some((c) => c.id === roomId)) {
+      setRoomId(null);
+      setAside(true);
+    }
+  }, [screen, roomId, snapshot]);
 
   if (!ready) {
     return (
@@ -535,6 +563,36 @@ export default function App() {
               setRoomId(thread.id);
               void act("channel/seen", { channelId: thread.id });
             }}
+            onEdit={async (fields) => {
+              await act("channel/update", { channelId: room.id, ...fields });
+            }}
+            onDeleteChannel={async () => {
+              // Out of the room first: staying in one that has just been
+              // deleted leaves the screen showing a transcript that no longer
+              // exists anywhere.
+              setAside(true);
+              setRoomId(null);
+              await act("channel/delete", { channelId: room.id });
+            }}
+            onPin={async (messageId) => {
+              // No "pinned" flag sent: the laptop flips whatever it has, so
+              // acting on a snapshot a few seconds old cannot pin something
+              // that is already pinned. The refresh is what puts the mark on
+              // the message here.
+              await act("message/pin", { channelId: room.id, messageId });
+            }}
+            onThread={async (messageId) => {
+              const made = await act<{ id: string }>("thread/start", {
+                channelId: room.id,
+                messageId,
+              });
+              // Straight into it, because starting a thread is wanting to say
+              // something in it.
+              if (made?.id) {
+                setRoomId(made.id);
+                void act("channel/seen", { channelId: made.id });
+              }
+            }}
             onSend={async (text) => {
               // Shown at once; the laptop's own copy replaces it with the next
               // snapshot, the same bargain a bot's chat already makes.
@@ -584,6 +642,9 @@ export default function App() {
               setScreen("calendar");
             }}
             onSettings={() => setScreen("settings")}
+            onPin={async (messageId) => {
+              await act("message/pin", { botId: bot.id, messageId });
+            }}
             onSend={async (text) => {
               // Show it immediately; the laptop's own copy arrives with the next
               // snapshot and replaces this one.
