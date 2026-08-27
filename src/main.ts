@@ -1280,11 +1280,36 @@ function faceHtml(
 
 /* -------------------------------------------------------------- persistence */
 
+/** What a phone would draw a sidebar from: which bots and rooms exist, and
+ *  what they are called. Not what was said in them — that arrives on the event
+ *  stream already. */
+function shape(): string {
+  return [
+    state.bots.map((b) => `${b.id}:${b.name}`).join(),
+    channels().map((c) => `${c.id}:${c.name}`).join(),
+  ].join("|");
+}
+
+/** The shape as of the last save, so a change can be noticed rather than
+ *  remembered at each of the dozen places that could cause one. */
+let lastShape = "";
+
 function save(): void {
   try {
     localStorage.setItem(STORE, JSON.stringify(state));
   } catch {
     /* storage unavailable — run in-memory */
+  }
+
+  // A phone hears about a turn as it happens and about nothing else, so
+  // hiring, firing, renaming and opening a room all used to reach it only when
+  // it next came out of a pocket. Compared rather than announced by each
+  // caller: the one place that knows something was saved is the only place
+  // that cannot forget to say so.
+  const now = shape();
+  if (now !== lastShape) {
+    lastShape = now;
+    void invoke("remote_stale").catch(() => {});
   }
 }
 
@@ -5984,17 +6009,28 @@ function openChannelSheet(ch: Channel | null): void {
   channelName.focus();
 }
 
+/** A channel name as a handle: lowercase, no spaces, like every other app
+ *  that has one. Corrected rather than rejected — nobody wants a form error
+ *  for typing a capital letter. Returns "" for a name with nothing usable in
+ *  it, which both callers treat as "no name given". */
+function handle(raw: string): string {
+  return (
+    raw
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 24)
+      // Again after the cut, not only before it: a long name sliced at
+      // twenty-four characters can land on a separator, and #one-two-three-
+      // is a name with a hyphen hanging off the end of it.
+      .replace(/-+$/, "")
+  );
+}
+
 $<HTMLFormElement>("#channel-form").addEventListener("submit", (e) => {
   e.preventDefault();
-  // A channel name is a handle: lowercase, no spaces, like every other app
-  // that has one. Corrected rather than rejected — nobody wants a form error
-  // for typing a capital letter.
-  const name = channelName.value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 24);
+  const name = handle(channelName.value);
   if (!name) {
     channelName.focus();
     return;
@@ -10698,6 +10734,35 @@ const REMOTE_ACTIONS: Record<string, (payload: Record<string, unknown>) => unkno
     openChannel(room.id);
     postToChannel(room, text);
     return { ok: true };
+  },
+
+  /** Open a new room from the phone.
+   *
+   *  Members are chosen here rather than added afterwards because a room with
+   *  nobody in it cannot be talked to, and the laptop's own form works the
+   *  same way. Ids that name no bot are dropped instead of refused: a phone
+   *  holding a snapshot from before a firing should still be able to make the
+   *  room it was going to make. */
+  "channel/create": (p) => {
+    const name = handle(String(p.name ?? ""));
+    if (!name) throw new Error("that name has nothing in it");
+    const taken = channels().some((c) => !c.from && c.name === name);
+    if (taken) throw new Error(`there is already a #${name}`);
+
+    const wanted = Array.isArray(p.members) ? p.members.map(String) : [];
+    const made: Channel = {
+      id: uid(),
+      name,
+      purpose: String(p.purpose ?? "").trim(),
+      members: wanted.filter((id) => state.bots.some((b) => b.id === id)),
+      messages: [],
+      seats: {},
+    };
+    channels().push(made);
+    openChannel(made.id);
+    save();
+    renderRoster();
+    return { id: made.id };
   },
 
   /** Mark a room read, because reading it on the phone is reading it. */

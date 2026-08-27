@@ -203,6 +203,22 @@ fn emit(app: &AppHandle, bot_id: &str, kind: &str, text: Option<String>, detail:
     let _ = app.emit("bot-event", event);
 }
 
+/// Tell every listening phone that the shape of things changed.
+///
+/// The event stream carries a turn as it happens, which is what a phone needs
+/// while it is watching one. It carries nothing about a channel being made or
+/// a bot being fired, so a phone that was not looking at the moment it
+/// happened went on showing a room that no longer exists — and tapping one of
+/// those posts into nothing.
+///
+/// No payload: the phone re-reads the whole snapshot, which is one small
+/// request and always right, rather than a diff that has to be applied in the
+/// same order it was sent.
+#[tauri::command]
+fn remote_stale() {
+    remote::broadcast("stale", &Value::Null);
+}
+
 /* ----------------------------------------------------------------- one turn */
 
 #[derive(Deserialize)]
@@ -1500,6 +1516,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             ask,
             bundled,
+            remote_stale,
             push::push_state,
             push::push_setup,
             push::push_forget,

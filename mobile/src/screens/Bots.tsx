@@ -97,6 +97,7 @@ export default function Bots({
   onOpen,
   onOpenChannel,
   onCreate,
+  onCreateChannel,
   desk,
   onOpenDesk,
 }: {
@@ -111,13 +112,19 @@ export default function Bots({
   onOpen: (bot: Bot) => void;
   onOpenChannel: (channel: Channel) => void;
   onCreate: (name: string, role: string) => Promise<void>;
+  onCreateChannel: (name: string, purpose: string, members: string[]) => Promise<void>;
   /** What is blocked on you, as the laptop worked it out. */
   desk?: Snapshot["desk"];
   onOpenDesk: (item: NonNullable<Snapshot["desk"]>[number]) => void;
 }) {
   const [adding, setAdding] = useState(false);
+  /** Which of the two things the sheet is currently making. */
+  const [making, setMaking] = useState<"bot" | "room">("bot");
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
+  /** Who is in the room being made. A room with nobody in it cannot be talked
+   *  to, so members are chosen here rather than added afterwards. */
+  const [inRoom, setInRoom] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [find, setFind] = useState("");
   const q = find.trim().toLowerCase();
@@ -148,13 +155,24 @@ export default function Bots({
     if (!name.trim() || busy) return;
     setBusy(true);
     try {
-      await onCreate(name.trim(), role.trim());
+      if (making === "room") await onCreateChannel(name.trim(), role.trim(), inRoom);
+      else await onCreate(name.trim(), role.trim());
       setName("");
       setRole("");
+      setInRoom([]);
       setAdding(false);
     } finally {
       setBusy(false);
     }
+  }
+
+  /** Empty the sheet on the way out, so opening it again is a fresh form
+   *  rather than half of the last one. */
+  function closeSheet() {
+    setAdding(false);
+    setName("");
+    setRole("");
+    setInRoom([]);
   }
 
   return (
@@ -179,27 +197,99 @@ export default function Bots({
           form between the header and the list and push everything down, which
           reads as the app rearranging itself rather than as you opening
           something. */}
-      <Sheet open={adding} title="New bot" onClose={() => setAdding(false)}>
+      <Sheet open={adding} title="New" onClose={closeSheet}>
+        {/* Two things start from the same button, because "+" on a list of
+            rooms and bots means "another one of these" and having to know in
+            advance which of two buttons you wanted is a menu pretending to be
+            a shortcut. */}
+        <View style={s.pick}>
+          {(["bot", "room"] as const).map((which) => (
+            <Pressable
+              key={which}
+              style={[s.pickOne, making === which && s.pickOn]}
+              onPress={() => setMaking(which)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: making === which }}
+            >
+              <Text style={[s.pickText, making === which && s.pickTextOn]}>
+                {which === "bot" ? "Bot" : "Channel"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
         <TextInput
+          // Remounted when the sheet changes what it is making, because iOS
+          // settles a field's keyboard the first time it is shown and does not
+          // revisit it: without this, switching to Channel keeps the bot
+          // field's capitalisation and "shipping" is typed as "Shipping".
+          key={making}
           style={s.input}
           value={name}
           onChangeText={setName}
-          placeholder="Name"
+          placeholder={making === "room" ? "Name, e.g. shipping" : "Name"}
           placeholderTextColor={T.text3}
           autoFocus
+          autoCapitalize={making === "room" ? "none" : "words"}
+          autoCorrect={making !== "room"}
         />
         <TextInput
           style={s.input}
           value={role}
           onChangeText={setRole}
-          // The short version here; the full job description is a field of its
-          // own in the bot's settings, on both screens.
-          placeholder="Role, e.g. ships and reviews code"
+          // For a bot, the short version of the job; the full description is a
+          // field of its own in the bot's settings, on both screens. For a
+          // room, what it is for — which every member is told, because a
+          // channel with no stated purpose gets answered as though it were a
+          // chat.
+          placeholder={
+            making === "room" ? "What it is for" : "Role, e.g. ships and reviews code"
+          }
           placeholderTextColor={T.text3}
           onSubmitEditing={create}
         />
+
+        {making === "room" ? (
+          bots.length ? (
+            <>
+              <Text style={s.who}>WHO IS IN IT</Text>
+              <View style={s.chips}>
+                {bots.map((bot) => {
+                  const on = inRoom.includes(bot.id);
+                  return (
+                    <Pressable
+                      key={bot.id}
+                      style={[s.chip, on && s.chipOn]}
+                      onPress={() =>
+                        setInRoom((was) =>
+                          was.includes(bot.id)
+                            ? was.filter((id) => id !== bot.id)
+                            : [...was, bot.id],
+                        )
+                      }
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: on }}
+                    >
+                      <Face bot={bot} size={20} mood="idle" />
+                      <Text style={[s.chipText, on && s.chipTextOn]} numberOfLines={1}>
+                        {bot.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          ) : (
+            <Text style={s.none}>No bots to put in it yet.</Text>
+          )
+        ) : null}
+
         <Pressable style={[s.add, !name.trim() && s.addOff]} onPress={create} disabled={busy}>
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.addText}>Create bot</Text>}
+          {busy ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={s.addText}>{making === "room" ? "Create channel" : "Create bot"}</Text>
+          )}
         </Pressable>
       </Sheet>
 
@@ -444,6 +534,43 @@ const s = StyleSheet.create({
     borderRadius: 11,
   },
   addOff: { opacity: 0.4 },
+  /* A pair rather than a tab bar: two things, both visible, one of them lit. */
+  pick: {
+    flexDirection: "row",
+    gap: 4,
+    padding: 4,
+    marginBottom: 3,
+    backgroundColor: T.field,
+    borderRadius: 12,
+  },
+  pickOne: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 9 },
+  pickOn: { backgroundColor: T.raised },
+  pickText: { color: T.text3, fontSize: 14, fontWeight: "600" },
+  pickTextOn: { color: T.text },
+  who: {
+    marginTop: 6,
+    marginLeft: 2,
+    color: T.text3,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.7,
+  },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: T.field,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  chipOn: { borderColor: T.blue, backgroundColor: T.raised },
+  chipText: { maxWidth: 140, color: T.text2, fontSize: 13 },
+  chipTextOn: { color: T.text, fontWeight: "600" },
+  none: { marginTop: 4, color: T.text3, fontSize: 13 },
   addText: { color: "#fff", fontSize: 15, fontWeight: "600" },
   /* The last row clears the bar floating over it, which the list scrolls
      underneath. */

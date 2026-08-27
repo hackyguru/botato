@@ -233,6 +233,11 @@ export function listen(
   pairing: Pairing,
   onEvent: (event: BotEvent) => void,
   onOpen?: (connected: boolean) => void,
+  /** The laptop saying its bots and rooms are not what this phone last read —
+   *  somebody hired, fired, renamed or opened a room over there. It carries
+   *  nothing but the fact, because the answer is always the same: read the
+   *  snapshot again. */
+  onStale?: () => void,
 ): () => void {
   if (!native) {
     onOpen?.(false);
@@ -241,6 +246,10 @@ export function listen(
   const peer = native;
 
   const frames = peer.addListener("frame", (event) => {
+    if (event.name === "stale") {
+      onStale?.();
+      return;
+    }
     if (event.name !== "bot-event") return;
     try {
       onEvent(JSON.parse(event.data) as BotEvent);

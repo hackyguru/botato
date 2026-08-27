@@ -193,7 +193,7 @@ export default function App() {
   useEffect(() => {
     if (!pairing) return;
     let live = true;
-    let stop = listen(pairing, apply, setConnected);
+    let stop = listen(pairing, apply, setConnected, () => void refresh());
     let retry: ReturnType<typeof setTimeout> | null = null;
     /** How many attempts have failed in a row, for the backoff. */
     let waited = 0;
@@ -231,7 +231,7 @@ export default function App() {
             if (AppState.currentState === "active") reopen();
           }, wait);
         }
-      });
+      }, () => void refresh());
     };
 
     // iOS suspends a backgrounded app and the stream dies with it, silently —
@@ -485,6 +485,9 @@ export default function App() {
                 onOpenChannel={goToRoom}
                 onCreate={async (name, role) => {
                   await act("bot/create", { name, role });
+                }}
+                onCreateChannel={async (name, purpose, members) => {
+                  await act("channel/create", { name, purpose, members });
                 }}
                 desk={snapshot?.desk}
                 onOpenDesk={(item) => {

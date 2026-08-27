@@ -406,6 +406,17 @@ mod tests {
             parse_frame("event: bot-event\ndata: {\"kind\":\"delta\"}\n\n"),
             Some(("bot-event".into(), "{\"kind\":\"delta\"}".into()))
         );
+
+        // The desktop's "your bots and rooms have changed" frame carries no
+        // detail, because the answer to it is always to read the snapshot
+        // again. It still has to survive the rule below that throws away
+        // frames with no data — those are the keep-alive pings — which is why
+        // it is sent as a JSON null rather than as nothing at all.
+        assert_eq!(
+            parse_frame("event: stale\ndata: null\n\n"),
+            Some(("stale".into(), "null".into())),
+            "a phone that never hears this goes on showing a deleted room"
+        );
         // The desktop's greeting and heartbeats are comments, not events.
         assert_eq!(parse_frame(": connected\n\n"), None);
         assert_eq!(parse_frame(": ping\n\n"), None);
