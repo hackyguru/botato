@@ -37,6 +37,7 @@ import {
 } from "react-native";
 
 import Face from "../face";
+import Sheet from "../sheet";
 import { T } from "../theme";
 import type { Bot, Routine } from "../types";
 
@@ -229,15 +230,89 @@ export default function Calendar({
         </Text>
         <View style={s.spacer} />
         {bots.length ? (
-          <Pressable onPress={() => (adding ? setAdding(false) : begin())} hitSlop={12}>
-            <Text style={s.plus}>{adding ? "×" : "+"}</Text>
+          <Pressable onPress={() => begin()} hitSlop={12}>
+            <Text style={s.plus}>+</Text>
           </Pressable>
         ) : null}
       </View>
 
       <ScrollView contentContainerStyle={s.list} keyboardShouldPersistTaps="handled">
-        {adding ? (
-          <View style={s.form}>
+        {often.length ? (
+          <>
+            <Text style={s.group}>THROUGH THE DAY</Text>
+            <View style={s.block}>
+              {often.map(({ bot, routine }) => (
+                <Pressable
+                  key={routine.id}
+                  style={[s.line, routine.active ? null : s.off]}
+                  onPress={() => onOpen(bot)}
+                >
+                  <View style={[s.tint, { backgroundColor: bot.color }]} />
+                  <Text style={s.what} numberOfLines={1}>
+                    {routine.name}
+                  </Text>
+                  <Text style={s.when}>
+                    {routine.every === "hour"
+                      ? `hourly at :${routine.at.slice(-2)}`
+                      : `every ${routine.minutes ?? 30} min`}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </>
+        ) : null}
+
+        {agenda.map(({ day, on, due }) => (
+          <View key={isoDate(day)}>
+            <Pressable style={s.dayHead} onPress={() => begin(day)}>
+              <Text style={[s.group, on === 0 ? s.today : null]}>
+                {dayTitle(day, on).toUpperCase()}
+              </Text>
+              <Text style={s.dayAdd}>+</Text>
+            </Pressable>
+            <View style={s.block}>
+              {due.map(({ bot, routine }) => (
+                <Pressable
+                  key={`${isoDate(day)}-${routine.id}`}
+                  style={[s.entry, routine.active ? null : s.off]}
+                  onPress={() => onOpen(bot)}
+                >
+                  <Text style={s.at}>{routine.at}</Text>
+                  <Face bot={bot} size={26} still />
+                  <View style={s.body}>
+                    <Text style={s.what} numberOfLines={1}>
+                      {routine.name}
+                    </Text>
+                    <Text style={s.who} numberOfLines={1}>
+                      {bot.name}
+                      {routine.active ? "" : " · paused"}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ))}
+
+        {all.length === 0 ? (
+          <Text style={s.empty}>
+            {into
+              ? "Nothing scheduled in here yet. Tap + to give one of its bots standing work that reports to this room."
+              : "Nothing scheduled yet. Tap + to give a bot something to do."}
+          </Text>
+        ) : (
+          // Four more weeks, as many times as you like. Nothing here is bounded
+          // — the dates are arithmetic on today — so this is only about how
+          // much to draw at once.
+          <Pressable style={s.more} onPress={() => setDays((was) => was + RUN)}>
+            <Text style={s.moreText}>Show four more weeks</Text>
+          </Pressable>
+        )}
+      </ScrollView>
+
+      {/* Over the calendar rather than pushed into the top of it: a form that
+          unfolds above the days moves the day you were looking at. */}
+      <Sheet open={adding} title="New routine" onClose={() => setAdding(false)}>
             {/* Whose it is comes first. On the laptop this question only turns
                 up on the shared calendar; here every calendar is the shared
                 one, so it is the first thing rather than something to discover
@@ -355,81 +430,7 @@ export default function Calendar({
                 <Text style={s.saveText}>Add routine</Text>
               )}
             </Pressable>
-          </View>
-        ) : null}
-
-        {often.length ? (
-          <>
-            <Text style={s.group}>THROUGH THE DAY</Text>
-            <View style={s.block}>
-              {often.map(({ bot, routine }) => (
-                <Pressable
-                  key={routine.id}
-                  style={[s.line, routine.active ? null : s.off]}
-                  onPress={() => onOpen(bot)}
-                >
-                  <View style={[s.tint, { backgroundColor: bot.color }]} />
-                  <Text style={s.what} numberOfLines={1}>
-                    {routine.name}
-                  </Text>
-                  <Text style={s.when}>
-                    {routine.every === "hour"
-                      ? `hourly at :${routine.at.slice(-2)}`
-                      : `every ${routine.minutes ?? 30} min`}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </>
-        ) : null}
-
-        {agenda.map(({ day, on, due }) => (
-          <View key={isoDate(day)}>
-            <Pressable style={s.dayHead} onPress={() => begin(day)}>
-              <Text style={[s.group, on === 0 ? s.today : null]}>
-                {dayTitle(day, on).toUpperCase()}
-              </Text>
-              <Text style={s.dayAdd}>+</Text>
-            </Pressable>
-            <View style={s.block}>
-              {due.map(({ bot, routine }) => (
-                <Pressable
-                  key={`${isoDate(day)}-${routine.id}`}
-                  style={[s.entry, routine.active ? null : s.off]}
-                  onPress={() => onOpen(bot)}
-                >
-                  <Text style={s.at}>{routine.at}</Text>
-                  <Face bot={bot} size={26} still />
-                  <View style={s.body}>
-                    <Text style={s.what} numberOfLines={1}>
-                      {routine.name}
-                    </Text>
-                    <Text style={s.who} numberOfLines={1}>
-                      {bot.name}
-                      {routine.active ? "" : " · paused"}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        ))}
-
-        {all.length === 0 ? (
-          <Text style={s.empty}>
-            {into
-              ? "Nothing scheduled in here yet. Tap + to give one of its bots standing work that reports to this room."
-              : "Nothing scheduled yet. Tap + to give a bot something to do."}
-          </Text>
-        ) : (
-          // Four more weeks, as many times as you like. Nothing here is bounded
-          // — the dates are arithmetic on today — so this is only about how
-          // much to draw at once.
-          <Pressable style={s.more} onPress={() => setDays((was) => was + RUN)}>
-            <Text style={s.moreText}>Show four more weeks</Text>
-          </Pressable>
-        )}
-      </ScrollView>
+      </Sheet>
     </View>
   );
 }
@@ -451,11 +452,6 @@ const s = StyleSheet.create({
   spacer: { flex: 1 },
   plus: { color: T.blue, fontSize: 26, lineHeight: 30, fontWeight: "400" },
 
-  /* The form, on the same surface the days sit on. Above them rather than in a
-     sheet of its own: what you are adding to is the thing behind it, and a
-     phone that covers the calendar to ask about the calendar has hidden the
-     answer to half its own questions. */
-  form: { marginTop: 14, padding: 12, gap: 9, backgroundColor: T.field, borderRadius: 16 },
   whoRow: { flexGrow: 0 },
   whoOne: {
     alignItems: "center",

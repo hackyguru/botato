@@ -18,8 +18,30 @@
  */
 
 import * as Device from "expo-device";
-import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+
+/** Whether there is any point reaching for the notifications module.
+ *
+ *  A simulator has no push service to register with, and a build made before
+ *  push existed has this file's JavaScript without the native half of it —
+ *  touching the module there takes the whole app down at launch, which is
+ *  exactly what a dev build one rebuild behind did. Both are the same answer:
+ *  this install cannot be reached, so do not go looking.
+ *
+ *  A `try` around the import is not enough. The module throws while it is
+ *  being set up, from inside its own promise, and the failure arrives as an
+ *  unhandled error rather than as something a catch here could hold. */
+const reachable = Device.isDevice && Platform.OS === "ios";
+
+function notifications(): typeof import("expo-notifications") | null {
+  if (!reachable) return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require("expo-notifications");
+  } catch {
+    return null;
+  }
+}
 
 /** What the laptop needs to reach this phone. */
 export interface PushWhere {
@@ -41,9 +63,8 @@ export interface PushWhere {
  *  an app teaches people to say no faster.
  */
 export async function pushWhere(): Promise<PushWhere | null> {
-  // A simulator has no push service to register with. It is not a failure and
-  // it is not worth a message — it is simply not a phone.
-  if (!Device.isDevice || Platform.OS !== "ios") return null;
+  const Notifications = notifications();
+  if (!Notifications) return null;
 
   const has = await Notifications.getPermissionsAsync();
   const granted =
@@ -74,6 +95,8 @@ export async function pushWhere(): Promise<PushWhere | null> {
  *  are looking at the conversation it is about — and it usually is not.
  */
 export function showThemWhileOpen(): void {
+  const Notifications = notifications();
+  if (!Notifications) return;
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowBanner: true,

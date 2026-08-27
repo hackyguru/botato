@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import type { Bot, EngineInfo, Routine } from "../types";
 import Face from "../face";
+import Sheet from "../sheet";
 import { T } from "../theme";
 
 /** Used only against a laptop running a build from before engines were a
@@ -303,42 +304,12 @@ export default function BotSettings({
 
         <View style={s.groupRow}>
           <Text style={s.group}>Routines</Text>
-          <Pressable onPress={() => setAdding((on) => !on)} hitSlop={12}>
-            <Text style={s.addSmall}>{adding ? "Cancel" : "Add"}</Text>
+          <Pressable onPress={() => setAdding(true)} hitSlop={12}>
+            <Text style={s.addSmall}>Add</Text>
           </Pressable>
         </View>
         <View style={s.card}>
-          {adding ? (
-            <>
-              <TextInput
-                style={s.input}
-                value={routineName}
-                onChangeText={setRoutineName}
-                placeholder="Name"
-                placeholderTextColor={T.text3}
-              />
-              <TextInput
-                style={[s.input, s.tall]}
-                value={instruction}
-                onChangeText={setInstruction}
-                placeholder="What should it do?"
-                placeholderTextColor={T.text3}
-                multiline
-              />
-              <TextInput
-                style={s.input}
-                value={at}
-                onChangeText={setAt}
-                placeholder="09:00"
-                placeholderTextColor={T.text3}
-              />
-              <Pressable style={s.save} onPress={addRoutine}>
-                <Text style={s.saveText}>Add — every day at {at}</Text>
-              </Pressable>
-            </>
-          ) : null}
-
-          {(bot.routines ?? []).length === 0 && !adding ? (
+          {(bot.routines ?? []).length === 0 ? (
             <Text style={s.none}>Nothing scheduled.</Text>
           ) : null}
 
@@ -376,6 +347,37 @@ export default function BotSettings({
           <Text style={s.deleteText}>Delete this bot</Text>
         </Pressable>
       </ScrollView>
+
+      {/* Over the settings rather than unfolding inside the Routines card,
+          which pushed the routines you were reading down the screen. */}
+      <Sheet open={adding} title="New routine" onClose={() => setAdding(false)}>
+        <TextInput
+          style={s.input}
+          value={routineName}
+          onChangeText={setRoutineName}
+          placeholder="Name"
+          placeholderTextColor={T.text3}
+          autoFocus
+        />
+        <TextInput
+          style={[s.input, s.tall]}
+          value={instruction}
+          onChangeText={setInstruction}
+          placeholder="What should it do?"
+          placeholderTextColor={T.text3}
+          multiline
+        />
+        <TextInput
+          style={s.input}
+          value={at}
+          onChangeText={setAt}
+          placeholder="09:00"
+          placeholderTextColor={T.text3}
+        />
+        <Pressable style={s.save} onPress={addRoutine}>
+          <Text style={s.saveText}>Add — every day at {at}</Text>
+        </Pressable>
+      </Sheet>
     </View>
   );
 }

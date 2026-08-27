@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import type { Bot, Channel, Message, Snapshot } from "../types";
 import Face, { type Mood } from "../face";
+import Sheet from "../sheet";
 import { Gauge } from "../marks";
 import { T } from "../theme";
 import { unreadIn } from "../unread";
@@ -168,37 +169,39 @@ export default function Bots({
               bottom of the drawer now, with the name it belongs to — two
               controls opening one screen is one of them pretending to do
               something else. */}
-          <Pressable onPress={() => setAdding((on) => !on)} hitSlop={12}>
-            <Text style={s.plus}>{adding ? "×" : "+"}</Text>
+          <Pressable onPress={() => setAdding(true)} hitSlop={12}>
+            <Text style={s.plus}>+</Text>
           </Pressable>
         </View>
       </View>
 
-      {adding ? (
-        <View style={s.form}>
-          <TextInput
-            style={s.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Name"
-            placeholderTextColor={T.text3}
-            autoFocus
-          />
-          <TextInput
-            style={s.input}
-            value={role}
-            onChangeText={setRole}
-            // The short version here; the full job description is a field of
-            // its own in the bot's settings, on both screens.
-            placeholder="Role, e.g. ships and reviews code"
-            placeholderTextColor={T.text3}
-            onSubmitEditing={create}
-          />
-          <Pressable style={[s.add, !name.trim() && s.addOff]} onPress={create} disabled={busy}>
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.addText}>Create bot</Text>}
-          </Pressable>
-        </View>
-      ) : null}
+      {/* Over the page rather than inside it: pressing "+" used to unfold a
+          form between the header and the list and push everything down, which
+          reads as the app rearranging itself rather than as you opening
+          something. */}
+      <Sheet open={adding} title="New bot" onClose={() => setAdding(false)}>
+        <TextInput
+          style={s.input}
+          value={name}
+          onChangeText={setName}
+          placeholder="Name"
+          placeholderTextColor={T.text3}
+          autoFocus
+        />
+        <TextInput
+          style={s.input}
+          value={role}
+          onChangeText={setRole}
+          // The short version here; the full job description is a field of its
+          // own in the bot's settings, on both screens.
+          placeholder="Role, e.g. ships and reviews code"
+          placeholderTextColor={T.text3}
+          onSubmitEditing={create}
+        />
+        <Pressable style={[s.add, !name.trim() && s.addOff]} onPress={create} disabled={busy}>
+          {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.addText}>Create bot</Text>}
+        </Pressable>
+      </Sheet>
 
       <View style={s.findWrap}>
         <TextInput
@@ -424,7 +427,6 @@ const s = StyleSheet.create({
   },
   plus: { color: T.blue, fontSize: 30, fontWeight: "300" },
   actions: { flexDirection: "row", gap: 18, alignItems: "center" },
-  form: { paddingHorizontal: 20, paddingBottom: 12, gap: 8 },
   input: {
     letterSpacing: 0,
     height: 44,
