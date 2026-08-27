@@ -1051,6 +1051,42 @@ function restingMood(botId: string): string {
   return "idle";
 }
 
+/** How many rooms are waiting on each bot: named since it last spoke there.
+ *
+ *  The same question `addressees` answers when a message arrives, asked of the
+ *  backlog instead — and asked once for everybody rather than once per bot,
+ *  since the reading is the same rooms either way.
+ *
+ *  Bounded at forty messages back. A bot that has never spoken in a busy room
+ *  would otherwise mean parsing the room's whole history for a gauge, and
+ *  forty is as far as "still waiting on you" reaches anyway.
+ */
+function roomsWaitingOn(): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const ch of channels()) {
+    const spoke = new Map<string, number>();
+    ch.messages.forEach((m, at) => {
+      if (m.by) spoke.set(m.by, at);
+    });
+    // One room is one thing waiting however many times it asked: the gauge
+    // counts rooms, not messages, or a person repeating themselves would make
+    // a bot look busier.
+    const here = new Set<string>();
+    const from = Math.max(0, ch.messages.length - 40);
+    for (let at = from; at < ch.messages.length; at += 1) {
+      const m = ch.messages[at];
+      if (m.from !== "me") continue;
+      for (const bot of addressees(ch, m.text)) {
+        // Only if it has not spoken since being named.
+        if ((spoke.get(bot.id) ?? -1) > at) continue;
+        here.add(bot.id);
+      }
+    }
+    for (const id of here) out.set(id, (out.get(id) ?? 0) + 1);
+  }
+  return out;
+}
+
 /** How full a bot's hands are, and what to say about it.
  *
  *  Every part of this is a reading of something botcage already knows: whether
@@ -1062,7 +1098,13 @@ function restingMood(botId: string): string {
  *  Four jobs fills the ring. Not because four is a limit — a bot will take a
  *  fifth — but because a gauge needs a top, and past four the difference
  *  between busy and busier is not a thing anybody acts on. */
-function loadOf(bot: Bot): { press: number; working: boolean; says: string } {
+function loadOf(
+  bot: Bot,
+  /** Worked out once for the whole roster. Without it every bot re-read every
+   *  room, which is fine for two bots and one channel and quadratic for twenty
+   *  of each. */
+  waiting?: Map<string, number>,
+): { press: number; working: boolean; says: string } {
   const working = inflight.has(bot.id);
   const now = Date.now();
 
@@ -1075,20 +1117,7 @@ function loadOf(bot: Bot): { press: number; working: boolean; says: string } {
   const soon = live.filter((r) => next(r) <= now + 60 * 60_000).length;
   const today = live.filter((r) => next(r) <= now + 24 * 60 * 60_000).length;
 
-  // Rooms where it has been named since it last said anything there. This is
-  // the same question `addressees` answers when a message arrives, asked of
-  // the backlog instead.
-  const called = channels().filter((ch) => {
-    if (!ch.members.includes(bot.id)) return false;
-    const spoke = ch.messages.map((m) => m.by).lastIndexOf(bot.id);
-    // Bounded: this runs for every bot on every repaint of the roster, and a
-    // bot that has never spoken in a busy room would otherwise mean parsing
-    // the room's whole history for a gauge. Forty messages back is as far as
-    // "still waiting on you" reaches anyway.
-    return ch.messages
-      .slice(Math.max(spoke + 1, ch.messages.length - 40))
-      .some((m) => m.from === "me" && addressees(ch, m.text).some((b) => b.id === bot.id));
-  }).length;
+  const called = waiting?.get(bot.id) ?? roomsWaitingOn().get(bot.id) ?? 0;
 
   // Two kinds of load, and they are not the same thing. What is happening now
   // counts as a whole job each; what is merely coming counts as a quarter.
@@ -1531,7 +1560,7 @@ function renderRoster(): void {
     deskHtml +
     roomsHtml +
     (roomsHtml ? `<p class="rail-group">Bots</p>` : "") +
-    botRows(hits);
+    botRows(hits, roomsWaitingOn());
 }
 
 /** Make one, and ask for its name where it will live.
@@ -1792,14 +1821,14 @@ function roomRows(shown: Channel[], matches: (ch: Channel) => boolean, q: string
 }
 
 /** The rows for the bots themselves. */
-function botRows(hits: Bot[]): string {
+function botRows(hits: Bot[], waiting: Map<string, number>): string {
   return hits
     .map((bot) => {
       const news =
         bot.id === state.activeId && !state.activeChannel
           ? { unread: 0, mentions: 0 }
           : unreadIn(bot.messages, bot.seenAt);
-      const load = loadOf(bot);
+      const load = loadOf(bot, waiting);
       return (
         `<button class="bot-row${bot.id === state.activeId && !state.activeChannel ? " is-active" : ""}` +
         `${news.unread ? " is-unread" : ""}" data-bot="${bot.id}">` +
