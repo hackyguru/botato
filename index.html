@@ -660,6 +660,18 @@
                         placeholder="Nothing yet. It fills this in as it works."></textarea>
             </label>
 
+            <!-- What it answers to. Only visible until now by typing "/" or by
+                 clicking its face, which is fine for using them and no use at
+                 all for finding out they exist — and this sheet is where
+                 somebody looks to learn what a bot does. -->
+            <div class="prose" id="sheet-commands-row" hidden>
+              <span class="prose__label">Shortcuts
+                <span class="prose__hint">What it answers to. Type "/" in a message to use one.
+                  It writes these itself.</span>
+              </span>
+              <div class="cmds" id="sheet-commands"></div>
+            </div>
+
           </div>
 
           <div class="settings-panel" data-tab="computer" role="tabpanel" hidden>

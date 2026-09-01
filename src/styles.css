@@ -3557,6 +3557,37 @@ select:focus-visible {
   color: var(--text-2);
 }
 
+/* What a bot answers to, listed where somebody looks to find out what it does.
+   The same two columns the card uses, because it is the same list. */
+.cmds {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 12px;
+  background: var(--fill-1);
+  border-radius: 10px;
+}
+
+.cmd {
+  display: flex;
+  gap: 9px;
+  align-items: baseline;
+  font-size: 12.5px;
+}
+
+.cmd code {
+  flex: none;
+  color: var(--text);
+  font-family: var(--mono);
+}
+
+.cmd span {
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* A line under a label, for the fields whose purpose is not obvious from three
    words — the same shape a setting's hint has, so the sheet reads as one thing
    whether a field is a picker or a paragraph. */

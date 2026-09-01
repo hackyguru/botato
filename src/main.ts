@@ -438,6 +438,8 @@ const sheet = $<HTMLFormElement>("#sheet");
 const sheetName = $<HTMLInputElement>("#sheet-name");
 const sheetRole = $<HTMLTextAreaElement>("#sheet-role");
 const sheetMemory = $<HTMLTextAreaElement>("#sheet-memory");
+const sheetCommands = $<HTMLElement>("#sheet-commands");
+const sheetCommandsRow = $<HTMLElement>("#sheet-commands-row");
 const sheetMemoryRow = $<HTMLElement>("#sheet-memory-row");
 /** What the memory said when the sheet opened, so saving can tell an edit from
  *  a bot that wrote to the file while the sheet was open. Writing back
@@ -4422,6 +4424,16 @@ function openSheet(bot: Bot | null = null): void {
       })
       .catch(() => {});
   }
+  // Hidden rather than shown empty: a bot that has declared none has nothing
+  // to say here, and a heading over an empty box teaches you to skip it.
+  sheetCommandsRow.hidden = !bot?.commands?.length;
+  sheetCommands.innerHTML = (bot?.commands ?? [])
+    .map(
+      (one) =>
+        `<div class="cmd"><code>/${escapeHtml(one.name)}</code>` +
+        `<span>${escapeHtml(one.what)}</span></div>`,
+    )
+    .join("");
   sheetComputer.checked = bot?.computer ?? false;
   sheetNetwork.value = bot?.network ?? "full";
   draftModel = {

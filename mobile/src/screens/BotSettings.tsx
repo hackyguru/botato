@@ -121,6 +121,29 @@ export default function BotSettings({
             multiline
             textAlignVertical="top"
           />
+
+          {/* What it answers to. Visible until now only by typing "/" or by
+              tapping its face, which is fine for using them and no use for
+              finding out they exist — and this screen is where somebody looks
+              to learn what a bot does. */}
+          {bot.commands?.length ? (
+            <>
+              <Text style={s.fieldLabel}>Shortcuts</Text>
+              <View style={s.cmds}>
+                {bot.commands.map((one) => (
+                  <View key={one.name} style={s.cmd}>
+                    <Text style={s.cmdName}>/{one.name}</Text>
+                    <Text style={s.cmdWhat} numberOfLines={1}>
+                      {one.what}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={s.cmdNote}>
+                Type &quot;/&quot; in a message to use one. It writes these itself.
+              </Text>
+            </>
+          ) : null}
         </View>
 
         {engines.length ? (
@@ -492,6 +515,18 @@ const s = StyleSheet.create({
   },
   chipText: { color: T.text, fontSize: 13.5 },
   fine: { color: T.text3, fontSize: 12, lineHeight: 18 },
+  cmds: {
+    gap: 3,
+    marginTop: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    backgroundColor: T.field,
+    borderRadius: 10,
+  },
+  cmd: { flexDirection: "row", alignItems: "baseline", gap: 9 },
+  cmdName: { color: T.text, fontSize: 13, fontFamily: T.mono },
+  cmdWhat: { flexShrink: 1, color: T.text3, fontSize: 13 },
+  cmdNote: { marginTop: 6, color: T.text3, fontSize: 12 },
   fieldLabel: { paddingHorizontal: 14, paddingTop: 10, color: T.text2, fontSize: 12.5 },
   // Room to describe a job rather than name one.
   prose: { minHeight: 108, paddingTop: 10, paddingBottom: 10, lineHeight: 20 },
