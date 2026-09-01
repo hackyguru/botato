@@ -25,6 +25,24 @@ import { T } from "../theme";
 import { unreadIn } from "../unread";
 
 
+/** What each kind is drawn as. Typography rather than drawings: "?" and "@"
+ *  already mean question and mention to anyone who has used a computer, and a
+ *  hand-drawn icon of either would be a worse version of the character. */
+const DESK_MARK: Record<string, string> = {
+  asked: "?",
+  named: "@",
+  failed: "\u00d7",
+  engine: "!",
+};
+
+/** And what it is called, for anyone who cannot see the mark. */
+const DESK_SAYS: Record<string, string> = {
+  asked: "Asked you",
+  named: "Named you",
+  failed: "Failed",
+  engine: "Cannot run",
+};
+
 function Badge({ unread, mentions }: { unread: number; mentions: number }) {
   if (mentions) {
     return (
@@ -334,21 +352,31 @@ export default function Bots({
                 style={s.waiting}
                 onPress={() => onOpenDesk(item)}
               >
-                <Text
+                {/* A mark rather than a word, the same four the laptop draws.
+                    Two of the words ended in "you", so a column of them rhymed
+                    and the part that told them apart was the dim one at the
+                    front. Shapes carry the meaning; the colour only groups
+                    them — and the word is still said to a screen reader, which
+                    cannot see a shape at all. */}
+                <View
                   style={[
-                    s.waitingKind,
-                    item.kind === "failed" ? s.waitingBad : null,
-                    item.kind === "engine" ? s.waitingWarn : null,
+                    s.waitingMark,
+                    item.kind === "failed" ? s.markBad : null,
+                    item.kind === "engine" ? s.markWarn : null,
                   ]}
+                  accessible
+                  accessibilityLabel={DESK_SAYS[item.kind]}
                 >
-                  {item.kind === "engine"
-                    ? "CANNOT RUN"
-                    : item.kind === "failed"
-                      ? "FAILED"
-                      : item.kind === "asked"
-                        ? "ASKED YOU"
-                        : "NAMED YOU"}
-                </Text>
+                  <Text
+                    style={[
+                      s.waitingMarkText,
+                      item.kind === "failed" ? s.waitingBad : null,
+                      item.kind === "engine" ? s.waitingWarn : null,
+                    ]}
+                  >
+                    {DESK_MARK[item.kind]}
+                  </Text>
+                </View>
                 <Text style={s.waitingWho} numberOfLines={1}>
                   {item.who}
                 </Text>
@@ -625,12 +653,17 @@ const s = StyleSheet.create({
     backgroundColor: T.field,
     borderRadius: 14,
   },
-  waitingKind: {
-    color: T.blue,
-    fontSize: 10.5,
-    fontWeight: "700",
-    letterSpacing: 0.5,
+  waitingMark: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(10,132,255,0.16)",
   },
+  markBad: { backgroundColor: "rgba(255,69,58,0.16)" },
+  markWarn: { backgroundColor: "rgba(255,159,10,0.16)" },
+  waitingMarkText: { color: T.blue, fontSize: 13, fontFamily: T.mono, lineHeight: 16 },
   waitingAsk: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 9 },
   waitingOpt: {
     justifyContent: "center",

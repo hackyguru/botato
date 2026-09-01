@@ -1542,6 +1542,24 @@ const AGO = (at: number): string => {
   return hours < 24 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`;
 };
 
+/** What each kind is drawn as. Typography rather than drawings: "?" and "@"
+ *  already mean question and mention to everybody who has used a computer, and
+ *  a hand-drawn icon of either would be a worse version of the character. */
+const DESK_MARK: Record<Waiting["kind"], string> = {
+  asked: "?",
+  named: "@",
+  failed: "\u00d7",
+  engine: "!",
+};
+
+/** And what it is called, for anyone who cannot see the mark. */
+const DESK_SAYS: Record<Waiting["kind"], string> = {
+  asked: "Asked you",
+  named: "Named you",
+  failed: "Failed",
+  engine: "Cannot run",
+};
+
 /** The desk itself. Kept between renders so a click can find the item it was
  *  drawn from without the list being rebuilt underneath it. */
 let desk: Waiting[] = [];
@@ -1559,15 +1577,17 @@ function renderDesk(): void {
           (item, at) =>
             `<div class="desk-row${item.ask ? " has-ask" : ""}">` +
             `<button type="button" class="desk-item desk-item--${item.kind}" data-desk-at="${at}">` +
-            `<span class="desk-item__kind">${
-              item.kind === "engine"
-                ? "Cannot run"
-                : item.kind === "failed"
-                  ? "Failed"
-                  : item.kind === "asked"
-                    ? "Asked you"
-                    : "Named you"
-            }</span>` +
+            // A mark rather than a word. Four kinds in a column of labels meant
+            // two of them ended in "you", so the column rhymed and the word
+            // that told them apart was the dim one at the front. These are four
+            // different shapes, which is what a column of marks is for.
+            //
+            // Shapes, not colours: the palette is a second reading for anyone
+            // who wants it, and nobody has to learn it to tell a failure from a
+            // question. The word stays for a screen reader, which cannot see a
+            // shape at all.
+            `<span class="desk-item__mark" aria-hidden="true">${DESK_MARK[item.kind]}</span>` +
+            `<span class="sr-only">${DESK_SAYS[item.kind]}</span>` +
             `<span class="desk-item__body">` +
             `<span class="desk-item__who">${escapeHtml(item.who)}</span>` +
             `<span class="desk-item__what">${escapeHtml(item.what.slice(0, 240))}</span>` +
