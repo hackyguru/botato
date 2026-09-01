@@ -125,6 +125,8 @@ export interface Snapshot {
  *  the answer, a turn failed, an engine cannot run. */
   desk?: {
     kind: "named" | "asked" | "failed" | "engine";
+    /** The answers this one can be cleared with, without opening anything. */
+    ask?: { options: string[] };
     who: string;
     what: string;
     when: number;

@@ -1352,6 +1352,11 @@ interface Waiting {
    *  wire. Naming the destination instead lets both screens work out what
    *  going there means for them. */
   at: { botId?: string; channelId?: string; messageId?: string };
+  /** The answers this one can be cleared with, if it is a question a bot
+   *  handed buttons for. The whole point of the desk is that it is the list of
+   *  what will not move until you do something; the ones that can be finished
+   *  from the list itself should be. */
+  ask?: { options: string[] };
 }
 
 /** The question out of a turn that is mostly other things.
@@ -1419,10 +1424,22 @@ function onYourDesk(): Waiting[] {
     // Already on the list under its own name — a question that says your name
     // is one thing waiting on you, not two.
     if (said.some((m) => mentionsYou(m.text))) return undefined;
-    // The question itself, not whatever the bot said after it. A turn ends
-    // "…and I'll log it" as often as it ends with the question mark, and the
-    // line worth showing is the one that asked.
-    return said.find((m) => m.text.includes("?"));
+    // Buttons left unpressed first, and regardless of punctuation: a bot that
+    // handed over answers is waiting on one of them being chosen, which is a
+    // surer thing than any reading of the words. It is also the item worth
+    // having at the top, because it is the one that can be cleared without
+    // going anywhere.
+    const offered = said.find((m) => m.ask && !m.ask.answered);
+    if (offered) return offered;
+    // Otherwise the question itself, not whatever the bot said after it. A
+    // turn ends "…and I'll log it" as often as it ends with the question mark,
+    // and the line worth showing is the one that asked.
+    //
+    // Never one whose buttons have been pressed. Answering also puts your own
+    // message in the conversation, which normally settles this by itself — but
+    // a question is finished when it has been answered, and that should not
+    // depend on something else happening to be true.
+    return said.find((m) => m.text.includes("?") && !m.ask?.answered);
   };
 
   for (const bot of state.bots) {
@@ -1453,9 +1470,13 @@ function onYourDesk(): Waiting[] {
       out.push({
         kind: "asked",
         who: bot.name,
-        what: theAsk(asking.text),
+        // The question it wrote for the buttons, when there is one: it was
+        // written to sit above them and says the choice more plainly than the
+        // sentence in the reply.
+        what: asking.ask?.question || theAsk(asking.text),
         when: asking.at,
         at: { botId: bot.id, messageId: asking.id },
+        ...(asking.ask && !asking.ask.answered ? { ask: { options: asking.ask.options } } : {}),
       });
     }
   }
@@ -1478,9 +1499,10 @@ function onYourDesk(): Waiting[] {
       out.push({
         kind: "asked",
         who: `${nameOf(asking.by) || "A bot"} in ${ch.from ? "↳ " : "#"}${ch.name}`,
-        what: theAsk(asking.text),
+        what: asking.ask?.question || theAsk(asking.text),
         when: asking.at,
         at: { channelId: ch.id, messageId: asking.id },
+        ...(asking.ask && !asking.ask.answered ? { ask: { options: asking.ask.options } } : {}),
       });
     }
   }
@@ -1533,6 +1555,7 @@ function renderDesk(): void {
     ? desk
         .map(
           (item, at) =>
+            `<div class="desk-row${item.ask ? " has-ask" : ""}">` +
             `<button type="button" class="desk-item desk-item--${item.kind}" data-desk-at="${at}">` +
             `<span class="desk-item__kind">${
               item.kind === "engine"
@@ -1548,7 +1571,22 @@ function renderDesk(): void {
             `<span class="desk-item__what">${escapeHtml(item.what.slice(0, 240))}</span>` +
             `</span>` +
             `<span class="desk-item__when">${item.kind === "engine" ? "" : AGO(item.when)}</span>` +
-            `</button>`,
+            `</button>` +
+            // Outside the row's own button, because a button inside a button
+            // is not a thing, and because pressing an answer is not the same
+            // gesture as going to the conversation.
+            (item.ask
+              ? `<div class="desk-item__ask">` +
+                item.ask.options
+                  .map(
+                    (one) =>
+                      `<button type="button" class="ask__opt" data-desk-answer="${at}" ` +
+                      `data-answer="${escapeHtml(one)}">${escapeHtml(one)}</button>`,
+                  )
+                  .join("") +
+                `</div>`
+              : "") +
+            `</div>`,
         )
         .join("")
     : `<div class="desk__clear">` +
@@ -6055,13 +6093,19 @@ function postToChannel(ch: Channel, text: string): void {
   hushed.delete(ch.id);
   const msg: Message = { id: uid(), from: "me", text, at: Date.now() };
   ch.messages.push(msg);
-  if (ch.messages.length === 1) thread.innerHTML = "";
-  thread.append(turnEl(msg, ch, ch.messages[ch.messages.length - 2]));
-  scrollToEnd(true);
-  input.value = "";
-  autoGrow();
+  // Only when this room is the one on screen. It used not to check, because
+  // for a long time the only way to post to a room was to be looking at it —
+  // now the desk can answer a question in a room that is not open, and without
+  // this the message is appended to whatever conversation happens to be in
+  // front of you and the composer you were typing in is cleared.
+  if (state.activeChannel === ch.id) {
+    if (ch.messages.length === 1) thread.innerHTML = "";
+    thread.append(turnEl(msg, ch, ch.messages[ch.messages.length - 2]));
+    input.value = "";
+    autoGrow();
+    scrollToEnd(true);
+  }
   save();
-  scrollToEnd(true);
 
   let wanted = addressees(ch, text);
 
@@ -8886,27 +8930,64 @@ $<HTMLElement>("#topbar-id").addEventListener("click", (e) => {
   if (face) openCard(face);
 });
 
-/** Pressing one of a bot's answers.
+/** Pressing one of a bot's answers, from wherever it was pressed.
  *
  *  It is sent as though you had typed it, because that is what it is: the
  *  words are the bot's suggestion of what you would have written, and the bot
- *  reading its own suggestion back needs no protocol to understand it. */
+ *  reading its own suggestion back needs no protocol to understand it.
+ *
+ *  Where matters, because the desk can answer a question in a conversation
+ *  that is not open — so this goes there first rather than assuming the answer
+ *  belongs wherever you happen to be looking. */
+function answerAsk(
+  at: { botId?: string; channelId?: string; messageId?: string },
+  answer: string,
+): void {
+  const room = at.channelId ? channels().find((c) => c.id === at.channelId) : undefined;
+  const bot = at.botId ? state.bots.find((b) => b.id === at.botId) : undefined;
+  const msg = (room ? room.messages : (bot?.messages ?? [])).find((m) => m.id === at.messageId);
+  if (!msg?.ask || msg.ask.answered) return;
+  // Whatever was pressed has to be one of the answers offered: a desk drawn a
+  // few seconds ago must not be able to put words in your mouth.
+  if (!msg.ask.options.includes(answer)) return;
+
+  if (!claudeReady) {
+    toast("Claude Code CLI not found — install it to talk to your bots");
+    return;
+  }
+
+  // Marked before sending: the reply that comes back re-renders everything,
+  // and a row still offering its buttons underneath invites a second press.
+  msg.ask.answered = answer;
+  save();
+
+  // Sent where the question was, without going there. Answering from the desk
+  // is meant to clear the list, and a jump into the conversation after each
+  // press means walking back for the next one — the list is the place you are,
+  // and the item leaving it is the whole of what you asked for.
+  if (room) {
+    postToChannel(room, answer);
+  } else if (bot && !inflight.has(bot.id)) {
+    const said: Message = { id: uid(), from: "me", text: answer, at: Date.now() };
+    bot.messages.push(said);
+    save();
+    void respond(bot, answer);
+  }
+  redrawConversation();
+  renderRoster();
+  if (deskOpen) renderDesk();
+}
+
 thread.addEventListener("click", (e) => {
   const pick = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-ask]");
   if (!pick?.dataset.answer) return;
-
   const room = activeChannel();
-  const msg = (room ? room.messages : (activeBot()?.messages ?? [])).find(
-    (m) => m.id === pick.dataset.ask,
+  answerAsk(
+    room
+      ? { channelId: room.id, messageId: pick.dataset.ask }
+      : { botId: activeBot()?.id, messageId: pick.dataset.ask },
+    pick.dataset.answer,
   );
-  // Marked before sending: the reply that comes back re-renders the thread,
-  // and a row still offering its buttons underneath it invites a second press.
-  if (msg?.ask) {
-    msg.ask.answered = pick.dataset.answer;
-    save();
-    redrawConversation();
-  }
-  send(pick.dataset.answer);
 });
 
 thread.addEventListener("click", (e) => {
@@ -9385,6 +9466,16 @@ $<HTMLDivElement>("#cal-spans").addEventListener("click", (e) => {
 });
 
 $<HTMLElement>("#desk").addEventListener("click", (e) => {
+  // An answer pressed on the list itself. The whole point of the desk is what
+  // will not move until you do something, and the ones that can be finished
+  // without going anywhere should be finished here.
+  const answer = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-desk-answer]");
+  if (answer?.dataset.answer) {
+    const item = desk[Number(answer.dataset.deskAnswer)];
+    if (item) answerAsk(item.at, answer.dataset.answer);
+    return;
+  }
+
   const pick = (e.target as HTMLElement).closest<HTMLElement>("[data-desk-at]");
   if (!pick) return;
   const item = desk[Number(pick.dataset.deskAt)];
@@ -11178,22 +11269,13 @@ const REMOTE_ACTIONS: Record<string, (payload: Record<string, unknown>) => unkno
     const bot = state.bots.find((b) => b.id === String(p.botId ?? ""));
     const msg = (room ? room.messages : (bot?.messages ?? [])).find((m) => m.id === messageId);
     if (!msg?.ask) throw new Error("that message is not asking anything");
-    // Whatever the phone sent, it has to be one of the answers offered — a
-    // stale snapshot must not be able to put words in the user's mouth.
     if (!msg.ask.options.includes(answer)) throw new Error("that is not one of the answers");
     if (msg.ask.answered) throw new Error("that has been answered already");
 
-    msg.ask.answered = answer;
-    save();
-    redrawConversation();
-
-    if (room) {
-      openChannel(room.id);
-      postToChannel(room, answer);
-      return { ok: true };
-    }
-    if (!bot) throw new Error("no such bot");
-    return remoteSend(bot.id, answer);
+    // The same door the laptop's own buttons use, so there is one account of
+    // what pressing an answer does.
+    answerAsk({ botId: bot?.id, channelId: room?.id, messageId }, answer);
+    return { ok: true };
   },
 
   /** Mark a room read, because reading it on the phone is reading it. */

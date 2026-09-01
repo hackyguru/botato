@@ -522,6 +522,17 @@ export default function App() {
                   await act("channel/create", { name, purpose, members });
                 }}
                 desk={snapshot?.desk}
+                onAnswerDesk={async (item, answer) => {
+                  // Straight to where the question is, by the ids the desk
+                  // already carries — the conversation does not have to be
+                  // open, which is the whole point of answering from here.
+                  await act("message/answer", {
+                    botId: item.at.botId,
+                    channelId: item.at.channelId,
+                    messageId: item.at.messageId,
+                    answer,
+                  });
+                }}
                 onOpenDesk={(item) => {
                   // The same three destinations the laptop's desk has, minus
                   // the one it keeps for itself: an engine that cannot run is

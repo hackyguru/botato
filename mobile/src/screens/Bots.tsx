@@ -99,6 +99,7 @@ export default function Bots({
   onCreateChannel,
   desk,
   onOpenDesk,
+  onAnswerDesk,
 }: {
   bots: Bot[];
   /** What each face is doing, worked out where the event stream is. */
@@ -115,6 +116,8 @@ export default function Bots({
   /** What is blocked on you, as the laptop worked it out. */
   desk?: Snapshot["desk"];
   onOpenDesk: (item: NonNullable<Snapshot["desk"]>[number]) => void;
+  /** Press one of a question's answers without leaving the list. */
+  onAnswerDesk: (item: NonNullable<Snapshot["desk"]>[number], answer: string) => Promise<void>;
 }) {
   const [adding, setAdding] = useState(false);
   /** Which of the two things the sheet is currently making. */
@@ -125,6 +128,9 @@ export default function Bots({
    *  to, so members are chosen here rather than added afterwards. */
   const [inRoom, setInRoom] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  /** Which desk answer is in flight, as "row:answer" — so the one pressed
+   *  spins and the rest simply stop taking presses. */
+  const [answering, setAnswering] = useState<string | null>(null);
   const [find, setFind] = useState("");
   const q = find.trim().toLowerCase();
 
@@ -349,6 +355,38 @@ export default function Bots({
                 <Text style={s.waitingWhat} numberOfLines={2}>
                   {item.what}
                 </Text>
+
+                {/* Answers pressed here rather than in the conversation. The
+                    desk is the list of what will not move until you do
+                    something, and the ones that can be finished from the list
+                    should be — which on a phone is the difference between an
+                    answer now and an answer this evening. */}
+                {item.ask ? (
+                  <View style={s.waitingAsk}>
+                    {item.ask.options.map((one) => (
+                      <Pressable
+                        key={one}
+                        style={s.waitingOpt}
+                        disabled={!!answering}
+                        onPress={async () => {
+                          setAnswering(`${at}:${one}`);
+                          try {
+                            await onAnswerDesk(item, one);
+                          } finally {
+                            setAnswering(null);
+                          }
+                        }}
+                        accessibilityRole="button"
+                      >
+                        {answering === `${at}:${one}` ? (
+                          <ActivityIndicator size="small" color={T.text2} />
+                        ) : (
+                          <Text style={s.waitingOptText}>{one}</Text>
+                        )}
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
               </Pressable>
             ))}
           </>
@@ -593,6 +631,18 @@ const s = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.5,
   },
+  waitingAsk: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 9 },
+  waitingOpt: {
+    justifyContent: "center",
+    minHeight: 32,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: T.raised,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: T.line,
+  },
+  waitingOptText: { color: T.text, fontSize: 13.5 },
   waitingBad: { color: T.red },
   waitingWarn: { color: T.amber },
   waitingWho: { marginTop: 3, color: T.text, fontSize: 14.5, fontWeight: "600" },
