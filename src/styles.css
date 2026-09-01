@@ -3244,6 +3244,129 @@ select:focus-visible {
   }
 }
 
+/* A bot on one card, from clicking its face.
+ *
+ * Wider than a menu because it is not one: a menu is a list of things to do
+ * and this is a thing to read, with two ways out of it at the bottom. */
+.menu--card {
+  width: 288px;
+  padding: 0;
+}
+
+.card__head {
+  display: flex;
+  gap: 11px;
+  align-items: center;
+  padding: 14px 14px 10px;
+}
+
+.card__who {
+  min-width: 0;
+}
+
+.card__name {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* What it is doing, in the present tense — the question somebody clicking a
+   face is actually asking. */
+.card__doing {
+  margin: 2px 0 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.card__doing.is-working {
+  color: var(--blue);
+}
+
+.card__role {
+  margin: 0;
+  padding: 0 14px 12px;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.card__lines {
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+}
+
+.card__line {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.card__label {
+  flex: none;
+  color: var(--text-3);
+}
+
+.card__value {
+  color: var(--text-2);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* What it says it can do. The same list a slash offers, in the place somebody
+   looks when they are asking what a bot is for. */
+.card__cmds {
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+}
+
+.card__cmd {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+.card__cmd code {
+  flex: none;
+  color: var(--text);
+  font-family: var(--mono);
+}
+
+.card__cmd span {
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card__acts {
+  display: flex;
+  gap: 6px;
+  padding: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.card__act {
+  flex: 1;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--fill-1);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.card__act:hover {
+  border-color: var(--blue);
+  background: var(--fill-2);
+}
+
 .menu-item {
   display: flex;
   align-items: center;

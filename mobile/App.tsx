@@ -42,6 +42,7 @@ import Chat from "./src/screens/Chat";
 import BotSettings from "./src/screens/BotSettings";
 import Calendar from "./src/screens/Calendar";
 import Drawer from "./src/drawer";
+import Card from "./src/card";
 import type { Mood } from "./src/face";
 import Foot from "./src/foot";
 import { pushWhere, showThemWhileOpen } from "./src/push";
@@ -70,6 +71,9 @@ export default function App() {
      the drawer; the two conversation headers open their own. */
   const [calFor, setCalFor] = useState<{ kind: "bot" | "room"; id: string } | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
+  /** Whose card is showing, by id — so it follows the bot across a refresh
+   *  rather than describing how it was a minute ago. */
+  const [cardFor, setCardFor] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -577,6 +581,7 @@ export default function App() {
             onAnswer={async (messageId, answer) => {
               await act("message/answer", { channelId: room.id, messageId, answer });
             }}
+            onFace={(who) => setCardFor(who.id)}
             onPin={async (messageId) => {
               // No "pinned" flag sent: the laptop flips whatever it has, so
               // acting on a snapshot a few seconds old cannot pin something
@@ -651,6 +656,7 @@ export default function App() {
             onAnswer={async (messageId, answer) => {
               await act("message/answer", { botId: bot.id, messageId, answer });
             }}
+            onFace={() => setCardFor(bot.id)}
             onSend={async (text) => {
               // Show it immediately; the laptop's own copy arrives with the next
               // snapshot and replaces this one.
@@ -697,6 +703,22 @@ export default function App() {
           )}
         </Drawer>
       )}
+
+      {/* Over everything, because a face is tapped from a conversation and the
+          card is about the bot rather than about where you were. */}
+      <Card
+        bot={bots.find((b) => b.id === cardFor) ?? null}
+        onClose={() => setCardFor(null)}
+        onOpen={(who) => {
+          setCardFor(null);
+          goToBot(who);
+        }}
+        onSettings={(who) => {
+          setCardFor(null);
+          goToBot(who);
+          setScreen("settings");
+        }}
+      />
     </>
   );
 }

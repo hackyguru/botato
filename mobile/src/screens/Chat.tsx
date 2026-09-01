@@ -40,6 +40,7 @@ export default function Chat({
   onCalendar,
   onPin,
   onAnswer,
+  onFace,
 }: {
   bot: Bot;
   /** What the bot is doing right now, from the event stream. */
@@ -57,6 +58,8 @@ export default function Chat({
   onPin: (messageId: string) => Promise<void>;
   /** Press one of a bot's answers. */
   onAnswer: (messageId: string, answer: string) => Promise<void>;
+  /** Tapping the face: who this bot is, on a card. */
+  onFace: () => void;
 }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -102,7 +105,9 @@ export default function Chat({
         <Pressable onPress={onBack} hitSlop={14}>
           <Text style={s.back}>‹</Text>
         </Pressable>
-        <Face bot={bot} size={30} />
+        <Pressable onPress={onFace} accessibilityRole="button" accessibilityLabel={`About ${bot.name}`}>
+          <Face bot={bot} size={30} />
+        </Pressable>
         <View style={s.headBody}>
           <Text style={s.name} numberOfLines={1}>
             {bot.name}

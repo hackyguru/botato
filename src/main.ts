@@ -2183,6 +2183,86 @@ function askHtml(msg: Message): string {
   );
 }
 
+/** Which engine and model answer for a bot, as one line.
+ *
+ *  Both, because neither alone says enough: "Claude Code" does not say which
+ *  model, and "opus" does not say what is running it. */
+function modelSays(bot: Bot): string {
+  const engine = engineChoices.find((info) => info.key === (bot.engine ?? DEFAULT_ENGINE));
+  const name = engine?.name ?? "Claude Code";
+  return bot.model ? `${name} · ${bot.model}` : name;
+}
+
+/** Who a bot is, on one card.
+ *
+ *  Everything here is already somewhere in the app — the role is in its
+ *  settings, the hours are on the shift picker, what it costs is on the
+ *  payroll, what it answers to is behind a slash. Scattered across four panels
+ *  it is configuration; gathered on the face you just clicked it is a
+ *  colleague. That is the whole of what this adds, and it is most of what a
+ *  server full of bots feels like.
+ *
+ *  Read-only. Every line has a place it is edited and the card links to it
+ *  rather than growing a second set of controls that drift from the first.
+ */
+function cardHtml(bot: Bot): string {
+  const working = inflight.get(bot.id);
+  const manner = mannerOf(bot);
+  const week = bot.spend?.weekUsd ?? 0;
+  const live = (bot.routines ?? []).filter((r) => r.active).length;
+
+  // What it is doing, in the present tense, because that is the question
+  // somebody clicking a face has. Working beats off-the-clock: a bot mid-turn
+  // is mid-turn whatever the hours say.
+  const doing = working
+    ? working.note || "Working"
+    : bot.hours && !onTheClock(bot)
+      ? `Off the clock · ${saysHours(bot)}`
+      : bot.hours
+        ? `On the clock · ${saysHours(bot)}`
+        : "Ready";
+
+  const line = (label: string, value: string) =>
+    `<div class="card__line"><span class="card__label">${escapeHtml(label)}</span>` +
+    `<span class="card__value">${escapeHtml(value)}</span></div>`;
+
+  return (
+    `<div class="card">` +
+    `<div class="card__head">${faceHtml(bot, "lg")}` +
+    `<div class="card__who"><p class="card__name">${escapeHtml(bot.name)}</p>` +
+    `<p class="card__doing${working ? " is-working" : ""}">${escapeHtml(doing)}</p></div></div>` +
+    // The job in its own words, which is the one thing here that is prose.
+    (bot.role
+      ? `<p class="card__role">${escapeHtml(bot.role.split("\n")[0].slice(0, 200))}</p>`
+      : "") +
+    `<div class="card__lines">` +
+    line("Answered by", modelSays(bot)) +
+    line("Manner", manner.name) +
+    (live ? line("Routines", `${live} active`) : "") +
+    // Only once it has cost something. A row saying $0.00 is a row about
+    // nothing, and this week's is the number worth knowing.
+    (week > 0 ? line("This week", money(week)) : "") +
+    `</div>` +
+    // What it says it can do — the same list a slash offers, in the place
+    // somebody looks when they are asking what a bot is for.
+    (bot.commands?.length
+      ? `<div class="card__cmds">` +
+        bot.commands
+          .map(
+            (one) =>
+              `<div class="card__cmd"><code>/${escapeHtml(one.name)}</code>` +
+              `<span>${escapeHtml(one.what)}</span></div>`,
+          )
+          .join("") +
+        `</div>`
+      : "") +
+    `<div class="card__acts">` +
+    `<button type="button" class="card__act" data-card-open="${bot.id}">Open</button>` +
+    `<button type="button" class="card__act" data-card-settings="${bot.id}">Settings</button>` +
+    `</div></div>`
+  );
+}
+
 /** The way into a thread, from the message it was pulled out of. */
 function threadStrip(thread: Channel, from: Message): string {
   // The quoted first message came from here, so it is not a reply.
@@ -8753,6 +8833,29 @@ thread.addEventListener("click", (e) => {
   if (open?.dataset.openThread) openChannel(open.dataset.openThread);
 });
 
+/** Clicking a face opens the bot behind it.
+ *
+ *  Anywhere a face appears in a conversation: the one at the head of a run, and
+ *  the ones peeking out of a room's header. Not the roster, where a row already
+ *  means "open this bot" and a face inside it would mean something else.
+ */
+function openCard(face: HTMLElement): boolean {
+  const bot = state.bots.find((b) => b.id === face.dataset.bot);
+  if (!bot) return false;
+  openMenu(face, cardHtml(bot), "menu--card");
+  return true;
+}
+
+thread.addEventListener("click", (e) => {
+  const face = (e.target as HTMLElement).closest<HTMLElement>(".face[data-bot]");
+  if (face) openCard(face);
+});
+
+$<HTMLElement>("#topbar-id").addEventListener("click", (e) => {
+  const face = (e.target as HTMLElement).closest<HTMLElement>(".face[data-bot]");
+  if (face) openCard(face);
+});
+
 /** Pressing one of a bot's answers.
  *
  *  It is sent as though you had typed it, because that is what it is: the
@@ -8875,6 +8978,17 @@ menu.addEventListener("click", (e) => {
       save();
       renderThread();
     }
+  }
+
+  // The two ways out of a profile card: into the conversation, or into the
+  // settings the card is a read-only view of.
+  const card = target.closest<HTMLButtonElement>("[data-card-open], [data-card-settings]");
+  if (card) {
+    const wanted = card.dataset.cardOpen ?? card.dataset.cardSettings ?? "";
+    closeMenu();
+    if (card.dataset.cardSettings) openSheet(state.bots.find((b) => b.id === wanted) ?? null);
+    else openBot(wanted);
+    return;
   }
 
   const copyItem = target.closest<HTMLButtonElement>("[data-copy]");

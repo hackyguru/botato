@@ -43,6 +43,7 @@ export default function Room({
   onOpenThread,
   onPin,
   onAnswer,
+  onFace,
   onThread,
   onEdit,
   onDeleteChannel,
@@ -62,6 +63,8 @@ export default function Room({
   onPin: (messageId: string) => Promise<void>;
   /** Press one of a bot's answers. */
   onAnswer: (messageId: string, answer: string) => Promise<void>;
+  /** Tapping a face: who this bot is, on a card. */
+  onFace: (bot: Bot) => void;
   /** Pull a message aside into a thread of its own, and open it. */
   onThread: (messageId: string) => Promise<void>;
   /** Rename the room, say what it is for, or change who is in it. */
@@ -156,9 +159,15 @@ export default function Room({
         ) : null}
         <View style={s.faces}>
           {inside.slice(0, 3).map((bot) => (
-            <View key={bot.id} style={s.facePeek}>
+            <Pressable
+              key={bot.id}
+              style={s.facePeek}
+              onPress={() => onFace(bot)}
+              accessibilityRole="button"
+              accessibilityLabel={`About ${bot.name}`}
+            >
               <Face bot={bot} size={22} />
-            </View>
+            </Pressable>
           ))}
         </View>
       </View>
@@ -186,6 +195,7 @@ export default function Room({
             onOpenThread={onOpenThread}
             onHold={() => setActing(msg.id)}
             onAnswer={onAnswer}
+            onFace={onFace}
           />
         ))}
 
@@ -387,6 +397,7 @@ function Said({
   onOpenThread,
   onHold,
   onAnswer,
+  onFace,
 }: {
   msg: Message;
   prev?: Message;
@@ -399,6 +410,7 @@ function Said({
    *  under a cursor on the laptop. */
   onHold: () => void;
   onAnswer: (messageId: string, answer: string) => Promise<void>;
+  onFace: (bot: Bot) => void;
 }) {
   // A routine firing is a marker, not something said — the same badge the
   // laptop shows, so a bot suddenly talking about last night's backups says
@@ -426,7 +438,19 @@ function Said({
   return (
     <Turn
       head={head}
-      face={author ? <Face bot={author} size={26} still /> : <Initial name={name} />}
+      face={
+        author ? (
+          <Pressable
+            onPress={() => onFace(author)}
+            accessibilityRole="button"
+            accessibilityLabel={`About ${author.name}`}
+          >
+            <Face bot={author} size={26} still />
+          </Pressable>
+        ) : (
+          <Initial name={name} />
+        )
+      }
       name={name}
       at={msg.at}
       fromPhone={msg.fromPhone}
