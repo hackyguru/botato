@@ -569,6 +569,25 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         (TOOLS.to_string(), base)
     };
 
+    // What this bot has written down about its own job.
+    //
+    // Claude Code reads the file itself, so handing it over as well would say
+    // everything twice. Every other engine gets it here — without this, a bot
+    // on Gemini or a hosted model keeps a memory file that nothing ever reads,
+    // which is worse than having none: it looks like it remembers.
+    if !engine.reads_memory() {
+        if let Ok(memory) = fs::read_to_string(cwd.join("CLAUDE.md")) {
+            let memory = memory.trim();
+            if !memory.is_empty() {
+                system_prompt.push_str(&format!(
+                    "\n\n## What you have written down about this job\n\n\
+                     Your own notes, kept between conversations. Trust them over your \
+                     recollection, and correct them when they turn out to be wrong.\n\n{memory}"
+                ));
+            }
+        }
+    }
+
     // A bare `mcp__<server>` rule covers every tool that server offers, so a
     // connector gaining tools later needs no change here.
     if carries_tools {
@@ -1086,6 +1105,31 @@ fn take_face(app: AppHandle, bot_id: String) -> Option<Value> {
     let raw = fs::read_to_string(&path).ok()?;
     let _ = fs::remove_file(&path);
     serde_json::from_str(&raw).ok()
+}
+
+/// What a bot has written down about its job, for the window to show.
+///
+/// It is the one part of a bot that the bot writes and the user reads. Until
+/// now it lived in a file nobody opened: the app created it, told the bot to
+/// keep it, and then offered no way to see whether it had — so a memory that
+/// had quietly filled with something wrong stayed wrong.
+#[tauri::command]
+fn read_memory(app: AppHandle, bot_id: String) -> String {
+    workspace(&app, &bot_id)
+        .ok()
+        .and_then(|dir| fs::read_to_string(dir.join("CLAUDE.md")).ok())
+        .unwrap_or_default()
+}
+
+/// Correct it by hand.
+///
+/// The user editing this is the point rather than a fallback: a bot that has
+/// written down something untrue will go on acting on it every turn, and the
+/// fastest fix is a person deleting the line.
+#[tauri::command]
+fn write_memory(app: AppHandle, bot_id: String, text: String) -> Result<(), String> {
+    let dir = workspace(&app, &bot_id)?;
+    fs::write(dir.join("CLAUDE.md"), text).map_err(|e| e.to_string())
 }
 
 /// A question a bot left for the user this turn, if it left one.
@@ -1617,6 +1661,8 @@ pub fn run() {
             take_face,
             take_ask,
             take_commands,
+            read_memory,
+            write_memory,
             backup_ready,
             backup_passphrase,
             backup_now,

@@ -646,6 +646,20 @@
             </label>
             </div>
 
+            <!-- The other half of the same idea as the role: that is what you
+                 tell it, this is what it has worked out for itself. Last in the
+                 tab because it is something to read when you come looking, not
+                 a field anybody opens this sheet to fill in — above the pickers
+                 it pushed every setting you actually came for below the fold. -->
+            <label class="prose" id="sheet-memory-row">
+              <span class="prose__label">What it has learned
+                <span class="prose__hint">Its own notes, kept between conversations. It writes
+                  these; correct or delete anything that is wrong.</span>
+              </span>
+              <textarea id="sheet-memory" rows="4"
+                        placeholder="Nothing yet. It fills this in as it works."></textarea>
+            </label>
+
           </div>
 
           <div class="settings-panel" data-tab="computer" role="tabpanel" hidden>

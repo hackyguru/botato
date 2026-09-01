@@ -196,6 +196,17 @@ pub trait Engine: Send + Sync {
     /// each turn — the one difference that is not cosmetic.
     fn owns_transcript(&self) -> bool;
 
+    /// Does it read the bot's memory file for itself?
+    ///
+    /// Claude Code loads `CLAUDE.md` from the session's cwd on every turn, so
+    /// botcage handing it over as well would say everything twice. Nothing
+    /// else does, and a memory file nothing reads is a bot that forgets
+    /// everything it wrote down — which is worse than having no memory at all,
+    /// because it looks like it has one.
+    fn reads_memory(&self) -> bool {
+        false
+    }
+
     /// The command that runs one turn.
     fn command(&self, turn: &Turn) -> Result<std::process::Command, String>;
 
@@ -451,6 +462,11 @@ impl Engine for ClaudeCode {
     }
 
     fn owns_transcript(&self) -> bool {
+        true
+    }
+
+    /// It loads `CLAUDE.md` from the cwd itself, every turn.
+    fn reads_memory(&self) -> bool {
         true
     }
 

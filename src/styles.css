@@ -3538,6 +3538,17 @@ select:focus-visible {
   color: var(--text-2);
 }
 
+/* A line under a label, for the fields whose purpose is not obvious from three
+   words — the same shape a setting's hint has, so the sheet reads as one thing
+   whether a field is a picker or a paragraph. */
+.prose__hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
 .prose textarea {
   width: 100%;
   /* Enough to invite a few sentences, not so much that the pickers below it

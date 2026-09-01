@@ -437,6 +437,12 @@ const sheetWrap = $<HTMLDivElement>("#sheet-wrap");
 const sheet = $<HTMLFormElement>("#sheet");
 const sheetName = $<HTMLInputElement>("#sheet-name");
 const sheetRole = $<HTMLTextAreaElement>("#sheet-role");
+const sheetMemory = $<HTMLTextAreaElement>("#sheet-memory");
+const sheetMemoryRow = $<HTMLElement>("#sheet-memory-row");
+/** What the memory said when the sheet opened, so saving can tell an edit from
+ *  a bot that wrote to the file while the sheet was open. Writing back
+ *  unchanged text would clobber whatever it had just learned. */
+let memoryWas = "";
 const sheetPreview = $<HTMLDivElement>("#sheet-preview");
 const swatches = $<HTMLDivElement>("#swatches");
 const sheetTitle = $<HTMLHeadingElement>("#sheet-title");
@@ -4362,6 +4368,22 @@ function openSheet(bot: Bot | null = null): void {
   sheetSubmit.textContent = bot ? "Save" : "Create bot";
   sheetName.value = bot?.name ?? "";
   sheetRole.value = bot?.role ?? "";
+  // A bot that does not exist yet has learned nothing, and the box would only
+  // invite somebody to write its memory for it.
+  sheetMemoryRow.hidden = !bot;
+  sheetMemory.value = "";
+  memoryWas = "";
+  if (bot) {
+    void invoke<string>("read_memory", { botId: bot.id })
+      .then((text) => {
+        // Only if the sheet is still showing the bot this was asked for: two
+        // quick opens would otherwise land one bot's memory in another's box.
+        if (editing?.id !== bot.id) return;
+        memoryWas = text;
+        sheetMemory.value = text;
+      })
+      .catch(() => {});
+  }
   sheetComputer.checked = bot?.computer ?? false;
   sheetNetwork.value = bot?.network ?? "full";
   draftModel = {
@@ -5294,6 +5316,14 @@ function saveSheet(): void {
   if (!picked) return;
 
   if (editing) {
+    // Only when it was actually edited. A bot writes to this file during its
+    // own turns, and saving unchanged text over the top would throw away
+    // whatever it learned while the sheet sat open.
+    if (sheetMemory.value !== memoryWas) {
+      const text = sheetMemory.value;
+      memoryWas = text;
+      void invoke("write_memory", { botId: editing.id, text }).catch(() => {});
+    }
     const before = { computer: editing.computer, network: editing.network };
     const swapped = (editing.engine ?? DEFAULT_ENGINE) !== sheetEngine.value;
     Object.assign(editing, {
