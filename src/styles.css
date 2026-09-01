@@ -451,64 +451,6 @@ select:focus-visible {
   padding-bottom: 6px;
 }
 
-/* How full a bot's hands are.
- *
- * A ring rather than a bar or a number: a bar down a roster is a chart, and a
- * number is something to do arithmetic on. A ring reads at a glance and stops
- * at a top, which is the honest shape for "how much is on" — past four jobs
- * the difference between busy and busier is not a thing anybody acts on.
- *
- * On its own rather than around the face, which is where it started. A circle
- * drawn around a squircle is a circle the squircle hides: its corners reach
- * past the arc and cover exactly the part carrying the reading, and every bot
- * has a different head. Out here it is the same gauge whatever shape a bot is.
- *
- * The groove is drawn whether or not there is anything in it, so the eye has
- * something to read the rest against and a roster does not flicker with rings
- * appearing as bots pick work up.
- *
- * One element: the conic gradient is the arc, the colour under it is the
- * groove, and the mask punches out the middle. */
-.gauge {
-  flex: none;
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  background-color: rgba(255, 255, 255, 0.13);
-  background-image: conic-gradient(
-    from -90deg,
-    var(--ring, var(--blue)) calc(var(--press, 0) * 360deg),
-    transparent 0
-  );
-  -webkit-mask: radial-gradient(circle, transparent 4.5px, #000 4.5px);
-  mask: radial-gradient(circle, transparent 4.5px, #000 4.5px);
-}
-
-/* Hands full. Amber rather than red: four jobs is a bot having a day, not a
-   bot in trouble, and red in a roster is a word this app keeps for damage. */
-.gauge[style*="--press:1"] {
-  --ring: var(--amber);
-}
-
-/* Mid-turn, so the ring turns while the turn does. The face two inches away is
-   already thinking or working — this says the same thing from further off, for
-   the roster you are not looking directly at. */
-.gauge.is-working {
-  animation: load-turn 2.4s linear infinite;
-}
-
-@keyframes load-turn {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .gauge.is-working {
-    animation: none;
-  }
-}
-
 /* ------------------------------------------------------------- your desk */
 
 /* The row above everything, which is neither a channel nor a bot: it is the

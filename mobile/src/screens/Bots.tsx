@@ -21,7 +21,6 @@ import {
 import type { Bot, Channel, Message, Snapshot } from "../types";
 import Face, { type Mood } from "../face";
 import Sheet from "../sheet";
-import { Gauge } from "../marks";
 import { T } from "../theme";
 import { unreadIn } from "../unread";
 
@@ -423,14 +422,6 @@ export default function Bots({
             <Text style={s.cardName} numberOfLines={1}>
               {bot.name}
             </Text>
-            {/* The same gauge the laptop draws in the same place in the row,
-                from the same number: how full its hands are. */}
-            {bot.load ? (
-              <Gauge
-                press={bot.load.press}
-                color={bot.load.press >= 1 ? T.amber : T.blue}
-              />
-            ) : null}
             {bot.busy ? (
               <View style={s.dot} />
             ) : (

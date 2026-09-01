@@ -92,10 +92,6 @@ export interface Bot {
   /** What it has cost. A fact, and read-only wherever it is shown. */
   spend?: { turns: number; usd: number; week: string; weekTurns: number; weekUsd: number };
   busy: boolean;
-  /** How full its hands are, as the laptop worked it out. Sent rather than
-   *  recomputed here: two implementations of one gauge is two gauges that
-   *  disagree by Thursday. Absent from a laptop older than the gauge. */
-  load?: { press: number; working: boolean; says: string };
   messages: Message[];
   seenAt?: number;
 }

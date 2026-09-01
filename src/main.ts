@@ -1126,102 +1126,6 @@ function restingMood(botId: string): string {
   return "idle";
 }
 
-/** How many rooms are waiting on each bot: named since it last spoke there.
- *
- *  The same question `addressees` answers when a message arrives, asked of the
- *  backlog instead — and asked once for everybody rather than once per bot,
- *  since the reading is the same rooms either way.
- *
- *  Bounded at forty messages back. A bot that has never spoken in a busy room
- *  would otherwise mean parsing the room's whole history for a gauge, and
- *  forty is as far as "still waiting on you" reaches anyway.
- */
-function roomsWaitingOn(): Map<string, number> {
-  const out = new Map<string, number>();
-  for (const ch of channels()) {
-    const spoke = new Map<string, number>();
-    ch.messages.forEach((m, at) => {
-      if (m.by) spoke.set(m.by, at);
-    });
-    // One room is one thing waiting however many times it asked: the gauge
-    // counts rooms, not messages, or a person repeating themselves would make
-    // a bot look busier.
-    const here = new Set<string>();
-    const from = Math.max(0, ch.messages.length - 40);
-    for (let at = from; at < ch.messages.length; at += 1) {
-      const m = ch.messages[at];
-      if (m.from !== "me") continue;
-      for (const bot of addressees(ch, m.text)) {
-        // Only if it has not spoken since being named.
-        if ((spoke.get(bot.id) ?? -1) > at) continue;
-        here.add(bot.id);
-      }
-    }
-    for (const id of here) out.set(id, (out.get(id) ?? 0) + 1);
-  }
-  return out;
-}
-
-/** How full a bot's hands are, and what to say about it.
- *
- *  Every part of this is a reading of something botcage already knows: whether
- *  a turn is in flight, how many of its routines come due within the hour, and
- *  how many rooms have said its name since it last spoke there. Nothing here is
- *  invented for flavour — a gauge that is partly made up is a gauge nobody can
- *  use, and the moment one number is decorative the others stop being believed.
- *
- *  Four jobs fills the ring. Not because four is a limit — a bot will take a
- *  fifth — but because a gauge needs a top, and past four the difference
- *  between busy and busier is not a thing anybody acts on. */
-function loadOf(
-  bot: Bot,
-  /** Worked out once for the whole roster. Without it every bot re-read every
-   *  room, which is fine for two bots and one channel and quadratic for twenty
-   *  of each. */
-  waiting?: Map<string, number>,
-): { press: number; working: boolean; says: string } {
-  const working = inflight.has(bot.id);
-  const now = Date.now();
-
-  const next = (r: Routine) => nextRun(r, r.lastRunAt ?? now);
-  // Only what will actually run. A routine that comes due while its bot is off
-  // the clock does not fire then — it waits for the shift — so counting it as
-  // pressure now would be the gauge reporting work that is not about to
-  // happen, which is the one thing it is not allowed to do.
-  const live = (bot.routines ?? []).filter((r) => r.active && onTheClock(bot, new Date(next(r))));
-  const soon = live.filter((r) => next(r) <= now + 60 * 60_000).length;
-  const today = live.filter((r) => next(r) <= now + 24 * 60 * 60_000).length;
-
-  const called = waiting?.get(bot.id) ?? roomsWaitingOn().get(bot.id) ?? 0;
-
-  // Two kinds of load, and they are not the same thing. What is happening now
-  // counts as a whole job each; what is merely coming counts as a quarter.
-  //
-  // Without the quarters the ring was empty almost always — a routine at nine
-  // is imminent for one hour in twenty-four, and the rest of the day a bot
-  // carrying four of them looked exactly like a bot carrying none. Without the
-  // whole jobs it would read the same at eight in the morning as it does with
-  // three rooms waiting on an answer. A bot that simply has a lot on sits at a
-  // sliver; a bot being asked for things fills.
-  const jobs = (working ? 1 : 0) + called + soon + (today - soon) * 0.25;
-
-  const said = [
-    working ? (inflight.get(bot.id)?.note ?? "Working") : "",
-    // Worth saying: a bot with three routines and an empty ring is not a bot
-    // with nothing to do, it is a bot that has gone home.
-    !working && bot.hours && !onTheClock(bot) ? `off the clock · ${saysHours(bot)}` : "",
-    called ? `named in ${called} room${called === 1 ? "" : "s"}` : "",
-    soon ? `${soon} routine${soon === 1 ? "" : "s"} due within the hour` : "",
-    today - soon ? `${today - soon} more in the next day` : "",
-  ].filter(Boolean);
-
-  return {
-    press: Math.min(1, jobs / 4),
-    working,
-    says: said.length ? said.join(" · ") : "Nothing on",
-  };
-}
-
 /** Push moods onto the faces already on screen, rather than re-rendering them.
  *  A face is in the roster, the header, the thread and a sheet at once, and a
  *  mood change should not cost a repaint of any of them.
@@ -1741,7 +1645,7 @@ function renderRoster(): void {
     deskHtml +
     roomsHtml +
     (roomsHtml ? `<p class="rail-group">Bots</p>` : "") +
-    botRows(hits, roomsWaitingOn());
+    botRows(hits);
 }
 
 /** Make one, and ask for its name where it will live.
@@ -2002,14 +1906,13 @@ function roomRows(shown: Channel[], matches: (ch: Channel) => boolean, q: string
 }
 
 /** The rows for the bots themselves. */
-function botRows(hits: Bot[], waiting: Map<string, number>): string {
+function botRows(hits: Bot[]): string {
   return hits
     .map((bot) => {
       const news =
         bot.id === state.activeId && !state.activeChannel
           ? { unread: 0, mentions: 0 }
           : unreadIn(bot.messages, bot.seenAt);
-      const load = loadOf(bot, waiting);
       return (
         `<button class="bot-row${bot.id === state.activeId && !state.activeChannel ? " is-active" : ""}` +
         `${news.unread ? " is-unread" : ""}" data-bot="${bot.id}">` +
@@ -2023,13 +1926,6 @@ function botRows(hits: Bot[], waiting: Map<string, number>): string {
         `<span class="bot-row__top"><span class="bot-row__name">${escapeHtml(bot.name)}</span>` +
         `<span class="bot-row__time">${news.unread ? "" : lastSaid(bot.messages)}</span></span>` +
         `</span>` +
-        // The gauge stands on its own rather than ringing the face. A circle
-        // drawn around a square head is a circle a square head hides: the
-        // corners of a squircle reach past the arc and cover the part of it
-        // that was carrying the reading. Out here it is the same size whatever
-        // shape a bot happens to be.
-        `<span class="gauge${load.working ? " is-working" : ""}" style="--press:${load.press.toFixed(3)}" ` +
-        `title="${escapeHtml(`${bot.name} — ${load.says}`)}"></span>` +
         badgeHtml(news) +
         `</button>`
       );
@@ -8612,10 +8508,6 @@ document.addEventListener("keyup", (e) => {
 
 
 
-
-
-
-
 $<HTMLButtonElement>("#btn-plugins").addEventListener("click", () => void openPlugins());
 
 $<HTMLButtonElement>("#btn-rail").addEventListener("click", toggleRail);
@@ -10765,12 +10657,6 @@ function remoteSnapshot(): Record<string, unknown> {
       hours: bot.hours,
       spend: bot.spend,
       busy: inflight.has(bot.id),
-      // How full its hands are, worked out here rather than there. The phone
-      // has the routines and the rooms and could reach the same number, but
-      // two implementations of one gauge is two gauges that disagree by
-      // Thursday — the same reason the faces are derived from one hash and the
-      // engine list is sent rather than guessed.
-      load: loadOf(bot),
       messages: bot.messages,
       seenAt: bot.seenAt,
       // the phone renders the same mark on its own side
@@ -11131,8 +11017,6 @@ if (state.screenOpen) void openScreen();
 void knownVoices();
 autoGrow();
 input.focus();
-
-
 
 // Routines are checked here rather than in Rust: the state they read lives in
 // the webview, and nothing can fire while the app is closed anyway.
