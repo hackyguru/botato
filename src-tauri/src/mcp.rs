@@ -557,6 +557,92 @@ fn set_ask(bot: &Bot, args: &Value) -> Value {
     }
 }
 
+/// How many shortcuts a bot may offer. Past eight the list stops being a
+/// menu of what this bot does and becomes a manual.
+const MOST_COMMANDS: usize = 8;
+
+/// Declare the shortcuts this bot answers to.
+///
+/// A slash command is a name for a job the bot does often, so that reaching
+/// for it costs a word instead of a sentence — and, as much as that, so that
+/// somebody who has never spoken to this bot can see what it is for by typing
+/// one character.
+fn set_commands(bot: &Bot, args: &Value) -> Value {
+    let Some(given) = args["commands"].as_array() else {
+        return text_result(
+            "commands must be a list, each with a name and what it does".to_string(),
+            true,
+        );
+    };
+    if given.len() > MOST_COMMANDS {
+        return text_result(
+            format!(
+                "{MOST_COMMANDS} at most, and you listed {}. Keep the ones somebody would reach \
+                 for weekly.",
+                given.len()
+            ),
+            true,
+        );
+    }
+
+    let mut clean: Vec<Value> = Vec::new();
+    for one in given {
+        let name = one["name"].as_str().unwrap_or_default().trim().trim_start_matches('/');
+        let what = one["what"].as_str().unwrap_or_default().trim();
+        if name.is_empty() || what.is_empty() {
+            return text_result(
+                "every command needs a name and a line saying what it does".to_string(),
+                true,
+            );
+        }
+        // A handle, for the same reason a channel's name is one: it is typed
+        // after a "/" and a space would end it.
+        if !name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
+            return text_result(
+                format!(
+                    "\"{name}\" cannot be a command name — letters, digits, - and _ only, and no \
+                     spaces: it is typed after a slash."
+                ),
+                true,
+            );
+        }
+        if name.chars().count() > 20 {
+            return text_result(format!("\"{name}\" is too long — 20 characters at most"), true);
+        }
+        if clean
+            .iter()
+            .any(|had| had["name"].as_str().unwrap_or_default().eq_ignore_ascii_case(name))
+        {
+            continue;
+        }
+        clean.push(json!({ "name": name.to_lowercase(), "what": what }));
+    }
+
+    let path = bot.workspace.join("commands.json");
+    // An empty list is a bot withdrawing its shortcuts, which is a thing it is
+    // allowed to do — so the file is written either way rather than skipped.
+    match std::fs::write(&path, Value::Array(clean.clone()).to_string()) {
+        Err(e) => text_result(format!("could not write the commands: {e}"), true),
+        Ok(()) if clean.is_empty() => {
+            text_result("cleared — you offer no shortcuts now.".to_string(), false)
+        }
+        Ok(()) => text_result(
+            format!(
+                "done — typing \"/\" now offers {}. They appear when this turn ends.",
+                clean
+                    .iter()
+                    .map(|one| format!("/{}", one["name"].as_str().unwrap_or_default()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            false,
+        ),
+    }
+}
+
 fn tool_specs(bot: &Bot) -> Value {
     let mut specs = base_specs(bot);
     // Added rather than built in, because most bots already have better ones.
@@ -605,6 +691,38 @@ fn base_specs(bot: &Bot) -> Value {
                     },
                 },
                 "required": ["options"],
+            },
+        },
+        {
+            "name": "set_commands",
+            "description":
+                "Declare the shortcuts you answer to. Typing \"/\" in a conversation you are part \
+                 of lists them, and picking one writes it into the message — so a job somebody \
+                 asks you for weekly costs them a word instead of a sentence.\n\n\
+                 The larger point is that somebody who has never spoken to you can see what you \
+                 are for by typing one character. Name the things you actually do, in the words \
+                 the user would use, not the ones you would.\n\n\
+                 Set them when you are given a job or when the user asks what you can do, and \
+                 revise them when the work changes. Sending the list replaces it; sending an \
+                 empty list withdraws them.\n\n\
+                 commands: up to eight, each a name and a line. name is typed after a slash — \
+                 letters, digits, - and _, no spaces. what is one short line, shown beside it.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "commands": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": { "type": "string" },
+                                "what": { "type": "string" },
+                            },
+                            "required": ["name", "what"],
+                        },
+                    },
+                },
+                "required": ["commands"],
             },
         },
         {
@@ -914,6 +1032,9 @@ fn call_tool(bot: &Bot, params: &Value) -> Value {
     if name == "ask" {
         return set_ask(bot, &params["arguments"]);
     }
+    if name == "set_commands" {
+        return set_commands(bot, &params["arguments"]);
+    }
 
     // A bot's own folder, for an engine that cannot open a file itself. Before
     // the desktop too: these are the same directory the desktop mounts as
@@ -1197,6 +1318,77 @@ mod tests {
         assert_eq!(left["question"], "Log it now?");
         // The empty one is dropped rather than drawn as a nameless button.
         assert_eq!(left["options"], json!(["Log it", "Skip"]));
+    }
+
+    /// A command name is typed after a slash, so the shapes that could not be
+    /// typed there are refused rather than written and never matched.
+    #[test]
+    fn a_command_name_has_to_be_typeable_after_a_slash() {
+        let bot = a_bot("commanding");
+
+        let spaced = set_commands(
+            &bot,
+            &json!({ "commands": [{ "name": "log meal", "what": "log a meal" }] }),
+        );
+        assert_eq!(spaced["isError"], true, "{spaced}");
+
+        let empty = set_commands(&bot, &json!({ "commands": [{ "name": "log", "what": "" }] }));
+        assert_eq!(empty["isError"], true, "{empty}");
+
+        let many: Vec<Value> = (0..9)
+            .map(|n| json!({ "name": format!("c{n}"), "what": "something" }))
+            .collect();
+        let crowded = set_commands(&bot, &json!({ "commands": many }));
+        assert_eq!(crowded["isError"], true, "{crowded}");
+
+        assert!(
+            !bot.workspace.join("commands.json").exists(),
+            "nothing refused should have been written"
+        );
+    }
+
+    /// What a good list leaves behind, including the two normalisations the
+    /// window relies on: no leading slash, and lower case.
+    #[test]
+    fn commands_are_stored_as_they_will_be_typed() {
+        let bot = a_bot("commands");
+        let said = set_commands(
+            &bot,
+            &json!({ "commands": [
+                { "name": "/Log", "what": "log a meal" },
+                { "name": "log", "what": "a duplicate, ignored" },
+                { "name": "today", "what": "today's totals" },
+            ] }),
+        );
+        assert_ne!(said["isError"], true, "{said}");
+
+        let left: Value = serde_json::from_str(
+            &std::fs::read_to_string(bot.workspace.join("commands.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            left,
+            json!([
+                { "name": "log", "what": "log a meal" },
+                { "name": "today", "what": "today's totals" },
+            ])
+        );
+    }
+
+    /// Withdrawing them is a thing a bot may do, and has to be told apart from
+    /// never having said anything — so an empty list is still written.
+    #[test]
+    fn an_empty_list_withdraws_them() {
+        let bot = a_bot("withdrawing");
+        set_commands(&bot, &json!({ "commands": [{ "name": "log", "what": "log it" }] }));
+        let said = set_commands(&bot, &json!({ "commands": [] }));
+
+        assert_ne!(said["isError"], true, "{said}");
+        assert_eq!(
+            std::fs::read_to_string(bot.workspace.join("commands.json")).unwrap(),
+            "[]",
+            "the file has to exist and say none, not simply be absent"
+        );
     }
 
     /// A bot asked for a hat is the case this tool exists to handle well: it

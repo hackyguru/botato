@@ -368,6 +368,8 @@ export default function Room({
         // Who an "@" can finish into. The room's members, which is the same
         // set the laptop offers and the same set that gets summoned.
         members={inside}
+        offering={inside}
+        inRoom
       />
     </KeyboardAvoidingView>
   );

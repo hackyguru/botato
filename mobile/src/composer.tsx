@@ -21,7 +21,17 @@ import {
 } from "react-native";
 
 import Face from "./face";
-import { accept, matches, offers, query, type Offer } from "./mention";
+import {
+  accept,
+  matches,
+  matchingShortcuts,
+  offers,
+  query,
+  shortcuts,
+  slash,
+  type Offer,
+  type Shortcut,
+} from "./mention";
 import type { Bot } from "./types";
 import { T } from "./theme";
 
@@ -32,6 +42,8 @@ export default function Composer({
   placeholder,
   busy,
   members,
+  offering,
+  inRoom,
 }: {
   value: string;
   onChange: (text: string) => void;
@@ -43,6 +55,13 @@ export default function Composer({
    *  conversation, where there is nobody to summon but the bot you are
    *  already talking to. */
   members?: Bot[];
+  /** Whose shortcuts a "/" offers. In a room that is everyone in it; in a
+   *  chat it is the one bot — which is why this is separate from `members`,
+   *  where an "@" would make no sense. */
+  offering?: Bot[];
+  /** Whether a chosen shortcut needs the bot's name in front of it. In a room
+   *  it does: "/log" said into a room of five is addressed to nobody. */
+  inRoom?: boolean;
 }) {
   const ready = !!value.trim() && !busy;
 
@@ -54,15 +73,34 @@ export default function Composer({
   const asking = members?.length ? query(value, caret) : null;
   const found: Offer[] = asking ? matches(offers(members ?? []), asking.query) : [];
 
+  // A slash at the start of the line offers what these bots say they do. It
+  // works in a chat as well as a room, unlike "@", which needs somebody else
+  // to be there.
+  const typing = offering?.length ? slash(value, caret) : null;
+  const commands: Shortcut[] =
+    typing === null ? [] : matchingShortcuts(shortcuts(offering ?? []), typing);
+
+  function put(text: string, at: number) {
+    onChange(text);
+    setCaret(at);
+    field.current?.setNativeProps({ selection: { start: at, end: at } });
+  }
+
+  /** Nothing is sent: a shortcut is the beginning of a message, not the whole
+   *  of one. Most take a few words after them. */
+  function take(pick: Shortcut) {
+    const whose = inRoom ? `@${pick.botName} ` : "";
+    const written = `${whose}/${pick.name} `;
+    put(written + value.slice(Math.max(0, Math.min(caret, value.length))), written.length);
+  }
+
   function finish(pick: Offer) {
     if (!asking) return;
     const done = accept(value, caret, asking.at, pick.name);
-    onChange(done.text);
-    setCaret(done.caret);
     // The keyboard stays up and the caret goes after the name rather than to
     // the end: picking a mention is the middle of typing a sentence, not the
     // end of one.
-    field.current?.setNativeProps({ selection: { start: done.caret, end: done.caret } });
+    put(done.text, done.caret);
   }
 
   return (
@@ -71,6 +109,27 @@ export default function Composer({
           it without covering what it is choosing from. Scrolls rather than
           growing: a room with a dozen bots in it must not push the field off
           the top of the keyboard. */}
+      {commands.length ? (
+        <View style={s.list}>
+          <ScrollView keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
+            {commands.map((pick) => (
+              <Pressable
+                key={`${pick.botId}/${pick.name}`}
+                style={s.pick}
+                onPress={() => take(pick)}
+                accessibilityRole="button"
+                accessibilityLabel={`${pick.name}, ${pick.botName}`}
+              >
+                <Text style={s.slash}>/{pick.name}</Text>
+                <Text style={s.pickHint} numberOfLines={1}>
+                  {inRoom ? `${pick.botName} — ${pick.what}` : pick.what}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
+
       {found.length ? (
         <View style={s.list}>
           <ScrollView keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
@@ -160,6 +219,7 @@ const s = StyleSheet.create({
   },
   allMark: { color: T.text3, fontSize: 13, fontWeight: "700" },
   pickName: { color: T.text, fontSize: 15, fontWeight: "600" },
+  slash: { color: T.text, fontSize: 15, fontWeight: "600", fontFamily: T.mono },
   pickHint: { flexShrink: 1, color: T.text3, fontSize: 13 },
   dock: {
     paddingHorizontal: 10,

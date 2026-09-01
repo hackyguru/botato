@@ -84,6 +84,26 @@ const SCHEDULE_TOOL: &str = "mcp__desktop__schedule";
 /// Asking the user something with the answers ready to press.
 const ASK_TOOL: &str = "mcp__desktop__ask";
 
+/// Declaring the shortcuts this bot answers to.
+const COMMANDS_TOOL: &str = "mcp__desktop__set_commands";
+
+/// As with the face: a tool nobody mentions is a tool that goes unused, and
+/// this one is worth using early — the list is how somebody finds out what a
+/// bot is for without asking it.
+const COMMANDS_PROMPT: &str = "\
+## The shortcuts you answer to
+
+`set_commands` declares up to eight named jobs — `/log`, `/standup`, `/review` \
+— which the user sees by typing \"/\" in any conversation you are in. Picking \
+one writes it into their message; you receive an ordinary message beginning \
+with it.
+
+Set them once you know what your work actually is, and revise them when it \
+changes. Name the things you are asked for repeatedly, in the user's words \
+rather than your own, and keep the list short: it is a menu of what you do, and \
+past a handful nobody reads it. If the user has only ever asked you for one \
+thing, one command is the honest list.";
+
 /// The same lesson as the face and the calendar: a bot holding a tool nobody
 /// mentioned will explain that it cannot do the thing it is holding the tool
 /// for. This one is worth saying at some length, because the judgement — when
@@ -523,15 +543,27 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     let (mut allowed, mut system_prompt) = if req.computer && carries_tools {
         sandbox::touch(&req.bot_id);
         (
-            list(&[builtins, papers, DESKTOP_TOOLS, FACE_TOOL, SCHEDULE_TOOL, ASK_TOOL]),
+            list(&[
+                builtins,
+                papers,
+                DESKTOP_TOOLS,
+                FACE_TOOL,
+                SCHEDULE_TOOL,
+                ASK_TOOL,
+                COMMANDS_TOOL,
+            ]),
             format!(
-                "{base}\n\n{DESKTOP_PROMPT}\n\n{FACE_PROMPT}\n\n{SCHEDULE_PROMPT}\n\n{ASK_PROMPT}"
+                "{base}\n\n{DESKTOP_PROMPT}\n\n{FACE_PROMPT}\n\n{SCHEDULE_PROMPT}\n\n\
+                 {ASK_PROMPT}\n\n{COMMANDS_PROMPT}"
             ),
         )
     } else if carries_tools {
         (
-            list(&[builtins, papers, FACE_TOOL, SCHEDULE_TOOL, ASK_TOOL]),
-            format!("{base}\n\n{FACE_PROMPT}\n\n{SCHEDULE_PROMPT}\n\n{ASK_PROMPT}"),
+            list(&[builtins, papers, FACE_TOOL, SCHEDULE_TOOL, ASK_TOOL, COMMANDS_TOOL]),
+            format!(
+                "{base}\n\n{FACE_PROMPT}\n\n{SCHEDULE_PROMPT}\n\n{ASK_PROMPT}\n\n\
+                 {COMMANDS_PROMPT}"
+            ),
         )
     } else {
         (TOOLS.to_string(), base)
@@ -1070,6 +1102,19 @@ fn take_ask(app: AppHandle, bot_id: String) -> Option<Value> {
     serde_json::from_str(&raw).ok()
 }
 
+/// The shortcuts a bot declared this turn, if it declared any.
+///
+/// An empty list is meaningful — a bot withdrawing its commands — so the
+/// absence of the file and an empty file are different answers, and only the
+/// first is `None`.
+#[tauri::command]
+fn take_commands(app: AppHandle, bot_id: String) -> Option<Value> {
+    let path = workspace(&app, &bot_id).ok()?.join("commands.json");
+    let raw = fs::read_to_string(&path).ok()?;
+    let _ = fs::remove_file(&path);
+    serde_json::from_str(&raw).ok()
+}
+
 /// Work a bot scheduled this turn, for itself or for a colleague.
 ///
 /// Read once and removed, like the face: these are messages from a process
@@ -1571,6 +1616,7 @@ pub fn run() {
             clear_thread,
             take_face,
             take_ask,
+            take_commands,
             backup_ready,
             backup_passphrase,
             backup_now,

@@ -191,6 +191,12 @@ interface Bot {
    *  "opus", "gemini-2.5-pro" and "anthropic/claude-sonnet-4" all live here. */
   model: string;
   routines?: Routine[];
+  /** Named jobs this bot answers to, which typing "/" offers.
+   *
+   *  Declared by the bot rather than configured here: it knows what it is
+   *  asked for, and a list somebody has to maintain by hand is a list that
+   *  goes stale the week after it is written. */
+  commands?: { name: string; what: string }[];
   /** MCP server keys this bot may use. Absent means none. */
   plugins?: string[];
   /** What it looks like, when the user has chosen rather than accepted what
@@ -2971,6 +2977,30 @@ function handleBotEvent(event: BotEvent): void {
         if (state.activeChannel) renderChannel();
         else renderThread();
         toast(`${bot.name} changed how it looks`);
+      })
+      .catch(() => {});
+  }
+
+  // It may also have revised what it says it can do. Same moment, same
+  // reason: a file left by a process that has since exited.
+  if (event.kind === "done") {
+    void invoke<{ name?: unknown; what?: unknown }[] | null>("take_commands", {
+      botId: event.botId,
+    })
+      .then((offered) => {
+        const bot = state.bots.find((b) => b.id === event.botId);
+        if (!bot || !offered) return;
+        const clean = offered
+          .map((one) => ({ name: String(one.name ?? "").trim(), what: String(one.what ?? "").trim() }))
+          .filter((one) => one.name && one.what)
+          .slice(0, 8);
+        // An empty list is a bot withdrawing its shortcuts, which is why the
+        // field is deleted rather than set to nothing: a bot with none should
+        // look like a bot that never had any.
+        if (clean.length) bot.commands = clean;
+        else delete bot.commands;
+        save();
+        tellPhones();
       })
       .catch(() => {});
   }
@@ -8356,6 +8386,10 @@ interface Mention {
   name: string;
   hint: string;
   bot?: Bot;
+  /** A shortcut rather than a name: written with a leading "/" and, in a room,
+   *  preceded by the bot it belongs to — a command is a job somebody does, so
+   *  saying it without saying whose is talking to the room. */
+  command?: boolean;
 }
 
 let mentionHits: Mention[] = [];
@@ -8380,6 +8414,38 @@ function mentionQuery(): { at: number; query: string } | null {
   return { at, query };
 }
 
+/** The "/…" being typed, if the message starts with one.
+ *
+ *  Only at the very beginning. A slash anywhere else is a path, a date or a
+ *  fraction, and offering a menu of commands in the middle of "src/main.ts" is
+ *  the kind of help that has to be dismissed. Discord draws the same line for
+ *  the same reason. */
+function commandQuery(): { at: number; query: string } | null {
+  const caret = input.selectionStart ?? input.value.length;
+  const before = input.value.slice(0, caret);
+  if (!before.startsWith("/")) return null;
+  const typed = before.slice(1);
+  // A space ends it: past that you are writing the message, not the name.
+  if (/\s/.test(typed) || typed.length > 24) return null;
+  return { at: 0, query: typed };
+}
+
+/** Every shortcut on offer where you are typing, and whose it is. */
+function commandsHere(): Mention[] {
+  const room = activeChannel();
+  const here = room ? membersOf(room) : [activeBot()].filter((b): b is Bot => Boolean(b));
+  return here.flatMap((bot) =>
+    (bot.commands ?? []).map((one) => ({
+      name: one.name,
+      // Whose, in a room. In a chat there is only one answer and saying it
+      // every line is noise.
+      hint: room ? `${bot.name} — ${one.what}` : one.what,
+      bot,
+      command: true,
+    })),
+  );
+}
+
 function closeMentions(): void {
   mentionsEl.hidden = true;
   mentionHits = [];
@@ -8388,6 +8454,22 @@ function closeMentions(): void {
 
 function paintMentions(): void {
   const room = activeChannel();
+
+  // A slash at the start of the line is a shortcut, and it works in a chat as
+  // well as a room — unlike "@", which needs somebody else to be there.
+  const slash = commandQuery();
+  if (slash) {
+    const q = slash.query.toLowerCase();
+    const all = commandsHere();
+    const starts = all.filter((one) => one.name.startsWith(q));
+    const rest = all.filter((one) => !starts.includes(one) && q && one.name.includes(q));
+    mentionHits = [...starts, ...rest];
+    if (!mentionHits.length) return closeMentions();
+    mentionPick = Math.min(mentionPick, mentionHits.length - 1);
+    paintMentionList();
+    return;
+  }
+
   const found = room ? mentionQuery() : null;
   if (!room || !found) return closeMentions();
 
@@ -8420,13 +8502,19 @@ function paintMentions(): void {
   if (!mentionHits.length) return closeMentions();
 
   mentionPick = Math.min(mentionPick, mentionHits.length - 1);
+  paintMentionList();
+}
+
+/** Draw whatever is on offer — names or shortcuts, which look the same because
+ *  they are the same gesture: type a character, pick from a list, carry on. */
+function paintMentionList(): void {
   mentionsEl.innerHTML = mentionHits
     .map(
       (m, i) =>
         `<button type="button" class="mention${i === mentionPick ? " is-on" : ""}` +
         `${m.bot ? "" : " mention--all"}" data-pick="${i}">` +
         (m.bot ? faceHtml(m.bot, "sm") : `<span class="mention__all">${icon("people")}</span>`) +
-        `<span class="mention__name">${escapeHtml(m.name)}</span>` +
+        `<span class="mention__name">${m.command ? "/" : ""}${escapeHtml(m.name)}</span>` +
         (m.hint ? `<span class="mention__role">${escapeHtml(m.hint)}</span>` : "") +
         `</button>`,
     )
@@ -8436,6 +8524,7 @@ function paintMentions(): void {
 }
 
 function acceptMention(pick: Mention): void {
+  if (pick.command) return acceptCommand(pick);
   const found = mentionQuery();
   if (!found) return closeMentions();
   const caret = input.selectionStart ?? input.value.length;
@@ -8447,6 +8536,30 @@ function acceptMention(pick: Mention): void {
   input.value = head + written + tail;
   const pos = head.length + written.length;
   input.setSelectionRange(pos, pos);
+  closeMentions();
+  autoGrow();
+  input.focus();
+}
+
+/** Writing a shortcut into the message.
+ *
+ *  In a room it is preceded by the bot it belongs to. A command is a job
+ *  somebody does, and "/log" said into a room of five is a message addressed
+ *  to nobody — the mention is what routes it, exactly as it would be if you
+ *  had typed the whole request out.
+ *
+ *  Nothing is sent. The name is the beginning of a message, not the whole of
+ *  one: most commands take a few words after them, and the ones that do not
+ *  cost a press of Enter. */
+function acceptCommand(pick: Mention): void {
+  const found = commandQuery();
+  if (!found) return closeMentions();
+  const caret = input.selectionStart ?? input.value.length;
+  const tail = input.value.slice(caret);
+  const whose = activeChannel() && pick.bot ? `@${pick.bot.name} ` : "";
+  const written = `${whose}/${pick.name} `;
+  input.value = written + tail;
+  input.setSelectionRange(written.length, written.length);
   closeMentions();
   autoGrow();
   input.focus();
@@ -10761,6 +10874,8 @@ function remoteSnapshot(): Record<string, unknown> {
       hours: bot.hours,
       spend: bot.spend,
       busy: inflight.has(bot.id),
+      // What it says it can do, so the phone can offer the same "/" list.
+      commands: bot.commands,
       messages: bot.messages,
       seenAt: bot.seenAt,
       // the phone renders the same mark on its own side

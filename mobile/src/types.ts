@@ -82,6 +82,9 @@ export interface Bot {
   /** Which of the laptop's engines answers for this bot. Absent from a laptop
    *  running a build from before there was a choice. */
   engine?: string;
+  /** Named jobs this bot answers to, which typing "/" offers. Declared by the
+   *  bot itself; absent from a laptop older than the tool. */
+  commands?: { name: string; what: string }[];
   /** In that engine's own vocabulary — "opus" or "gemini-2.5-pro". */
   model: string;
   computer: boolean;

@@ -210,6 +210,9 @@ export default function Chat({
         onSend={send}
         placeholder={`Message ${bot.name}`}
         busy={bot.busy}
+        // No "@" here — there is nobody to summon but the bot you are already
+        // talking to — but its own shortcuts are worth having.
+        offering={[bot]}
       />
     </KeyboardAvoidingView>
   );

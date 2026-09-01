@@ -78,6 +78,52 @@ export function matches(offered: Offer[], typed: string): Offer[] {
   return [...starts, ...rest];
 }
 
+/** The "/…" being typed, if the message starts with one.
+ *
+ *  Only at the very beginning. A slash anywhere else is a path, a date or a
+ *  fraction, and offering a menu in the middle of "src/main.ts" is the kind of
+ *  help that has to be dismissed. */
+export function slash(text: string, caret: number): string | null {
+  const before = text.slice(0, Math.max(0, Math.min(caret, text.length)));
+  if (!before.startsWith("/")) return null;
+  const typed = before.slice(1);
+  // A space ends it: past that you are writing the message, not the name.
+  if (/\s/.test(typed) || typed.length > 24) return null;
+  return typed;
+}
+
+/** A shortcut on offer, and whose it is. */
+export interface Shortcut {
+  name: string;
+  what: string;
+  botId: string;
+  botName: string;
+}
+
+/** Everything on offer where you are typing. `inRoom` decides how it will be
+ *  written: in a room a command is preceded by the bot it belongs to, because
+ *  "/log" said into a room of five is addressed to nobody. */
+export function shortcuts(
+  members: { id: string; name: string; commands?: { name: string; what: string }[] }[],
+): Shortcut[] {
+  return members.flatMap((bot) =>
+    (bot.commands ?? []).map((one) => ({
+      name: one.name,
+      what: one.what,
+      botId: bot.id,
+      botName: bot.name,
+    })),
+  );
+}
+
+/** Which shortcuts match what has been typed, prefixes first. */
+export function matchingShortcuts(all: Shortcut[], typed: string): Shortcut[] {
+  const q = typed.toLowerCase();
+  const starts = all.filter((one) => one.name.startsWith(q));
+  const rest = all.filter((one) => !starts.includes(one) && q.length > 0 && one.name.includes(q));
+  return [...starts, ...rest];
+}
+
 /** Put a chosen name in, and say where the caret goes after it.
  *
  *  The trailing space is the point: the next thing typed is the message, not
