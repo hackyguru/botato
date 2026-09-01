@@ -127,6 +127,31 @@ pub fn with_history(turn: &Turn) -> String {
     out
 }
 
+/// A prompt the CLI will hand to the model, rather than read as an instruction
+/// to itself.
+///
+/// Claude Code treats a prompt beginning with "/" as one of its own slash
+/// commands: `claude -p "/breakfast two eggs"` answers "Unknown command:
+/// /breakfast" and the model never sees it. That collides exactly with the
+/// shortcuts a bot declares for itself, which are the one kind of message
+/// guaranteed to start with a slash.
+///
+/// One leading space is the whole fix. The CLI stops recognising it as a
+/// command, and a space in front of a message is nothing to a model — it is
+/// not a rewording, an escape, or a marker it has to be taught.
+///
+/// Applied whatever the engine. Gemini's CLI has slash commands of its own and
+/// has not been tested against this, and a leading space costs nothing
+/// anywhere — so this guards the case rather than waiting to be surprised by
+/// it a second time.
+pub fn unslashed(text: String) -> String {
+    if text.starts_with('/') {
+        format!(" {text}")
+    } else {
+        text
+    }
+}
+
 /// What botcage understands, whatever produced it.
 ///
 /// The desktop, the phone and the relay all render these; an engine's own
@@ -1039,6 +1064,22 @@ pub fn engines() -> Vec<EngineInfo> {
 
 #[cfg(test)]
 mod tests {
+    /// The collision this exists for: a bot's own shortcut is the one kind of
+    /// message that always begins with a slash, and Claude Code answers those
+    /// itself. Verified against the CLI: `claude -p "/breakfast"` returns
+    /// "Unknown command: /breakfast", and the same with a leading space
+    /// reaches the model.
+    #[test]
+    fn a_prompt_starting_with_a_slash_is_not_left_looking_like_a_command() {
+        assert_eq!(unslashed("/breakfast two eggs".into()), " /breakfast two eggs");
+        // Only the front of it, and only when it is the very first character.
+        assert_eq!(unslashed("log /breakfast".into()), "log /breakfast");
+        assert_eq!(unslashed("what is in src/main.ts?".into()), "what is in src/main.ts?");
+        assert_eq!(unslashed(String::new()), "");
+        // Once is enough — a prompt that already has the space is left alone.
+        assert_eq!(unslashed(" /breakfast".into()), " /breakfast");
+    }
+
     use super::*;
 
     #[test]

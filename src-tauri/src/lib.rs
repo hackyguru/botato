@@ -401,7 +401,7 @@ fn begin(
     // Closing the pipe afterwards is what starts the turn.
     if let Some(mut stdin) = child.stdin.take() {
         stdin
-            .write_all(inference::with_history(turn).as_bytes())
+            .write_all(inference::unslashed(inference::with_history(turn)).as_bytes())
             .map_err(|e| format!("could not send the prompt: {e}"))?;
     }
 
