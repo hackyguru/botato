@@ -621,16 +621,38 @@ select:focus-visible {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  font-family: var(--mono);
-  font-size: 13px;
+  /* Not the mono face. It was reached for because these are characters rather
+     than words, but a monospaced "@" is drawn small and busy to fit a cell it
+     does not need here — the interface face draws all four more plainly. */
+  font-size: 14px;
+  font-weight: 700;
   line-height: 1;
+  /* Centred on the glyph rather than on the line box. A line box reserves room
+     under the baseline for descenders; "?" and "!" have none, so centring the
+     box leaves the mark sitting a pixel low. Taking that pixel off the bottom
+     is the whole correction. */
+  padding-bottom: 1px;
   color: var(--text-3);
   background: var(--fill-2);
+}
+
+/* Except the multiplication sign, which is already centred on the middle of
+   the line rather than standing on the baseline — it needs no correction, and
+   with one it rides high. */
+.desk-item--failed .desk-item__mark {
+  padding-bottom: 0;
+  font-size: 15px;
 }
 
 .desk-item--failed .desk-item__mark {
   color: var(--red);
   background: color-mix(in srgb, var(--red) 16%, transparent);
+}
+
+/* An exclamation mark is a thin thing beside a "?" or an "@" at the same size,
+   so it is given back the weight it looks short of. */
+.desk-item--engine .desk-item__mark {
+  font-size: 15px;
 }
 
 .desk-item--engine .desk-item__mark {

@@ -663,7 +663,11 @@ const s = StyleSheet.create({
   },
   markBad: { backgroundColor: "rgba(255,69,58,0.16)" },
   markWarn: { backgroundColor: "rgba(255,159,10,0.16)" },
-  waitingMarkText: { color: T.blue, fontSize: 13, fontFamily: T.mono, lineHeight: 16 },
+  // No lineHeight and no mono face: React Native centres a Text on its own line
+  // box, and pinning that box fights the centring rather than helping it. The
+  // interface face also draws "@" more plainly than a monospaced one, which is
+  // squeezed to fit a cell it does not need here.
+  waitingMarkText: { color: T.blue, fontSize: 14, fontWeight: "700" },
   waitingAsk: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 9 },
   waitingOpt: {
     justifyContent: "center",
