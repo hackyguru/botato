@@ -7070,6 +7070,68 @@ body.is-dragging {
   }
 }
 
+/* A bot's question, with its answers ready to press.
+ *
+ * Under the reply rather than inside the bubble: the words are what the bot
+ * said and these are what you can do about it, and a control living inside a
+ * speech bubble reads as something the bot is showing you rather than
+ * something you can press.
+ *
+ * The question line is usually absent. The reply above has just asked it in
+ * the bot's own voice, and a tool that repeats it verbatim underneath is the
+ * app talking over the bot. */
+.ask {
+  margin-top: 7px;
+}
+
+.ask__q {
+  margin: 0 0 6px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.ask__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Sized like an answer rather than like a submit button: this is the sentence
+   you were going to type, not a form being completed. */
+.ask__opt {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--fill-1);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.ask__opt:hover {
+  border-color: var(--blue);
+  background: var(--fill-2);
+}
+
+/* Answered. The row stays so the thread still reads as a question and an
+   answer tomorrow morning, and the one you pressed is the only one lit — the
+   ones you passed over are what make the one you chose mean anything. */
+.ask.is-answered .ask__opt {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.ask.is-answered .ask__opt.is-chosen {
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 18%, transparent);
+  color: var(--text);
+  opacity: 1;
+}
+
 /* The way into a thread, from the line it was pulled out of. Quiet: it is a
    footnote on somebody's message, not a message of its own. */
 .thread-strip {

@@ -81,6 +81,35 @@ const FACE_TOOL: &str = "mcp__desktop__set_appearance";
 /// Putting work on a calendar — its own, or a colleague's.
 const SCHEDULE_TOOL: &str = "mcp__desktop__schedule";
 
+/// Asking the user something with the answers ready to press.
+const ASK_TOOL: &str = "mcp__desktop__ask";
+
+/// The same lesson as the face and the calendar: a bot holding a tool nobody
+/// mentioned will explain that it cannot do the thing it is holding the tool
+/// for. This one is worth saying at some length, because the judgement — when
+/// a question has buttons and when it does not — matters more than the call.
+const ASK_PROMPT: &str = "\
+## Asking with buttons
+
+`ask` puts your answers under your reply as buttons. Whichever the user presses \
+arrives as their next message, and you carry on.
+
+Use it whenever you end on a question with a small number of sensible answers. \
+Most questions are like that, and the difference it makes is not cosmetic: a \
+question needing a typed sentence gets answered when somebody is next at a \
+keyboard, and a question needing a thumb gets answered now — from a phone, in a \
+queue, without opening anything. If you fired from a routine and nobody is \
+there, this is the difference between an answer tonight and an answer tomorrow.
+
+Ask in your reply too, in your own words. The buttons are a shortcut for the \
+answer, never a replacement for the question: a bare row of words under a \
+silent reply reads as a form, not as you.
+
+Not every question. \"What did you eat?\" has no answers you could name, so just \
+ask it. \"Log it now, or tonight?\" does. If you cannot name them, do not \
+invent them — a wrong button is worse than no button, because it makes the \
+easy path the wrong one.";
+
 /// Same reason as the face prompt: a bot holding a tool nobody told it about
 /// will explain that it cannot do the thing it is holding the tool for.
 const SCHEDULE_PROMPT: &str = "\
@@ -494,13 +523,15 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     let (mut allowed, mut system_prompt) = if req.computer && carries_tools {
         sandbox::touch(&req.bot_id);
         (
-            list(&[builtins, papers, DESKTOP_TOOLS, FACE_TOOL, SCHEDULE_TOOL]),
-            format!("{base}\n\n{DESKTOP_PROMPT}\n\n{FACE_PROMPT}\n\n{SCHEDULE_PROMPT}"),
+            list(&[builtins, papers, DESKTOP_TOOLS, FACE_TOOL, SCHEDULE_TOOL, ASK_TOOL]),
+            format!(
+                "{base}\n\n{DESKTOP_PROMPT}\n\n{FACE_PROMPT}\n\n{SCHEDULE_PROMPT}\n\n{ASK_PROMPT}"
+            ),
         )
     } else if carries_tools {
         (
-            list(&[builtins, papers, FACE_TOOL, SCHEDULE_TOOL]),
-            format!("{base}\n\n{FACE_PROMPT}\n\n{SCHEDULE_PROMPT}"),
+            list(&[builtins, papers, FACE_TOOL, SCHEDULE_TOOL, ASK_TOOL]),
+            format!("{base}\n\n{FACE_PROMPT}\n\n{SCHEDULE_PROMPT}\n\n{ASK_PROMPT}"),
         )
     } else {
         (TOOLS.to_string(), base)
@@ -1025,6 +1056,20 @@ fn take_face(app: AppHandle, bot_id: String) -> Option<Value> {
     serde_json::from_str(&raw).ok()
 }
 
+/// A question a bot left for the user this turn, if it left one.
+///
+/// Read once and removed, like the face and the routines: a note from a
+/// process that has since exited. The answers become buttons under the reply,
+/// and pressing one sends it as the user's own next message — so nothing here
+/// has to be remembered on this side.
+#[tauri::command]
+fn take_ask(app: AppHandle, bot_id: String) -> Option<Value> {
+    let path = workspace(&app, &bot_id).ok()?.join("ask.json");
+    let raw = fs::read_to_string(&path).ok()?;
+    let _ = fs::remove_file(&path);
+    serde_json::from_str(&raw).ok()
+}
+
 /// Work a bot scheduled this turn, for itself or for a colleague.
 ///
 /// Read once and removed, like the face: these are messages from a process
@@ -1525,6 +1570,7 @@ pub fn run() {
             forget_bot,
             clear_thread,
             take_face,
+            take_ask,
             backup_ready,
             backup_passphrase,
             backup_now,

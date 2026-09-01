@@ -28,6 +28,7 @@ import Composer from "../composer";
 import Markdown, { type Mentionable } from "../markdown";
 import { Cal } from "../marks";
 import Sheet from "../sheet";
+import Ask from "../ask";
 import { T } from "../theme";
 import { Initial, startsRun, Turn } from "../turn";
 
@@ -41,6 +42,7 @@ export default function Room({
   onSend,
   onOpenThread,
   onPin,
+  onAnswer,
   onThread,
   onEdit,
   onDeleteChannel,
@@ -58,6 +60,8 @@ export default function Room({
   /** Pin or unpin one message. The laptop decides which, so that a stale
    *  snapshot cannot pin something that is already pinned. */
   onPin: (messageId: string) => Promise<void>;
+  /** Press one of a bot's answers. */
+  onAnswer: (messageId: string, answer: string) => Promise<void>;
   /** Pull a message aside into a thread of its own, and open it. */
   onThread: (messageId: string) => Promise<void>;
   /** Rename the room, say what it is for, or change who is in it. */
@@ -181,6 +185,7 @@ export default function Room({
             thread={threads.find((t) => t.from?.messageId === msg.id)}
             onOpenThread={onOpenThread}
             onHold={() => setActing(msg.id)}
+            onAnswer={onAnswer}
           />
         ))}
 
@@ -379,6 +384,7 @@ function Said({
   thread,
   onOpenThread,
   onHold,
+  onAnswer,
 }: {
   msg: Message;
   prev?: Message;
@@ -390,6 +396,7 @@ function Said({
   /** Held down: what a phone has instead of the row of buttons that appears
    *  under a cursor on the laptop. */
   onHold: () => void;
+  onAnswer: (messageId: string, answer: string) => Promise<void>;
 }) {
   // A routine firing is a marker, not something said — the same badge the
   // laptop shows, so a bot suddenly talking about last night's backups says
@@ -426,6 +433,7 @@ function Said({
     >
       {msg.pinned ? <Text style={s.pin}>📌</Text> : null}
       <Markdown text={msg.text} mentions={mentions} />
+      <Ask msg={msg} onAnswer={(answer) => onAnswer(msg.id, answer)} />
       {thread ? (
         <Pressable style={s.strip} onPress={() => onOpenThread(thread)}>
           <Text style={s.stripText}>

@@ -37,6 +37,12 @@ interface Message {
   pinned?: boolean;
   error?: string;
   kind?: "teach" | "routine";
+  /** A question the bot left with its answers ready to press.
+   *
+   *  `answered` is which one was pressed, kept so the row can show what you
+   *  chose rather than vanishing — a thread read the next morning should still
+   *  say what the question was and what you said to it. */
+  ask?: { question?: string; options: string[]; answered?: string };
   meta?: { steps: number; frames: number; slug: string; name?: string };
   /** In a channel, which bot said it. A private chat has two voices and needs
    *  no attribution; a room has as many as it has members. */
@@ -1198,6 +1204,16 @@ function shape(): string {
  *  remembered at each of the dozen places that could cause one. */
 let lastShape = "";
 
+/** Tell any listening phone to read the snapshot again.
+ *
+ *  `save` does this by itself when the shape of things changes — a bot hired,
+ *  a room opened. This is for the changes that leave the shape alone and still
+ *  matter: something arriving on a message *after* the turn that carried it
+ *  has already been announced, which a phone has no other way to learn about. */
+function tellPhones(): void {
+  void invoke("remote_stale").catch(() => {});
+}
+
 function save(): void {
   try {
     localStorage.setItem(STORE, JSON.stringify(state));
@@ -2118,10 +2134,47 @@ function turnEl(msg: Message, ch?: Channel, prev?: Message): HTMLElement {
         `</div>`
       : "") +
     bubbleHtml(msg, ch) +
+    askHtml(msg) +
     (hanging ? threadStrip(hanging, msg) : "") +
     `</div>` +
     actsHtml(msg);
   return wrap;
+}
+
+/** A question with its answers ready to press.
+ *
+ *  The reply above already asked it in the bot's own words — the tool says so
+ *  and the buttons are worthless without it. This is the shortcut, not the
+ *  question: what a row of buttons buys is that an answer costs a thumb rather
+ *  than a sentence, which is the whole difference between a routine that gets
+ *  answered this evening and one that gets answered tomorrow.
+ *
+ *  Once pressed the row stays, showing what was chosen. A thread read the next
+ *  morning should still say what was asked and what you said back; buttons
+ *  that vanish leave a question hanging over an answer that came from nowhere.
+ */
+function askHtml(msg: Message): string {
+  if (!msg.ask) return "";
+  const { question, options, answered } = msg.ask;
+
+  return (
+    `<div class="ask${answered ? " is-answered" : ""}">` +
+    (question ? `<p class="ask__q">${escapeHtml(question)}</p>` : "") +
+    `<div class="ask__row">` +
+    options
+      .map((one) => {
+        const chosen = answered === one;
+        return (
+          `<button type="button" class="ask__opt${chosen ? " is-chosen" : ""}" ` +
+          // Disabled rather than removed: the ones you did not pick are what
+          // make the one you did mean anything.
+          `${answered ? "disabled" : ""} data-ask="${escapeHtml(msg.id)}" ` +
+          `data-answer="${escapeHtml(one)}">${escapeHtml(one)}</button>`
+        );
+      })
+      .join("") +
+    `</div></div>`
+  );
 }
 
 /** The way into a thread, from the message it was pulled out of. */
@@ -2918,6 +2971,34 @@ function handleBotEvent(event: BotEvent): void {
         if (state.activeChannel) renderChannel();
         else renderThread();
         toast(`${bot.name} changed how it looks`);
+      })
+      .catch(() => {});
+  }
+
+  // And it may have left a question with its answers ready to press. Read the
+  // same way and at the same moment as the face, because it is the same kind
+  // of thing: a note from a process that has already exited.
+  if (event.kind === "done") {
+    const asked = inflight.get(event.botId)?.message;
+    void invoke<{ question?: string; options?: unknown } | null>("take_ask", {
+      botId: event.botId,
+    })
+      .then((left) => {
+        if (!asked || !left) return;
+        const options = Array.isArray(left.options)
+          ? left.options.map(String).filter((one) => one.trim()).slice(0, 4)
+          : [];
+        // Checked again here rather than trusted: the file is written by a
+        // process outside this window, and one button is not a choice.
+        if (options.length < 2) return;
+        asked.ask = { question: left.question?.trim() || undefined, options };
+        save();
+        redrawConversation();
+        // A phone reads the snapshot again the moment a turn ends, and this
+        // lands a beat after that — the file is read once the process has
+        // exited. Without a second word the phone shows the reply and never
+        // the buttons, which is the one place they were most wanted.
+        tellPhones();
       })
       .catch(() => {});
   }
@@ -8559,6 +8640,29 @@ thread.addEventListener("click", (e) => {
   if (open?.dataset.openThread) openChannel(open.dataset.openThread);
 });
 
+/** Pressing one of a bot's answers.
+ *
+ *  It is sent as though you had typed it, because that is what it is: the
+ *  words are the bot's suggestion of what you would have written, and the bot
+ *  reading its own suggestion back needs no protocol to understand it. */
+thread.addEventListener("click", (e) => {
+  const pick = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-ask]");
+  if (!pick?.dataset.answer) return;
+
+  const room = activeChannel();
+  const msg = (room ? room.messages : (activeBot()?.messages ?? [])).find(
+    (m) => m.id === pick.dataset.ask,
+  );
+  // Marked before sending: the reply that comes back re-renders the thread,
+  // and a row still offering its buttons underneath it invites a second press.
+  if (msg?.ask) {
+    msg.ask.answered = pick.dataset.answer;
+    save();
+    redrawConversation();
+  }
+  send(pick.dataset.answer);
+});
+
 thread.addEventListener("click", (e) => {
   const target = e.target as HTMLElement;
 
@@ -10798,6 +10902,39 @@ const REMOTE_ACTIONS: Record<string, (payload: Record<string, unknown>) => unkno
     renderRoster();
     renderThread();
     return { went };
+  },
+
+  /** Press one of a bot's answers, from the phone.
+   *
+   *  The same two things the laptop's own button does, in the same order: mark
+   *  which was chosen so the row stops offering the others, then send it as
+   *  though it had been typed. It goes through the ordinary send, so a bot
+   *  needs no notion of where an answer came from. */
+  "message/answer": (p) => {
+    const messageId = String(p.messageId ?? "");
+    const answer = String(p.answer ?? "").trim();
+    if (!answer) throw new Error("nothing chosen");
+
+    const room = channels().find((c) => c.id === String(p.channelId ?? ""));
+    const bot = state.bots.find((b) => b.id === String(p.botId ?? ""));
+    const msg = (room ? room.messages : (bot?.messages ?? [])).find((m) => m.id === messageId);
+    if (!msg?.ask) throw new Error("that message is not asking anything");
+    // Whatever the phone sent, it has to be one of the answers offered — a
+    // stale snapshot must not be able to put words in the user's mouth.
+    if (!msg.ask.options.includes(answer)) throw new Error("that is not one of the answers");
+    if (msg.ask.answered) throw new Error("that has been answered already");
+
+    msg.ask.answered = answer;
+    save();
+    redrawConversation();
+
+    if (room) {
+      openChannel(room.id);
+      postToChannel(room, answer);
+      return { ok: true };
+    }
+    if (!bot) throw new Error("no such bot");
+    return remoteSend(bot.id, answer);
   },
 
   /** Mark a room read, because reading it on the phone is reading it. */

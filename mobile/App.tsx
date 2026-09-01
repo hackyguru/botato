@@ -574,6 +574,9 @@ export default function App() {
               setRoomId(null);
               await act("channel/delete", { channelId: room.id });
             }}
+            onAnswer={async (messageId, answer) => {
+              await act("message/answer", { channelId: room.id, messageId, answer });
+            }}
             onPin={async (messageId) => {
               // No "pinned" flag sent: the laptop flips whatever it has, so
               // acting on a snapshot a few seconds old cannot pin something
@@ -644,6 +647,9 @@ export default function App() {
             onSettings={() => setScreen("settings")}
             onPin={async (messageId) => {
               await act("message/pin", { botId: bot.id, messageId });
+            }}
+            onAnswer={async (messageId, answer) => {
+              await act("message/answer", { botId: bot.id, messageId, answer });
             }}
             onSend={async (text) => {
               // Show it immediately; the laptop's own copy arrives with the next

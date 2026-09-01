@@ -9,6 +9,9 @@ export interface Message {
   by?: string;
   /** Kept at the top of the room. */
   pinned?: boolean;
+  /** A question the bot left with its answers ready to press, and which one
+   *  was pressed. Absent from a laptop older than the tool. */
+  ask?: { question?: string; options: string[]; answered?: string };
   kind?: "teach" | "routine";
   meta?: { name?: string };
   /** Sent from a phone rather than the laptop. */

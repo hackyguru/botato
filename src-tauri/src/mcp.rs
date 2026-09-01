@@ -471,6 +471,92 @@ fn set_look(bot: &Bot, args: &Value) -> Value {
     }
 }
 
+/// The most a question can offer. Four is the point past which a row of
+/// buttons stops being a glance and starts being a menu — and a bot with five
+/// answers in mind is a bot that should be asking something narrower.
+const MOST_OPTIONS: usize = 4;
+
+/// How long one answer may be. A button is read sideways at a glance; anything
+/// longer belongs in the question.
+const LONGEST_OPTION: usize = 24;
+
+/// Put a question to the user with its answers ready to press.
+///
+/// Written to a file and picked up when the turn ends, exactly as a new face
+/// is: the process asking has exited by the time anybody sees the question, so
+/// what it leaves behind is a note rather than a live prompt.
+fn set_ask(bot: &Bot, args: &Value) -> Value {
+    let question = args["question"].as_str().unwrap_or_default().trim();
+
+    let Some(given) = args["options"].as_array() else {
+        return text_result(
+            "options must be a list of answers, like [\"Log it\", \"Skip\"]".to_string(),
+            true,
+        );
+    };
+
+    let mut options: Vec<String> = Vec::new();
+    for one in given {
+        let Some(text) = one.as_str() else {
+            return text_result("every option must be a string".to_string(), true);
+        };
+        let text = text.trim();
+        if text.is_empty() {
+            continue;
+        }
+        if text.chars().count() > LONGEST_OPTION {
+            return text_result(
+                format!(
+                    "\"{text}\" is too long for a button — {LONGEST_OPTION} characters at most. \
+                     Put the detail in the question."
+                ),
+                true,
+            );
+        }
+        // Two buttons reading the same thing is a choice that cannot be made.
+        if options.iter().any(|had| had.eq_ignore_ascii_case(text)) {
+            continue;
+        }
+        options.push(text.to_string());
+    }
+
+    if options.len() < 2 {
+        return text_result(
+            "a question needs at least two different answers — with one there is nothing to \
+             choose. Just ask in your reply instead."
+                .to_string(),
+            true,
+        );
+    }
+    if options.len() > MOST_OPTIONS {
+        return text_result(
+            format!(
+                "{MOST_OPTIONS} answers at most, and you gave {}. Ask something narrower.",
+                options.len()
+            ),
+            true,
+        );
+    }
+
+    let asked = json!({ "question": question, "options": options });
+    let path = bot.workspace.join("ask.json");
+    match std::fs::write(&path, asked.to_string()) {
+        Err(e) => text_result(format!("could not leave the question: {e}"), true),
+        Ok(()) => text_result(
+            format!(
+                "asked — {} will be buttons under your reply when this turn ends. Whichever is \
+                 pressed arrives as the user's next message.",
+                options
+                    .iter()
+                    .map(|one| format!("\"{one}\""))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            false,
+        ),
+    }
+}
+
 fn tool_specs(bot: &Bot) -> Value {
     let mut specs = base_specs(bot);
     // Added rather than built in, because most bots already have better ones.
@@ -485,6 +571,42 @@ fn tool_specs(bot: &Bot) -> Value {
 fn base_specs(bot: &Bot) -> Value {
     let (w, h) = screen_of(bot);
     json!([
+        {
+            "name": "ask",
+            "description":
+                "Ask the user something and put the answers under your reply as buttons. \
+                 Whichever they press arrives as their next message, in their own words, and \
+                 you carry on from there.\n\n\
+                 Use it whenever your reply ends in a question that has a small number of \
+                 sensible answers — which is most of them. A routine that fires while nobody is \
+                 at the machine is the clearest case: a question that needs a sentence typed \
+                 back gets answered tomorrow, and one that needs a thumb gets answered now.\n\n\
+                 Ask it in your reply as well, in your own voice. The buttons are a shortcut for \
+                 the answer, not a substitute for the question — a bare row of words under a \
+                 silent reply reads as a form.\n\n\
+                 question: what you are asking, one line. Optional if your reply already says \
+                 it plainly, which it usually should.\n\
+                 options: two to four short answers, a couple of words each, in the order you \
+                 would say them. Put the likeliest first.\n\n\
+                 Not for open questions. \"What did you eat?\" has no buttons; \"Log it now, or \
+                 tonight?\" does. If you cannot name the answers, just ask.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "question": {
+                        "type": "string",
+                        "description": "What you are asking, one line.",
+                    },
+                    "options": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description":
+                            "Two to four short answers, likeliest first. A couple of words each.",
+                    },
+                },
+                "required": ["options"],
+            },
+        },
         {
             "name": "schedule",
             "description": format!(
@@ -787,6 +909,11 @@ fn call_tool(bot: &Bot, params: &Value) -> Value {
     if name == "schedule" {
         return set_routine(bot, &params["arguments"]);
     }
+    // Also before the desktop: a question is for the person, and has nothing
+    // to do with whether this bot has a machine switched on.
+    if name == "ask" {
+        return set_ask(bot, &params["arguments"]);
+    }
 
     // A bot's own folder, for an engine that cannot open a file itself. Before
     // the desktop too: these are the same directory the desktop mounts as
@@ -1018,6 +1145,58 @@ mod tests {
             &json!({ "name": "read_file", "arguments": { "path": "notes.md" } }),
         );
         assert_eq!(refused["isError"], true, "{refused}");
+    }
+
+    /// A row of buttons is only worth having if pressing one is a real choice,
+    /// so the shapes that are not a choice are refused rather than drawn.
+    #[test]
+    fn a_question_needs_answers_worth_pressing() {
+        let bot = a_bot("asking");
+
+        // One answer is not a choice — there is nothing to decide.
+        let one = set_ask(&bot, &json!({ "options": ["OK"] }));
+        assert_eq!(one["isError"], true, "{one}");
+
+        // Nor is the same answer twice, however it is capitalised.
+        let same = set_ask(&bot, &json!({ "options": ["Log it", "log it"] }));
+        assert_eq!(same["isError"], true, "{same}");
+
+        // Past four a row of buttons is a menu.
+        let many = set_ask(
+            &bot,
+            &json!({ "options": ["One", "Two", "Three", "Four", "Five"] }),
+        );
+        assert_eq!(many["isError"], true, "{many}");
+
+        // A sentence is not a button; the detail belongs in the question.
+        let essay = set_ask(
+            &bot,
+            &json!({ "options": ["Yes", "Log it now and also remind me tomorrow morning"] }),
+        );
+        assert_eq!(essay["isError"], true, "{essay}");
+
+        assert!(
+            !bot.workspace.join("ask.json").exists(),
+            "nothing refused should have been written"
+        );
+    }
+
+    /// What a good one leaves behind, which is what the window reads.
+    #[test]
+    fn a_question_is_left_where_the_window_looks() {
+        let bot = a_bot("asked");
+        let said = set_ask(
+            &bot,
+            &json!({ "question": "Log it now?", "options": ["Log it", "  ", "Skip"] }),
+        );
+        assert_ne!(said["isError"], true, "{said}");
+
+        let left: Value =
+            serde_json::from_str(&std::fs::read_to_string(bot.workspace.join("ask.json")).unwrap())
+                .unwrap();
+        assert_eq!(left["question"], "Log it now?");
+        // The empty one is dropped rather than drawn as a nameless button.
+        assert_eq!(left["options"], json!(["Log it", "Skip"]));
     }
 
     /// A bot asked for a hat is the case this tool exists to handle well: it

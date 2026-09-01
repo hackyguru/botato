@@ -23,6 +23,7 @@ import type { Bot, Message } from "../types";
 import Face from "../face";
 import Composer from "../composer";
 import Sheet from "../sheet";
+import Ask from "../ask";
 import Markdown, { type Mentionable } from "../markdown";
 import { Cal } from "../marks";
 import { T } from "../theme";
@@ -38,6 +39,7 @@ export default function Chat({
   onCancel,
   onCalendar,
   onPin,
+  onAnswer,
 }: {
   bot: Bot;
   /** What the bot is doing right now, from the event stream. */
@@ -53,6 +55,8 @@ export default function Chat({
   /** Pin or unpin one message. No threads here — a thread hangs off a message
    *  in a room, and this is not one. */
   onPin: (messageId: string) => Promise<void>;
+  /** Press one of a bot's answers. */
+  onAnswer: (messageId: string, answer: string) => Promise<void>;
 }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -141,6 +145,10 @@ export default function Chat({
               ) : (
                 <Text style={s.text}>{message.text}</Text>
               )}
+              <Ask
+                msg={message}
+                onAnswer={(answer) => onAnswer(message.id, answer)}
+              />
             </Turn>
           );
         })}
