@@ -332,15 +332,21 @@ select:focus-visible {
 .sidebar__head {
   display: flex;
   align-items: center;
-  /* The mark on the left, the two buttons on the right. */
-  justify-content: space-between;
+  /* The mark on the left, the two buttons together on the right.
+     `space-between` said that and did not do it: with three children it spreads
+     all three, so the collapse button sat in the middle of the header looking
+     like it belonged to neither side. The margin is what actually groups
+     them. */
+  justify-content: flex-start;
   gap: 8px;
   height: 34px;
   flex: none;
 }
 
-/* The name of the thing you are looking at, top left, where every application
-   puts it. Until now the corner held two icons and nothing said what this was.
+/* The mark, top left, where every application puts the thing you are looking
+   at. The word beside it has gone: this is a single-window app whose own name
+   is on the menu bar two centimetres above, and a logo that only works with
+   its wordmark attached is a logo that does not work.
  *
  * Drawn rather than set in an image so it takes the colour it is given and
  * stays sharp at any size — and drawn as a face because that is the app's
@@ -351,6 +357,7 @@ select:focus-visible {
   align-items: center;
   gap: 7px;
   min-width: 0;
+  margin-right: auto;
   padding-left: 10px;
   /* The header is a drag region; the mark is not a control and should not look
      like one. */
@@ -368,21 +375,7 @@ select:focus-visible {
   color: var(--blue);
 }
 
-.brand__name {
-  overflow: hidden;
-  color: var(--text);
-  font-size: 14.5px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
-/* In a rail there is no room for the word, and the mark alone is the logo —
-   which is the point of having one that works without it. */
-.is-rail .brand__name {
-  display: none;
-}
 
 .is-rail .brand {
   padding-left: 0;
