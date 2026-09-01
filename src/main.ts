@@ -2758,6 +2758,26 @@ function mannerLine(bot: Bot): string {
   return manner.line ? `How you write: ${manner.line} ${MANNER_GUARD}` : "";
 }
 
+/** The shortcuts this bot declared, said back to it.
+ *
+ *  It writes the list with a tool, botcage stores it, and the user picks from
+ *  it — and none of that reaches the bot, whose next turn sees "/breakfast"
+ *  and has no idea what it is. It answered "unknown command", correctly.
+ *
+ *  So the list goes back into the prompt every turn. The bot is the one that
+ *  decided what these mean, and the only thing it is missing is its own list. */
+function commandsLine(bot: Bot): string {
+  if (!bot.commands?.length) return "";
+  const list = bot.commands.map((one) => `/${one.name} — ${one.what}`).join("\n");
+  return (
+    `Shortcuts you offer. The user picks one from a menu and it arrives at the start of ` +
+    `their message, with whatever they typed after it:\n\n${list}\n\n` +
+    `Treat a message beginning with one as that job being asked for, in the words above. ` +
+    `Anything after it is the detail. If you no longer do one of these, say so and revise ` +
+    `the list rather than refusing — you wrote it.`
+  );
+}
+
 function systemPromptFor(bot: Bot): string {
   return [
     `You are "${bot.name}", one of several bots the user keeps in botcage, a desktop app where each bot is a persistent chat.`,
@@ -2771,6 +2791,7 @@ function systemPromptFor(bot: Bot): string {
     bot.role ? `What you are here to do, as the user described it:\n\n${bot.role}` : "",
     `You are talking in a chat window, so reply conversationally and keep it tight — a couple of short paragraphs unless depth is asked for. Markdown is rendered: bold, lists, and fenced code blocks all display properly.`,
     mannerLine(bot),
+    commandsLine(bot),
     `Your working directory is a private scratch folder for this bot. You can read and write files there, and search the web, but you have no shell access and no access to the rest of the machine.`,
     `CLAUDE.md in that folder is loaded automatically at the start of every turn — it is your memory across sessions. When you learn something that will still matter next time (a decision, a preference, context that took work to establish), add it to the Memory section with the Edit tool. Don't record what the chat already shows.`,
   ]
@@ -5689,6 +5710,8 @@ function channelPromptFor(ch: Channel, bot: Bot): string {
     // The same manner it has in its own chat: a bot that writes one way alone
     // and another in a room is two bots wearing one name.
     mannerLine(bot),
+    // The same in a room, where a shortcut arrives after a mention.
+    commandsLine(bot),
     others.length
       ? `Also in this channel: ${others.map((b) => `${b.name}${b.role ? ` (${b.role.split("\n")[0].slice(0, 120)})` : ""}`).join("; ")}.`
       : `You are the only bot in this channel for now.`,
