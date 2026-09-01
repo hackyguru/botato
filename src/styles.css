@@ -542,39 +542,57 @@ select:focus-visible {
 /* One thing waiting. The kind is a word rather than a colour alone: "Failed"
    and "Named you" are different jobs, and a reader should not have to learn a
    palette to tell them apart. */
-/* A row, and — where the question came with answers — the answers under it.
-   Two elements rather than one, because a button inside a button is not a
-   thing and because pressing an answer is a different gesture from going to
-   the conversation it came from. */
-.desk-row.has-ask .desk-item {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
+/* One card, made of two elements — a button inside a button is not a thing,
+   and pressing an answer is a different gesture from going to the conversation
+   it came from. So the card is the wrapper: it carries the surface, the corners
+   and the hover, and the two things inside it are transparent. Lighting only
+   the half the pointer happened to be over was the giveaway that this had been
+   built as two. */
+.desk-row {
+  background: var(--fill-1);
+  border-radius: var(--radius-card);
+  transition: background 0.13s;
 }
 
-.desk-item__ask {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 0 14px 12px;
-  background: var(--fill-1);
-  border-bottom-left-radius: var(--radius-card);
-  border-bottom-right-radius: var(--radius-card);
+.desk-row:hover {
+  background: var(--fill-2);
 }
 
 .desk-item {
   display: flex;
   align-items: flex-start;
   gap: 12px;
+  width: 100%;
   padding: 12px 14px;
   text-align: left;
-  background: var(--fill-1);
-  border-radius: var(--radius-card);
+  background: none;
   cursor: pointer;
-  transition: background 0.13s;
 }
 
-.desk-item:hover {
+/* Lined up with the words rather than with the label beside them: 14 of the
+   card's padding, then the kind column and its gap. Answers that begin under
+   "ASKED YOU" read as belonging to the label. */
+.desk-item__ask {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 14px 12px calc(14px + 76px + 12px);
+}
+
+/* On a card rather than on the page, so they need their own surface: the pill
+   used in a conversation is the same colour as this card and disappeared into
+   it, leaving four hairline outlines. */
+.desk-item__ask .ask__opt {
   background: var(--fill-2);
+}
+
+.desk-row:hover .desk-item__ask .ask__opt {
+  background: var(--fill-3);
+}
+
+.desk-item__ask .ask__opt:hover {
+  border-color: var(--blue);
+  background: var(--fill-3);
 }
 
 .desk-item__kind {
