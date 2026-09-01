@@ -1354,6 +1354,11 @@ interface Waiting {
    *  wire. Naming the destination instead lets both screens work out what
    *  going there means for them. */
   at: { botId?: string; channelId?: string; messageId?: string };
+  /** Whose face belongs on the row. Usually the same bot the item is about —
+   *  but in a room the conversation is the channel and the speaker is the bot
+   *  that said it, so the two are not the same thing and this is the one that
+   *  answers "who is waiting on me". Absent for an engine, which is nobody. */
+  face?: string;
   /** The answers this one can be cleared with, if it is a question a bot
    *  handed buttons for. The whole point of the desk is that it is the list of
    *  what will not move until you do something; the ones that can be finished
@@ -1451,6 +1456,7 @@ function onYourDesk(): Waiting[] {
       if (m.error) {
         out.push({
           kind: "failed",
+          face: bot.id,
           who: bot.name,
           what: m.error,
           when: m.at,
@@ -1459,6 +1465,7 @@ function onYourDesk(): Waiting[] {
       } else if (mentionsYou(m.text)) {
         out.push({
           kind: "named",
+          face: bot.id,
           who: bot.name,
           what: m.text.replace(/\s+/g, " ").trim(),
           when: m.at,
@@ -1471,6 +1478,7 @@ function onYourDesk(): Waiting[] {
     if (asking) {
       out.push({
         kind: "asked",
+        face: bot.id,
         who: bot.name,
         // The question it wrote for the buttons, when there is one: it was
         // written to sit above them and says the choice more plainly than the
@@ -1489,6 +1497,7 @@ function onYourDesk(): Waiting[] {
       if (m.from !== "bot" || m.at <= since || !mentionsYou(m.text)) continue;
       out.push({
         kind: "named",
+        face: m.by,
         who: `${nameOf(m.by) || "A bot"} in ${ch.from ? "↳ " : "#"}${ch.name}`,
         what: m.text.replace(/\s+/g, " ").trim(),
         when: m.at,
@@ -1500,6 +1509,7 @@ function onYourDesk(): Waiting[] {
     if (asking) {
       out.push({
         kind: "asked",
+        face: asking.by,
         who: `${nameOf(asking.by) || "A bot"} in ${ch.from ? "↳ " : "#"}${ch.name}`,
         what: asking.ask?.question || theAsk(asking.text),
         when: asking.at,
@@ -1542,9 +1552,17 @@ const AGO = (at: number): string => {
   return hours < 24 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`;
 };
 
-/** What each kind is drawn as. Typography rather than drawings: "?" and "@"
- *  already mean question and mention to everybody who has used a computer, and
- *  a hand-drawn icon of either would be a worse version of the character. */
+/** The face of whoever is waiting, if it is anybody. */
+function deskFace(item: Waiting): string | null {
+  const bot = state.bots.find((b) => b.id === item.face);
+  return bot ? `<span class="desk-item__face">${faceHtml(bot, "sm")}</span>` : null;
+}
+
+/** What is drawn when there is no face to draw, which in practice is only ever
+ *  an engine: something that cannot run is a fact about this machine rather
+ *  than about anybody, so it gets a mark instead of a colleague. The others
+ *  are kept because a bot can be deleted while its question is still on the
+ *  desk, and a row with nobody behind it should still say what it is. */
 const DESK_MARK: Record<Waiting["kind"], string> = {
   asked: "?",
   named: "@",
@@ -1577,16 +1595,16 @@ function renderDesk(): void {
           (item, at) =>
             `<div class="desk-row${item.ask ? " has-ask" : ""}">` +
             `<button type="button" class="desk-item desk-item--${item.kind}" data-desk-at="${at}">` +
-            // A mark rather than a word. Four kinds in a column of labels meant
-            // two of them ended in "you", so the column rhymed and the word
-            // that told them apart was the dim one at the front. These are four
-            // different shapes, which is what a column of marks is for.
+            // Whose it is, as a face. It was a word, then an abstract mark, and
+            // both were answering the wrong question: the thing you sort a desk
+            // by is who is waiting on you, and this app already draws that
+            // better than any glyph. It is also the one mark that needs no
+            // learning — you know these faces from the roster.
             //
-            // Shapes, not colours: the palette is a second reading for anyone
-            // who wants it, and nobody has to learn it to tell a failure from a
-            // question. The word stays for a screen reader, which cannot see a
-            // shape at all.
-            `<span class="desk-item__mark" aria-hidden="true">${DESK_MARK[item.kind]}</span>` +
+            // An engine has no face because it is not anybody; it keeps a mark.
+            // The kind is still said to a screen reader, which sees neither.
+            (deskFace(item) ??
+              `<span class="desk-item__mark" aria-hidden="true">${DESK_MARK[item.kind]}</span>`) +
             `<span class="sr-only">${DESK_SAYS[item.kind]}</span>` +
             `<span class="desk-item__body">` +
             `<span class="desk-item__who">${escapeHtml(item.who)}</span>` +

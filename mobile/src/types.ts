@@ -125,6 +125,9 @@ export interface Snapshot {
  *  the answer, a turn failed, an engine cannot run. */
   desk?: {
     kind: "named" | "asked" | "failed" | "engine";
+    /** Whose face belongs on the row. Absent for an engine, which is nobody,
+     *  and for a bot that has been deleted since. */
+    face?: string;
     /** The answers this one can be cleared with, without opening anything. */
     ask?: { options: string[] };
     who: string;

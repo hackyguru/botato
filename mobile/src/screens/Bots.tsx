@@ -358,25 +358,31 @@ export default function Bots({
                     front. Shapes carry the meaning; the colour only groups
                     them — and the word is still said to a screen reader, which
                     cannot see a shape at all. */}
-                <View
-                  style={[
-                    s.waitingMark,
-                    item.kind === "failed" ? s.markBad : null,
-                    item.kind === "engine" ? s.markWarn : null,
-                  ]}
-                  accessible
-                  accessibilityLabel={DESK_SAYS[item.kind]}
-                >
-                  <Text
-                    style={[
-                      s.waitingMarkText,
-                      item.kind === "failed" ? s.waitingBad : null,
-                      item.kind === "engine" ? s.waitingWarn : null,
-                    ]}
-                  >
-                    {DESK_MARK[item.kind]}
-                  </Text>
-                </View>
+                {/* Whose it is, drawn the way the roster draws it. A face
+                    answers the question a desk is actually sorted by, and
+                    needs no learning — unlike a glyph, which was answering
+                    "what kind of item is this" that the words below already
+                    answer. An engine is nobody and keeps a mark. */}
+                {(() => {
+                  const whose = bots.find((b) => b.id === item.face);
+                  return whose ? (
+                    <View
+                      style={s.waitingFace}
+                      accessible
+                      accessibilityLabel={DESK_SAYS[item.kind]}
+                    >
+                      <Face bot={whose} size={22} mood="idle" />
+                    </View>
+                  ) : (
+                    <View
+                      style={s.waitingMark}
+                      accessible
+                      accessibilityLabel={DESK_SAYS[item.kind]}
+                    >
+                      <Text style={s.waitingMarkText}>{DESK_MARK[item.kind]}</Text>
+                    </View>
+                  );
+                })()}
                 <Text style={s.waitingWho} numberOfLines={1}>
                   {item.who}
                 </Text>
@@ -653,21 +659,21 @@ const s = StyleSheet.create({
     backgroundColor: T.field,
     borderRadius: 14,
   },
+  waitingFace: { alignSelf: "flex-start", marginBottom: 6 },
+  // Only an engine reaches this now, so it wears the one colour that kind has.
   waitingMark: {
     alignItems: "center",
     justifyContent: "center",
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: "rgba(10,132,255,0.16)",
+    backgroundColor: "rgba(255,159,10,0.16)",
   },
-  markBad: { backgroundColor: "rgba(255,69,58,0.16)" },
-  markWarn: { backgroundColor: "rgba(255,159,10,0.16)" },
   // No lineHeight and no mono face: React Native centres a Text on its own line
   // box, and pinning that box fights the centring rather than helping it. The
   // interface face also draws "@" more plainly than a monospaced one, which is
   // squeezed to fit a cell it does not need here.
-  waitingMarkText: { color: T.blue, fontSize: 14, fontWeight: "700" },
+  waitingMarkText: { color: T.amber, fontSize: 15, fontWeight: "700" },
   waitingAsk: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 9 },
   waitingOpt: {
     justifyContent: "center",
@@ -680,8 +686,6 @@ const s = StyleSheet.create({
     borderColor: T.line,
   },
   waitingOptText: { color: T.text, fontSize: 13.5 },
-  waitingBad: { color: T.red },
-  waitingWarn: { color: T.amber },
   waitingWho: { marginTop: 3, color: T.text, fontSize: 14.5, fontWeight: "600" },
   waitingWhat: { marginTop: 1, color: T.text2, fontSize: 12.5, lineHeight: 17 },
 

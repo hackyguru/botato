@@ -609,10 +609,24 @@ select:focus-visible {
   border: 0;
 }
 
-/* What kind of thing this is, as a mark. It was four words, two of which ended
-   in "you" — so the column rhymed and the distinguishing word was the dim one
-   at the front. A "?" and an "@" are different at a glance and at a distance,
-   and they cost twenty pixels instead of seventy-six. */
+/* Whose it is. A face rather than a word or a glyph, because the thing a desk
+   is sorted by is who is waiting on you — and this app draws that better than
+   any mark, with nothing to learn: you know these faces from the roster.
+
+   It went word, then glyph, then this. Both of the first two were answering a
+   different question — what kind of item is this — which the row's own words
+   were already answering underneath. */
+.desk-item__face {
+  display: flex;
+  flex: none;
+  align-items: center;
+  height: 22px;
+}
+
+/* An engine is not anybody, so it has no face and keeps a mark. The one that
+   is left needs no centring correction it used to share with "?" and "!": an
+   exclamation mark stands on the baseline, so a pixel off the bottom is still
+   what centres it. */
 .desk-item__mark {
   display: flex;
   flex: none;
@@ -621,53 +635,14 @@ select:focus-visible {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  /* Not the mono face. It was reached for because these are characters rather
-     than words, but a monospaced "@" is drawn small and busy to fit a cell it
-     does not need here — the interface face draws all four more plainly. */
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   line-height: 1;
-  /* Centred on the glyph rather than on the line box. A line box reserves room
-     under the baseline for descenders; "?" and "!" have none, so centring the
-     box leaves the mark sitting a pixel low. Taking that pixel off the bottom
-     is the whole correction. */
   padding-bottom: 1px;
-  color: var(--text-3);
-  background: var(--fill-2);
-}
-
-/* Except the multiplication sign, which is already centred on the middle of
-   the line rather than standing on the baseline — it needs no correction, and
-   with one it rides high. */
-.desk-item--failed .desk-item__mark {
-  padding-bottom: 0;
-  font-size: 15px;
-}
-
-.desk-item--failed .desk-item__mark {
-  color: var(--red);
-  background: color-mix(in srgb, var(--red) 16%, transparent);
-}
-
-/* An exclamation mark is a thin thing beside a "?" or an "@" at the same size,
-   so it is given back the weight it looks short of. */
-.desk-item--engine .desk-item__mark {
-  font-size: 15px;
-}
-
-.desk-item--engine .desk-item__mark {
   color: var(--amber);
   background: color-mix(in srgb, var(--amber) 16%, transparent);
 }
 
-/* A question and a mention are both a bot waiting on you, so they share a
-   colour and are told apart by the mark — which is the way round it should be:
-   the shape carries the meaning and the palette groups it. */
-.desk-item--named .desk-item__mark,
-.desk-item--asked .desk-item__mark {
-  color: var(--blue);
-  background: color-mix(in srgb, var(--blue) 16%, transparent);
-}
 
 .desk-item__body {
   display: flex;
