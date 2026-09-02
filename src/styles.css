@@ -453,12 +453,18 @@ select:focus-visible {
   justify-content: center;
 }
 
-/* Bigger, now that it has the line to itself. At twenty points beside a
-   thirty-point button it read as the button's smaller neighbour rather than as
-   the thing the rail belongs to. */
+/* The size a face is, because it stands at the head of a column of them. At
+   twenty it read as the smaller neighbour of the button beside it; at anything
+   that is not 34 it reads as nearly a face, which is worse than either — a
+   column of round things one of which is almost the same size looks like a
+   mistake rather than a heading. */
 .is-rail .brand__mark {
-  width: 30px;
-  height: 30px;
+  /* 34, which is `--u` on .face — written out rather than referenced, because
+     that variable is defined on the face itself and would not reach here: a
+     var() that always takes its fallback is a link that reads as one and is
+     not. If a face ever changes size, this is the second place to change. */
+  width: 34px;
+  height: 34px;
 }
 
 .is-rail .field {
