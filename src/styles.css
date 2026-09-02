@@ -245,14 +245,25 @@ select:focus-visible {
    two widths meant the two crossed the stacking threshold at different window
    sizes, which is why one opened beside the chat and the other underneath it
    on the very same window. */
-.app.has-sheet {
+/* Said twice on purpose. The class is what the window sets; the `:has` is the
+   same thing read off the pane itself, so the column exists whenever the pane
+   does — even if the script that adds the class has not run.
+ *
+ * That is not hypothetical. A grid item with no area lands in an implicit row
+ * *below* the template, so a pane that is visible while the app is unclassed
+ * does not fail to appear, it appears across the bottom of the window looking
+ * like a deliberate bottom bar. The `:has` closes that; the class carries
+ * engines that do not support it. */
+.app.has-sheet,
+.app:has(> .pane:not([hidden])) {
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--screen-w, 460px);
   grid-template-areas: "side main pane";
 }
 
 /* Too narrow to split, so it goes under the conversation instead — the same
    answer the desktop pane gives, and the same threshold decides both. */
-.app.has-sheet.is-stacked {
+.app.has-sheet.is-stacked,
+.app.is-stacked:has(> .pane:not([hidden])) {
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) var(--screen-h, 320px);
   grid-template-areas:
