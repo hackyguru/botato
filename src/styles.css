@@ -6078,18 +6078,72 @@ label.setting {
 }
 
 /* Expanded: the screen takes the pane and routines shrink to their content. */
-.is-focus.screen-pane {
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
+/* ---- expanded: the computer over everything
+   The pane does not move in the document. noVNC holds a canvas and a websocket
+   in it, and reparenting that element is a reconnection — so only its box
+   changes, and the ResizeObserver already watching the canvas rescales the
+   session to whatever size it lands at. */
+.is-modal.screen-pane {
+  position: fixed;
+  inset: 24px;
+  /* Under the dialog layer, not over it. At 60 the expanded computer sat above
+     every overlay, so opening settings while it was expanded put the dialog
+     behind it and its scrim — the dialog was there, drawn, and invisible.
+     Above the app and below a question about it is the right place for a
+     window you are working in. */
+  z-index: 48;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "head"
+    "body";
+  background: var(--bg-main);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  animation: pop 0.14s ease both;
 }
 
-.is-focus .screen__body {
+.screen-scrim {
+  position: fixed;
+  inset: 0;
+  /* Just under the thing it dims for, and both under the dialogs. */
+  z-index: 45;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(3px);
+  animation: pop 0.14s ease both;
+}
+
+/* The 22px above the title is the strip the traffic lights sit in, and they
+   are not over this once it has left the top of the window. */
+.is-modal .screen__head {
+  padding-top: 10px;
+}
+
+/* Nothing to drag when it is not a column any more. */
+.is-modal .screen-pane__grip {
+  display: none;
+}
+
+.is-modal .screen__body {
   aspect-ratio: auto;
   margin: 0;
   border-radius: 0;
 }
 
-.is-focus .screen__caption {
+.is-modal .screen__caption {
   display: none;
+}
+
+/* Out of the grid while it floats, so the column it left does not stay behind
+   as an empty stripe beside the conversation. */
+.app.has-screen.has-screen-modal {
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  grid-template-areas: "side main";
+}
+
+.app.has-screen.is-stacked.has-screen-modal {
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: "side main";
 }
 
 .routines {
