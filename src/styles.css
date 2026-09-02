@@ -575,13 +575,14 @@ select:focus-visible {
   /* Reserve the traffic-light strip here rather than inside the header, so no
      amount of layout pressure can put a bot row underneath the buttons.
    *
-   * Twenty-two was the strip and nothing else. macOS draws its buttons twelve
-   * points tall about thirteen down, so they end around twenty-six — and the
-   * mark, centred in the line under it, started at twenty-six too. It cleared
-   * them by nothing, which reads as the logo being stuck to the window
-   * controls rather than as the first thing in a column. Thirty-four leaves
-   * the mark a clear dozen points below them. */
-  padding: 34px 10px 10px;
+   * This number follows `trafficLightPosition` in tauri.conf.json. The buttons
+   * are twelve points tall and now start eighteen down, so they finish at
+   * thirty — and the mark, centred in the 46 below, begins four points after
+   * whatever this is. Forty gives it a clear dozen under them.
+   *
+   * If the buttons are ever moved again, this moves with them: they are drawn
+   * by the system and know nothing about the column underneath. */
+  padding: 40px 10px 10px;
   min-height: 0;
   overflow: hidden;
   background: var(--bg);
