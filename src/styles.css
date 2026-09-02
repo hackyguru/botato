@@ -372,7 +372,7 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 18px;
 }
 
 /* The desk becomes its icon, like everything else here. It had no rail rules at
