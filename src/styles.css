@@ -4058,11 +4058,16 @@ select:focus-visible {
 }
 
 /* On a card, a field in the field's own colour disappears: the two are within
-   a few percent of each other. Inside a settings group they are cut into the
-   surface instead, which is what a control on a panel has always looked like
-   and what makes the name box read as somewhere to type. */
+   a few percent of each other. So it takes the palette's own colour for a
+   control at rest, which is what `--fill-2` is for.
+ *
+ * It was a black wash before, mixed by hand rather than taken from anywhere.
+ * On a #1f1f22 card that resolves to #151517 — darker than the #17171a window
+ * around it — so every dropdown in settings was a hole cut below the floor of
+ * its own dialog. `--fill-2` puts it at #2c2c2f, a step above the card, which
+ * is what a control sitting on a surface looks like. */
 .settings .picker {
-  background: rgba(0, 0, 0, 0.32);
+  background: var(--fill-2);
 }
 
 /* Everything on the right of a row is the same height, so a column of rows —
@@ -4797,8 +4802,11 @@ select:focus-visible {
   border-radius: 8px;
 }
 
+/* `--fill-3` is this, to within a percent, and is the colour every other
+   pressed control on a sheet uses. Mixing it by hand here meant one control
+   lit slightly differently from its neighbours for no reason. */
 .picker--open:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--fill-3);
 }
 
 .chip--check {
@@ -5820,7 +5828,11 @@ label.setting {
 }
 
 /* A checkbox drawn as a switch, at roughly the platform's 1.65:1 proportions —
-   the first attempt was 40x24, which read as a stretched pill. */
+   the first attempt was 40x24, which read as a stretched pill.
+ *
+ * Off is `--fill-3`, the palette's "chosen or pressed" — the darkest a control
+ * gets while still reading as a control. The hand-mixed 17% white it used
+ * before sat between two tokens and matched nothing else on the sheet. */
 .switch {
   position: relative;
   width: 33px;
@@ -5828,11 +5840,14 @@ label.setting {
   flex: none;
   appearance: none;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.17);
+  background: var(--fill-3);
   border-radius: 999px;
   transition: background 0.18s ease;
 }
 
+/* The knob. `--on-accent` rather than a bare white, because that is what this
+   is: the thing that has to stay legible against the green the switch turns
+   when it is on. */
 .switch::after {
   content: "";
   position: absolute;
@@ -5840,7 +5855,7 @@ label.setting {
   left: 2px;
   width: 16px;
   height: 16px;
-  background: #fff;
+  background: var(--on-accent);
   border-radius: 50%;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   transition: transform 0.18s cubic-bezier(0.3, 0.85, 0.4, 1);
