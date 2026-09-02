@@ -30,8 +30,8 @@ mod mcp;
 mod mcp_client;
 mod oauth;
 mod p2p;
-mod push;
 mod plugins;
+mod push;
 mod remote;
 mod sandbox;
 mod setup;
@@ -444,14 +444,23 @@ struct Asked {
     arguments: String,
 }
 
-/// Is this the packaged app, or a binary run straight out of `target`?
+/// Can this build send a notification at all?
 ///
-/// macOS hangs notifications off a bundle identifier, and a bare binary has
-/// none — so under `tauri dev` the notification goes nowhere and says nothing
-/// about it. The window that offers to send them asks this first, so a switch
-/// that cannot work says why instead of lying.
+/// macOS hangs them off a bundle identifier, and a binary run straight out of
+/// `target` has none — so under `tauri dev` the notification goes nowhere and
+/// says nothing about it. The window that offers to send them asks this first,
+/// so a switch that cannot work says why instead of lying.
+///
+/// Only macOS has that rule. This used to ask "are you inside a .app", which
+/// is false on every Linux install there has ever been — so a packaged Linux
+/// build disabled its own notification switch and explained that it was a
+/// development build. It was not; it was a Linux build, where notifications go
+/// through the desktop's portal and work perfectly well.
 #[tauri::command]
-fn bundled() -> bool {
+fn can_notify() -> bool {
+    if !cfg!(target_os = "macos") {
+        return true;
+    }
     std::env::current_exe()
         .map(|path| path.to_string_lossy().contains(".app/Contents/MacOS/"))
         .unwrap_or(false)
@@ -559,7 +568,14 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         )
     } else if carries_tools {
         (
-            list(&[builtins, papers, FACE_TOOL, SCHEDULE_TOOL, ASK_TOOL, COMMANDS_TOOL]),
+            list(&[
+                builtins,
+                papers,
+                FACE_TOOL,
+                SCHEDULE_TOOL,
+                ASK_TOOL,
+                COMMANDS_TOOL,
+            ]),
             format!(
                 "{base}\n\n{FACE_PROMPT}\n\n{SCHEDULE_PROMPT}\n\n{ASK_PROMPT}\n\n\
                  {COMMANDS_PROMPT}"
@@ -1649,7 +1665,7 @@ pub fn run() {
         .manage(sandbox::Sandboxes::default())
         .invoke_handler(tauri::generate_handler![
             ask,
-            bundled,
+            can_notify,
             remote_stale,
             push::push_state,
             push::push_setup,

@@ -587,7 +587,11 @@ fn set_commands(bot: &Bot, args: &Value) -> Value {
 
     let mut clean: Vec<Value> = Vec::new();
     for one in given {
-        let name = one["name"].as_str().unwrap_or_default().trim().trim_start_matches('/');
+        let name = one["name"]
+            .as_str()
+            .unwrap_or_default()
+            .trim()
+            .trim_start_matches('/');
         let what = one["what"].as_str().unwrap_or_default().trim();
         if name.is_empty() || what.is_empty() {
             return text_result(
@@ -610,12 +614,17 @@ fn set_commands(bot: &Bot, args: &Value) -> Value {
             );
         }
         if name.chars().count() > 20 {
-            return text_result(format!("\"{name}\" is too long — 20 characters at most"), true);
+            return text_result(
+                format!("\"{name}\" is too long — 20 characters at most"),
+                true,
+            );
         }
-        if clean
-            .iter()
-            .any(|had| had["name"].as_str().unwrap_or_default().eq_ignore_ascii_case(name))
-        {
+        if clean.iter().any(|had| {
+            had["name"]
+                .as_str()
+                .unwrap_or_default()
+                .eq_ignore_ascii_case(name)
+        }) {
             continue;
         }
         clean.push(json!({ "name": name.to_lowercase(), "what": what }));
@@ -1332,7 +1341,10 @@ mod tests {
         );
         assert_eq!(spaced["isError"], true, "{spaced}");
 
-        let empty = set_commands(&bot, &json!({ "commands": [{ "name": "log", "what": "" }] }));
+        let empty = set_commands(
+            &bot,
+            &json!({ "commands": [{ "name": "log", "what": "" }] }),
+        );
         assert_eq!(empty["isError"], true, "{empty}");
 
         let many: Vec<Value> = (0..9)
@@ -1380,7 +1392,10 @@ mod tests {
     #[test]
     fn an_empty_list_withdraws_them() {
         let bot = a_bot("withdrawing");
-        set_commands(&bot, &json!({ "commands": [{ "name": "log", "what": "log it" }] }));
+        set_commands(
+            &bot,
+            &json!({ "commands": [{ "name": "log", "what": "log it" }] }),
+        );
         let said = set_commands(&bot, &json!({ "commands": [] }));
 
         assert_ne!(said["isError"], true, "{said}");

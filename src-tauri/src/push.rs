@@ -258,7 +258,10 @@ mod tests {
         assert_eq!(parts.len(), 3, "header, claims, signature");
 
         let head = base64_url(parts[0]);
-        assert!(head.contains("\"kid\":\"ABCD123456\""), "names the key: {head}");
+        assert!(
+            head.contains("\"kid\":\"ABCD123456\""),
+            "names the key: {head}"
+        );
         assert!(head.contains("ES256"), "the only algorithm APNs takes");
 
         let claims = base64_url(parts[1]);

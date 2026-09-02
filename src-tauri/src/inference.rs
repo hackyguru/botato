@@ -1071,10 +1071,16 @@ mod tests {
     /// reaches the model.
     #[test]
     fn a_prompt_starting_with_a_slash_is_not_left_looking_like_a_command() {
-        assert_eq!(unslashed("/breakfast two eggs".into()), " /breakfast two eggs");
+        assert_eq!(
+            unslashed("/breakfast two eggs".into()),
+            " /breakfast two eggs"
+        );
         // Only the front of it, and only when it is the very first character.
         assert_eq!(unslashed("log /breakfast".into()), "log /breakfast");
-        assert_eq!(unslashed("what is in src/main.ts?".into()), "what is in src/main.ts?");
+        assert_eq!(
+            unslashed("what is in src/main.ts?".into()),
+            "what is in src/main.ts?"
+        );
         assert_eq!(unslashed(String::new()), "");
         // Once is enough — a prompt that already has the space is left alone.
         assert_eq!(unslashed(" /breakfast".into()), " /breakfast");

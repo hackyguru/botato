@@ -7172,7 +7172,7 @@ const appNotify = $<HTMLInputElement>("#app-notify");
 /** Whether this build can send a notification at all. Asked once: it cannot
  *  change while the app is open. */
 let canNotify = true;
-void invoke<boolean>("bundled")
+void invoke<boolean>("can_notify")
   .then((yes) => {
     canNotify = yes;
     if (!yes) paintNotifyRow();
@@ -7190,7 +7190,7 @@ function paintNotifyRow(): void {
   if (hint) {
     hint.textContent = canNotify
       ? "A notification when a bot says your name or a turn fails, and only while you are looking at something else."
-      : "Not from a development build: macOS hangs notifications off an app bundle, and this one is a bare binary. It works in the packaged app.";
+      : "Not from a development build: macOS hangs notifications off an app bundle, and this one is a bare binary. It works in the packaged app, and on Linux either way.";
   }
 }
 const appAwake = $<HTMLInputElement>("#app-awake");

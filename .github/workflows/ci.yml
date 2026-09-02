@@ -13,13 +13,23 @@ concurrency:
 
 jobs:
   check:
-    runs-on: ubuntu-22.04
+    # Both, because the two are not the same program: Tauri links against
+    # whatever webview the system has, and half of what botcage does with the
+    # machine — speaking, opening a terminal, deciding whether it can notify at
+    # all — takes a different path on each. Checking only Linux meant the
+    # platform most of this runs on was first compiled at release time.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
       # Tauri links against the system webview, so the Rust crate will not even
-      # compile without these headers.
+      # compile without these headers. macOS has its own and needs none.
       - name: System dependencies
+        if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -63,6 +73,8 @@ jobs:
       - name: Tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib
 
-      # Proves the thing a release actually produces, without publishing it.
+      # Proves the thing a release actually produces, without publishing it —
+      # which is a different artefact on each platform, so each leg builds its
+      # own. A .deb on macOS is not a slower build, it is a failed one.
       - name: Bundle
-        run: pnpm tauri build --bundles deb
+        run: pnpm tauri build --bundles ${{ startsWith(matrix.os, 'ubuntu') && 'deb' || 'app' }}

@@ -633,6 +633,10 @@ select:focus-visible {
   line-height: 1;
   padding-bottom: 1px;
   color: var(--amber);
+  /* Not amber: the mark is amber too, and a fallback that paints the chip the
+     colour of its own glyph hides it completely. The neutral chip is the right
+     thing to lose the tint to. */
+  background: var(--fill-2);
   background: color-mix(in srgb, var(--amber) 16%, transparent);
 }
 
@@ -892,6 +896,7 @@ select:focus-visible {
   height: calc(var(--u) * 0.045);
   /* Subordinate to the eyes on purpose: a brow as dark as an eye is read as
      an eye, which is how these ended up looking like they had four. */
+  background: var(--ink);
   background: color-mix(in srgb, var(--ink) 78%, transparent);
   border-radius: calc(var(--u) * 0.03);
 }
@@ -1068,6 +1073,7 @@ select:focus-visible {
   top: 56%;
   width: calc(var(--u) * 0.15);
   height: calc(var(--u) * 0.09);
+  background: var(--ink);
   background: color-mix(in srgb, var(--ink) 22%, transparent);
   border-radius: 50%;
 }
@@ -1088,6 +1094,7 @@ select:focus-visible {
   left: -2%;
   width: 104%;
   height: calc(var(--u) * 0.1);
+  background: var(--ink);
   background: color-mix(in srgb, var(--ink) 55%, transparent);
 }
 
@@ -1164,6 +1171,7 @@ select:focus-visible {
   top: calc(var(--u) * -0.12);
   width: calc(var(--u) * 0.2);
   height: calc(var(--u) * 0.17);
+  background: #f2f2f2;
   background: color-mix(in srgb, var(--skin) 40%, #f2f2f2);
   opacity: 1;
 }
@@ -1199,6 +1207,7 @@ select:focus-visible {
   right: 12%;
   width: calc(var(--u) * 0.1);
   height: calc(var(--u) * 0.2);
+  background: var(--ink);
   background: color-mix(in srgb, var(--ink) 45%, transparent);
   clip-path: polygon(60% 0, 0 55%, 42% 55%, 30% 100%, 100% 40%, 55% 40%);
 }
@@ -1550,7 +1559,13 @@ select:focus-visible {
  * colour lifted towards white so that dark blue and mid grey both stay
  * legible on this ground. */
 .men--bot[style*="--tint"] {
+  /* Same trap as the desk mark, and worse: a mention is a word. Both halves of
+     this are the bot's colour, so falling back to it twice would print the
+     name in its own background. The tint is what is lost when the mix is not
+     understood; the mention is not. */
+  background: var(--fill-2);
   background: color-mix(in srgb, var(--tint) 20%, transparent);
+  color: var(--text);
   color: color-mix(in srgb, var(--tint) 62%, #ffffff);
 }
 
@@ -2537,6 +2552,7 @@ select:focus-visible {
   border-radius: 50%;
   /* Tinted from the bot rather than plain white, so the cloud belongs to the
      creature having the thought. */
+  background: #f4f4f6;
   background: color-mix(in srgb, var(--skin) 26%, #f4f4f6);
 }
 
@@ -2547,6 +2563,12 @@ select:focus-visible {
   right: calc(var(--u) * -0.14);
   width: calc(var(--u) * 0.36);
   height: calc(var(--u) * 0.24);
+  /* The untinted cloud first: a box-shadow is one declaration, so a mix the
+     engine cannot read takes both puffs with it and the cloud loses the two
+     circles that make it a cloud. */
+  box-shadow:
+    calc(var(--u) * -0.14) calc(var(--u) * 0.04) 0 calc(var(--u) * -0.04) #f4f4f6,
+    calc(var(--u) * 0.1) calc(var(--u) * 0.05) 0 calc(var(--u) * -0.06) #f4f4f6;
   box-shadow:
     calc(var(--u) * -0.14) calc(var(--u) * 0.04) 0 calc(var(--u) * -0.04)
       color-mix(in srgb, var(--skin) 26%, #f4f4f6),
@@ -2817,6 +2839,7 @@ select:focus-visible {
   right: calc(var(--u) * -0.06);
   width: auto;
   height: auto;
+  color: #f4f4f6;
   color: color-mix(in srgb, var(--skin) 40%, #f4f4f6);
   font: 600 calc(var(--u) * 0.3) / 1 var(--font);
   background: none;
@@ -2830,6 +2853,7 @@ select:focus-visible {
   right: calc(var(--u) * -0.2);
   width: auto;
   height: auto;
+  color: #f4f4f6;
   color: color-mix(in srgb, var(--skin) 40%, #f4f4f6);
   font: 600 calc(var(--u) * 0.2) / 1 var(--font);
   background: none;
@@ -6891,6 +6915,7 @@ body.is-dragging {
   align-items: center;
   gap: 10px;
   padding: 8px;
+  background: var(--bg);
   background: color-mix(in srgb, var(--bg) 62%, transparent);
   border: 1px solid var(--line);
   border-radius: 34px;
@@ -7125,6 +7150,7 @@ body.is-dragging {
    colour is already doing a different job three inches away. */
 .tile.is-speaking {
   border-color: var(--green);
+  background: var(--field);
   background: color-mix(in srgb, var(--green) 8%, var(--field));
 }
 .tile.is-speaking .face {
@@ -7139,6 +7165,7 @@ body.is-dragging {
 /* Working on an answer but not saying anything yet — the thought cloud is on
    the face already; this is so the tile agrees with it. */
 .tile.is-working:not(.is-speaking) {
+  border-color: var(--skin);
   border-color: color-mix(in srgb, var(--skin) 45%, transparent);
 }
 
@@ -7156,6 +7183,7 @@ body.is-dragging {
   font-weight: 500;
 }
 .tile--you.is-speaking .tile__you {
+  background: var(--active);
   background: color-mix(in srgb, var(--green) 22%, var(--active));
   color: var(--text);
 }
@@ -7341,6 +7369,7 @@ body.is-dragging {
 
 .ask.is-answered .ask__opt.is-chosen {
   border-color: var(--blue);
+  background: var(--blue);
   background: color-mix(in srgb, var(--blue) 18%, transparent);
   color: var(--text);
   opacity: 1;
@@ -7397,6 +7426,7 @@ body.is-dragging {
 
 /* Something said in it that you have not read. */
 .thread-strip.is-unread {
+  border-color: var(--blue);
   border-color: color-mix(in srgb, var(--blue) 55%, transparent);
 }
 .thread-strip.is-unread .thread-strip__count {

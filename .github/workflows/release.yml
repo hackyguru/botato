@@ -39,7 +39,18 @@ jobs:
             label: macOS (Intel)
           - platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-            label: Linux
+            label: Linux (x86-64)
+          # Built on an ARM runner rather than cross-compiled: Tauri links
+          # against the system webview, so a cross build would need the whole
+          # GTK stack for the other architecture and it is cheaper to compile
+          # where the headers already are.
+          #
+          # Not a rare machine. It is Asahi on the same laptops the macOS legs
+          # above are for, and every ARM server and single-board machine
+          # somebody might leave a bot running on.
+          - platform: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            label: Linux (ARM64)
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -135,9 +146,13 @@ jobs:
             | Debian, Ubuntu, Mint | `botcage_*_amd64.deb` |
             | Fedora, RHEL, openSUSE | `botcage-*.x86_64.rpm` |
             | Any other Linux | `botcage_*_amd64.AppImage` |
+            | Linux on ARM — a Raspberry Pi, an ARM server, Asahi on a Mac | the same three, `arm64` / `aarch64` |
 
             Not sure which Mac you have?  → menu → About This Mac. Anything with
             an M-series chip takes the `aarch64` build.
+
+            On Linux, `uname -m` says which you are: `x86_64` takes the amd64
+            files, `aarch64` takes the ARM ones.
 
             ## Before it will run
 
