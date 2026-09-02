@@ -4918,7 +4918,12 @@ select:focus-visible {
    was the width of the question. Rows in it carry a label, a sentence about
    the label, and a control; at that width the sentence wrapped to four lines
    and the control was squeezed into whatever was left. */
-.sheet:has(.tabs) {
+/* Not the app's own settings, which set their own size a few rules down and
+   could not win: `:has()` carries the specificity of what is inside it, so
+   this selector weighs two classes and `.sheet--settings` weighs one. It beat
+   a wider rule written after it, and the window stayed 460 however large that
+   rule asked for. */
+.sheet:has(.tabs):not(.sheet--settings) {
   width: min(460px, 92vw);
   height: min(620px, 88vh);
 }
