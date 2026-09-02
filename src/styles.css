@@ -236,7 +236,11 @@ select:focus-visible {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--panel);
+  /* The conversation's colour, not a dialog's. A panel shade was right when
+     this floated above everything and had to read as a thing in front; beside
+     the chat it is one of the columns, and a lighter slab down the side says
+     "still a dialog, just moved". */
+  background: var(--bg-main);
   border-left: 1px solid var(--line);
 }
 
@@ -3866,6 +3870,9 @@ select:focus-visible {
   max-height: none;
   min-width: 0;
   min-height: 0;
+  /* Transparent rather than repainted: the pane owns the colour, and a form
+     that also paints one is a second surface to keep in step with the first. */
+  background: none;
   border: 0;
   border-radius: 0;
   box-shadow: none;
