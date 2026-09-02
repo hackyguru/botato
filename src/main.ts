@@ -79,6 +79,18 @@ interface Channel {
    *  The only reason to have a separate kind of thing would be to reimplement
    *  all of it. */
   from?: { channelId: string; messageId: string };
+  /** Silenced: no unread mark, no badge, no notification.
+   *
+   *  Bots talk to each other, so a room of them is the one place in botcage
+   *  that can be genuinely noisy — and a room you cannot quieten is a room you
+   *  end up leaving. Muting is not leaving: everything still happens in there
+   *  and is still read when you open it.
+   *
+   *  It does not touch the desk. A mark says something was said; the desk says
+   *  something will not move until you answer — and muting a room is saying
+   *  you do not want to be told about it, not that you have stopped owing it
+   *  an answer. */
+  muted?: boolean;
   /** Which category it sits under in the sidebar, if any. Absent means the
    *  ungrouped ones at the top, which is where Discord puts them and where a
    *  channel that has never been filed belongs. */
@@ -1725,7 +1737,7 @@ function renderRoster(): void {
               !cat?.shut ||
               !!q ||
               ch.id === state.activeChannel ||
-              unreadIn(ch.messages, ch.seenAt).unread > 0 ||
+              (!ch.muted && unreadIn(ch.messages, ch.seenAt).unread > 0) ||
               threadsOf(ch).some((t) => t.id === state.activeChannel),
           );
 
@@ -1968,7 +1980,13 @@ function roomRows(shown: Channel[], matches: (ch: Channel) => boolean, q: string
           .map((ch, n) => {
             const room = membersOf(ch);
             const busy = room.some((b) => inflight.get(b.id)?.channelId === ch.id);
-            const news = ch.id === state.activeChannel
+            // A thread hanging off a muted room is muted with it. Silencing a
+            // room and then being told about the side conversations coming out
+            // of it is not silence.
+            const quiet =
+              ch.muted ||
+              (!!ch.from && !!channels().find((c) => c.id === ch.from?.channelId)?.muted);
+            const news = ch.id === state.activeChannel || quiet
               ? { unread: 0, mentions: 0 }
               : unreadIn(ch.messages, ch.seenAt);
             // The last thread under a room turns the branch into an elbow, so
@@ -1982,7 +2000,8 @@ function roomRows(shown: Channel[], matches: (ch: Channel) => boolean, q: string
             const hosting =
               !ch.from && threadsOf(ch).some((t) => t.id === state.activeChannel);
             return (
-              `<button class="bot-row chan-row${ch.id === state.activeChannel ? " is-active" : ""}` +
+              `<button class="bot-row chan-row${quiet ? " is-muted" : ""}` +
+              `${ch.id === state.activeChannel ? " is-active" : ""}` +
               `${hosting ? " is-hosting" : ""}` +
               `${news.unread ? " is-unread" : ""}` +
               `${ch.from ? ` chan-row--thread${last ? " is-last" : ""}` : ""}" ` +
@@ -3231,6 +3250,18 @@ function handleBotEvent(event: BotEvent): void {
   // The two things that wait for you, said out loud if you are elsewhere.
   const whose = state.bots.find((b) => b.id === event.botId);
   const said = inflight.get(event.botId)?.message.text ?? "";
+  // A turn taken in a muted room says nothing out loud. This is the half of
+  // muting that matters: a mark you can ignore, a notification arrives whether
+  // you were ready for it or not — and on a phone, in a pocket.
+  const inMuted = (() => {
+    const id = inflight.get(event.botId)?.channelId;
+    const room = id ? channels().find((c) => c.id === id) : undefined;
+    if (!room) return false;
+    // Or in a thread of one: a side conversation out of a silenced room is
+    // still that room talking.
+    const parent = room.from && channels().find((c) => c.id === room.from?.channelId);
+    return !!room.muted || !!parent?.muted;
+  })();
   // Work that happened while you were not here. This is the one the phone was
   // asked for: a routine ran, a bot reported, and nobody was watching.
   const ran = fromRoutine.get(event.botId);
@@ -3238,7 +3269,10 @@ function handleBotEvent(event: BotEvent): void {
     fromRoutine.delete(event.botId);
   }
 
-  if (whose && event.kind === "done" && ran) {
+  if (inMuted) {
+    // Nothing said out loud. The mood and everything below still happen — the
+    // room is quiet, not stopped.
+  } else if (whose && event.kind === "done" && ran) {
     void nudge(`${whose.name} · ${ran}`, said);
     void nudgePhones(`${whose.name} · ${ran}`, said);
   } else if (whose && event.kind === "done" && mentionsYou(said)) {
@@ -6298,6 +6332,8 @@ const channelName = $<HTMLInputElement>("#channel-name");
 const channelPurpose = $<HTMLTextAreaElement>("#channel-purpose");
 const channelMembers = $<HTMLDivElement>("#channel-members");
 const channelCat = $<HTMLSelectElement>("#channel-cat");
+const channelMute = $<HTMLInputElement>("#channel-mute");
+const channelMuteRow = $<HTMLElement>("#channel-mute-row");
 const channelCatRow = $<HTMLLabelElement>("#channel-cat-row");
 
 function openChannelSheet(ch: Channel | null): void {
@@ -6332,6 +6368,10 @@ function openChannelSheet(ch: Channel | null): void {
 
   $<HTMLHeadingElement>("#channel-title").textContent = ch ? `#${ch.name}` : "New channel";
   $<HTMLButtonElement>("#channel-save").textContent = ch ? "Save" : "Create channel";
+  // Nothing to silence until it exists, and a room made muted is a room whose
+  // first message you never see.
+  channelMuteRow.hidden = !ch;
+  channelMute.checked = !!ch?.muted;
   $<HTMLButtonElement>("#channel-delete").hidden = !ch;
   channelWrap.hidden = false;
   channelName.focus();
@@ -6374,6 +6414,8 @@ $<HTMLFormElement>("#channel-form").addEventListener("submit", (e) => {
     existing.name = name;
     existing.purpose = channelPurpose.value.trim();
     existing.members = picked;
+    if (channelMute.checked) existing.muted = true;
+    else delete existing.muted;
     if (filed) existing.category = filed;
     else delete existing.category;
   } else {
@@ -11197,6 +11239,7 @@ function remoteSnapshot(): Record<string, unknown> {
       members: ch.members,
       messages: ch.messages,
       seenAt: ch.seenAt,
+      muted: ch.muted,
       from: ch.from,
       busy: membersOf(ch).some((b) => inflight.get(b.id)?.channelId === ch.id),
     })),
@@ -11305,6 +11348,10 @@ const REMOTE_ACTIONS: Record<string, (payload: Record<string, unknown>) => unkno
       room.name = name;
     }
     if (typeof p.purpose === "string") room.purpose = p.purpose.trim();
+    if (typeof p.muted === "boolean") {
+      if (p.muted) room.muted = true;
+      else delete room.muted;
+    }
     if (Array.isArray(p.members)) {
       room.members = p.members.map(String).filter((id) => state.bots.some((b) => b.id === id));
     }

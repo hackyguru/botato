@@ -444,6 +444,17 @@ select:focus-visible {
   padding-bottom: 6px;
 }
 
+/* Muted. Quieter in the list, because a room you have silenced should look
+   silenced — otherwise the only way to tell is to open its settings and check.
+   Dimmed rather than hidden: it is still a room you are in. */
+.chan-row.is-muted {
+  opacity: 0.55;
+}
+
+.chan-row.is-muted.is-active {
+  opacity: 1;
+}
+
 /* ------------------------------------------------------------- your desk */
 
 /* The row above everything, which is neither a channel nor a bot: it is the

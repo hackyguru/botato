@@ -30,6 +30,9 @@ export interface Channel {
   members: string[];
   messages: Message[];
   seenAt?: number;
+  /** Silenced: no unread mark and no notification. Absent from a laptop older
+   *  than muting, which is why everything reading it copes with undefined. */
+  muted?: boolean;
   from?: { channelId: string; messageId: string };
   busy: boolean;
 }

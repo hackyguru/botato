@@ -68,7 +68,12 @@ export default function Room({
   /** Pull a message aside into a thread of its own, and open it. */
   onThread: (messageId: string) => Promise<void>;
   /** Rename the room, say what it is for, or change who is in it. */
-  onEdit: (fields: { name: string; purpose: string; members: string[] }) => Promise<void>;
+  onEdit: (fields: {
+    name: string;
+    purpose: string;
+    members: string[];
+    muted: boolean;
+  }) => Promise<void>;
   /** Close it for good. */
   onDeleteChannel: () => Promise<void>;
   /** What is scheduled to happen in this room. */
@@ -90,11 +95,13 @@ export default function Room({
   const [name, setName] = useState(channel.name);
   const [purpose, setPurpose] = useState(channel.purpose ?? "");
   const [members, setMembers] = useState<string[]>(channel.members);
+  const [muted, setMuted] = useState(!!channel.muted);
 
   function openSettings() {
     setName(channel.name);
     setPurpose(channel.purpose ?? "");
     setMembers(channel.members);
+    setMuted(!!channel.muted);
     setSettings(true);
   }
   const scroller = useRef<ScrollView>(null);
@@ -252,13 +259,32 @@ export default function Room({
           })}
         </View>
 
+        {/* Bots talk to each other, so a room of them is the one place here that
+            gets genuinely noisy — and a room you cannot quieten is a room you
+            end up leaving. This is not leaving: it all still happens, and
+            anything waiting on an answer still reaches your desk. */}
+        <Pressable
+          style={s.mute}
+          onPress={() => setMuted((was) => !was)}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: muted }}
+        >
+          <View style={s.muteWords}>
+            <Text style={s.muteLabel}>Mute this channel</Text>
+            <Text style={s.muteHint}>No unread mark and no notification.</Text>
+          </View>
+          <View style={[s.pip, muted && s.pipOn]}>
+            <View style={[s.knob, muted && s.knobOn]} />
+          </View>
+        </Pressable>
+
         <Pressable
           style={[s.save, !name.trim() && s.saveOff]}
           disabled={working || !name.trim()}
           onPress={async () => {
             setWorking(true);
             try {
-              await onEdit({ name, purpose, members });
+              await onEdit({ name, purpose, members, muted });
               setSettings(false);
             } finally {
               setWorking(false);
@@ -506,6 +532,26 @@ const s = StyleSheet.create({
   chipOn: { borderColor: T.blue, backgroundColor: T.raised },
   chipText: { maxWidth: 140, color: T.text2, fontSize: 13 },
   chipTextOn: { color: T.text, fontWeight: "600" },
+  mute: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+  },
+  muteWords: { flex: 1, minWidth: 0 },
+  muteLabel: { color: T.text, fontSize: 15 },
+  muteHint: { marginTop: 2, color: T.text3, fontSize: 12.5 },
+  pip: {
+    justifyContent: "center",
+    width: 44,
+    height: 26,
+    padding: 3,
+    borderRadius: 13,
+    backgroundColor: T.field,
+  },
+  pipOn: { backgroundColor: T.blue },
+  knob: { width: 20, height: 20, borderRadius: 10, backgroundColor: T.text3 },
+  knobOn: { backgroundColor: "#fff", alignSelf: "flex-end" },
   save: {
     alignItems: "center",
     justifyContent: "center",

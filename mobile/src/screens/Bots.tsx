@@ -431,7 +431,16 @@ export default function Bots({
             the room it came out of. */}
         {rooms.length ? <Text style={s.group}>CHANNELS</Text> : null}
         {rooms.map((ch, n) => {
-          const news = unreadIn(ch.messages, ch.seenAt, called);
+          // A muted room keeps its unread state — opening it still marks it
+          // read — but says nothing about it in the list. That is the whole of
+          // what muting is on this screen. A thread hanging off a muted room is
+          // muted with it: being told about the side conversations coming out of
+          // a room you silenced is not silence.
+          const quiet =
+            ch.muted || (!!ch.from && !!channels.find((c) => c.id === ch.from?.channelId)?.muted);
+          const news = quiet
+            ? { unread: 0, mentions: 0 }
+            : unreadIn(ch.messages, ch.seenAt, called);
           const inside = ch.members
             .map((id) => bots.find((b) => b.id === id))
             .filter((b): b is Bot => Boolean(b));
@@ -443,7 +452,9 @@ export default function Bots({
           return (
             <Pressable
               key={ch.id}
-              style={[s.row, thread && s.threadRow]}
+              // Dimmed rather than hidden: a room you have silenced should look
+              // silenced, or the only way to tell is to open its settings.
+              style={[s.row, thread && s.threadRow, quiet && s.rowMuted]}
               onPress={() => onOpenChannel(ch)}
             >
               {thread ? (
@@ -556,6 +567,7 @@ const s = StyleSheet.create({
 
   /* A thread carries no icon of its own: the branch says what it is, and a
      glyph on every line only competes with the room's hash above it. */
+  rowMuted: { opacity: 0.55 },
   threadRow: { paddingTop: 7, paddingBottom: 7, paddingLeft: 52 },
   threadName: { color: T.text2, fontSize: 14.5 },
   branch: { position: "absolute", left: 26, top: 0, bottom: 0, width: 2, backgroundColor: T.line },
