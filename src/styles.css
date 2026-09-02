@@ -277,9 +277,28 @@ select:focus-visible {
 
 .is-rail .bot-row__body,
 .is-rail .foot-label,
-.is-rail .field input,
-.is-rail #btn-new {
+.is-rail .field input {
   display: none;
+}
+
+/* Making a bot, at the foot of the rail rather than gone from it.
+ *
+ * It used to be hidden here, which meant the collapsed sidebar could not do the
+ * one thing this app is for without being opened first. At the bottom because
+ * that is where a thing you do occasionally goes when the column above it is a
+ * list of things you already have — and it is where the drawing puts it. */
+.is-rail #btn-new {
+  grid-area: new;
+  justify-self: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 4px;
+  border-radius: 14px;
+}
+
+.is-rail #btn-new svg {
+  width: 28px;
+  height: 28px;
 }
 
 /* Unread, on the corner of the face rather than beside it.
@@ -431,12 +450,13 @@ select:focus-visible {
 .is-rail .sidebar {
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
   grid-template-areas:
     "mark"
     "find"
     "rail"
     "list"
+    "new"
     "foot";
   /* No align-items here: the list has to stretch to fill its row or it sizes
      to its contents, centres, and stops being the thing that scrolls. Every
