@@ -7450,9 +7450,17 @@ function wireTabs(root: HTMLElement): (name: string) => void {
   const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>(".tabs .tab"));
   const panels = Array.from(root.querySelectorAll<HTMLElement>(".settings-panel"));
 
+  // Where there is a heading over the panels, it names the section rather than
+  // the window: the window's own name is on the row you clicked to open it, and
+  // repeating it over five different panels says nothing about which one you
+  // are looking at. Taken from the tab so the two cannot drift.
+  const title = root.querySelector<HTMLElement>(".settings__title");
+
   const show = (name: string) => {
     for (const tab of tabs) {
-      tab.setAttribute("aria-selected", String(tab.dataset.tab === name));
+      const on = tab.dataset.tab === name;
+      tab.setAttribute("aria-selected", String(on));
+      if (on && title) title.textContent = tab.textContent?.trim() ?? "";
     }
     for (const panel of panels) {
       panel.hidden = panel.dataset.tab !== name;

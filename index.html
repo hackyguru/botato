@@ -819,20 +819,37 @@
 
 
     <div class="overlay" id="app-settings" hidden>
-      <div class="sheet">
-        <div class="sheet__head">
-          <h2>botcage settings</h2>
-          <button type="button" class="icon-btn icon-btn--sm" id="app-settings-close" aria-label="Close">
-            <svg><use href="#i-x" /></svg>
+      <!-- Two columns: what there is on the left, one of them on the right.
+           A row of tabs across the top works while there are three of them and
+           starts abbreviating at five; a column has room for the name of every
+           section and for a mark beside it, and it is what every settings
+           window of this size has settled on. -->
+      <div class="sheet sheet--settings">
+        <button type="button" class="icon-btn icon-btn--sm settings__x" id="app-settings-close"
+                aria-label="Close">
+          <svg><use href="#i-x" /></svg>
+        </button>
+
+        <nav class="tabs" role="tablist">
+          <button type="button" class="tab" role="tab" data-tab="general" aria-selected="true">
+            <svg><use href="#i-gear" /></svg>General
           </button>
-        </div>
-        <div class="tabs" role="tablist">
-          <button type="button" class="tab" role="tab" data-tab="general" aria-selected="true">General</button>
-          <button type="button" class="tab" role="tab" data-tab="desktops" aria-selected="false">Desktops</button>
-          <button type="button" class="tab" role="tab" data-tab="power" aria-selected="false">Power</button>
-          <button type="button" class="tab" role="tab" data-tab="phone" aria-selected="false">Phone</button>
-          <button type="button" class="tab" role="tab" data-tab="backup" aria-selected="false">Backup</button>
-        </div>
+          <button type="button" class="tab" role="tab" data-tab="desktops" aria-selected="false">
+            <svg><use href="#i-monitor" /></svg>Desktops
+          </button>
+          <button type="button" class="tab" role="tab" data-tab="power" aria-selected="false">
+            <svg><use href="#i-power" /></svg>Power
+          </button>
+          <button type="button" class="tab" role="tab" data-tab="phone" aria-selected="false">
+            <svg><use href="#i-phone" /></svg>Phone
+          </button>
+          <button type="button" class="tab" role="tab" data-tab="backup" aria-selected="false">
+            <svg><use href="#i-folder" /></svg>Backup
+          </button>
+        </nav>
+
+        <div class="settings__main">
+        <h2 class="settings__title" id="app-settings-title">General</h2>
         <div class="sheet__body">
           <div class="settings-panel" data-tab="general" role="tabpanel">
             <p class="settings__cap">Preferences</p>
@@ -1118,6 +1135,7 @@
         </div>
         <div class="sheet__foot">
           <button type="button" class="btn-primary" id="app-settings-done">Done</button>
+        </div>
         </div>
       </div>
     </div>
