@@ -260,9 +260,18 @@ select:focus-visible {
   padding-top: 10px;
 }
 
-/* Collapsed sidebar: a rail of faces and icons. */
+/* Collapsed sidebar: a rail of faces and icons.
+ *
+ * Wide enough to hold the window's own buttons. macOS puts them at fourteen
+ * points in, twelve across, twenty apart — so the third one ends at sixty-six,
+ * which is exactly where a 66px rail ended. They sat on the seam, half in the
+ * rail and half over the conversation, which reads as the rail being too
+ * narrow for the window rather than as a choice.
+ *
+ * Eighty gives them the same fourteen on the right that the system gives them
+ * on the left. */
 .app.is-rail {
-  --sidebar-w: 66px;
+  --sidebar-w: 80px;
 }
 
 .is-rail .bot-row__body,
@@ -283,8 +292,8 @@ select:focus-visible {
   cursor: pointer;
 }
 
-/* A group heading has nowhere to go in 66px — "CHANNELS" was clipping to
-   "CHAN". It becomes the thing the word was doing anyway: a divider between
+/* A group heading has nowhere to go in a rail this narrow — "CHANNELS" was
+   clipping to "CHAN". It becomes the thing the word was doing anyway: a divider between
    the rooms and the bots. The first one is dropped, since a rule across the
    top of a list separates it from nothing. */
 .is-rail .rail-group {
@@ -377,10 +386,11 @@ select:focus-visible {
 
 
 
-/* Stacked, because they do not fit side by side. The rail is 66px with 10 of
-   padding either side, which leaves 46 — and a 20px mark, an 8px gap and a
-   30px button want 58. It was overflowing quietly, and centring the overflow
-   only hid it.
+/* Stacked, because they do not fit side by side with any room to spare. The
+   rail is 80px with 10 of padding either side, leaving 60 — and a 20px mark,
+   an 8px gap and a 30px button want 58. Two points of slack is not a layout.
+   At the old 66px it was overflowing outright, and centring only split the
+   overflow across both sides instead of showing it on one.
  *
  * The mark on top and the way back under it, which is also how the phone's
  * rail is arranged. */
