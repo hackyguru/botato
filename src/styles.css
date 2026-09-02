@@ -404,11 +404,6 @@ select:focus-visible {
   height: 34px;
 }
 
-.is-rail .desk-row__icon svg {
-  width: 20px;
-  height: 20px;
-}
-
 /* The count moves to the corner. In a row it sits after the name; with the name
    gone it would push the tile out of square, and a number about the icon
    belongs on the icon. */
@@ -460,20 +455,6 @@ select:focus-visible {
   height: 46px;
 }
 
-/* The size a face is, because it stands at the head of a column of them. At
-   twenty it read as the smaller neighbour of the button beside it; at anything
-   that is not 34 it reads as nearly a face, which is worse than either — a
-   column of round things one of which is almost the same size looks like a
-   mistake rather than a heading. */
-.is-rail .brand__mark {
-  /* 34, which is `--u` on .face — written out rather than referenced, because
-     that variable is defined on the face itself and would not reach here: a
-     var() that always takes its fallback is a link that reads as one and is
-     not. If a face ever changes size, this is the second place to change. */
-  width: 34px;
-  height: 34px;
-}
-
 /* One shape for the whole column.
  *
  * Everything below these is a 46px tile with either a 34px face or a 20px mark
@@ -503,13 +484,31 @@ select:focus-visible {
   background: var(--hover);
 }
 
+/* Big enough to weigh what a face weighs.
+ *
+ * Twenty is the size these are in a row, where they sit beside a name and are
+ * read with it. In the rail there is no name — the mark is the whole of the
+ * row — and next to a face that draws about forty points of solid colour, a
+ * twenty-point outline reads as half the size rather than as a different kind
+ * of thing.
+ *
+ * Twenty-eight in a 46 tile leaves nine points of air, which is what keeps them
+ * from looking crammed into their own square. */
 .is-rail .field svg,
-/* Nineteen everywhere else, which is a size chosen for a row with a name
-   beside it. In a column of twenties it is the one that looks slightly wrong
-   without looking different. */
-.is-rail .chan-row__hash svg {
-  width: 20px;
-  height: 20px;
+.is-rail .chan-row__hash svg,
+.is-rail .desk-row__icon svg,
+.is-rail #btn-rail svg {
+  width: 28px;
+  height: 28px;
+}
+
+/* And the mark grows with them. A face's box is 34, but a face overhangs its
+   box — hair, ears, an antenna — and lands nearer forty on screen, so a mark
+   drawn at exactly 34 beside one is the smaller thing rather than the matching
+   one. Thirty-eight is what makes them read as a pair. */
+.is-rail .brand__mark {
+  width: 38px;
+  height: 38px;
 }
 
 .is-rail #btn-rail {
