@@ -7,7 +7,7 @@
   --bg: #000000;
   /* The conversation, a shade off the floor so the sidebar has an edge. */
   --bg-main: #0c0c0c;
-  /* A sheet, a drawer's list — a surface lifted off the app. */
+  /* Lifted over the app with nothing dimmed behind it: the tour's card, and a sheet on the phone. Dialogs on the desktop sit on the app's own ground instead. */
   --panel: #17171a;
   /* Something you type in or choose from, on the app's own ground. */
   --field: #1c1c1e;
@@ -3850,7 +3850,11 @@ select:focus-visible {
      Phone panel — with a QR square in it — pushed the sheet past the bottom of
      a laptop screen, taking the Done button with it. */
   max-height: 88vh;
-  background: var(--panel);
+  /* The app's own ground rather than a lifted panel. A dialog reads as being
+     in front because of the dim behind it and the line around it, not because
+     it is a lighter grey — and a lighter grey is what made every sheet a
+     different shade from the two panes and the window they open over. */
+  background: var(--bg-main);
   border: 1px solid var(--line);
   border-radius: 18px;
   box-shadow: var(--shadow);
@@ -4951,15 +4955,6 @@ select:focus-visible {
   height: min(680px, 88vh);
   max-height: 88vh;
   overflow: hidden;
-  /* The app's own ground, not a panel. `--panel` is for something lifted over
-     the app and read as being in front of it — right for a question, wrong for
-     a window this size that you work in. It also puts this at the colour the
-     bot's settings pane already uses, so the two places called settings stop
-     being two different shades of grey.
-   *
-     The border stays: on the app's own colour it is the only thing separating
-     the window from the dimmed app behind it. */
-  background: var(--bg-main);
 }
 
 /* Top right of the whole window rather than in a title bar, since the title
@@ -5989,9 +5984,12 @@ label.setting {
   transition: box-shadow 0.13s, transform 0.13s;
 }
 
+/* The inner ring is not a colour, it is a gap: the sheet's own surface punched
+   between the dot and the ring around it. It follows whatever a sheet is
+   painted, and did not when a sheet stopped being `--panel`. */
 .swatch.is-on {
   transform: scale(1.1);
-  box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px currentColor;
+  box-shadow: 0 0 0 2px var(--bg-main), 0 0 0 4px currentColor;
 }
 
 /* The body scrolls between the head and this, and did so against no edge at
