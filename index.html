@@ -560,7 +560,12 @@
       </form>
     </div>
 
-    <div class="overlay" id="sheet-wrap" hidden>
+    <!-- A pane rather than a dialog. Bot settings are somewhere you go while
+         you are working — to change a manner, read what it has learned, hand it
+         over — and a modal over the conversation makes that a trip away from
+         it. This opens beside the chat exactly the way a bot's computer does,
+         and stacks under it when the window is too narrow to split. -->
+    <aside class="pane" id="sheet-wrap" hidden>
       <form class="sheet" id="sheet">
         <div class="sheet__head">
           <h2 id="sheet-title">New bot</h2>
@@ -808,7 +813,7 @@
           <button type="submit" class="btn-primary" id="sheet-submit">Create bot</button>
         </div>
       </form>
-    </div>
+    </aside>
 
 
     <div class="overlay" id="app-settings" hidden>

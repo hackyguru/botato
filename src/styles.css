@@ -227,6 +227,39 @@ select:focus-visible {
   grid-template-areas: "side main screen";
 }
 
+/* A bot's settings, in the same slot its computer uses. Only one of the two at
+   a time — three columns is what this window has room for, and a fourth would
+   leave the conversation too narrow to read. */
+.pane {
+  grid-area: pane;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+}
+
+.app.has-sheet {
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--pane-w, 380px);
+  grid-template-areas: "side main pane";
+}
+
+/* Too narrow to split, so it goes under the conversation instead — the same
+   answer the desktop pane gives, and the same threshold decides both. */
+.app.has-sheet.is-stacked {
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) var(--pane-h, 380px);
+  grid-template-areas:
+    "side main"
+    "side pane";
+}
+
+.is-stacked .pane {
+  border-left: 0;
+  border-top: 1px solid var(--line);
+}
+
 /* Too narrow to split horizontally, so the desktop goes under the chat and the
    grip becomes a horizontal one. */
 .app.has-screen.is-stacked {
@@ -3802,6 +3835,25 @@ select:focus-visible {
   border-radius: 18px;
   box-shadow: var(--shadow);
   animation: pop 0.14s ease both;
+}
+
+/* Except the one that lives in a pane, which is no longer a sheet at all: it
+   fills the column. No corners, no shadow, no width and no cap on its height —
+   the column is all four — because a card floating inside a column is a dialog
+   that has not noticed it was let out.
+ *
+ * Scoped rather than changed at the source: eight other dialogs wear this
+ * class and all of them are still dialogs. */
+.pane .sheet {
+  flex: 1;
+  width: auto;
+  max-height: none;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
 }
 
 .sheet--about {

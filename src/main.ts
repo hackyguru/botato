@@ -445,7 +445,24 @@ const input = $<HTMLTextAreaElement>("#input");
 const sendBtn = $<HTMLButtonElement>("#btn-send");
 const sendIcon = $<SVGUseElement>("#send-icon");
 const menu = $<HTMLDivElement>("#menu");
-const sheetWrap = $<HTMLDivElement>("#sheet-wrap");
+const sheetWrap = $<HTMLElement>("#sheet-wrap");
+
+/** Show or hide the settings pane.
+ *
+ *  One function because two things have to agree: the pane's own visibility and
+ *  the column the grid reserves for it. Fifteen places used to set `hidden`
+ *  directly, which was fine while this was a dialog floating over everything
+ *  and would now leave a column of empty panel down the right of the window.
+ *
+ *  It shares the slot with a bot's computer, and only one of them fits: three
+ *  columns is what this window has room for, and a fourth leaves the
+ *  conversation too narrow to read. Opening settings puts the computer away. */
+function showSheet(open: boolean): void {
+  if (open && appEl.classList.contains("has-screen")) closeScreen();
+  sheetWrap.hidden = !open;
+  appEl.classList.toggle("has-sheet", open);
+  relayout();
+}
 const sheet = $<HTMLFormElement>("#sheet");
 const sheetName = $<HTMLInputElement>("#sheet-name");
 const sheetRole = $<HTMLTextAreaElement>("#sheet-role");
@@ -4727,7 +4744,7 @@ function openSheet(bot: Bot | null = null): void {
   sheetDelete.hidden = !bot;
   disarmDelete();
   showSheetTab("general");
-  sheetWrap.hidden = false;
+  showSheet(true);
   sheetName.focus();
 }
 
@@ -5595,7 +5612,7 @@ sheetDelete.addEventListener("click", () => {
   }
 
   const { id, name } = editing;
-  sheetWrap.hidden = true;
+  showSheet(false);
   editing = null;
   disarmDelete();
   deleteBot(id);
@@ -5666,7 +5683,7 @@ function saveSheet(): void {
       editing.sessionId = newSessionId();
       editing.started = false;
     }
-    sheetWrap.hidden = true;
+    showSheet(false);
     editing = null;
     save();
     renderRoster();
@@ -5718,7 +5735,7 @@ function createBot(): void {
   pinFace(bot);
   state.bots.unshift(bot);
   state.activeId = bot.id;
-  sheetWrap.hidden = true;
+  showSheet(false);
   save();
   renderRoster();
   renderThread();
@@ -6634,7 +6651,7 @@ $<HTMLButtonElement>("#sheet-share").addEventListener("click", () => {
 });
 
 $<HTMLButtonElement>("#sheet-import").addEventListener("click", () => {
-  sheetWrap.hidden = true;
+  showSheet(false);
   void importTemplate();
 });
 
@@ -8448,6 +8465,9 @@ async function openScreen(): Promise<void> {
   screen.log = [];
   screen.control = false;
   screen.state = "stopped";
+  // The other way round from showSheet: they share one column, so whichever
+  // is asked for puts the other away.
+  if (!sheetWrap.hidden) showSheet(false);
   screenPane.hidden = false;
   appEl.classList.add("has-screen");
   state.screenOpen = true;
@@ -8526,13 +8546,30 @@ const isStacked = () => appEl.classList.contains("is-stacked");
 
 /** Rail and stacking follow the room available, not a fixed window size — a
     collapsed sidebar can buy back enough width to stay side by side. */
+/** How wide the settings pane is, matching `--pane-w` in the stylesheet. Same
+ *  arrangement as the sidebar's width above: the layout is decided in CSS and
+ *  the threshold that decides stacking is decided here, so the number is
+ *  written twice and has to agree. */
+const SHEET_PANE_W = 380;
+
 function relayout(): void {
   const railed = Boolean(state.railed) || appEl.clientWidth < RAIL_AT;
   appEl.classList.toggle("is-rail", railed);
 
-  const sidebar = railed ? 66 : 268;
-  const chatWidth = appEl.clientWidth - sidebar - (state.screenWidth ?? SCREEN_PANE.initial);
-  appEl.classList.toggle("is-stacked", !screenPane.hidden && chatWidth < MIN_CHAT_WIDTH);
+  // Both of these are `--sidebar-w` in the stylesheet, which this cannot read;
+  // the rail was widened to 92 there and this still said 66, so the width left
+  // for the conversation was being over-estimated by twenty-six points.
+  const sidebar = railed ? 92 : 268;
+
+  // Whichever pane is open, if either. They share a column and only one is
+  // ever out, so this is a choice rather than a sum.
+  const pane = !screenPane.hidden
+    ? (state.screenWidth ?? SCREEN_PANE.initial)
+    : !sheetWrap.hidden
+      ? SHEET_PANE_W
+      : 0;
+  const chatWidth = appEl.clientWidth - sidebar - pane;
+  appEl.classList.toggle("is-stacked", pane > 0 && chatWidth < MIN_CHAT_WIDTH);
 
   $<HTMLButtonElement>("#btn-rail").title = railed ? "Expand sidebar  (⌘B)" : "Collapse sidebar  (⌘B)";
 }
@@ -9982,11 +10019,7 @@ swatches.addEventListener("click", (e) => {
 });
 
 $<HTMLButtonElement>("#sheet-close").addEventListener("click", () => {
-  sheetWrap.hidden = true;
-});
-
-sheetWrap.addEventListener("mousedown", (e) => {
-  if (e.target === sheetWrap) sheetWrap.hidden = true;
+  showSheet(false);
 });
 
 document.addEventListener("mousedown", (e) => {
@@ -10027,7 +10060,7 @@ document.addEventListener("keydown", (e) => {
     else if (teach.arming) cancelArming();
     else if (teach.on) void stopTeaching();
     else if (!menu.hidden) closeMenu();
-    else if (!sheetWrap.hidden) sheetWrap.hidden = true;
+    else if (!sheetWrap.hidden) showSheet(false);
     // Not a panel you are trapped in, so it goes last — after everything that
     // is covering something else.
     else if (!found.hidden) closeFind();
@@ -10225,7 +10258,7 @@ const LESSONS: Lesson[] = [
         title: "One bot per job",
         body: "This makes one. A bot is cheap, and two jobs in one bot means one memory holding both.",
         open: () => {
-          sheetWrap.hidden = true;
+          showSheet(false);
         },
       },
       {
@@ -10296,7 +10329,7 @@ const LESSONS: Lesson[] = [
         // sheet, and a ring around something covered by a modal points at
         // nothing.
         open: () => {
-          sheetWrap.hidden = true;
+          showSheet(false);
         },
       },
       {
@@ -10331,7 +10364,7 @@ const LESSONS: Lesson[] = [
         title: "Watch it work",
         body: "This opens the screen. You can take the mouse back at any point, and hand it over again when you are done.",
         open: () => {
-          sheetWrap.hidden = true;
+          showSheet(false);
         },
       },
     ],
@@ -10395,7 +10428,7 @@ const LESSONS: Lesson[] = [
         title: "Nothing here ships a model",
         body: "botcage drives something else, and which something is a property of each bot rather than of the app. It lives in the bot's own settings.",
         open: () => {
-          sheetWrap.hidden = true;
+          showSheet(false);
         },
       },
       {
@@ -10421,7 +10454,7 @@ const LESSONS: Lesson[] = [
         title: "One roster, several engines",
         body: "A bot on your Claude subscription can sit beside one on a local model that costs nothing, and a third on something you are only trying out. They do not know about each other.",
         open: () => {
-          sheetWrap.hidden = true;
+          showSheet(false);
         },
       },
     ],
@@ -10435,7 +10468,7 @@ const LESSONS: Lesson[] = [
         title: "It has to be watching",
         body: "Teaching happens on a bot's own computer, so this is where it starts. The bot needs one, and it needs to be switched on.",
         open: () => {
-          sheetWrap.hidden = true;
+          showSheet(false);
         },
       },
       {
