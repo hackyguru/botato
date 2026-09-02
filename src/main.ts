@@ -8506,9 +8506,33 @@ async function openScreen(): Promise<void> {
     return;
   }
 
-  const docker = await invoke<{ path: string | null; version: string | null; error: string | null }>(
-    "docker_info",
-  );
+  type EngineSaid = { path: string | null; version: string | null; error: string | null };
+  let docker = await invoke<EngineSaid>("docker_info");
+
+  // Installed and asleep is not a state worth reporting. botcage owns this
+  // engine — it put it there, it knows where it is and it can start it — so it
+  // starts it. Nobody installs a thing in order to be told later that it is not
+  // running, and on macOS the engine is a VM that stops whenever the machine
+  // sleeps, so this is the ordinary morning case rather than a rare one.
+  if (!docker.version) {
+    engine = await invoke<EngineStatus>("engine_status").catch(() => null);
+    if (engine?.installed && engine.needsVm && !engine.vmRunning) {
+      engineStep = "Waking botcage's engine…";
+      paintScreen();
+      try {
+        await invoke("start_engine");
+        engine = await invoke<EngineStatus>("engine_status").catch(() => engine);
+        docker = await invoke<EngineSaid>("docker_info");
+      } catch {
+        // Fall through to the pane below, which offers to set one up — a start
+        // that fails is not worth its own screen when the next thing to try is
+        // the thing that screen already does.
+      } finally {
+        engineStep = "";
+      }
+    }
+  }
+
   if (!docker.version) {
     // Ask whether botcage could supply one itself, so the pane can offer that
     // rather than only naming things to go and install.
