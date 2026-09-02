@@ -1285,7 +1285,7 @@ function seed(): void {
     shape,
     sessionId: newSessionId(),
     started: false,
-    // A desktop is opt-in: a fresh install may not even have Docker.
+    // A desktop is opt-in: it costs a download and most bots never need one.
     computer: false,
     network: "full",
     model: MODEL,
@@ -1446,7 +1446,7 @@ interface Template {
   provider?: string;
   model?: string;
   /** Whether this bot is meant to have a computer. Not a grant — the importer
-   *  still has to have Docker and still has to say yes. */
+   *  still has to set up a machine for it and still has to say yes. */
   computer?: boolean;
   network?: Bot["network"];
   commands?: Bot["commands"];
@@ -8337,10 +8337,12 @@ const STATE_MESSAGE: Record<SandboxState, string> = {
   starting: "Waking the desktop…",
   running: "Connecting to the desktop…",
   error: "The desktop didn't come up.",
-  "no-docker":
-    "A bot's computer runs in a Linux container, and this machine has no engine to run one. " +
-    "On macOS, OrbStack or colima are the lightest; on Linux, install podman or docker.io from " +
-    "your package manager. Everything else in botcage works without it.",
+  // Deliberately says nothing about Docker. botcage brings its own engine and
+  // the button under this offers to fetch it, so a list of things to go and
+  // install was the app talking somebody out of the answer it already had —
+  // in words they may have no reason to know. What it says instead depends on
+  // whether botcage can actually supply one here, which `paintScreen` decides.
+  "no-docker": "",
   "no-computer":
     "This bot doesn't have a computer. Turn on Own computer in its settings to give it one — routines below work either way.",
 };
@@ -8348,6 +8350,27 @@ const STATE_MESSAGE: Record<SandboxState, string> = {
 function pushLog(line: string): void {
   screen.log.push(line);
   paintScreen();
+}
+
+/** What to say when there is no machine for a bot to work on.
+ *
+ *  Two different situations wearing one state. On a platform botcage can serve,
+ *  nothing is missing that the button below cannot fetch — so this says what it
+ *  is and what it costs, and never the word Docker. Where it cannot, naming an
+ *  engine is the only useful thing left to do. */
+function noEngineSays(): string {
+  if (engine?.supported) {
+    return (
+      "A bot's computer is a small Linux machine. botcage can set one up for itself — " +
+      `about ${engine.downloadMb ?? 0} MB, kept in botcage's own folder, and nothing else on ` +
+      "this computer is touched. Everything else works without it."
+    );
+  }
+  return (
+    "A bot's computer runs in a Linux container, and botcage cannot set one up on this " +
+    "platform. Installing podman or docker from your package manager gives it one. " +
+    "Everything else in botcage works without it."
+  );
 }
 
 function paintScreen(): void {
@@ -8379,7 +8402,9 @@ function paintScreen(): void {
       : "Teach a task";
   $<HTMLButtonElement>("#btn-screen-power").hidden = screen.state !== "running";
 
-  screenMessage.textContent = engineStep || STATE_MESSAGE[screen.state];
+  screenMessage.textContent =
+    engineStep ||
+    (screen.state === "no-docker" ? noEngineSays() : STATE_MESSAGE[screen.state]);
 
   // With no engine, the useful button is the one that gets you an engine —
   // otherwise the download machinery exists and nobody can reach it.

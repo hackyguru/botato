@@ -311,9 +311,14 @@ pub fn docker_info() -> DockerInfo {
         return DockerInfo {
             path: None,
             version: None,
+            // Not a list of things to go and install. botcage carries its own
+            // engine and the pane beside this offers to set it up — telling
+            // somebody to fetch Docker Desktop instead is asking them to solve
+            // a problem this app already solved, in vocabulary they may have no
+            // reason to know.
             error: Some(
-                "No container engine found. botcage works with Docker, OrbStack, colima, \
-                 Podman or nerdctl — install one and start it."
+                "No machine for bots to work on yet. botcage can set one up — nothing else \
+                 needs installing."
                     .into(),
             ),
         };
@@ -330,12 +335,18 @@ pub fn docker_info() -> DockerInfo {
             version: Some(format!("{engine} {}", stdout_of(&out))),
             error: None,
         },
+        // A client on disk with nothing behind it. Docker Desktop leaves its
+        // CLI installed whether or not it is running, so this is the ordinary
+        // state of a machine that has it and has not opened it today — and the
+        // old words sent people off to start it, next to a button offering to
+        // set up an engine that needs none of that.
         Ok(_) => DockerInfo {
             path: Some(bin.display().to_string()),
             version: None,
-            error: Some(
-                "Docker is installed but the daemon isn't running — start it and retry".into(),
-            ),
+            error: Some(format!(
+                "{engine} is installed but not running. Start it, or let botcage set up its \
+                 own machine — it needs nothing else installed."
+            )),
         },
         Err(err) => DockerInfo {
             path: Some(bin.display().to_string()),
