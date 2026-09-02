@@ -347,6 +347,18 @@ pub struct DockerInfo {
 
 #[tauri::command]
 pub fn docker_info() -> DockerInfo {
+    // Once more if the engine we had chosen has since stopped: the first look
+    // forgets it, the second picks again with it out of the way. Without this
+    // the answer to "is there an engine" is a report about the one that just
+    // died, when the useful answer is that botcage can supply one.
+    let first = docker_look();
+    if first.version.is_none() && CHOSEN.lock().unwrap().is_none() {
+        return docker_look();
+    }
+    first
+}
+
+fn docker_look() -> DockerInfo {
     let Some(bin) = locate_docker() else {
         return DockerInfo {
             path: None,

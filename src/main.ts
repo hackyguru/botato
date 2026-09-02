@@ -8514,7 +8514,11 @@ async function openScreen(): Promise<void> {
     // rather than only naming things to go and install.
     engine = await invoke<EngineStatus>("engine_status").catch(() => null);
     screen.state = "no-docker";
-    if (docker.error) screen.log = [docker.error];
+    // Only when botcage cannot supply one itself. Where it can, the message
+    // above already says what will happen and the button below does it — and
+    // the engine's own words underneath them say the same thing a third time,
+    // in the vocabulary this pane is trying not to use.
+    screen.log = !engine?.supported && docker.error ? [docker.error] : [];
     paintScreen();
     return;
   }
