@@ -8546,12 +8546,6 @@ const isStacked = () => appEl.classList.contains("is-stacked");
 
 /** Rail and stacking follow the room available, not a fixed window size — a
     collapsed sidebar can buy back enough width to stay side by side. */
-/** How wide the settings pane is, matching `--pane-w` in the stylesheet. Same
- *  arrangement as the sidebar's width above: the layout is decided in CSS and
- *  the threshold that decides stacking is decided here, so the number is
- *  written twice and has to agree. */
-const SHEET_PANE_W = 380;
-
 function relayout(): void {
   const railed = Boolean(state.railed) || appEl.clientWidth < RAIL_AT;
   appEl.classList.toggle("is-rail", railed);
@@ -8561,15 +8555,14 @@ function relayout(): void {
   // for the conversation was being over-estimated by twenty-six points.
   const sidebar = railed ? 92 : 268;
 
-  // Whichever pane is open, if either. They share a column and only one is
-  // ever out, so this is a choice rather than a sum.
-  const pane = !screenPane.hidden
-    ? (state.screenWidth ?? SCREEN_PANE.initial)
-    : !sheetWrap.hidden
-      ? SHEET_PANE_W
-      : 0;
+  // One column, one width, whichever of the two is in it. Giving the settings
+  // pane a width of its own meant it and the computer crossed the stacking
+  // threshold at different window sizes — so on one window the computer opened
+  // beside the conversation and settings opened underneath it.
+  const anyPane = !screenPane.hidden || !sheetWrap.hidden;
+  const pane = anyPane ? (state.screenWidth ?? SCREEN_PANE.initial) : 0;
   const chatWidth = appEl.clientWidth - sidebar - pane;
-  appEl.classList.toggle("is-stacked", pane > 0 && chatWidth < MIN_CHAT_WIDTH);
+  appEl.classList.toggle("is-stacked", anyPane && chatWidth < MIN_CHAT_WIDTH);
 
   $<HTMLButtonElement>("#btn-rail").title = railed ? "Expand sidebar  (⌘B)" : "Collapse sidebar  (⌘B)";
 }

@@ -240,8 +240,13 @@ select:focus-visible {
   border-left: 1px solid var(--line);
 }
 
+/* The same width the computer uses, not one of its own. They are one column
+   with two things that can be in it, so a width belongs to the column — and
+   two widths meant the two crossed the stacking threshold at different window
+   sizes, which is why one opened beside the chat and the other underneath it
+   on the very same window. */
 .app.has-sheet {
-  grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--pane-w, 380px);
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--screen-w, 460px);
   grid-template-areas: "side main pane";
 }
 
@@ -249,7 +254,7 @@ select:focus-visible {
    answer the desktop pane gives, and the same threshold decides both. */
 .app.has-sheet.is-stacked {
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) var(--pane-h, 380px);
+  grid-template-rows: minmax(0, 1fr) var(--screen-h, 320px);
   grid-template-areas:
     "side main"
     "side pane";
