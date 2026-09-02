@@ -4951,6 +4951,15 @@ select:focus-visible {
   height: min(680px, 88vh);
   max-height: 88vh;
   overflow: hidden;
+  /* The app's own ground, not a panel. `--panel` is for something lifted over
+     the app and read as being in front of it — right for a question, wrong for
+     a window this size that you work in. It also puts this at the colour the
+     bot's settings pane already uses, so the two places called settings stop
+     being two different shades of grey.
+   *
+     The border stays: on the app's own colour it is the only thing separating
+     the window from the dimmed app behind it. */
+  background: var(--bg-main);
 }
 
 /* Top right of the whole window rather than in a title bar, since the title
@@ -6042,7 +6051,10 @@ label.setting {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: #0d0d0f;
+  /* The conversation's colour, which this is a column beside. It was #0d0d0f
+     — one point off the token and mixed by hand, so the computer pane and the
+     settings pane that shares its slot were two almost-identical greys. */
+  background: var(--bg-main);
   border-left: 1px solid var(--line);
 }
 
