@@ -8481,6 +8481,45 @@ function connectScreen(port: number, attempt = 0): void {
   paintScreen();
 }
 
+type EngineSaid = { path: string | null; version: string | null; error: string | null };
+
+/** Make sure there is an engine answering, waking botcage's own if it is asleep.
+ *
+ *  Installed and asleep is not a state worth reporting. botcage owns this
+ *  engine — it put it there, it knows where it is and it is the only program
+ *  that can start it — so it starts it. Nobody installs a thing in order to be
+ *  told later that it is not running, and on macOS the engine is a VM that
+ *  stops whenever the machine sleeps, which makes this the ordinary
+ *  first-desktop-of-the-day case rather than a rare one.
+ *
+ *  Called from both ways in, because there are two: opening the pane, and
+ *  pressing the button after something failed. The second used to go straight
+ *  to starting a container, so a retry could never fix the thing that had gone
+ *  wrong — it re-ran the step after it.
+ */
+async function wakeEngine(): Promise<EngineSaid> {
+  let said = await invoke<EngineSaid>("docker_info");
+  if (said.version) return said;
+
+  engine = await invoke<EngineStatus>("engine_status").catch(() => null);
+  if (!engine?.installed || !engine.needsVm || engine.vmRunning) return said;
+
+  engineStep = "Waking botcage's engine…";
+  paintScreen();
+  try {
+    await invoke("start_engine");
+    engine = await invoke<EngineStatus>("engine_status").catch(() => engine);
+    said = await invoke<EngineSaid>("docker_info");
+  } catch {
+    // Left to the caller, which offers to set one up. A start that fails is
+    // not worth its own screen when the next thing to try is what that screen
+    // already does.
+  } finally {
+    engineStep = "";
+  }
+  return said;
+}
+
 async function openScreen(): Promise<void> {
   const bot = activeBot();
   if (!bot) return;
@@ -8506,33 +8545,7 @@ async function openScreen(): Promise<void> {
     return;
   }
 
-  type EngineSaid = { path: string | null; version: string | null; error: string | null };
-  let docker = await invoke<EngineSaid>("docker_info");
-
-  // Installed and asleep is not a state worth reporting. botcage owns this
-  // engine — it put it there, it knows where it is and it can start it — so it
-  // starts it. Nobody installs a thing in order to be told later that it is not
-  // running, and on macOS the engine is a VM that stops whenever the machine
-  // sleeps, so this is the ordinary morning case rather than a rare one.
-  if (!docker.version) {
-    engine = await invoke<EngineStatus>("engine_status").catch(() => null);
-    if (engine?.installed && engine.needsVm && !engine.vmRunning) {
-      engineStep = "Waking botcage's engine…";
-      paintScreen();
-      try {
-        await invoke("start_engine");
-        engine = await invoke<EngineStatus>("engine_status").catch(() => engine);
-        docker = await invoke<EngineSaid>("docker_info");
-      } catch {
-        // Fall through to the pane below, which offers to set one up — a start
-        // that fails is not worth its own screen when the next thing to try is
-        // the thing that screen already does.
-      } finally {
-        engineStep = "";
-      }
-    }
-  }
-
+  const docker = await wakeEngine();
   if (!docker.version) {
     // Ask whether botcage could supply one itself, so the pane can offer that
     // rather than only naming things to go and install.
@@ -8886,7 +8899,11 @@ startBtn.addEventListener("click", () => {
   screen.log = [];
   screen.state = "starting";
   paintScreen();
-  void invoke("sandbox_start", {
+  // Before anything else: the reason the last attempt failed may be that the
+  // engine went to sleep, and starting a container in an engine that is not
+  // running fails the same way for ever. "Try again" has to be able to fix the
+  // step that broke, not repeat the one after it.
+  void wakeEngine().then(() => invoke("sandbox_start", {
     botId,
     brand: {
       name: bot?.name ?? "",
@@ -8899,7 +8916,7 @@ startBtn.addEventListener("click", () => {
       github: (bot?.plugins ?? []).includes("github"),
       ...machineBrand(bot),
     },
-  }).catch((err) => {
+  })).catch((err) => {
     screen.state = "error";
     pushLog(String(err));
   });
