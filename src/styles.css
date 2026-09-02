@@ -419,9 +419,71 @@ select:focus-visible {
   line-height: 16px;
 }
 
-.is-rail .field {
+/* The rail's top, laid out rather than stacked.
+ *
+ * The mark wants a line of its own and the two controls want to share the next
+ * one — but they live in different parents, so no amount of ordering inside
+ * either will do it. A grid over the sidebar will: the header stops drawing a
+ * box of its own, its children become items of that grid, and each is placed
+ * where it belongs.
+ *
+ * Safe because the whole aside is already the window's drag region, so the
+ * header giving up its box costs nothing that was being used. */
+.is-rail .sidebar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "mark mark"
+    "find rail"
+    "list list"
+    "foot foot";
+  column-gap: 8px;
+  /* No align-items here: the list has to stretch to fill its row or it sizes
+     to its contents, centres, and stops being the thing that scrolls. The two
+     controls carry their own heights. */
+}
+
+.is-rail .sidebar__head {
+  display: contents;
+}
+
+.is-rail .brand {
+  grid-area: mark;
   justify-content: center;
+}
+
+/* Bigger, now that it has the line to itself. At twenty points beside a
+   thirty-point button it read as the button's smaller neighbour rather than as
+   the thing the rail belongs to. */
+.is-rail .brand__mark {
+  width: 30px;
+  height: 30px;
+}
+
+.is-rail .field {
+  grid-area: find;
+  align-self: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  margin: 8px 0;
   cursor: pointer;
+}
+
+.is-rail #btn-rail {
+  grid-area: rail;
+  align-self: center;
+  width: 100%;
+}
+
+.is-rail .bots {
+  grid-area: list;
+}
+
+.is-rail .sidebar__foot {
+  grid-area: foot;
 }
 
 /* A group heading has nowhere to go in a rail this narrow — "CHANNELS" was
