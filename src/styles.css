@@ -317,6 +317,50 @@ select:focus-visible {
   gap: 4px;
 }
 
+/* The desk becomes its icon, like everything else here. It had no rail rules at
+   all, so it stayed a full-width row with "Your desk" in it — which in seventy
+   points clips to about "Your d" and draws a slab where the column has tiles. */
+.is-rail .desk-row {
+  position: relative;
+  width: auto;
+  justify-content: center;
+  margin: 0 auto 4px;
+  padding: 6px;
+  border-radius: 14px;
+}
+
+.is-rail .desk-row__name {
+  display: none;
+}
+
+/* Given a face's worth of room, so the desk's tile is the same square as the
+   ones under it rather than a smaller one that happens to sit above them. */
+.is-rail .desk-row__icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+}
+
+.is-rail .desk-row__icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* The count moves to the corner. In a row it sits after the name; with the name
+   gone it would push the tile out of square, and a number about the icon
+   belongs on the icon. */
+.is-rail .desk-row__count {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 16px;
+}
+
 .is-rail .field {
   justify-content: center;
   cursor: pointer;
