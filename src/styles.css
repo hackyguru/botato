@@ -573,8 +573,15 @@ select:focus-visible {
   flex-direction: column;
   min-width: 0;
   /* Reserve the traffic-light strip here rather than inside the header, so no
-     amount of layout pressure can put a bot row underneath the buttons. */
-  padding: 22px 10px 10px;
+     amount of layout pressure can put a bot row underneath the buttons.
+   *
+   * Twenty-two was the strip and nothing else. macOS draws its buttons twelve
+   * points tall about thirteen down, so they end around twenty-six — and the
+   * mark, centred in the line under it, started at twenty-six too. It cleared
+   * them by nothing, which reads as the logo being stuck to the window
+   * controls rather than as the first thing in a column. Thirty-four leaves
+   * the mark a clear dozen points below them. */
+  padding: 34px 10px 10px;
   min-height: 0;
   overflow: hidden;
   background: var(--bg);
