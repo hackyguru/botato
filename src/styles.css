@@ -268,16 +268,23 @@ select:focus-visible {
  * rail and half over the conversation, which reads as the rail being too
  * narrow for the window rather than as a choice.
  *
- * Eighty gives them the same fourteen on the right that the system gives them
- * on the left. */
+ * Ninety-two clears them with room to spare and gives a 34px face a third of
+ * the width to sit in, which is the proportion a column of faces wants — at
+ * eighty they were filling it corner to corner. */
 .app.is-rail {
-  --sidebar-w: 80px;
+  --sidebar-w: 92px;
 }
 
 .is-rail .bot-row__body,
 .is-rail .foot-label,
 .is-rail .field input,
-.is-rail #btn-new {
+.is-rail #btn-new,
+/* With the name and the time hidden, the unread dot has nothing to sit after
+   and lands against the face instead — where it reads as part of the drawing
+   rather than as a mark about the row. The brightened name that says the same
+   thing is hidden here too, so a rail says unread with the mention badge or
+   not at all. */
+.is-rail .row-dot {
   display: none;
 }
 
@@ -386,20 +393,11 @@ select:focus-visible {
 
 
 
-/* Stacked, because they do not fit side by side with any room to spare. The
-   rail is 80px with 10 of padding either side, leaving 60 — and a 20px mark,
-   an 8px gap and a 30px button want 58. Two points of slack is not a layout.
-   At the old 66px it was overflowing outright, and centring only split the
-   overflow across both sides instead of showing it on one.
- *
- * The mark on top and the way back under it, which is also how the phone's
- * rail is arranged. */
-.is-rail .sidebar__head {
-  flex-direction: column;
-  height: auto;
-  gap: 6px;
-}
-
+/* Side by side again. This was stacked when the rail was 66px, where a 20px
+   mark, an 8px gap and a 30px button could not fit in the 46 that was left —
+   they were overflowing, and centring only split the overflow across both
+   sides instead of showing it on one. At 92px there are 72 to work in and the
+   stack was solving a problem that had been fixed underneath it. */
 .is-rail .brand {
   padding-left: 0;
   /* The expanded header pushes its buttons right with an auto margin. An auto
