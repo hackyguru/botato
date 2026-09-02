@@ -596,13 +596,13 @@ select:focus-visible {
      amount of layout pressure can put a bot row underneath the buttons.
    *
    * This number follows `trafficLightPosition` in tauri.conf.json. The buttons
-   * are twelve points tall and now start eighteen down, so they finish at
-   * thirty — and the mark, centred in the 46 below, begins four points after
-   * whatever this is. Forty gives it a clear dozen under them.
+   * are twelve points tall and start twenty-six down, so they finish at
+   * thirty-eight — and the mark, centred in the 46 below, begins four points
+   * after whatever this is. Fifty leaves it a clear dozen under them.
    *
    * If the buttons are ever moved again, this moves with them: they are drawn
    * by the system and know nothing about the column underneath. */
-  padding: 40px 10px 10px;
+  padding: 50px 10px 10px;
   min-height: 0;
   overflow: hidden;
   background: var(--bg);
