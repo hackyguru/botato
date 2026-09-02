@@ -294,6 +294,29 @@ select:focus-visible {
   justify-content: center;
 }
 
+/* A row in the rail is one face, so the thing that lights up should be a square
+   around that face rather than a slab across the width. Full-width highlights
+   are for rows that have a name in them; here they draw a bar with a small
+   picture in the middle of it.
+ *
+ * Six points of padding round a 34px face gives a 46px tile — near enough the
+ * proportion the mark-up was drawn at, where the lit square is about half again
+ * the size of the face inside it. */
+.is-rail .bot-row {
+  width: auto;
+  padding: 6px;
+  border-radius: 14px;
+}
+
+/* And room to breathe between them. Down the middle rather than justified,
+   because with the names gone there is nothing for a left edge to line up. */
+.is-rail .bots {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
 .is-rail .field {
   justify-content: center;
   cursor: pointer;
