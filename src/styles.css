@@ -297,12 +297,36 @@ select:focus-visible {
 }
 
 .is-rail .row-dot,
-.is-rail .row-badge {
+.is-rail .row-badge,
+.is-rail .chan-row__live {
   position: absolute;
   right: 2px;
   bottom: 2px;
   margin: 0;
   box-shadow: 0 0 0 2px var(--bg);
+}
+
+/* The live dot goes to the corner with the others, and stops breathing.
+ *
+ * It was a flex sibling of the hash, so a room that had a bot talking in it
+ * pushed its own "#" off to one side to make room — the mark moved because
+ * something happened next to it, which is the one thing an icon in a rail must
+ * not do. And a dot pulsing on a 46px tile is not a detail at the end of a row
+ * any more; it is the tile blinking.
+ *
+ * Sized to match the unread dot, because in a rail they mean nearly the same
+ * thing: there is something in here you have not seen. */
+.is-rail .chan-row__live {
+  width: 12px;
+  height: 12px;
+  animation: none;
+}
+
+/* One dot to a corner. A room that is busy is also, almost always, unread —
+   and two marks stacked on the same corner is a smudge. What is happening now
+   wins over what happened a moment ago. */
+.is-rail .chan-row:has(.chan-row__live) .row-dot {
+  display: none;
 }
 
 .is-rail .row-dot {
@@ -6704,6 +6728,16 @@ body.is-dragging {
 @keyframes chan-live {
   50% {
     opacity: 0.25;
+  }
+}
+
+/* Somebody who has asked the system for less movement should not have a dot
+   breathing at them in the corner of the sidebar for as long as a bot is
+   talking. Every other animation here is already covered; this one was
+   written later and missed. */
+@media (prefers-reduced-motion: reduce) {
+  .chan-row__live {
+    animation: none;
   }
 }
 
