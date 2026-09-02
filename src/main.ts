@@ -1394,6 +1394,173 @@ function theAsk(text: string): string {
   return (asks[asks.length - 1] ?? flat).trim();
 }
 
+/* ------------------------------------------------------------ templates */
+
+/** A bot, packed so somebody else can have one like it.
+ *
+ *  What travels is the bot: its name, its job, its face, how it talks, when it
+ *  works and what it answers to. What does not travel is everything the bot
+ *  learned while doing that job for *you* — its conversation, the notes it
+ *  keeps, what it has cost, which of your connectors it was allowed to use.
+ *
+ *  That line is the whole of the feature's safety. A memory file that reads
+ *  "85kg, BMI 26.2, wants abs by March" is exactly the sort of thing a person
+ *  would hand out by accident if the app packed everything and called it a
+ *  template, so the packing lists what it takes rather than what it drops:
+ *  a field added to a bot next year is left out until somebody decides it
+ *  should travel.
+ */
+interface Template {
+  /** What shape this file is, so a later botcage can read an earlier one and
+   *  say so plainly when it cannot. */
+  v: 1;
+  name: string;
+  role: string;
+  color: string;
+  shape: Shape;
+  face?: Bot["face"];
+  manner?: string;
+  voice?: string;
+  hours?: Bot["hours"];
+  /** A preference rather than a requirement: the machine importing this may
+   *  not have that engine, and a template that refuses to load because of it
+   *  would be a template nobody could share. */
+  engine?: string;
+  provider?: string;
+  model?: string;
+  /** Whether this bot is meant to have a computer. Not a grant — the importer
+   *  still has to have Docker and still has to say yes. */
+  computer?: boolean;
+  network?: Bot["network"];
+  commands?: Bot["commands"];
+  /** What it does on a schedule, without the times it last ran. */
+  routines?: { name: string; instruction: string; every: string; at?: string; day?: number; date?: string; minutes?: number }[];
+}
+
+/** Pack one. */
+function templateOf(bot: Bot): Template {
+  const packed: Template = {
+    v: 1,
+    name: bot.name,
+    role: bot.role,
+    color: bot.color,
+    shape: bot.shape,
+  };
+  if (bot.face) packed.face = bot.face;
+  if (bot.manner) packed.manner = bot.manner;
+  if (bot.voice) packed.voice = bot.voice;
+  if (bot.hours) packed.hours = bot.hours;
+  if (bot.engine) packed.engine = bot.engine;
+  if (bot.provider) packed.provider = bot.provider;
+  if (bot.model) packed.model = bot.model;
+  if (bot.computer) packed.computer = true;
+  if (bot.network) packed.network = bot.network;
+  if (bot.commands?.length) packed.commands = bot.commands;
+
+  // Schedules, not history: `lastRunAt` says when it ran on this machine and
+  // means nothing on anybody else's.
+  const live = (bot.routines ?? []).filter((r) => r.active);
+  if (live.length) {
+    packed.routines = live.map((r) => ({
+      name: r.name,
+      instruction: r.instruction,
+      every: r.every,
+      ...(r.at ? { at: r.at } : {}),
+      ...(r.day !== undefined ? { day: r.day } : {}),
+      ...(r.date ? { date: r.date } : {}),
+      ...(r.minutes !== undefined ? { minutes: r.minutes } : {}),
+    }));
+  }
+  return packed;
+}
+
+/** Unpack one into a bot of your own.
+ *
+ *  Everything here is checked rather than trusted. A template is a file that
+ *  arrived from somebody else — by definition the one input to this app that
+ *  did not come from the person using it — so every field is either a shape
+ *  botcage already understands or it is dropped. A colour becomes a colour or
+ *  the next one in the palette; a manner becomes one of the manners or none;
+ *  an engine that is not installed here becomes this machine's default rather
+ *  than a bot that cannot answer.
+ *
+ *  It throws only on the two things it cannot work around: a file that is not
+ *  a template at all, and a version this build does not know.
+ */
+function botFromTemplate(raw: unknown): Bot {
+  const t = raw as Partial<Template> | null;
+  if (!t || typeof t !== "object" || typeof t.name !== "string") {
+    throw new Error("that file is not a botcage template");
+  }
+  if (t.v !== 1) {
+    throw new Error(
+      `that template was made by a newer botcage (version ${String(t.v)}) — update this one to open it`,
+    );
+  }
+
+  const name = t.name.trim().slice(0, 40) || "Imported bot";
+  const colour =
+    typeof t.color === "string" && /^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(t.color)
+      ? t.color
+      : COLORS[state.bots.length % COLORS.length];
+  const engine = engineChoices.find((info) => info.key === t.engine)?.key;
+
+  return {
+    id: uid(),
+    name,
+    role: typeof t.role === "string" ? t.role.slice(0, 4000) : "",
+    color: colour,
+    shape: SHAPES.includes(t.shape as Shape) ? (t.shape as Shape) : SHAPES[state.bots.length % SHAPES.length],
+    face: t.face && typeof t.face === "object" ? t.face : undefined,
+    manner: MANNERS.some((m) => m.key === t.manner) ? t.manner : undefined,
+    voice: typeof t.voice === "string" ? t.voice : undefined,
+    hours: t.hours && typeof t.hours === "object" ? t.hours : undefined,
+    // Not the sender's engine unless this machine has it. A template that
+    // arrives asking for Gemini on a laptop with only Claude Code should make
+    // a working bot, not a broken one.
+    engine: engine ?? appSettings().engine ?? DEFAULT_ENGINE,
+    provider: engine ? t.provider : appSettings().provider,
+    model: engine && typeof t.model === "string" ? t.model : (appSettings().model ?? MODEL),
+    // Asked for, not granted: the switch is off and the person importing turns
+    // it on, having read what the bot is for.
+    computer: false,
+    network: (["full", "no-lan", "offline"] as const).includes(t.network as Bot["network"])
+      ? (t.network as Bot["network"])
+      : "full",
+    commands: Array.isArray(t.commands)
+      ? t.commands
+          .filter((c) => c && typeof c.name === "string" && typeof c.what === "string")
+          .slice(0, 8)
+      : undefined,
+    routines: Array.isArray(t.routines)
+      ? t.routines
+          .filter((r) => r && typeof r.name === "string" && typeof r.instruction === "string")
+          .slice(0, 20)
+          .map((r) => ({
+            id: uid(),
+            name: String(r.name).slice(0, 60),
+            instruction: String(r.instruction).slice(0, 4000),
+            every: (["once", "week", "day", "weekday", "hour", "minutes"] as const).includes(
+              r.every as Routine["every"],
+            )
+              ? (r.every as Routine["every"])
+              : "day",
+            at: typeof r.at === "string" && /^\d{2}:\d{2}$/.test(r.at) ? r.at : "09:00",
+            ...(typeof r.day === "number" ? { day: r.day } : {}),
+            ...(typeof r.date === "string" ? { date: r.date } : {}),
+            ...(typeof r.minutes === "number" ? { minutes: r.minutes } : {}),
+            // Off, so nothing an imported bot brought with it runs before the
+            // person importing has read it and said so.
+            active: false,
+          }))
+      : undefined,
+    messages: [],
+    sessionId: newSessionId(),
+    started: false,
+    plugins: [],
+  };
+}
+
 /** Everything blocked on you, in one list.
  *
  *  A company of agents makes the person the bottleneck: five bots working is
@@ -4519,6 +4686,8 @@ function openSheet(bot: Bot | null = null): void {
   }
   // Hidden rather than shown empty: a bot that has declared none has nothing
   // to say here, and a heading over an empty box teaches you to skip it.
+  // Nothing to hand over until there is something to hand over.
+  $<HTMLButtonElement>("#sheet-share").hidden = !bot;
   sheetCommandsRow.hidden = !bot?.commands?.length;
   sheetCommands.innerHTML = (bot?.commands ?? [])
     .map(
@@ -6460,6 +6629,15 @@ function removeChannel(ch: Channel): number {
   return going.length;
 }
 
+$<HTMLButtonElement>("#sheet-share").addEventListener("click", () => {
+  if (editing) void shareTemplate(editing);
+});
+
+$<HTMLButtonElement>("#sheet-import").addEventListener("click", () => {
+  sheetWrap.hidden = true;
+  void importTemplate();
+});
+
 $<HTMLButtonElement>("#channel-delete").addEventListener("click", () => {
   const ch = channels().find((c) => c.id === editingChannel);
   if (!ch) return;
@@ -7281,6 +7459,64 @@ const showSheetTab = wireTabs($<HTMLElement>("#sheet-wrap"));
  *  The window's own store goes with it, and has to: the conversations live in
  *  localStorage rather than in botcage's data folder, so a backup made by
  *  walking the disk would look complete and hold none of them. */
+
+/** Hand a bot over as a file somebody else can open.
+ *
+ *  A file rather than a link, for now. A link means a server holding other
+ *  people's bots — somewhere to upload them, something to pay for, somebody to
+ *  answer for what is on it — and this app has spent its whole life keeping
+ *  nothing in the middle. The file is the same payload a link would serve, so
+ *  the day there is a place to put one, this is what it puts there.
+ */
+async function shareTemplate(bot: Bot): Promise<void> {
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  const where = await save({
+    title: `Share ${bot.name}`,
+    defaultPath: `${bot.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "bot"}.botcage`,
+    filters: [{ name: "botcage template", extensions: ["botcage"] }],
+  });
+  if (!where) return;
+
+  try {
+    await invoke("template_write", {
+      path: where,
+      json: JSON.stringify(templateOf(bot), null, 2),
+    });
+    // Named plainly, because the difference between a bot and a template of it
+    // is the whole thing somebody needs to understand before sending one.
+    toast(`Saved ${bot.name} as a template — its conversation and notes stayed here`);
+  } catch (err) {
+    toast(err instanceof Error ? err.message : String(err));
+  }
+}
+
+/** Take one in. */
+async function importTemplate(): Promise<void> {
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const picked = await open({
+    directory: false,
+    multiple: false,
+    title: "Open a bot template",
+    filters: [{ name: "botcage template", extensions: ["botcage", "json"] }],
+  });
+  if (typeof picked !== "string") return;
+
+  try {
+    const text = await invoke<string>("template_read", { path: picked });
+    const made = botFromTemplate(JSON.parse(text));
+    state.bots.push(made);
+    save();
+    renderRoster();
+    openBot(made.id);
+    openSheet(made);
+    // Straight into its settings: an imported bot arrives with its computer
+    // off and its routines idle, and the person who imported it is the one who
+    // has to decide about both.
+    toast(`${made.name} is here. Nothing of theirs came with it — check what it does before you switch it on.`);
+  } catch (err) {
+    toast(err instanceof Error ? err.message : String(err));
+  }
+}
 
 /** A folder to write backups into. */
 async function openFolder(): Promise<string | null> {

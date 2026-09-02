@@ -1148,6 +1148,33 @@ fn write_memory(app: AppHandle, bot_id: String, text: String) -> Result<(), Stri
     fs::write(dir.join("CLAUDE.md"), text).map_err(|e| e.to_string())
 }
 
+/// Write a bot's template where the user asked for it.
+///
+/// Plain JSON on disk rather than anything sealed: the point of a template is
+/// that somebody else can read it, and a person handing one over should be
+/// able to open it first and see exactly what they are handing over. It is the
+/// window that decides what goes in; this only writes what it is given.
+#[tauri::command]
+fn template_write(path: String, json: String) -> Result<(), String> {
+    fs::write(&path, json).map_err(|e| format!("could not write {path}: {e}"))
+}
+
+/// Read one back.
+///
+/// Capped, because this is the one file botcage opens that came from somebody
+/// else: a template is a few kilobytes and anything claiming to be one that is
+/// megabytes long is not worth parsing to find out what it is.
+#[tauri::command]
+fn template_read(path: String) -> Result<String, String> {
+    let size = fs::metadata(&path)
+        .map_err(|e| format!("could not open {path}: {e}"))?
+        .len();
+    if size > 512 * 1024 {
+        return Err("that file is far too large to be a bot template".into());
+    }
+    fs::read_to_string(&path).map_err(|e| format!("could not read {path}: {e}"))
+}
+
 /// A question a bot left for the user this turn, if it left one.
 ///
 /// Read once and removed, like the face and the routines: a note from a
@@ -1677,6 +1704,8 @@ pub fn run() {
             take_face,
             take_ask,
             take_commands,
+            template_write,
+            template_read,
             read_memory,
             write_memory,
             backup_ready,

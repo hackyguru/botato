@@ -583,6 +583,12 @@
             <div class="hires" id="sheet-hires" hidden>
               <p class="hires__cap">Start from</p>
               <div class="hires__row" id="sheet-hires-row"></div>
+              <!-- Beside the presets, because it is the same question: where
+                   does this bot start from. One of ours, or one somebody sent
+                   you. -->
+              <button type="button" class="hires__open" id="sheet-import">
+                Open a template somebody sent you
+              </button>
             </div>
 
             <input id="sheet-name" placeholder="Name, e.g. Engineer" spellcheck="false" />
@@ -796,6 +802,9 @@
         </div>
         <div class="sheet__foot">
           <button type="button" class="danger" id="sheet-delete" hidden>Delete bot</button>
+          <!-- Hidden until the bot exists: there is nothing to hand over until
+               there is something to hand over. -->
+          <button type="button" class="btn-quiet" id="sheet-share" hidden>Share as template</button>
           <button type="submit" class="btn-primary" id="sheet-submit">Create bot</button>
         </div>
       </form>
