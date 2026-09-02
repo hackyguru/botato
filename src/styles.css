@@ -451,6 +451,9 @@ select:focus-visible {
 .is-rail .brand {
   grid-area: mark;
   justify-content: center;
+  /* The same 46 every other line in the column stands in, so the rhythm does
+     not start with a short one. */
+  height: 46px;
 }
 
 /* The size a face is, because it stands at the head of a column of them. At
@@ -467,25 +470,51 @@ select:focus-visible {
   height: 34px;
 }
 
-/* Each on its own line, and each a square the width of the thing above it
-   rather than a bar across the rail: a full-width search box under a 34px mark
-   reads as a field to type in, which in a rail it is not — it is a button that
-   opens one. */
+/* One shape for the whole column.
+ *
+ * Everything below these is a 46px tile with either a 34px face or a 20px mark
+ * inside it. These two were a 34px box holding a 16px glyph and a 30px box
+ * holding a 20px one — three sizes down a column of one, which is what made
+ * them look like the wrong size rather than like smaller things.
+ *
+ * The search box also loses its fill. Stretched across a sidebar it is a field
+ * you type into; at 46 square in a rail it is a button that opens one, and a
+ * filled square beside an unfilled one is the same mismatch again. */
 .is-rail .field {
   grid-area: find;
   justify-self: center;
   justify-content: center;
-  width: 34px;
+  width: 46px;
+  height: 46px;
   min-width: 0;
   padding: 0;
-  margin: 10px 0 2px;
+  margin: 8px 0 0;
+  background: none;
+  border-radius: 14px;
   cursor: pointer;
+}
+
+.is-rail .field:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.is-rail .field svg,
+/* Nineteen everywhere else, which is a size chosen for a row with a name
+   beside it. In a column of twenties it is the one that looks slightly wrong
+   without looking different. */
+.is-rail .chan-row__hash svg {
+  width: 20px;
+  height: 20px;
 }
 
 .is-rail #btn-rail {
   grid-area: rail;
   justify-self: center;
-  margin-bottom: 6px;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 4px;
+  border-radius: 14px;
 }
 
 .is-rail .bots {
