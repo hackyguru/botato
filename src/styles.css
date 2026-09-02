@@ -377,8 +377,25 @@ select:focus-visible {
 
 
 
+/* Stacked, because they do not fit side by side. The rail is 66px with 10 of
+   padding either side, which leaves 46 — and a 20px mark, an 8px gap and a
+   30px button want 58. It was overflowing quietly, and centring the overflow
+   only hid it.
+ *
+ * The mark on top and the way back under it, which is also how the phone's
+ * rail is arranged. */
+.is-rail .sidebar__head {
+  flex-direction: column;
+  height: auto;
+  gap: 6px;
+}
+
 .is-rail .brand {
   padding-left: 0;
+  /* The expanded header pushes its buttons right with an auto margin. An auto
+     margin beats justify-content, so leaving it on here would defeat the
+     centring the rail is asking for two rules above. */
+  margin-right: 0;
 }
 
 .icon-btn {
