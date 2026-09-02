@@ -44,3 +44,13 @@ mobile/modules/*/android/.cxx
 
 # Generated native projects (expo prebuild regenerates them)
 mobile/ios
+
+# The marketing site, which is its own repository sitting inside this one.
+# Untracked rather than a submodule on purpose — but git add -A will happily
+# commit it as a broken gitlink, which it has done once.
+website/
+
+# Next.js writes here when its dev server picks this directory as the workspace
+# root, which it does because the lockfile it finds first is ours. It is the
+# site's build output, not botcage's.
+.next/

@@ -73,6 +73,18 @@ jobs:
       - name: Tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib
 
+      # The phone app, which had no gate of its own at all. It ships as half of
+      # the pairing, the push and the desk, and until now the only thing
+      # standing between a broken one and a release was somebody remembering to
+      # run tsc. Its own npm lockfile, and only on one leg: TypeScript does not
+      # care which machine it runs on.
+      - name: Typecheck the phone app
+        if: startsWith(matrix.os, 'ubuntu')
+        working-directory: mobile
+        run: |
+          npm ci
+          npx tsc --noEmit
+
       # Proves the thing a release actually produces, without publishing it —
       # which is a different artefact on each platform, so each leg builds its
       # own. A .deb on macOS is not a slower build, it is a failed one.
