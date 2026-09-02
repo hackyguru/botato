@@ -449,6 +449,21 @@ pub fn start_engine(app: AppHandle) -> Result<(), String> {
 
 /// Where the docker client should look, once the VM is up. Empty on Linux,
 /// where podman needs no socket.
+/// Where botcage's engine listens, whether or not it is listening yet.
+///
+/// This used to return nothing unless the socket already existed — and the
+/// socket exists only while the VM is running. So the app, started on a machine
+/// whose VM was asleep, recorded its own engine with no address and then ran
+/// its own client against whatever `DOCKER_HOST` defaulted to: Docker Desktop's
+/// socket, on a machine that had Docker Desktop installed and stopped.
+///
+/// Everything downstream then made sense and was wrong. The engine botcage owns
+/// was the one being used and the daemon being asked was somebody else's, so
+/// starting the VM changed nothing, and the honest report — "docker stopped
+/// answering" — named a component that was not the one at fault.
+///
+/// Where the socket will be is a fact about where the engine is installed, not
+/// about whether it happens to be up.
 pub fn docker_host(app: &AppHandle) -> Option<String> {
     if !cfg!(target_os = "macos") {
         return None;
@@ -458,9 +473,7 @@ pub fn docker_host(app: &AppHandle) -> Option<String> {
         .join(VM_NAME)
         .join("sock")
         .join("docker.sock");
-    socket
-        .exists()
-        .then(|| format!("unix://{}", socket.display()))
+    Some(format!("unix://{}", socket.display()))
 }
 
 #[cfg(test)]
