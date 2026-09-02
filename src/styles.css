@@ -278,14 +278,48 @@ select:focus-visible {
 .is-rail .bot-row__body,
 .is-rail .foot-label,
 .is-rail .field input,
-.is-rail #btn-new,
-/* With the name and the time hidden, the unread dot has nothing to sit after
-   and lands against the face instead — where it reads as part of the drawing
-   rather than as a mark about the row. The brightened name that says the same
-   thing is hidden here too, so a rail says unread with the mention badge or
-   not at all. */
-.is-rail .row-dot {
+.is-rail #btn-new {
   display: none;
+}
+
+/* Unread, on the corner of the face rather than beside it.
+ *
+ * In a row it sits after the name, which is where a mark about a row belongs
+ * when the row has words in it. With the words gone it landed against the face
+ * and pushed the tile out of square — so it moves onto the bottom-right corner,
+ * where every app that shows a status on an avatar puts one, and where it reads
+ * as being about that bot rather than about the space next to it.
+ *
+ * The ring is the sidebar's own colour, not a border: it punches the dot out of
+ * the face underneath so the two do not merge into one shape at a glance. */
+.is-rail .bot-row {
+  position: relative;
+}
+
+.is-rail .row-dot,
+.is-rail .row-badge {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  margin: 0;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+.is-rail .row-dot {
+  width: 12px;
+  height: 12px;
+  background: var(--blue);
+}
+
+/* A mention keeps its count, which is the whole difference between it and a
+   dot — so it is allowed to be wider than it is tall and to sit a little
+   further out. */
+.is-rail .row-badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  border-radius: 8px;
 }
 
 .is-rail .bot-row,
