@@ -355,210 +355,6 @@
           </div>
           <div class="screen__caption" id="screen-caption"></div>
         </aside>
-    </div>
-
-    <div class="menu" id="menu" hidden></div>
-
-    <!-- The tour: four panes that blur everything except the thing being
-         talked about, a ring around it, and a card saying what it is for. -->
-    <div class="tour" id="tour" hidden>
-      <div class="tour__pane" data-edge="top"></div>
-      <div class="tour__pane" data-edge="right"></div>
-      <div class="tour__pane" data-edge="bottom"></div>
-      <div class="tour__pane" data-edge="left"></div>
-      <div class="tour__ring" id="tour-ring"></div>
-      <div class="tour__card" id="tour-card">
-        <span class="tour__count" id="tour-count"></span>
-        <h3 class="tour__title" id="tour-title"></h3>
-        <p class="tour__body" id="tour-body"></p>
-        <div class="tour__foot">
-          <button type="button" class="chip" id="tour-skip"><span>Skip</span></button>
-          <span class="tour__gap"></span>
-          <button type="button" class="chip" id="tour-back"><span>Back</span></button>
-          <button type="button" class="btn-primary tour__next" id="tour-next">Next</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="overlay" id="models-wrap" hidden>
-      <form class="sheet sheet--wide sheet--models" id="models-sheet">
-        <div class="sheet__head">
-          <h2 id="models-title">Choose a model</h2>
-          <button type="button" class="icon-btn icon-btn--sm" id="models-close" aria-label="Close">
-            <svg><use href="#i-x" /></svg>
-          </button>
-        </div>
-
-        <div class="market__bar">
-          <input id="models-search" class="market__search" spellcheck="false"
-                 placeholder="Search every model — sonnet, llama, gpt" />
-          <label class="chip chip--check">
-            <input type="checkbox" id="models-tools" />
-            <span>Can use tools</span>
-          </label>
-        </div>
-
-        <div class="chooser">
-          <div class="chooser__side">
-            <div class="chooser__label">Where from</div>
-            <div class="chooser__providers" id="models-providers"></div>
-          </div>
-          <div class="chooser__main">
-            <div class="chooser__label" id="models-heading">Models</div>
-            <div class="models" id="models-list"></div>
-          </div>
-        </div>
-
-        <div class="sheet__foot models__foot">
-          <p class="models__note" id="models-note"></p>
-          <div class="models__key" id="models-key" hidden>
-            <span class="models__keyhead" id="models-key-head"></span>
-            <input type="password" id="models-key-input" spellcheck="false"
-                   placeholder="Paste the key" autocomplete="off" />
-            <button type="button" class="chip" id="models-key-save"><span>Save key</span></button>
-            <button type="button" class="chip" id="models-key-forget" hidden><span>Forget</span></button>
-          </div>
-        </div>
-      </form>
-    </div>
-
-    <div class="overlay" id="channel-wrap" hidden>
-      <form class="sheet sheet--channel" id="channel-form">
-        <div class="sheet__head">
-          <h2 id="channel-title">New channel</h2>
-          <button type="button" class="icon-btn icon-btn--sm" id="channel-close" aria-label="Close">
-            <svg><use href="#i-x" /></svg>
-          </button>
-        </div>
-        <div class="sheet__body">
-          <label class="chan__name">
-            <span>#</span>
-            <input id="channel-name" placeholder="finance" spellcheck="false" maxlength="24" />
-          </label>
-          <textarea id="channel-purpose" rows="3"
-                    placeholder="What is this channel for? Everyone in it is told, so it is worth a sentence."></textarea>
-
-          <label class="setting" id="channel-cat-row" hidden>
-            <span class="setting__label">Category</span>
-            <select id="channel-cat" class="picker"></select>
-          </label>
-
-          <label class="setting" id="channel-mute-row" hidden>
-            <span class="setting__label">Mute this channel
-              <span class="setting__hint">No unread mark and no notification. Everything still
-                happens in here, and anything waiting on an answer still reaches your desk.</span>
-            </span>
-            <input type="checkbox" id="channel-mute" class="switch" />
-          </label>
-
-          <p class="chan__group">Who is in it</p>
-          <div class="chan__members" id="channel-members"></div>
-        </div>
-        <div class="sheet__foot">
-          <button type="button" class="danger" id="channel-delete" hidden>Delete channel</button>
-          <button type="submit" class="btn-primary" id="channel-save">Create channel</button>
-        </div>
-      </form>
-    </div>
-
-    <div class="overlay" id="routine-wrap" hidden>
-      <form class="sheet sheet--routine" id="routine-form">
-        <div class="sheet__head">
-          <h2 id="routine-title">New routine</h2>
-          <button type="button" class="icon-btn icon-btn--sm" id="routine-close" aria-label="Close">
-            <svg><use href="#i-x" /></svg>
-          </button>
-        </div>
-        <div class="sheet__body">
-          <p class="routine__by" id="routine-by" hidden></p>
-          <input id="routine-name" placeholder="Name it, e.g. Morning summary"
-                 spellcheck="false" maxlength="48" />
-          <textarea id="routine-instruction" rows="4"
-                    placeholder="What should it do each time it runs?"></textarea>
-
-          <div class="settings">
-            <label class="setting" id="routine-bot-row" hidden>
-              <span class="setting__label">Whose</span>
-              <select id="routine-bot" class="picker"></select>
-            </label>
-
-            <label class="setting" id="routine-where-row" hidden>
-              <span class="setting__label">Reports to</span>
-              <select id="routine-where" class="picker"></select>
-            </label>
-
-            <label class="setting" id="routine-format-row" hidden>
-              <span class="setting__label">Kind
-                <span class="setting__hint" id="routine-format-hint">One bot does the thing.</span>
-              </span>
-              <select id="routine-format" class="picker">
-                <option value="">An instruction</option>
-                <option value="standup">A stand-up</option>
-                <option value="review">A review</option>
-              </select>
-            </label>
-
-            <label class="setting">
-              <span class="setting__label">Repeats</span>
-              <select id="routine-every" class="picker">
-                <option value="once">Once</option>
-                <option value="week">Every week</option>
-                <option value="day">Every day</option>
-                <option value="weekday">Every weekday</option>
-                <option value="hour">Every hour</option>
-                <option value="minutes">Every few minutes</option>
-              </select>
-            </label>
-
-            <label class="setting" id="routine-day-row">
-              <span class="setting__label">On</span>
-              <select id="routine-day" class="picker">
-                <option value="1">Monday</option>
-                <option value="2">Tuesday</option>
-                <option value="3">Wednesday</option>
-                <option value="4">Thursday</option>
-                <option value="5">Friday</option>
-                <option value="6">Saturday</option>
-                <option value="0">Sunday</option>
-              </select>
-            </label>
-
-            <label class="setting" id="routine-date-row">
-              <span class="setting__label">Date</span>
-              <input type="date" id="routine-date" class="picker" />
-            </label>
-
-            <label class="setting" id="routine-at-row">
-              <span class="setting__label">At</span>
-              <input type="time" id="routine-at" class="picker" value="09:00" />
-            </label>
-
-            <label class="setting" id="routine-interval-row" hidden>
-              <span class="setting__label">Every
-                <span class="setting__hint">Minutes between runs.</span>
-              </span>
-              <input type="number" id="routine-interval" class="picker" value="15" min="1" max="720" />
-            </label>
-
-            <label class="setting" id="routine-active-row" hidden>
-              <span class="setting__label">Active
-                <span class="setting__hint">Off keeps it without running it.</span>
-              </span>
-              <input type="checkbox" id="routine-active" class="switch" />
-            </label>
-          </div>
-
-          <p class="routine__next" id="routine-next"></p>
-        </div>
-        <div class="sheet__foot">
-          <button type="button" class="danger" id="routine-delete" hidden>Delete routine</button>
-          <button type="button" class="chip" id="routine-run" hidden>
-            <svg><use href="#i-play" /></svg><span>Run now</span>
-          </button>
-          <button type="submit" class="btn-primary" id="routine-save">Add routine</button>
-        </div>
-      </form>
-    </div>
 
     <!-- A pane rather than a dialog. Bot settings are somewhere you go while
          you are working — to change a manner, read what it has learned, hand it
@@ -814,6 +610,212 @@
         </div>
       </form>
     </aside>
+    </div>
+
+    <div class="menu" id="menu" hidden></div>
+
+    <!-- The tour: four panes that blur everything except the thing being
+         talked about, a ring around it, and a card saying what it is for. -->
+    <div class="tour" id="tour" hidden>
+      <div class="tour__pane" data-edge="top"></div>
+      <div class="tour__pane" data-edge="right"></div>
+      <div class="tour__pane" data-edge="bottom"></div>
+      <div class="tour__pane" data-edge="left"></div>
+      <div class="tour__ring" id="tour-ring"></div>
+      <div class="tour__card" id="tour-card">
+        <span class="tour__count" id="tour-count"></span>
+        <h3 class="tour__title" id="tour-title"></h3>
+        <p class="tour__body" id="tour-body"></p>
+        <div class="tour__foot">
+          <button type="button" class="chip" id="tour-skip"><span>Skip</span></button>
+          <span class="tour__gap"></span>
+          <button type="button" class="chip" id="tour-back"><span>Back</span></button>
+          <button type="button" class="btn-primary tour__next" id="tour-next">Next</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="models-wrap" hidden>
+      <form class="sheet sheet--wide sheet--models" id="models-sheet">
+        <div class="sheet__head">
+          <h2 id="models-title">Choose a model</h2>
+          <button type="button" class="icon-btn icon-btn--sm" id="models-close" aria-label="Close">
+            <svg><use href="#i-x" /></svg>
+          </button>
+        </div>
+
+        <div class="market__bar">
+          <input id="models-search" class="market__search" spellcheck="false"
+                 placeholder="Search every model — sonnet, llama, gpt" />
+          <label class="chip chip--check">
+            <input type="checkbox" id="models-tools" />
+            <span>Can use tools</span>
+          </label>
+        </div>
+
+        <div class="chooser">
+          <div class="chooser__side">
+            <div class="chooser__label">Where from</div>
+            <div class="chooser__providers" id="models-providers"></div>
+          </div>
+          <div class="chooser__main">
+            <div class="chooser__label" id="models-heading">Models</div>
+            <div class="models" id="models-list"></div>
+          </div>
+        </div>
+
+        <div class="sheet__foot models__foot">
+          <p class="models__note" id="models-note"></p>
+          <div class="models__key" id="models-key" hidden>
+            <span class="models__keyhead" id="models-key-head"></span>
+            <input type="password" id="models-key-input" spellcheck="false"
+                   placeholder="Paste the key" autocomplete="off" />
+            <button type="button" class="chip" id="models-key-save"><span>Save key</span></button>
+            <button type="button" class="chip" id="models-key-forget" hidden><span>Forget</span></button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="overlay" id="channel-wrap" hidden>
+      <form class="sheet sheet--channel" id="channel-form">
+        <div class="sheet__head">
+          <h2 id="channel-title">New channel</h2>
+          <button type="button" class="icon-btn icon-btn--sm" id="channel-close" aria-label="Close">
+            <svg><use href="#i-x" /></svg>
+          </button>
+        </div>
+        <div class="sheet__body">
+          <label class="chan__name">
+            <span>#</span>
+            <input id="channel-name" placeholder="finance" spellcheck="false" maxlength="24" />
+          </label>
+          <textarea id="channel-purpose" rows="3"
+                    placeholder="What is this channel for? Everyone in it is told, so it is worth a sentence."></textarea>
+
+          <label class="setting" id="channel-cat-row" hidden>
+            <span class="setting__label">Category</span>
+            <select id="channel-cat" class="picker"></select>
+          </label>
+
+          <label class="setting" id="channel-mute-row" hidden>
+            <span class="setting__label">Mute this channel
+              <span class="setting__hint">No unread mark and no notification. Everything still
+                happens in here, and anything waiting on an answer still reaches your desk.</span>
+            </span>
+            <input type="checkbox" id="channel-mute" class="switch" />
+          </label>
+
+          <p class="chan__group">Who is in it</p>
+          <div class="chan__members" id="channel-members"></div>
+        </div>
+        <div class="sheet__foot">
+          <button type="button" class="danger" id="channel-delete" hidden>Delete channel</button>
+          <button type="submit" class="btn-primary" id="channel-save">Create channel</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="overlay" id="routine-wrap" hidden>
+      <form class="sheet sheet--routine" id="routine-form">
+        <div class="sheet__head">
+          <h2 id="routine-title">New routine</h2>
+          <button type="button" class="icon-btn icon-btn--sm" id="routine-close" aria-label="Close">
+            <svg><use href="#i-x" /></svg>
+          </button>
+        </div>
+        <div class="sheet__body">
+          <p class="routine__by" id="routine-by" hidden></p>
+          <input id="routine-name" placeholder="Name it, e.g. Morning summary"
+                 spellcheck="false" maxlength="48" />
+          <textarea id="routine-instruction" rows="4"
+                    placeholder="What should it do each time it runs?"></textarea>
+
+          <div class="settings">
+            <label class="setting" id="routine-bot-row" hidden>
+              <span class="setting__label">Whose</span>
+              <select id="routine-bot" class="picker"></select>
+            </label>
+
+            <label class="setting" id="routine-where-row" hidden>
+              <span class="setting__label">Reports to</span>
+              <select id="routine-where" class="picker"></select>
+            </label>
+
+            <label class="setting" id="routine-format-row" hidden>
+              <span class="setting__label">Kind
+                <span class="setting__hint" id="routine-format-hint">One bot does the thing.</span>
+              </span>
+              <select id="routine-format" class="picker">
+                <option value="">An instruction</option>
+                <option value="standup">A stand-up</option>
+                <option value="review">A review</option>
+              </select>
+            </label>
+
+            <label class="setting">
+              <span class="setting__label">Repeats</span>
+              <select id="routine-every" class="picker">
+                <option value="once">Once</option>
+                <option value="week">Every week</option>
+                <option value="day">Every day</option>
+                <option value="weekday">Every weekday</option>
+                <option value="hour">Every hour</option>
+                <option value="minutes">Every few minutes</option>
+              </select>
+            </label>
+
+            <label class="setting" id="routine-day-row">
+              <span class="setting__label">On</span>
+              <select id="routine-day" class="picker">
+                <option value="1">Monday</option>
+                <option value="2">Tuesday</option>
+                <option value="3">Wednesday</option>
+                <option value="4">Thursday</option>
+                <option value="5">Friday</option>
+                <option value="6">Saturday</option>
+                <option value="0">Sunday</option>
+              </select>
+            </label>
+
+            <label class="setting" id="routine-date-row">
+              <span class="setting__label">Date</span>
+              <input type="date" id="routine-date" class="picker" />
+            </label>
+
+            <label class="setting" id="routine-at-row">
+              <span class="setting__label">At</span>
+              <input type="time" id="routine-at" class="picker" value="09:00" />
+            </label>
+
+            <label class="setting" id="routine-interval-row" hidden>
+              <span class="setting__label">Every
+                <span class="setting__hint">Minutes between runs.</span>
+              </span>
+              <input type="number" id="routine-interval" class="picker" value="15" min="1" max="720" />
+            </label>
+
+            <label class="setting" id="routine-active-row" hidden>
+              <span class="setting__label">Active
+                <span class="setting__hint">Off keeps it without running it.</span>
+              </span>
+              <input type="checkbox" id="routine-active" class="switch" />
+            </label>
+          </div>
+
+          <p class="routine__next" id="routine-next"></p>
+        </div>
+        <div class="sheet__foot">
+          <button type="button" class="danger" id="routine-delete" hidden>Delete routine</button>
+          <button type="button" class="chip" id="routine-run" hidden>
+            <svg><use href="#i-play" /></svg><span>Run now</span>
+          </button>
+          <button type="submit" class="btn-primary" id="routine-save">Add routine</button>
+        </div>
+      </form>
+    </div>
+
+
 
 
     <div class="overlay" id="app-settings" hidden>
