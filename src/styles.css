@@ -372,7 +372,7 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 10px;
 }
 
 /* The desk becomes its icon, like everything else here. It had no rail rules at
@@ -382,7 +382,11 @@ select:focus-visible {
   position: relative;
   width: auto;
   justify-content: center;
-  margin: 0 auto 4px;
+  /* No bottom margin of its own: it sits in the same flex column as the rows
+     under it, so the column's gap is what spaces it — a margin here would put
+     the desk further from the first channel than the channels are from each
+     other, for no reason anybody could name. */
+  margin: 0 auto;
   padding: 6px;
   border-radius: 14px;
 }
