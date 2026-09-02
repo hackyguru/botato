@@ -128,11 +128,44 @@ static MANAGED: Mutex<Option<(PathBuf, Option<String>)>> = Mutex::new(None);
 /// and after an install, so a fresh install is used without a restart.
 pub fn use_managed_engine(client: Option<PathBuf>, host: Option<String>) {
     *MANAGED.lock().unwrap() = client.map(|path| (path, host));
+    // The engine chosen a moment ago was chosen without this one existing.
+    *CHOSEN.lock().unwrap() = None;
 }
 
+/// Does this engine actually answer?
+///
+/// A client on disk is not an engine. Docker Desktop leaves its CLI installed
+/// whether or not anything is running behind it, so choosing by "the file
+/// exists" picks a dead one — and then the only thing left to tell somebody is
+/// to go and start Docker, which is the one thing this app exists not to ask.
+fn answers(bin: &Path) -> bool {
+    let mut cmd = Command::new(bin);
+    cmd.args(["version", "--format", "{{.Server.Version}}"]);
+    with_socket(&mut cmd);
+    quiet(&mut cmd);
+    matches!(cmd.output(), Ok(out) if out.status.success())
+}
+
+/// The engine chosen for this run, so the probe above is paid for once rather
+/// than on every command. Cleared when botcage installs one of its own.
+static CHOSEN: Mutex<Option<PathBuf>> = Mutex::new(None);
+
 fn locate_docker() -> Option<PathBuf> {
+    if let Some(chosen) = CHOSEN.lock().unwrap().clone() {
+        if chosen.is_file() {
+            return Some(chosen);
+        }
+    }
+    let found = pick_engine();
+    *CHOSEN.lock().unwrap() = found.clone();
+    found
+}
+
+fn pick_engine() -> Option<PathBuf> {
     // botcage's own engine first: if the user let us install one, that is the
-    // one they expect to be running, whatever else happens to be on PATH.
+    // one they expect to be running, whatever else happens to be on PATH — and
+    // if it is not running botcage can start it, which is not true of anyone
+    // else's.
     if let Some((path, _)) = MANAGED.lock().unwrap().clone() {
         if path.is_file() {
             return Some(path);
@@ -174,7 +207,14 @@ fn locate_docker() -> Option<PathBuf> {
     candidates.push(home().join(".orbstack/bin/docker"));
     candidates.push(home().join(".rd/bin/docker"));
 
-    candidates.into_iter().find(|candidate| candidate.is_file())
+    // Only one that answers. Somebody else's stopped engine is not a reason to
+    // ask the person to start it — it is a reason to look past it and let
+    // botcage set up the machine it carries. Nothing answering returns nothing,
+    // and nothing is what makes the window offer its own.
+    candidates
+        .into_iter()
+        .filter(|candidate| candidate.is_file())
+        .find(|candidate| answers(candidate))
 }
 
 /// A docker command, pointed at the engine botcage manages.
@@ -335,19 +375,22 @@ pub fn docker_info() -> DockerInfo {
             version: Some(format!("{engine} {}", stdout_of(&out))),
             error: None,
         },
-        // A client on disk with nothing behind it. Docker Desktop leaves its
-        // CLI installed whether or not it is running, so this is the ordinary
-        // state of a machine that has it and has not opened it today — and the
-        // old words sent people off to start it, next to a button offering to
-        // set up an engine that needs none of that.
-        Ok(_) => DockerInfo {
-            path: Some(bin.display().to_string()),
-            version: None,
-            error: Some(format!(
-                "{engine} is installed but not running. Start it, or let botcage set up its \
-                 own machine — it needs nothing else installed."
-            )),
-        },
+        // Chosen because it answered, and it has since stopped — a laptop that
+        // slept, or Docker Desktop quit while botcage was open. Rare, and it
+        // still does not ask anybody to go and start anything: the engine is
+        // forgotten so the next attempt picks again, and picking again with
+        // nothing running is what offers botcage's own.
+        Ok(_) => {
+            *CHOSEN.lock().unwrap() = None;
+            DockerInfo {
+                path: Some(bin.display().to_string()),
+                version: None,
+                error: Some(format!(
+                    "{engine} stopped answering. botcage can set up a machine of its own — \
+                     it needs nothing else installed."
+                )),
+            }
+        }
         Err(err) => DockerInfo {
             path: Some(bin.display().to_string()),
             version: None,
