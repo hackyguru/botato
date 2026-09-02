@@ -4933,9 +4933,9 @@ select:focus-visible {
 .sheet--settings {
   position: relative;
   display: grid;
-  grid-template-columns: 208px minmax(0, 1fr);
-  width: min(900px, 94vw);
-  height: min(640px, 88vh);
+  grid-template-columns: 224px minmax(0, 1fr);
+  width: min(1040px, 94vw);
+  height: min(680px, 88vh);
   max-height: 88vh;
   overflow: hidden;
 }
