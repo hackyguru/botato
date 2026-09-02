@@ -477,6 +477,13 @@ select:focus-visible {
   background: none;
   border-radius: 14px;
   cursor: pointer;
+  /* The same grey as every other mark in this column. Expanded, this element
+     is a search box and its icon sits at the dimmer text-3, which is right
+     beside a placeholder — it is furniture next to something you type in. In
+     the rail it is a control in a row of controls, and the darker grey read as
+     a thinner stroke than its neighbours even though the stroke is identical:
+     same sprite, same 1.7, same 28 points. Dimmer looks lighter. */
+  color: var(--text-2);
 }
 
 .is-rail .field:hover {
