@@ -431,17 +431,17 @@ select:focus-visible {
  * header giving up its box costs nothing that was being used. */
 .is-rail .sidebar {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   grid-template-areas:
-    "mark mark"
-    "find rail"
-    "list list"
-    "foot foot";
-  column-gap: 8px;
+    "mark"
+    "find"
+    "rail"
+    "list"
+    "foot";
   /* No align-items here: the list has to stretch to fill its row or it sizes
-     to its contents, centres, and stops being the thing that scrolls. The two
-     controls carry their own heights. */
+     to its contents, centres, and stops being the thing that scrolls. Every
+     control carries its own height. */
 }
 
 .is-rail .sidebar__head {
@@ -467,21 +467,25 @@ select:focus-visible {
   height: 34px;
 }
 
+/* Each on its own line, and each a square the width of the thing above it
+   rather than a bar across the rail: a full-width search box under a 34px mark
+   reads as a field to type in, which in a rail it is not — it is a button that
+   opens one. */
 .is-rail .field {
   grid-area: find;
-  align-self: center;
+  justify-self: center;
   justify-content: center;
-  width: 100%;
+  width: 34px;
   min-width: 0;
   padding: 0;
-  margin: 8px 0;
+  margin: 10px 0 2px;
   cursor: pointer;
 }
 
 .is-rail #btn-rail {
   grid-area: rail;
-  align-self: center;
-  width: 100%;
+  justify-self: center;
+  margin-bottom: 6px;
 }
 
 .is-rail .bots {
