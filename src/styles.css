@@ -3915,6 +3915,32 @@ select:focus-visible {
   min-height: 96px;
 }
 
+/* The bottom edge, not wherever the content happens to stop. In a dialog the
+   sheet is only as tall as its contents so a footer after them *is* the
+   bottom; in a column that is a metre of empty panel with three buttons
+   floating above it. */
+.pane .sheet__foot {
+  margin-top: auto;
+  padding: 16px 22px 22px;
+}
+
+/* The same shape as the buttons it sits with. It was a bare red line between
+   two full-width buttons, which read as a link that had lost its paragraph. */
+.pane .sheet__foot .danger {
+  min-height: 40px;
+  margin: 0 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 15px;
+}
+
+/* Bigger, in a column that has the room. The preview is the one thing here
+   that says which bot you are changing, and it was drawn at the size a 380px
+   dialog could spare. */
+.pane .sheet__preview .face {
+  --u: 76px;
+}
+
 .pane .sheet {
   flex: 1;
   width: auto;
@@ -4013,7 +4039,10 @@ select:focus-visible {
 /* Direct children only: the name and role fields, not the switch nested in a
    setting row — which this rule was stretching to full width and 38px tall. */
 .sheet__body > input,
-.settings-panel > input {
+.settings-panel > input,
+/* And the one inside a label, now that the name field carries one like every
+   other field in the column. */
+.prose > input {
   width: 100%;
   height: 38px;
   padding: 0 12px;

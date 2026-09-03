@@ -392,7 +392,14 @@
               </button>
             </div>
 
-            <input id="sheet-name" placeholder="Name, e.g. Engineer" spellcheck="false" />
+            <!-- Labelled like every other field. It was the one input in the
+                 column with only a placeholder to say what it was, so its left
+                 edge started where the others' labels did and read as a row out
+                 of step. A placeholder also leaves once you type. -->
+            <label class="prose">
+              <span class="prose__label">Name</span>
+              <input id="sheet-name" placeholder="Engineer" spellcheck="false" />
+            </label>
             <div class="swatches" id="swatches"></div>
 
             <label class="prose" for="sheet-role">
@@ -611,6 +618,12 @@
       </form>
     </aside>
     </div>
+
+    <!-- The dim behind the computer when it is expanded. A real element rather
+         than a pseudo-element on the pane: the pane sets container-type, which
+         makes it the containing block for its own fixed children, so a scrim
+         drawn inside it would be trapped in it. -->
+    <div class="screen-scrim" id="screen-scrim" hidden></div>
 
     <div class="menu" id="menu" hidden></div>
 
