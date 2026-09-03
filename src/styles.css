@@ -7654,11 +7654,16 @@ body.is-dragging {
   color: #fff;
   cursor: pointer;
 }
+/* Sized to undo the glyph's own scaling rather than to a round number: the
+   handset is drawn at 0.82 inside its box so that turning it does not push it
+   out, which makes it that much smaller and its stroke that much thinner than
+   the numbers here suggest. Twenty-four by 0.82 is the twenty it drew before,
+   and 2.2 by 0.82 is the 1.8 it was drawn with. */
 .call__end svg {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   stroke: currentColor;
-  stroke-width: 1.8;
+  stroke-width: 2.2;
   fill: none;
 }
 .call__end:hover {

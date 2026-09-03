@@ -114,6 +114,21 @@
       <symbol id="i-phone" viewBox="0 0 24 24">
         <path d="M15.5 21A13.5 13.5 0 0 1 3 8.5V6a2 2 0 0 1 2-2h2.2a1 1 0 0 1 1 .8l.8 3.4a1 1 0 0 1-.5 1.1l-1.6.9a11 11 0 0 0 4.9 4.9l.9-1.6a1 1 0 0 1 1.1-.5l3.4.8a1 1 0 0 1 .8 1V19a2 2 0 0 1-2 2z" />
       </symbol>
+      <!-- Hanging up: the handset itself, turned down. Every phone since the
+           1960s has said "ended" by putting the receiver back at an angle, and
+           every phone app since has drawn exactly this. The slashed handset next
+           to it says "no phone" — a state, not an action — and at twenty points
+           on a red circle its slash runs corner to corner across the handset and
+           out to the rim.
+
+           Scaled about the centre as well as turned, because a shape that fills
+           its box corner to corner does not fit inside the same box on the
+           diagonal. -->
+      <symbol id="i-hang-up" viewBox="0 0 24 24">
+        <g transform="translate(12 12) rotate(133) scale(0.82) translate(-12 -12)">
+          <path d="M15.5 21A13.5 13.5 0 0 1 3 8.5V6a2 2 0 0 1 2-2h2.2a1 1 0 0 1 1 .8l.8 3.4a1 1 0 0 1-.5 1.1l-1.6.9a11 11 0 0 0 4.9 4.9l.9-1.6a1 1 0 0 1 1.1-.5l3.4.8a1 1 0 0 1 .8 1V19a2 2 0 0 1-2 2z" />
+        </g>
+      </symbol>
       <symbol id="i-phone-off" viewBox="0 0 24 24">
         <path d="M15.5 21A13.5 13.5 0 0 1 3 8.5V6a2 2 0 0 1 2-2h2.2a1 1 0 0 1 1 .8l.8 3.4a1 1 0 0 1-.5 1.1l-1.6.9a11 11 0 0 0 4.9 4.9l.9-1.6a1 1 0 0 1 1.1-.5l3.4.8a1 1 0 0 1 .8 1V19a2 2 0 0 1-2 2z" />
         <path d="M3 3l18 18" />
@@ -301,7 +316,7 @@
               <span id="call-talk-label">Hold to talk</span>
             </button>
             <button type="button" class="call__end" id="call-end" aria-label="End call">
-              <svg><use href="#i-phone-off" /></svg>
+              <svg><use href="#i-hang-up" /></svg>
             </button>
           </div>
         </div>
