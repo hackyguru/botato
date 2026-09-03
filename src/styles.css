@@ -4214,7 +4214,7 @@ select:focus-visible {
  * gap below so a heading sits nearer the card it names than the card above it.
  */
 .pane .tabs {
-  margin: 2px 28px 20px;
+  margin: 2px 30px 20px;
 }
 
 /* The title sits over a column rather than a card, so it can have the room a
@@ -4224,11 +4224,24 @@ select:focus-visible {
    has a hard edge a pixel to the left of it, and settings that start 22 points
    from that edge read as pressed against it. */
 .pane .sheet__head {
-  padding: 22px 18px 12px 28px;
+  padding: 22px 18px 12px 30px;
+}
+
+/* And a safe area at the top, which is what was actually missing.
+ *
+ * Every other column reserves the title-bar strip — the sidebar takes 50, the
+ * conversation takes 14 plus its bar — and this one took 22, so a bot's name
+ * sat a centimetre higher than everything beside it and hard against the top
+ * of the window. The same 50, so the three columns start on one line.
+ *
+ * Only while it is a column. Stacked under the conversation there is no title
+ * bar above it, and 50 points of nothing would be a stripe of empty panel. */
+.app:not(.is-stacked) .pane .sheet__head {
+  padding-top: 50px;
 }
 
 .pane .sheet__body {
-  padding: 0 28px 32px;
+  padding: 0 30px 32px;
 }
 
 /* The rhythm lives here, not on the body. The body's children are the panels;
@@ -4263,7 +4276,7 @@ select:focus-visible {
 .pane .sheet__foot {
   display: grid;
   gap: 10px;
-  padding: 18px 28px 26px;
+  padding: 18px 30px 26px;
 }
 
 /* The same shape as the buttons it sits with. It was a bare red line between
@@ -4408,7 +4421,7 @@ select:focus-visible {
 .prose {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
   margin-top: 4px;
 }
@@ -6373,11 +6386,11 @@ a.detail__source:hover {
 .setting {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
   /* One height for a row with a label and one with a label and a sentence
      under it, so a group of mixed rows still has a rhythm. */
-  min-height: 54px;
-  padding: 12px 16px;
+  min-height: 58px;
+  padding: 14px 18px;
 }
 
 /* Only the rows that are actually a control. A div with a chip in it is not
@@ -6403,7 +6416,9 @@ label.setting {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  /* Three points read as a line that had wrapped rather than as a sentence
+     explaining the one above it. */
+  gap: 5px;
   font-size: 14px;
 }
 
