@@ -5376,13 +5376,27 @@ select:focus-visible {
    this selector weighs two classes and `.sheet--settings` weighs one. It beat
    a wider rule written after it, and the window stayed 460 however large that
    rule asked for. */
-.sheet:has(.tabs):not(.sheet--settings) {
+.sheet:has(.tabs):not(.sheet--settings):not(.sheet--wide) {
   width: min(460px, 92vw);
   height: min(620px, 88vh);
 }
 
+/* A dialog that is a list of things to look through rather than a form to fill
+   in: the marketplace shows cards, and cards want a row.
+ *
+ * This width had never once applied. `:has(.tabs)` carries the weight of its
+ * argument, so the tabbed-dialog rule above weighs three classes to this one's
+ * one — and the plugins modal, which has tabs, has been 460 wide the whole
+ * time it has been marked wide. The `:not` up there is what lets a sheet that
+ * states its own width keep it. */
 .sheet--wide {
   width: min(860px, 94vw);
+}
+
+/* And the height that rule was also providing. Only for the tabbed one: the
+   model chooser is a `--wide` sheet too and sets its own. */
+.sheet--wide:has(.tabs) {
+  height: min(680px, 88vh);
 }
 
 /* Hiring: the same pane, lifted off the grid and shown as a dialog.
