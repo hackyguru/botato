@@ -4053,7 +4053,11 @@ function paintHiring(): void {
     // takes it over while the strip is gone.
     const tabbed = el.classList.contains("settings-panel");
     if (!hiring) {
-      if (!tabbed) el.hidden = false;
+      // Everything comes back for the settings page — except the presets,
+      // which belong to hiring alone and whose visibility is paintHires's to
+      // decide. Unhiding them here put "Start from: one of ours" at the top of
+      // an existing bot's settings, which is not a control but a trapdoor.
+      if (!tabbed && el.dataset.wiz !== "start") el.hidden = false;
       continue;
     }
     el.hidden = el.dataset.wiz !== step.wiz;
