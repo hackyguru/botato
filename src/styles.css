@@ -353,15 +353,7 @@ select:focus-visible {
 .is-rail #btn-new {
   grid-area: new;
   justify-self: center;
-  width: 46px;
-  height: 46px;
   margin-bottom: 4px;
-  border-radius: 14px;
-}
-
-.is-rail #btn-new svg {
-  width: 28px;
-  height: 28px;
 }
 
 /* Unread, on the corner of the face rather than beside it.
@@ -586,8 +578,7 @@ select:focus-visible {
  * from looking crammed into their own square. */
 .is-rail .field svg,
 .is-rail .chan-row__hash svg,
-.is-rail .desk-row__icon svg,
-.is-rail #btn-rail svg {
+.is-rail .desk-row__icon svg {
   width: 28px;
   height: 28px;
 }
@@ -600,10 +591,7 @@ select:focus-visible {
 .is-rail #btn-rail {
   grid-area: rail;
   justify-self: center;
-  width: 46px;
-  height: 46px;
   margin-bottom: 4px;
-  border-radius: 14px;
 }
 
 .is-rail .bots {
@@ -734,6 +722,24 @@ select:focus-visible {
      margin beats justify-content, so leaving it on here would defeat the
      centring the rail is asking for two rules above. */
   margin-right: 0;
+}
+
+/* The header's two controls, at the size the rail gives them.
+ *
+ * Thirty is the size an icon button is everywhere else in the app, where it
+ * sits in a toolbar among other thirties. Here it sits beside the 38px mark
+ * and above 34px faces, and at thirty it read as two small glyphs stranded
+ * next to a big one. Forty-six with a 28px glyph is what the rail already
+ * uses, so the header is now the same object at both widths. */
+.sidebar__head .icon-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+}
+
+.sidebar__head .icon-btn svg {
+  width: 28px;
+  height: 28px;
 }
 
 .icon-btn {
