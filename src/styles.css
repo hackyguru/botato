@@ -1909,6 +1909,39 @@ select:focus-visible {
   backdrop-filter: blur(14px);
 }
 
+/* The day, written across the thread where it changes.
+ *
+ * A rule either side of the words rather than a bare label: on its own the
+ * word sat in the column like a very short message from nobody. The rules are
+ * what say "this is not something anyone said". */
+.dayline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0 12px;
+  font-size: var(--type-caption);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+  /* Dragging across a conversation to copy it should not pick up furniture. */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.dayline::before,
+.dayline::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* Nothing above the first one — it is the top of the conversation, and a
+   margin there pushes the whole thread down from the header. */
+.dayline:first-child {
+  margin-top: 2px;
+}
+
 /* And the fade continues below the strip, so a message coming up the page
    thins out over a couple of lines instead of appearing at an edge. */
 .topbar::after {

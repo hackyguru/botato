@@ -2573,6 +2573,51 @@ const SAME_BREATH = 5 * 60 * 1000;
  *  reads as one person still speaking. That is the whole of what makes a flat
  *  list readable — without it every line carries the same furniture and the eye
  *  has nothing to skip. */
+/** Whether two moments are the same day. */
+const sameDay = (a: number, b: number) =>
+  new Date(a).toDateString() === new Date(b).toDateString();
+
+/** Which day a message landed on, said the way a person would say it.
+ *
+ *  A line across the thread rather than a date on every message: in a
+ *  conversation you are reading forwards, the day changes a handful of times
+ *  and the time changes on every line, so the day is a thing that happens
+ *  between messages and the time is a thing that belongs to one.
+ *
+ *  Within the week the weekday alone is more use than a date — "Thursday" is
+ *  something you remember and "28 August" is something you work out. */
+function dayLabel(at: number): string {
+  const then = new Date(at);
+  const day = new Date(at).setHours(0, 0, 0, 0);
+  const today = new Date().setHours(0, 0, 0, 0);
+  const days = Math.round((today - day) / 86_400_000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days > 1 && days < 7) return then.toLocaleDateString([], { weekday: "long" });
+  return then.toLocaleDateString([], {
+    day: "numeric",
+    month: "long",
+    // The year only when it is not this one. "3 September 2026" in September
+    // 2026 is three words where two would do.
+    ...(then.getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" }),
+  });
+}
+
+/** One turn, with the day written above it when the day has changed.
+ *
+ *  Every path that puts a message on screen goes through here — the two full
+ *  renders and the eight places that append one as it arrives — so a message
+ *  that lands after midnight gets its line without the thread being rebuilt. */
+function appendTurn(target: HTMLElement, msg: Message, ch?: Channel, prev?: Message): void {
+  if (!prev || !sameDay(prev.at, msg.at)) {
+    const mark = document.createElement("div");
+    mark.className = "dayline";
+    mark.innerHTML = `<span>${escapeHtml(dayLabel(msg.at))}</span>`;
+    target.append(mark);
+  }
+  target.append(turnEl(msg, ch, prev));
+}
+
 function startsRun(msg: Message, prev?: Message): boolean {
   if (!prev) return true;
   // A note between two messages breaks the run: something happened in between.
@@ -2582,6 +2627,9 @@ function startsRun(msg: Message, prev?: Message): boolean {
   // The phone mark lives on the head of a run, so a change of device has to
   // start one — otherwise it would speak for messages it does not describe.
   if (!!prev.fromPhone !== !!msg.fromPhone) return true;
+  // A day's line has just been drawn above this one, and a line over a bare
+  // continuation reads as a heading with nothing under it.
+  if (!sameDay(prev.at, msg.at)) return true;
   return msg.at - prev.at > SAME_BREATH;
 }
 
@@ -2919,7 +2967,7 @@ function renderThread(): void {
       (bot.guide ? lessonsHtml() : "");
   } else {
     thread.innerHTML = "";
-    bot.messages.forEach((msg, n) => thread.append(turnEl(msg, undefined, bot.messages[n - 1])));
+    bot.messages.forEach((msg, n) => appendTurn(thread, msg, undefined, bot.messages[n - 1]));
   }
 
   // Once it has been spoken to, the lessons move above the conversation: they
@@ -3325,7 +3373,7 @@ async function respond(bot: Bot, prompt: string, style?: string): Promise<void> 
   setMood(bot.id, restingMood(bot.id) === "sleep" ? "wake" : "read");
 
   if (bot.id === state.activeId) {
-    thread.append(turnEl(message, undefined, bot.messages[bot.messages.length - 2]));
+    appendTurn(thread, message, undefined, bot.messages[bot.messages.length - 2]);
     waitingHtml(message.id, "");
     arrived();
   }
@@ -3798,7 +3846,7 @@ function send(text: string): void {
   bot.messages.push(msg);
 
   if (wasEmpty) thread.innerHTML = "";
-  thread.append(turnEl(msg, undefined, bot.messages[bot.messages.length - 2]));
+  appendTurn(thread, msg, undefined, bot.messages[bot.messages.length - 2]);
   // Sending is a thing you did on purpose, so it always takes you to the end —
   // even if you were reading back through the conversation when you typed it.
   scrollToEnd(true);
@@ -6520,7 +6568,7 @@ async function channelTurn(
   setMood(bot.id, restingMood(bot.id) === "sleep" ? "wake" : "read");
 
   if (state.activeChannel === ch.id) {
-    thread.append(turnEl(post, ch, ch.messages[ch.messages.length - 2]));
+    appendTurn(thread, post, ch, ch.messages[ch.messages.length - 2]);
     waitingHtml(post.id, "");
     arrived();
   }
@@ -6764,7 +6812,7 @@ function postToChannel(ch: Channel, text: string): void {
   // front of you and the composer you were typing in is cleared.
   if (state.activeChannel === ch.id) {
     if (ch.messages.length === 1) thread.innerHTML = "";
-    thread.append(turnEl(msg, ch, ch.messages[ch.messages.length - 2]));
+    appendTurn(thread, msg, ch, ch.messages[ch.messages.length - 2]);
     input.value = "";
     autoGrow();
     scrollToEnd(true);
@@ -6834,7 +6882,7 @@ function renderChannel(): void {
       }</p></div>`;
   } else {
     thread.innerHTML = "";
-    ch.messages.forEach((msg, n) => thread.append(turnEl(msg, ch, ch.messages[n - 1])));
+    ch.messages.forEach((msg, n) => appendTurn(thread, msg, ch, ch.messages[n - 1]));
   }
 
   // Re-attach the waiting indicator for anyone mid-turn in this room.
@@ -8564,7 +8612,7 @@ function runRoutine(bot: Bot, routine: Routine): void {
   bot.messages.push(note);
   if (bot.id === state.activeId) {
     if (bot.messages.length === 1) thread.innerHTML = "";
-    thread.append(turnEl(note, undefined, bot.messages[bot.messages.length - 2]));
+    appendTurn(thread, note, undefined, bot.messages[bot.messages.length - 2]);
     arrived();
   }
   save();
@@ -9271,7 +9319,7 @@ async function stopTeaching(): Promise<void> {
   };
   bot.messages.push(msg);
   if (bot.messages.length === 1) thread.innerHTML = "";
-  thread.append(turnEl(msg, undefined, bot.messages[bot.messages.length - 2]));
+  appendTurn(thread, msg, undefined, bot.messages[bot.messages.length - 2]);
   save();
   void respond(bot, prompt);
 }
@@ -12140,7 +12188,7 @@ function remoteSend(botId: string, text: string): Record<string, unknown> {
   bot.messages.push(msg);
   if (bot.id === state.activeId) {
     if (bot.messages.length === 1) thread.innerHTML = "";
-    thread.append(turnEl(msg, undefined, bot.messages[bot.messages.length - 2]));
+    appendTurn(thread, msg, undefined, bot.messages[bot.messages.length - 2]);
     arrived();
   }
   save();
