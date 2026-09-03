@@ -58,6 +58,8 @@
   --space-loose: 24px;
 
   --radius-pill: 999px;
+  /* The header band, and the panel head that has to line up with it. */
+  --head-h: 62px;
   --radius-chip: 8px;
   --radius-control: 10px;
   --radius-card: 12px;
@@ -1870,27 +1872,28 @@ select:focus-visible {
   background: var(--bg-main);
 }
 
-/* The strip the bar floats in. It carries no look of its own beyond a wash of
-   the page colour that fades downward — messages passing behind the bar are
-   hidden where the bar is opaque and dissolve below it, rather than sliding out
-   from under a hard edge. */
+/* A band across the top of the window, not a thing floating on it.
+ *
+ * It was a pill with a margin all round, which read as an action bar dropped
+ * over the page — one more surface in a window that already has enough. A
+ * header is furniture: it is the top edge of what is under it, and it says so
+ * by being a band with a line under it and nothing else.
+ *
+ * The height is shared with the panel's own head, so the two sit on one line
+ * across the window however the columns are divided. */
 .topbar {
   display: grid;
-  /* border-box, so this is padding + the bar: the top 14px reserves the
-     traffic-light strip and keeps this header aligned with the sidebar's. */
-  height: 62px;
-  padding: 14px 12px 0;
+  /* border-box: the top 14 reserves the traffic-light strip, and the rest is
+     the row the controls sit in. */
+  height: var(--head-h);
+  padding: 14px 0 0;
   flex: none;
   position: relative;
   z-index: 2;
-  background: linear-gradient(to bottom, var(--bg-main) 62%, transparent);
+  background: var(--bg-main);
+  border-bottom: 1px solid var(--line);
 }
 
-/* The bar itself: one floating pill holding the three things a header has —
-   who you are talking to, what you are looking for, and what you can do about
-   it. Glass rather than a slab, so the conversation stays visible through the
-   edges of it and the bar reads as sitting over the page rather than as the
-   top of it. */
 .topbar__bar {
   display: grid;
   /* The sides take what they need and the field takes the rest. Even 1fr
@@ -1901,17 +1904,7 @@ select:focus-visible {
   grid-template-columns: auto minmax(110px, 1fr) auto;
   align-items: center;
   gap: 12px;
-  height: 44px;
-  padding: 0 8px 0 10px;
-  /* A surface, not a lozenge. At the pill radius the ends were half-circles and
-     the bar read as a capsule dropped on the page; the app's own surface radius
-     keeps it a bar with soft corners, which is what the rest of the window is
-     made of. */
-  border-radius: var(--radius-surface);
-  border: 1px solid var(--line);
-  background: var(--fill-2);
-  background: color-mix(in srgb, var(--fill-3) 72%, transparent);
-  backdrop-filter: blur(14px);
+  padding: 0 14px 0 18px;
 }
 
 /* The day, written across the thread where it changes.
@@ -1947,18 +1940,9 @@ select:focus-visible {
   margin-top: 2px;
 }
 
-/* And the fade continues below the strip, so a message coming up the page
-   thins out over a couple of lines instead of appearing at an edge. */
-.topbar::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  right: 0;
-  left: 0;
-  height: 20px;
-  pointer-events: none;
-  background: linear-gradient(to bottom, var(--bg-main), transparent);
-}
+/* No fade under it any more: a band with a line under it has an edge on
+   purpose, and a message dissolving into that line reads as a rendering fault
+   rather than as depth. */
 
 /* Discord's header search: a quiet field that widens when you use it, and a
  * panel of results down the right. It searches what is in front of you — this
@@ -2043,13 +2027,16 @@ select:focus-visible {
   grid-template-rows: auto minmax(0, 1fr);
 }
 
+/* The same band, continued over this column. Same height, same line under it,
+   so the header reads as one segment across the window that the pane's own
+   border happens to cross. */
 .aside__head {
   display: flex;
   align-items: center;
   gap: 8px;
-  /* The same 50 every other column reserves for the title-bar strip, so the
-     three of them start on one line. */
-  padding: 50px 14px 10px 20px;
+  height: var(--head-h);
+  padding: 14px 12px 0 18px;
+  border-bottom: 1px solid var(--line);
 }
 
 
@@ -2139,16 +2126,18 @@ select:focus-visible {
 /* Each control in a circle of its own. In a row of bare glyphs the eye has to
    find where one ends and the next begins; a disc each is what makes them read
    as six things you can press rather than as a strip of decoration. */
+/* Bare glyphs on a band. The discs were what made a floating bar read as a row
+   of buttons; on furniture they would be six lozenges in a strip that is
+   already separated from the page by a line. */
 .topbar .icon-btn {
   width: 30px;
   height: 30px;
-  border-radius: 50%;
-  background: var(--fill-2);
-  background: color-mix(in srgb, var(--fill-3) 62%, transparent);
+  border-radius: var(--radius-chip);
+  background: none;
 }
 
 .topbar .icon-btn:hover {
-  background: var(--fill-3);
+  background: var(--hover);
 }
 
 .topbar .icon-btn svg {
