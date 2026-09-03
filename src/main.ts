@@ -6811,7 +6811,12 @@ function renderChannel(): void {
     `<span class="chan__hash">${icon(ch.from ? "reply" : "hash")}</span>` +
     `<span>${escapeHtml(ch.name)}</span>` +
     (parent ? `<span class="chan__parent">in #${escapeHtml(parent.name)}</span>` : "") +
-    `<span class="chan__faces">${room.map((b) => faceHtml(b, "sm")).join("")}</span>`;
+    `<span class="chan__faces">${room.map((b) => faceHtml(b, "sm")).join("")}` +
+    // On the end of the stack, because "who is in here" and "put somebody in
+    // here" are the same question asked twice. It opens the room's settings,
+    // which is where the members are chosen.
+    `<button type="button" class="chan__add" data-add-members title="Who is in it">${icon("plus")}</button>` +
+    `</span>`;
   input.placeholder = !room.length
     ? `#${ch.name} has nobody in it yet`
     : ch.from
@@ -9657,6 +9662,12 @@ $<HTMLButtonElement>("#btn-settings").addEventListener("click", () => {
   if (room) return openChannelSheet(room);
   const bot = activeBot();
   if (bot) openSheet(bot);
+});
+
+topbarId.addEventListener("click", (event) => {
+  if (!(event.target as HTMLElement).closest("[data-add-members]")) return;
+  const room = activeChannel();
+  if (room) openChannelSheet(room);
 });
 
 $<HTMLButtonElement>("#btn-monitor").addEventListener("click", () => {

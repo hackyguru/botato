@@ -231,16 +231,25 @@
       </div>
 
       <main class="main">
+        <!-- The header is the drag surface; the bar inside it is what you see.
+             Two elements because the bar floats — it has a margin all round it,
+             and the window still has to be draggable in the strip that margin
+             leaves behind. -->
         <header class="topbar" data-tauri-drag-region="deep">
+          <div class="topbar__bar">
           <div class="topbar__id" id="topbar-id"></div>
+          <!-- In the middle of the bar rather than at the end of the row: it
+               searches the conversation in front of you, which is the middle of
+               the window, and a centred field is the one thing in a bar of
+               small controls that reads as belonging to the whole. -->
+          <div class="find" id="find">
+            <svg class="find__glass"><use href="#i-search" /></svg>
+            <input id="find-input" placeholder="Search" spellcheck="false" autocomplete="off" />
+            <button type="button" class="find__clear" id="find-clear" hidden aria-label="Clear">
+              <svg><use href="#i-x" /></svg>
+            </button>
+          </div>
           <div class="topbar__actions">
-            <div class="find" id="find">
-              <svg class="find__glass"><use href="#i-search" /></svg>
-              <input id="find-input" placeholder="Search" spellcheck="false" autocomplete="off" />
-              <button type="button" class="find__clear" id="find-clear" hidden aria-label="Clear">
-                <svg><use href="#i-x" /></svg>
-              </button>
-            </div>
             <button class="icon-btn" id="btn-routines" title="Routines" aria-label="Routines">
               <svg><use href="#i-clock" /></svg>
               <span class="icon-btn__count" id="btn-routines-count"></span>
@@ -261,6 +270,7 @@
             <button class="icon-btn" id="btn-monitor" title="Its computer" aria-label="Its computer">
               <svg><use href="#i-monitor" /></svg>
             </button>
+          </div>
           </div>
         </header>
 

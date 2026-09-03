@@ -1865,31 +1865,55 @@ select:focus-visible {
   background: var(--bg-main);
 }
 
+/* The strip the bar floats in. It carries no look of its own beyond a wash of
+   the page colour that fades downward — messages passing behind the bar are
+   hidden where the bar is opaque and dissolve below it, rather than sliding out
+   from under a hard edge. */
 .topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  /* border-box, so this is padding + a 34px content row: the top 22px reserves
-     the traffic-light strip and keeps this header aligned with the sidebar's. */
-  height: 56px;
-  padding: 22px 14px 0;
+  display: grid;
+  /* border-box, so this is padding + the bar: the top 14px reserves the
+     traffic-light strip and keeps this header aligned with the sidebar's. */
+  height: 62px;
+  padding: 14px 12px 0;
   flex: none;
-  /* Opaque and above the thread: nothing scrolls into the bot's name. */
   position: relative;
   z-index: 2;
-  background: var(--bg-main);
+  background: linear-gradient(to bottom, var(--bg-main) 62%, transparent);
 }
 
-/* Messages dissolve as they pass under the header instead of being cut off at
-   a hard line, which read as the chat colliding with the bot's name. */
+/* The bar itself: one floating pill holding the three things a header has —
+   who you are talking to, what you are looking for, and what you can do about
+   it. Glass rather than a slab, so the conversation stays visible through the
+   edges of it and the bar reads as sitting over the page rather than as the
+   top of it. */
+.topbar__bar {
+  display: grid;
+  /* The sides take what they need and the field takes the rest. Even 1fr
+     sides put the field dead centre of the window, which is prettier and
+     wrong: on a window this narrow the fixed middle ate the row and crushed
+     the channel's name to one letter and a full stop. What the eye wants is a
+     wide field between two legible ends, not a field at an exact coordinate. */
+  grid-template-columns: auto minmax(110px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  height: 44px;
+  padding: 0 8px 0 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--fill-2);
+  background: color-mix(in srgb, var(--fill-3) 72%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+/* And the fade continues below the strip, so a message coming up the page
+   thins out over a couple of lines instead of appearing at an edge. */
 .topbar::after {
   content: "";
   position: absolute;
   top: 100%;
   right: 0;
   left: 0;
-  height: 28px;
+  height: 20px;
   pointer-events: none;
   background: linear-gradient(to bottom, var(--bg-main), transparent);
 }
@@ -1902,18 +1926,23 @@ select:focus-visible {
 .find {
   display: flex;
   align-items: center;
-  gap: 6px;
-  width: 148px;
-  height: 28px;
-  padding: 0 6px 0 8px;
+  gap: 7px;
+  /* Its column's width, capped: given the whole of a wide window it would
+     stretch to a letterbox, and a search field a foot wide is not a search
+     field any more. */
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  height: 32px;
+  padding: 0 8px 0 11px;
   background: var(--field);
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--ink) 26%, transparent);
+  border-radius: var(--radius-pill);
   transition: width 0.16s ease;
 }
 
-.find:focus-within {
-  width: 220px;
-}
+/* No widening on focus any more: it is a column of the bar's grid now, and a
+   field that grew would push the channel's name out of the way to do it. */
 
 .find__glass {
   width: 14px;
@@ -2057,7 +2086,28 @@ select:focus-visible {
 .topbar__actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+/* Each control in a circle of its own. In a row of bare glyphs the eye has to
+   find where one ends and the next begins; a disc each is what makes them read
+   as six things you can press rather than as a strip of decoration. */
+.topbar .icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--fill-2);
+  background: color-mix(in srgb, var(--fill-3) 62%, transparent);
+}
+
+.topbar .icon-btn:hover {
+  background: var(--fill-3);
+}
+
+.topbar .icon-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 .topbar__id {
@@ -2065,6 +2115,9 @@ select:focus-visible {
   align-items: center;
   gap: 9px;
   min-width: 0;
+  /* So a long channel name gives way to the field rather than the other way
+     round. */
+  max-width: 40%;
   font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -7722,6 +7775,37 @@ body.is-dragging {
 .chan__faces .face {
   box-shadow: 0 0 0 2px var(--bg-main);
   border-radius: 50%;
+}
+
+/* In the bar the ring has to be the bar's colour, or every face in the stack
+   wears a dark halo cut out of a lighter surface. */
+.topbar .chan__faces .face {
+  box-shadow: 0 0 0 2px var(--fill-3);
+}
+
+/* And the way to add one, on the end of the stack where the faces are. */
+.chan__add {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin-left: -7px;
+  color: var(--text-2);
+  background: var(--fill-3);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--fill-3);
+  cursor: pointer;
+}
+
+.chan__add:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.chan__add svg {
+  width: 14px;
+  height: 14px;
 }
 .chan__faces .face + .face {
   margin-left: -7px;
