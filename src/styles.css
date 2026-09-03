@@ -4214,17 +4214,21 @@ select:focus-visible {
  * gap below so a heading sits nearer the card it names than the card above it.
  */
 .pane .tabs {
-  margin: 4px 22px 20px;
+  margin: 2px 28px 20px;
 }
 
 /* The title sits over a column rather than a card, so it can have the room a
    column gives it. Ten points under a heading is a dialog's economy. */
+/* One gutter down the column, and it is wider than a dialog's needs to be.
+   A pane is a wall of a window rather than a card floating on one: its content
+   has a hard edge a pixel to the left of it, and settings that start 22 points
+   from that edge read as pressed against it. */
 .pane .sheet__head {
-  padding: 20px 16px 14px 22px;
+  padding: 22px 18px 12px 28px;
 }
 
 .pane .sheet__body {
-  padding: 0 22px 28px;
+  padding: 0 28px 32px;
 }
 
 /* The rhythm lives here, not on the body. The body's children are the panels;
@@ -4233,7 +4237,7 @@ select:focus-visible {
    gap of its own. Setting the body's gap changed the space between one panel
    and the next, of which there is never more than one on screen. */
 .pane .settings-panel {
-  gap: 20px;
+  gap: 22px;
 }
 
 .pane .sheet__preview,
@@ -4259,7 +4263,7 @@ select:focus-visible {
 .pane .sheet__foot {
   display: grid;
   gap: 10px;
-  padding: 16px 22px 22px;
+  padding: 18px 28px 26px;
 }
 
 /* The same shape as the buttons it sits with. It was a bare red line between
@@ -6372,8 +6376,8 @@ a.detail__source:hover {
   gap: 16px;
   /* One height for a row with a label and one with a label and a sentence
      under it, so a group of mixed rows still has a rhythm. */
-  min-height: 52px;
-  padding: 11px 14px;
+  min-height: 54px;
+  padding: 12px 16px;
 }
 
 /* Only the rows that are actually a control. A div with a chip in it is not
