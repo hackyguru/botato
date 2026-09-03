@@ -606,8 +606,11 @@ select:focus-visible {
    clipping to "CHAN". It becomes the thing the word was doing anyway: a divider between
    the rooms and the bots. The first one is dropped, since a rule across the
    top of a list separates it from nothing. */
+/* As wide as the tiles it comes between. Twenty-four was drawn as a hint of a
+   rule and read as a dash somebody had left in the column — a divider says
+   "these are two lists" by spanning what it divides, and the tile is 46. */
 .is-rail .rail-group {
-  width: 24px;
+  width: 46px;
   height: 2px;
   margin: 12px auto 10px;
   padding: 0;
