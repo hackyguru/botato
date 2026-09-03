@@ -5125,6 +5125,68 @@ select:focus-visible {
   width: min(860px, 94vw);
 }
 
+/* Hiring: the same pane, lifted off the grid and shown as a dialog.
+ *
+ * The pane itself does not move in the document — it becomes the dim, and the
+ * form inside it becomes the card. Moving the form into an overlay element
+ * would rebuild it, and a rebuilt form is a form that has forgotten what you
+ * typed into the step before.
+ *
+ * The same dim and the same ground as every other dialog in the app: .overlay
+ * and .sheet above set both, and a wizard that invented its own would be the
+ * third shade of grey in a window that took some trouble to have one. */
+/* Docked, the pane is the grid and the form inside it is `display: contents` —
+   that is what puts the footer on the bottom row rather than wherever the
+   content stopped. As a dialog the two swap jobs: the pane becomes only the dim
+   and the form takes its grid back, because now it is the card and a card needs
+   a box to be a width, a colour and a corner radius. */
+.pane.is-wizard {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  grid-template-rows: none;
+  place-items: center;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(3px);
+  border: 0;
+}
+
+.pane.is-wizard .sheet {
+  display: grid;
+  /* Three, not the pane's four: the tab strip is `hidden` while hiring, and
+     hidden is `display: none`, so it is not a grid item at all. With four rows
+     declared the footer landed in the `1fr` and stretched, leaving the button
+     at the top of a stretched row with a hand's width of empty card under it. */
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(480px, 92vw);
+  /* One height for all three steps. Sized to each, the card would grow and
+     shrink under the pointer as you moved through it, and the buttons would
+     never be twice in the same place. */
+  height: min(560px, 86vh);
+  min-height: 0;
+  background: var(--bg-main);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+/* The title and the step under it, as one block, so the close button stays
+   where it is rather than being pushed down by a second line. */
+.sheet__id {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wiz {
+  margin: 0;
+  font-size: var(--type-hint);
+  color: var(--text-3);
+}
+
 /* The app's own settings: a column of sections on the left, the one you picked
    on the right. Wider than a dialog because it is not one question — it is
    every question the app has, and a 380px sheet made each of them a scroll. */
@@ -6112,6 +6174,19 @@ label.setting {
 
 .hires__row::-webkit-scrollbar {
   display: none;
+}
+/* In the dialog they wrap instead of scrolling. Five 92px tiles need 492 and
+   the card is 480, so the fifth sat half off the edge with the scrollbar
+   hidden — which reads as a clipped row rather than as a row you can push.
+   A step of a wizard has vertical room to spare, so it spends it. */
+.is-wizard .hires__row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: visible;
+}
+
+.is-wizard .hire {
+  width: auto;
 }
 
 .hire {

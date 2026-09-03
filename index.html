@@ -394,7 +394,12 @@
     <aside class="pane" id="sheet-wrap" hidden>
       <form class="sheet" id="sheet">
         <div class="sheet__head">
-          <h2 id="sheet-title">New bot</h2>
+          <div class="sheet__id">
+            <h2 id="sheet-title">New bot</h2>
+            <!-- Where you are, and how much is left. A wizard with no count is
+                 a form that could go on forever. -->
+            <p class="wiz" id="sheet-wiz" hidden></p>
+          </div>
           <button type="button" class="icon-btn icon-btn--sm" id="sheet-close" aria-label="Close">
             <svg><use href="#i-x" /></svg>
           </button>
@@ -406,12 +411,12 @@
         </div>
         <div class="sheet__body">
           <div class="settings-panel" data-tab="general" role="tabpanel">
-            <div class="sheet__preview" id="sheet-preview"></div>
+            <div class="sheet__preview" id="sheet-preview" data-wiz="who"></div>
 
             <!-- Only when hiring. Editing somebody who already works here and
                  being offered a list of other people to be is not a control,
                  it is a trapdoor. -->
-            <div class="hires" id="sheet-hires" hidden>
+            <div class="hires" id="sheet-hires" data-wiz="start" hidden>
               <p class="hires__cap">Start from</p>
               <div class="hires__row" id="sheet-hires-row"></div>
               <!-- Beside the presets, because it is the same question: where
@@ -426,20 +431,20 @@
                  column with only a placeholder to say what it was, so its left
                  edge started where the others' labels did and read as a row out
                  of step. A placeholder also leaves once you type. -->
-            <label class="prose">
+            <label class="prose" data-wiz="who">
               <span class="prose__label">Name</span>
               <input id="sheet-name" placeholder="Engineer" spellcheck="false" />
             </label>
-            <div class="swatches" id="swatches"></div>
+            <div class="swatches" id="swatches" data-wiz="who"></div>
 
-            <label class="prose" for="sheet-role">
+            <label class="prose" for="sheet-role" data-wiz="who">
               <span class="prose__label">Role and job description</span>
               <textarea id="sheet-role" rows="4"
                         placeholder="What this bot is responsible for: the work it owns, how you want it approached, anything it should always or never do."></textarea>
             </label>
-            <p class="prose__note">Written into every conversation with it.</p>
+            <p class="prose__note" data-wiz="who">Written into every conversation with it.</p>
 
-            <div class="settings">
+            <div class="settings" data-wiz="how">
             <label class="setting">
               <span class="setting__label">Answered by
                 <span class="setting__hint" id="sheet-engine-hint">Which installed tool runs this bot's turns.</span>
@@ -525,7 +530,7 @@
 
           </div>
 
-          <div class="settings-panel" data-tab="computer" role="tabpanel" hidden>
+          <div class="settings-panel" data-tab="computer" role="tabpanel" data-wiz="how" hidden>
             <div class="settings">
             <label class="setting">
               <span class="setting__label">Own computer</span>
@@ -639,6 +644,9 @@
           </div>
         </div>
         <div class="sheet__foot">
+          <!-- Only while hiring. Editing a bot is one page and has nothing to
+               step through. -->
+          <button type="button" class="btn-quiet" id="sheet-back" hidden>Back</button>
           <button type="button" class="danger" id="sheet-delete" hidden>Delete bot</button>
           <!-- Hidden until the bot exists: there is nothing to hand over until
                there is something to hand over. -->

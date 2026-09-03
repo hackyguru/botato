@@ -486,6 +486,8 @@ const sheetPreview = $<HTMLDivElement>("#sheet-preview");
 const swatches = $<HTMLDivElement>("#swatches");
 const sheetTitle = $<HTMLHeadingElement>("#sheet-title");
 const sheetSubmit = $<HTMLButtonElement>("#sheet-submit");
+const sheetBack = $<HTMLButtonElement>("#sheet-back");
+const sheetWiz = $<HTMLParagraphElement>("#sheet-wiz");
 const sheetDelete = $<HTMLButtonElement>("#sheet-delete");
 
 const sheetComputer = $<HTMLInputElement>("#sheet-computer");
@@ -3746,6 +3748,108 @@ const HIRES: { name: string; blurb: string; colour: string; shape: Shape; role: 
   },
 ];
 
+/* ------------------------------------------------------------------ hiring */
+
+/** The steps a bot is made in, in order.
+ *
+ *  Editing an existing bot stays one page: you opened it for a field and you
+ *  know which one. Making a bot is the other act entirely — nothing is filled
+ *  in, and the same page asks you to decide thirty things at once before you
+ *  have decided the first. So the fields are dealt out, and each `wiz` names
+ *  the blocks that belong to its step.
+ *
+ *  It is the same form either way. Two forms would be two places for a field
+ *  to be added and one place for it to be forgotten. */
+const HIRING: { wiz: string; title: string; of: string }[] = [
+  { wiz: "start", title: "Start from", of: "One of ours, one somebody sent you, or nothing at all." },
+  { wiz: "who", title: "Who it is", of: "Its name, its face, and the work it owns." },
+  { wiz: "how", title: "How it works", of: "What answers for it, when, and whether it gets a computer." },
+];
+
+/** Which step the sheet is on. Meaningless while editing. */
+let hiringAt = 0;
+
+/** Show the sheet as the step it is on — or as the settings page it is when
+ *  there is a bot to edit.
+ *
+ *  One place, like showSheet: the modal class, the tab strip, the step line,
+ *  the two buttons and which blocks are visible all have to agree, and four
+ *  call sites each doing three of them is how they stop agreeing. */
+function paintHiring(): void {
+  const hiring = !editing;
+  const step = HIRING[hiringAt];
+  const last = hiringAt === HIRING.length - 1;
+
+  // A dialog while hiring, a column while editing. The pane never moves in the
+  // document — only its box changes — so nothing inside it is rebuilt and no
+  // field loses what you typed.
+  sheetWrap.classList.toggle("is-wizard", hiring);
+  const tabs = sheet.querySelector<HTMLElement>(".tabs");
+  if (tabs) tabs.hidden = hiring;
+
+  sheetWiz.hidden = !hiring;
+  sheetBack.hidden = !hiring || hiringAt === 0;
+  if (hiring) {
+    sheetWiz.textContent = `Step ${hiringAt + 1} of ${HIRING.length} · ${step.of}`;
+    sheetTitle.textContent = step.title;
+    sheetSubmit.textContent = last ? "Create bot" : "Next";
+  }
+
+  for (const el of sheet.querySelectorAll<HTMLElement>("[data-wiz]")) {
+    // A tab panel's own visibility belongs to the tab strip; the wizard only
+    // takes it over while the strip is gone.
+    const tabbed = el.classList.contains("settings-panel");
+    if (!hiring) {
+      if (!tabbed) el.hidden = false;
+      continue;
+    }
+    el.hidden = el.dataset.wiz !== step.wiz;
+  }
+  // Nothing to learn and nothing to hand over on a bot that does not exist, and
+  // the memory box is not one of the steps.
+  if (hiring) {
+    sheetMemoryRow.hidden = true;
+    sheetCommandsRow.hidden = true;
+  }
+}
+
+/** Start over at the first step. */
+function startHiring(): void {
+  hiringAt = 0;
+  paintHiring();
+}
+
+/** Put the caret where this step's work is.
+ *
+ *  A step that asks for words focuses the box; a step made of choices focuses
+ *  the button that leaves it. Without the second, Return did nothing on the
+ *  first step: a form submits on Return from a field, and a page of presets has
+ *  no field to press it in. */
+function focusHiring(): void {
+  if (HIRING[hiringAt].wiz === "who") sheetName.focus();
+  else sheetSubmit.focus();
+}
+
+/** Forward one step, or make the bot if this was the last.
+ *
+ *  The name is checked on its way out of the step that asks for it rather than
+ *  at the end: a wizard that lets you reach the final page and then sends you
+ *  back two is a wizard that wasted the pages in between. */
+function nextHiring(): void {
+  const step = HIRING[hiringAt];
+  if (step.wiz === "who" && !sheetName.value.trim()) {
+    sheetName.focus();
+    return;
+  }
+  if (hiringAt === HIRING.length - 1) {
+    saveSheet();
+    return;
+  }
+  hiringAt += 1;
+  paintHiring();
+  focusHiring();
+}
+
 /** The strip of them, and what picking one does. */
 function paintHires(hiring: boolean): void {
   const wrap = $<HTMLDivElement>("#sheet-hires");
@@ -4788,8 +4892,11 @@ function openSheet(bot: Bot | null = null): void {
   sheetDelete.hidden = !bot;
   disarmDelete();
   showSheetTab("general");
+  startHiring();
   showSheet(true);
-  sheetName.focus();
+  // After it is on screen: focus does nothing to a hidden element.
+  if (bot) sheetName.focus();
+  else focusHiring();
 }
 
 /* ------------------------------------------------------------- marketplace */
@@ -8678,7 +8785,9 @@ function relayout(): void {
   // pane a width of its own meant it and the computer crossed the stacking
   // threshold at different window sizes — so on one window the computer opened
   // beside the conversation and settings opened underneath it.
-  const anyPane = (!screenPane.hidden && !screenModal()) || !sheetWrap.hidden;
+  const anyPane =
+    (!screenPane.hidden && !screenModal()) ||
+    (!sheetWrap.hidden && !sheetWrap.classList.contains("is-wizard"));
   const pane = anyPane ? (state.screenWidth ?? SCREEN_PANE.initial) : 0;
   const chatWidth = appEl.clientWidth - sidebar - pane;
   appEl.classList.toggle("is-stacked", anyPane && chatWidth < MIN_CHAT_WIDTH);
@@ -9729,7 +9838,17 @@ menu.addEventListener("click", (e) => {
 
 sheet.addEventListener("submit", (e) => {
   e.preventDefault();
-  saveSheet();
+  // While hiring, the primary button is "Next" until it is "Create bot", and
+  // Return on any field means the same thing the button says.
+  if (editing) saveSheet();
+  else nextHiring();
+});
+
+sheetBack.addEventListener("click", () => {
+  if (hiringAt === 0) return;
+  hiringAt -= 1;
+  paintHiring();
+  focusHiring();
 });
 
 for (const control of [appModel, appScreen, appIdle, appRoutines, appAwake]) {
@@ -10168,6 +10287,13 @@ swatches.addEventListener("click", (e) => {
 
 $<HTMLButtonElement>("#sheet-close").addEventListener("click", () => {
   showSheet(false);
+});
+
+// Only while it is a dialog, and only the dim itself: a click that started
+// inside the card and ended outside it is a drag, not a dismissal.
+sheetWrap.addEventListener("click", (event) => {
+  if (!sheetWrap.classList.contains("is-wizard")) return;
+  if (event.target === sheetWrap) showSheet(false);
 });
 
 document.addEventListener("mousedown", (e) => {
