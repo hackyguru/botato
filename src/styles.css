@@ -901,16 +901,20 @@ select:focus-visible {
 /* One card, made of two elements — a button inside a button is not a thing,
    and pressing an answer is a different gesture from going to the conversation
    it came from. So the card is the wrapper: it carries the surface, the corners
-   and the hover, and the two things inside it are transparent. Lighting only
-   the half the pointer happened to be over was the giveaway that this had been
-   built as two. */
-.desk-row {
+   and the hover, and the two things inside it are transparent.
+ *
+ * `desk-card`, not `desk-row`: that name was already taken by the "Your desk"
+ * button in the sidebar, which is a horizontal flex with its own padding. This
+ * wrapper inherited all of it, so every card on the desk laid its text and its
+ * answers out side by side and sized itself to its contents — a column of
+ * ragged, differently-wide rows with the buttons hanging off to the right. */
+.desk-card {
   background: var(--fill-1);
   border-radius: var(--radius-card);
   transition: background 0.13s;
 }
 
-.desk-row:hover {
+.desk-card:hover {
   background: var(--fill-2);
 }
 
@@ -942,7 +946,7 @@ select:focus-visible {
   background: var(--fill-2);
 }
 
-.desk-row:hover .desk-item__ask .ask__opt {
+.desk-card:hover .desk-item__ask .ask__opt {
   background: var(--fill-3);
 }
 

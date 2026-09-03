@@ -1790,7 +1790,7 @@ function renderDesk(): void {
     ? desk
         .map(
           (item, at) =>
-            `<div class="desk-row${item.ask ? " has-ask" : ""}">` +
+            `<div class="desk-card">` +
             `<button type="button" class="desk-item desk-item--${item.kind}" data-desk-at="${at}">` +
             // Whose it is, as a face. It was a word, then an abstract mark, and
             // both were answering the wrong question: the thing you sort a desk
