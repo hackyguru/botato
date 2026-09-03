@@ -3989,14 +3989,24 @@ select:focus-visible {
 }
 
 /* --------------------------------------------------------------------- menu */
+/* The app's own ground, like every dialog in it. `--field` is the colour of a
+   thing you type into — a raised grey, two shades off the window — and using
+   it for a floating panel made every menu and the pinned-messages popover read
+   as belonging to some other application. A surface in front is said by the
+   line around it and the shadow under it, not by being lighter. */
 .menu {
   position: fixed;
   z-index: 40;
   min-width: 176px;
   padding: 5px;
-  background: var(--field);
+  /* The window's own ground, lifted by the same white wash the rest of the
+     chrome is made of — the header bar, the settings groups, a hovered row.
+     Ground alone would be the exact colour of the conversation behind it, and
+     a hairline is not enough to say "in front" on its own. */
+  background: var(--bg-main);
+  background-image: linear-gradient(var(--fill-2), var(--fill-2));
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   box-shadow: var(--shadow);
   animation: pop 0.11s ease both;
 }
