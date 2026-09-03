@@ -774,10 +774,14 @@ select:focus-visible {
    there it is a child of the column instead, and the same declaration means
    "take the height left above the list" — which drew a search box a third of
    the sidebar tall. */
+/* Clear of the list under it. At eight points the "CHANNELS" heading — which
+   carries only two of its own as the first thing in the list — sat close
+   enough to the field to read as part of it, as though the rooms were results
+   of a search nobody had typed. */
 .rooms .field {
   flex: none;
   min-width: 0;
-  margin: 0 2px 8px;
+  margin: 0 2px 18px;
 }
 
 /* The plus is a control in a row of one, not a tile in a rail — so it keeps
