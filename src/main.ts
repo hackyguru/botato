@@ -9102,22 +9102,33 @@ function showRooms(open: boolean): void {
   relayout();
 }
 
-screenGrip.addEventListener("pointerdown", (event) => {
-  event.preventDefault();
-  screenGrip.setPointerCapture(event.pointerId);
-  const drag = (move: PointerEvent) =>
-    isStacked()
-      ? setPaneHeight(window.innerHeight - move.clientY)
-      : setPaneWidth(window.innerWidth - move.clientX);
-  const drop = () => {
-    screenGrip.removeEventListener("pointermove", drag);
-    screenGrip.removeEventListener("pointerup", drop);
-    relayout();
-    save();
-  };
-  screenGrip.addEventListener("pointermove", drag);
-  screenGrip.addEventListener("pointerup", drop);
-});
+/** Make one edge draggable.
+ *
+ *  Both panes live in the same column of the grid and are measured by the same
+ *  two variables, so a grip on either resizes the slot rather than the pane —
+ *  which is why one function serves both and why letting go of the computer's
+ *  edge also settles where the settings will open. */
+function wireGrip(grip: HTMLElement): void {
+  grip.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    grip.setPointerCapture(event.pointerId);
+    const drag = (move: PointerEvent) =>
+      isStacked()
+        ? setPaneHeight(window.innerHeight - move.clientY)
+        : setPaneWidth(window.innerWidth - move.clientX);
+    const drop = () => {
+      grip.removeEventListener("pointermove", drag);
+      grip.removeEventListener("pointerup", drop);
+      relayout();
+      save();
+    };
+    grip.addEventListener("pointermove", drag);
+    grip.addEventListener("pointerup", drop);
+  });
+}
+
+wireGrip(screenGrip);
+wireGrip($<HTMLElement>("#sheet-grip"));
 
 // noVNC only recomputes its scale on window resize, so nudge it whenever the
 // pane itself changes size — dragging the grip, or the pane opening.

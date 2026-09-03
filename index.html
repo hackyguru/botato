@@ -419,6 +419,9 @@
          it. This opens beside the chat exactly the way a bot's computer does,
          and stacks under it when the window is too narrow to split. -->
     <aside class="pane" id="sheet-wrap" hidden>
+      <!-- The same edge the computer has. It is out of flow, so it takes none
+           of the pane's four rows. -->
+      <div class="pane__grip" id="sheet-grip" title="Drag to resize"></div>
       <form class="sheet" id="sheet">
         <div class="sheet__head">
           <h2 id="sheet-title">New bot</h2>

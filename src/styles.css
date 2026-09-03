@@ -228,6 +228,9 @@ select:focus-visible {
    leave the conversation too narrow to read. */
 .pane {
   grid-area: pane;
+  /* So the grip, which is absolutely positioned, hangs off this edge rather
+     than off the window's. Out of flow, so it is not one of the rows below. */
+  position: relative;
   /* The grid lives here, on the element that certainly has the height — it is
      the grid area itself. Putting it on the form inside meant the form needed a
      height of its own to divide up, and asking for 100% of a flex parent did
@@ -301,7 +304,8 @@ select:focus-visible {
   border-top: 1px solid var(--line);
 }
 
-.is-stacked .screen-pane__grip {
+.is-stacked .screen-pane__grip,
+.is-stacked .pane__grip {
   top: -3px;
   bottom: auto;
   left: 0;
@@ -311,7 +315,8 @@ select:focus-visible {
   cursor: row-resize;
 }
 
-.is-stacked .screen-pane__grip:hover {
+.is-stacked .screen-pane__grip:hover,
+.is-stacked .pane__grip:hover {
   background: linear-gradient(180deg, transparent 2px, rgba(255, 255, 255, 0.18) 3px, transparent 5px);
 }
 
@@ -4214,7 +4219,7 @@ select:focus-visible {
  * gap below so a heading sits nearer the card it names than the card above it.
  */
 .pane .tabs {
-  margin: 2px 30px 20px;
+  margin: 2px 30px 10px;
 }
 
 /* The title sits over a column rather than a card, so it can have the room a
@@ -4240,8 +4245,16 @@ select:focus-visible {
   padding-top: 50px;
 }
 
+/* Room above the first thing in it, and the first thing is a face.
+ *
+ * A face overhangs its own box — a hat sits at -0.3 of its width above it, and
+ * at 76 points that is twenty-three points of drawing outside the element. The
+ * body scrolls, and a scroll container clips what leaves it, so with no top
+ * padding the hat was cut off square against the tab strip however much margin
+ * the tabs had: margin is space between boxes, and this was never about the
+ * box. */
 .pane .sheet__body {
-  padding: 0 30px 32px;
+  padding: 26px 30px 32px;
 }
 
 /* The rhythm lives here, not on the body. The body's children are the panels;
@@ -5425,6 +5438,12 @@ select:focus-visible {
    content stopped. As a dialog the two swap jobs: the pane becomes only the dim
    and the form takes its grid back, because now it is the card and a card needs
    a box to be a width, a colour and a corner radius. */
+/* Nothing to drag while it is a dialog: it is not in the grid, so there is no
+   slot for an edge to resize. */
+.pane.is-wizard .pane__grip {
+  display: none;
+}
+
 .pane.is-wizard {
   position: fixed;
   inset: 0;
@@ -5471,8 +5490,10 @@ select:focus-visible {
   padding: 28px 22px 6px 36px;
 }
 
+/* Same again: the step that asks who it is opens with a face, and the dialog's
+   body scrolls too. */
 .pane.is-wizard .sheet__body {
-  padding: 0 36px 36px;
+  padding: 20px 36px 36px;
 }
 
 .pane.is-wizard .sheet__foot {
@@ -5492,7 +5513,7 @@ select:focus-visible {
   justify-content: center;
   gap: 4px;
   margin: 0;
-  padding: 14px 36px 20px;
+  padding: 14px 36px 12px;
   list-style: none;
 }
 
@@ -6859,7 +6880,8 @@ label.setting {
 }
 
 /* Drag the edge to trade thread width for screen detail. */
-.screen-pane__grip {
+.screen-pane__grip,
+.pane__grip {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -6869,7 +6891,8 @@ label.setting {
   cursor: col-resize;
 }
 
-.screen-pane__grip:hover {
+.screen-pane__grip:hover,
+.pane__grip:hover {
   background: linear-gradient(90deg, transparent 2px, var(--line-hover, rgba(255, 255, 255, 0.18)) 3px, transparent 5px);
 }
 
