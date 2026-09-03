@@ -2036,22 +2036,27 @@ select:focus-visible {
 /* The results, in a column down the right the way Discord puts them, over the
  * conversation rather than beside it — this window is not wide enough to give
  * up 300px of a room permanently. */
-.found {
-  position: absolute;
-  z-index: 5;
-  top: 56px;
-  right: 0;
-  bottom: 0;
-  width: 320px;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg);
-  border-left: 1px solid var(--line);
+/* Two rows, not the sheet's four: a heading and the list under it. It is a
+   `.pane`, so it takes that slot's width, its border and its grip for free —
+   what it does not take is the row template a settings form needs. */
+.pane--aside {
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
+.aside__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* The same 50 every other column reserves for the title-bar strip, so the
+     three of them start on one line. */
+  padding: 50px 14px 10px 20px;
+}
+
+
 .found__head {
+  flex: 1;
+  min-width: 0;
   margin: 0;
-  padding: 12px 14px 8px;
   color: var(--text-2);
   font-size: 12px;
   text-transform: uppercase;
@@ -2059,10 +2064,9 @@ select:focus-visible {
 }
 
 .found__list {
-  flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 8px 12px;
+  padding: 0 12px 18px;
 }
 
 .hit {

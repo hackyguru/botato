@@ -278,12 +278,6 @@
           <section class="thread" id="thread"></section>
         </div>
 
-        <div class="found" id="found" hidden>
-          <p class="found__head" id="found-head"></p>
-          <div class="found__list" id="found-list"></div>
-        </div>
-
-
         <!-- What is blocked on you rather than on a bot. -->
         <section class="desk-view" id="desk" hidden>
           <!-- No heading of its own: the bar above already says Your desk, and
@@ -418,6 +412,21 @@
          over — and a modal over the conversation makes that a trip away from
          it. This opens beside the chat exactly the way a bot's computer does,
          and stacks under it when the window is too narrow to split. -->
+    <!-- Results and pins, in the slot the computer and the settings use. A
+         column beside the conversation rather than a panel floating over it:
+         a list you read against the messages it points at should not be
+         covering them. -->
+    <aside class="pane pane--aside" id="found" hidden>
+      <div class="pane__grip" id="found-grip" title="Drag to resize"></div>
+      <header class="aside__head">
+        <p class="found__head" id="found-head"></p>
+        <button type="button" class="icon-btn icon-btn--sm" id="found-close" aria-label="Close">
+          <svg><use href="#i-x" /></svg>
+        </button>
+      </header>
+      <div class="found__list" id="found-list"></div>
+    </aside>
+
     <aside class="pane" id="sheet-wrap" hidden>
       <!-- The same edge the computer has. It is out of flow, so it takes none
            of the pane's four rows. -->

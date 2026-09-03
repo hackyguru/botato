@@ -496,6 +496,7 @@ const sheetWrap = $<HTMLElement>("#sheet-wrap");
  *  conversation too narrow to read. Opening settings puts the computer away. */
 function showSheet(open: boolean): void {
   if (open && appEl.classList.contains("has-screen")) closeScreen();
+  if (open && !found.hidden) closeFind();
   sheetWrap.hidden = !open;
   appEl.classList.toggle("has-sheet", open);
   relayout();
@@ -2874,25 +2875,43 @@ function paintPins(): void {
   $<HTMLSpanElement>("#btn-pins-count").textContent = many ? String(many) : "";
 }
 
-$<HTMLButtonElement>("#btn-pins").addEventListener("click", (event) => {
+$<HTMLButtonElement>("#btn-pins").addEventListener("click", () => {
   const pinned = pinsHere();
   if (!pinned.length) {
     toast("Nothing pinned — pin a message from its ⋯ menu");
     return;
   }
-  openMenu(
-    event.currentTarget as HTMLElement,
-    pinned
-      .map(
-        (m) =>
-          `<button type="button" class="menu-item menu-item--pin" data-goto="${m.id}">` +
-          `<span class="pin-who">${escapeHtml(nameOf(m.by) || (m.from === "me" ? userName() || "You" : "Bot"))}</span>` +
-          `<span class="pin-said">${escapeHtml(m.text.replace(/\s+/g, " ").slice(0, 70))}</span></button>`,
-      )
-      .join(""),
-    "menu--pins",
+  // Beside the conversation rather than over it. A list of messages you are
+  // reading against the thread they came from should not be covering it, and
+  // seventy characters of a message in a popover was as much as one could hold.
+  if (!found.hidden && foundHead.dataset.kind === "pins") {
+    closeFind();
+    return;
+  }
+  findBox.value = "";
+  findClear.hidden = true;
+  foundHead.dataset.kind = "pins";
+  foundHead.textContent = `${pinned.length} pinned`;
+  foundList.replaceChildren(
+    ...pinned.map((m) => {
+      const who = saidBy(m, activeChannel() ?? undefined);
+      const hit = document.createElement("button");
+      hit.type = "button";
+      hit.className = "hit";
+      hit.dataset.goto = m.id;
+      hit.innerHTML =
+        `<span class="hit__who">` +
+        `<span class="hit__name">${escapeHtml(who.name)}</span>` +
+        `<span class="hit__when">${clock(m.at)}</span>` +
+        `</span>` +
+        `<span class="hit__text">${escapeHtml(m.text.replace(/\s+/g, " "))}</span>`;
+      return hit;
+    }),
   );
+  showAside(true);
 });
+
+$<HTMLButtonElement>("#found-close").addEventListener("click", closeFind);
 
 menu.addEventListener("click", (event) => {
   const go = (event.target as HTMLElement).closest<HTMLElement>("[data-goto]");
@@ -3022,17 +3041,31 @@ function openConversation(): { messages: Message[]; channel?: Channel } | null {
   return bot ? { messages: bot.messages } : null;
 }
 
+/** Show the panel beside the conversation, or put it away.
+ *
+ *  It shares a slot with the computer and a bot's settings — three columns is
+ *  what this window has room for — so opening it closes whichever of those was
+ *  in the slot, the same way they close each other. */
+function showAside(open: boolean): void {
+  if (open) {
+    if (!screenPane.hidden) closeScreen();
+    if (!sheetWrap.hidden) showSheet(false);
+  }
+  found.hidden = !open;
+  relayout();
+}
+
 function closeFind(): void {
   findBox.value = "";
   findClear.hidden = true;
-  found.hidden = true;
+  showAside(false);
 }
 
 function runFind(): void {
   const q = findBox.value.trim().toLowerCase();
   findClear.hidden = !q;
   if (!q) {
-    found.hidden = true;
+    showAside(false);
     return;
   }
 
@@ -3042,7 +3075,8 @@ function runFind(): void {
     // Newest first, which is where a search in a conversation usually means.
     .reverse();
 
-  found.hidden = false;
+  showAside(true);
+  foundHead.dataset.kind = "search";
   foundHead.textContent = hits.length
     ? `${hits.length} result${hits.length === 1 ? "" : "s"}`
     : "No results";
@@ -8966,6 +9000,8 @@ async function wakeEngine(): Promise<EngineSaid> {
 }
 
 async function openScreen(): Promise<void> {
+  // The slot holds one thing at a time.
+  if (!found.hidden) closeFind();
   const bot = activeBot();
   if (!bot) return;
 
@@ -9073,7 +9109,8 @@ function relayout(): void {
   // beside the conversation and settings opened underneath it.
   const anyPane =
     (!screenPane.hidden && !screenModal()) ||
-    (!sheetWrap.hidden && !sheetWrap.classList.contains("is-wizard"));
+    (!sheetWrap.hidden && !sheetWrap.classList.contains("is-wizard")) ||
+    !found.hidden;
   const pane = anyPane ? (state.screenWidth ?? SCREEN_PANE.initial) : 0;
   const chatWidth = appEl.clientWidth - sidebar - pane;
   appEl.classList.toggle("is-stacked", anyPane && chatWidth < MIN_CHAT_WIDTH);
@@ -9133,6 +9170,7 @@ function wireGrip(grip: HTMLElement): void {
 
 wireGrip(screenGrip);
 wireGrip($<HTMLElement>("#sheet-grip"));
+wireGrip($<HTMLElement>("#found-grip"));
 
 // noVNC only recomputes its scale on window resize, so nudge it whenever the
 // pane itself changes size — dragging the grip, or the pane opening.
