@@ -1898,7 +1898,11 @@ select:focus-visible {
   gap: 12px;
   height: 44px;
   padding: 0 8px 0 10px;
-  border-radius: var(--radius-pill);
+  /* A surface, not a lozenge. At the pill radius the ends were half-circles and
+     the bar read as a capsule dropped on the page; the app's own surface radius
+     keeps it a bar with soft corners, which is what the rest of the window is
+     made of. */
+  border-radius: var(--radius-surface);
   border: 1px solid var(--line);
   background: var(--fill-2);
   background: color-mix(in srgb, var(--fill-3) 72%, transparent);
@@ -1937,7 +1941,7 @@ select:focus-visible {
   padding: 0 8px 0 11px;
   background: var(--field);
   background: color-mix(in srgb, var(--ink) 26%, transparent);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-control);
   transition: width 0.16s ease;
 }
 
