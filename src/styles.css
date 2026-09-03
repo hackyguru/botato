@@ -232,7 +232,17 @@ select:focus-visible {
    leave the conversation too narrow to read. */
 .pane {
   grid-area: pane;
-  display: flex;
+  /* The grid lives here, on the element that certainly has the height — it is
+     the grid area itself. Putting it on the form inside meant the form needed a
+     height of its own to divide up, and asking for 100% of a flex parent did
+     not give it one: the rows all sized to their content and the footer sat
+     wherever the content stopped.
+   *
+     Four rows: the title, the tabs, everything that scrolls, and the buttons.
+     The third takes what is left, so the fourth is at the bottom because it is
+     the last row rather than because something pushed it there. */
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -3920,7 +3930,6 @@ select:focus-visible {
    bottom; in a column that is a metre of empty panel with three buttons
    floating above it. */
 .pane .sheet__foot {
-  margin-top: auto;
   padding: 16px 22px 22px;
 }
 
@@ -3942,7 +3951,16 @@ select:focus-visible {
 }
 
 .pane .sheet {
-  flex: 1;
+  /* A grid rather than a flex column, so the footer's place is stated instead
+     of inferred. As a flex column it depended on the body growing to fill the
+     height and the sheet itself having a height to fill — and it had neither,
+     so the footer sat wherever the content stopped with half a column of
+     nothing under it. Four rows: the title, the tabs, everything that scrolls,
+     and the buttons. The third takes what is left; the fourth is at the bottom
+     because it is the last row, not because a margin pushed it there. */
+  /* No box of its own: its children are the rows of the grid above. A form
+     that draws nothing still submits, so Save keeps working. */
+  display: contents;
   width: auto;
   max-height: none;
   min-width: 0;
