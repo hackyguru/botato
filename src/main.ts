@@ -1853,7 +1853,7 @@ function showDesk(open: boolean): void {
   paintTopbarFor(null);
   $<HTMLButtonElement>("#btn-settings").hidden = true;
   topbarId.innerHTML =
-    `<span class="chan__hash">${icon("note")}</span><span>Your desk</span>`;
+    `<span class="chan__hash">${icon("bell")}</span><span>Your desk</span>`;
   renderDesk();
   renderRoster();
 }
@@ -1939,7 +1939,7 @@ function renderRoster(): void {
   // bot, it is the pile on your side of the table.
   const deskHtml =
     `<button type="button" class="desk-row${deskOpen ? " is-active" : ""}" data-desk-open>` +
-    `<span class="desk-row__icon">${icon("note")}</span>` +
+    `<span class="desk-row__icon">${icon("bell")}</span>` +
     `<span class="desk-row__name">Your desk</span>` +
     (waiting ? `<span class="desk-row__count">${waiting > 99 ? "99+" : waiting}</span>` : "") +
     `</button>`;
