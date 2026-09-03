@@ -140,6 +140,7 @@
     </svg>
 
     <div class="app">
+      <div class="nav">
       <aside class="sidebar" data-tauri-drag-region>
         <div class="sidebar__head" data-tauri-drag-region="deep">
           <!-- A bot's head: antenna, ears, the app's own dot eyes and soft
@@ -174,15 +175,12 @@
           <button class="icon-btn" id="btn-new" title="New bot  (⌘N)" aria-label="New bot">
             <svg><use href="#i-plus" /></svg>
           </button>
-          <button class="icon-btn" id="btn-rail" title="Collapse sidebar  (⌘B)" aria-label="Collapse sidebar">
-            <svg><use href="#i-sidebar" /></svg>
-          </button>
         </div>
 
-        <div class="field">
-          <svg><use href="#i-search" /></svg>
-          <input id="search" placeholder="Search" spellcheck="false" />
-        </div>
+        <!-- In the rail this is a button: the input it used to hold now lives at
+             the top of the room list, which is the only place there is room to
+             type. Clicking it opens that list and puts the caret in it. -->
+        <div class="field" id="btn-find" title="Search  (⌘K)"></div>
 
         <div class="bots" id="bots"></div>
 
@@ -193,6 +191,20 @@
           </button>
         </div>
       </aside>
+
+      <!-- The rooms, with their names. A rail of identical hashes cannot say
+           which channel is which, and this is where Discord puts the answer:
+           the narrow column is what you are in, the one beside it is what is
+           in it. Bots are here too, because a face is the only place their
+           name appears otherwise. -->
+      <aside class="rooms" id="rooms" hidden data-tauri-drag-region>
+        <div class="field" id="rooms-find">
+          <svg><use href="#i-search" /></svg>
+          <input id="search" placeholder="Search" spellcheck="false" />
+        </div>
+        <div class="rooms__list" id="rooms-list"></div>
+      </aside>
+      </div>
 
       <main class="main">
         <header class="topbar" data-tauri-drag-region="deep">

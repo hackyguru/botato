@@ -1,7 +1,7 @@
 /* ------------------------------------------------------------------ tokens */
 /* --- palette: written by scripts/tokens.py from design/tokens.json --- */
 :root {
-  --sidebar-w: 268px;
+  --sidebar-w: 92px;
 
   /* The floor: the sidebar, the rail, the app behind everything. */
   --bg: #000000;
@@ -209,10 +209,6 @@ select:focus-visible {
   overflow: hidden;
 }
 
-.sidebar {
-  grid-area: side;
-}
-
 .main {
   grid-area: main;
 }
@@ -334,13 +330,16 @@ select:focus-visible {
  * Ninety-two clears them with room to spare and gives a 34px face a third of
  * the width to sit in, which is the proportion a column of faces wants — at
  * eighty they were filling it corner to corner. */
-.app.is-rail {
-  --sidebar-w: 92px;
+/* And the room list beside it, when it is open: 92 + 230. Every grid template
+   in this file measures the left column with this one variable, so opening the
+   list is a change of one number rather than of five templates. */
+.app.has-rooms {
+  --sidebar-w: 322px;
 }
 
-.is-rail .bot-row__body,
-.is-rail .foot-label,
-.is-rail .field input {
+.sidebar .bot-row__body,
+.sidebar .foot-label,
+.sidebar .field input {
   display: none;
 }
 
@@ -350,7 +349,7 @@ select:focus-visible {
  * one thing this app is for without being opened first. At the bottom because
  * that is where a thing you do occasionally goes when the column above it is a
  * list of things you already have — and it is where the drawing puts it. */
-.is-rail #btn-new {
+.sidebar #btn-new {
   grid-area: new;
   justify-self: center;
   margin-bottom: 4px;
@@ -366,13 +365,13 @@ select:focus-visible {
  *
  * The ring is the sidebar's own colour, not a border: it punches the dot out of
  * the face underneath so the two do not merge into one shape at a glance. */
-.is-rail .bot-row {
+.sidebar .bot-row {
   position: relative;
 }
 
-.is-rail .row-dot,
-.is-rail .row-badge,
-.is-rail .chan-row__live {
+.sidebar .row-dot,
+.sidebar .row-badge,
+.sidebar .chan-row__live {
   position: absolute;
   right: 2px;
   bottom: 2px;
@@ -390,7 +389,7 @@ select:focus-visible {
  *
  * Sized to match the unread dot, because in a rail they mean nearly the same
  * thing: there is something in here you have not seen. */
-.is-rail .chan-row__live {
+.sidebar .chan-row__live {
   width: 12px;
   height: 12px;
   animation: none;
@@ -399,11 +398,11 @@ select:focus-visible {
 /* One dot to a corner. A room that is busy is also, almost always, unread —
    and two marks stacked on the same corner is a smudge. What is happening now
    wins over what happened a moment ago. */
-.is-rail .chan-row:has(.chan-row__live) .row-dot {
+.sidebar .chan-row:has(.chan-row__live) .row-dot {
   display: none;
 }
 
-.is-rail .row-dot {
+.sidebar .row-dot {
   width: 12px;
   height: 12px;
   background: var(--blue);
@@ -412,7 +411,7 @@ select:focus-visible {
 /* A mention keeps its count, which is the whole difference between it and a
    dot — so it is allowed to be wider than it is tall and to sit a little
    further out. */
-.is-rail .row-badge {
+.sidebar .row-badge {
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
@@ -420,9 +419,9 @@ select:focus-visible {
   border-radius: 8px;
 }
 
-.is-rail .bot-row,
-.is-rail .foot-row,
-.is-rail .sidebar__head {
+.sidebar .bot-row,
+.sidebar .foot-row,
+.sidebar .sidebar__head {
   justify-content: center;
 }
 
@@ -434,7 +433,7 @@ select:focus-visible {
  * Six points of padding round a 34px face gives a 46px tile — near enough the
  * proportion the mark-up was drawn at, where the lit square is about half again
  * the size of the face inside it. */
-.is-rail .bot-row {
+.sidebar .bot-row {
   width: auto;
   padding: 6px;
   border-radius: 14px;
@@ -442,7 +441,7 @@ select:focus-visible {
 
 /* And room to breathe between them. Down the middle rather than justified,
    because with the names gone there is nothing for a left edge to line up. */
-.is-rail .bots {
+.sidebar .bots {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -452,7 +451,8 @@ select:focus-visible {
 /* The desk becomes its icon, like everything else here. It had no rail rules at
    all, so it stayed a full-width row with "Your desk" in it — which in seventy
    points clips to about "Your d" and draws a slab where the column has tiles. */
-.is-rail .desk-row {
+.sidebar .desk-row,
+.sidebar .rooms-tile {
   position: relative;
   width: auto;
   justify-content: center;
@@ -465,13 +465,15 @@ select:focus-visible {
   border-radius: 14px;
 }
 
-.is-rail .desk-row__name {
+.sidebar .desk-row__name,
+.sidebar .rooms-tile__name {
   display: none;
 }
 
 /* Given a face's worth of room, so the desk's tile is the same square as the
    ones under it rather than a smaller one that happens to sit above them. */
-.is-rail .desk-row__icon {
+.sidebar .desk-row__icon,
+.sidebar .rooms-tile__icon {
   display: grid;
   place-items: center;
   width: 34px;
@@ -481,7 +483,8 @@ select:focus-visible {
 /* The count moves to the corner. In a row it sits after the name; with the name
    gone it would push the tile out of square, and a number about the icon
    belongs on the icon. */
-.is-rail .desk-row__count {
+.sidebar .desk-row__count,
+.sidebar .rooms-tile__count {
   position: absolute;
   top: 1px;
   right: 1px;
@@ -502,14 +505,13 @@ select:focus-visible {
  *
  * Safe because the whole aside is already the window's drag region, so the
  * header giving up its box costs nothing that was being used. */
-.is-rail .sidebar {
+.sidebar {
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   grid-template-areas:
     "mark"
     "find"
-    "rail"
     "list"
     "new"
     "foot";
@@ -518,11 +520,11 @@ select:focus-visible {
      control carries its own height. */
 }
 
-.is-rail .sidebar__head {
+.sidebar .sidebar__head {
   display: contents;
 }
 
-.is-rail .brand {
+.sidebar .brand {
   grid-area: mark;
   justify-content: center;
   /* The same 46 every other line in the column stands in, so the rhythm does
@@ -540,7 +542,7 @@ select:focus-visible {
  * The search box also loses its fill. Stretched across a sidebar it is a field
  * you type into; at 46 square in a rail it is a button that opens one, and a
  * filled square beside an unfilled one is the same mismatch again. */
-.is-rail .field {
+.sidebar .field {
   grid-area: find;
   justify-self: center;
   justify-content: center;
@@ -561,7 +563,7 @@ select:focus-visible {
   color: var(--text-2);
 }
 
-.is-rail .field:hover {
+.sidebar .field:hover {
   color: var(--text);
   background: var(--hover);
 }
@@ -576,9 +578,10 @@ select:focus-visible {
  *
  * Twenty-eight in a 46 tile leaves nine points of air, which is what keeps them
  * from looking crammed into their own square. */
-.is-rail .field svg,
-.is-rail .chan-row__hash svg,
-.is-rail .desk-row__icon svg {
+.sidebar .field svg,
+.sidebar .chan-row__hash svg,
+.sidebar .desk-row__icon svg,
+.sidebar .rooms-tile__icon svg {
   width: 28px;
   height: 28px;
 }
@@ -588,17 +591,17 @@ select:focus-visible {
    and lands nearer forty on screen, so a mark drawn at exactly 34 beside one is
    the smaller thing rather than the matching one. */
 
-.is-rail #btn-rail {
-  grid-area: rail;
-  justify-self: center;
-  margin-bottom: 4px;
+/* No grid area of its own: it is a row inside the list, like the desk above
+   it, so the list's own flex column places it. */
+.sidebar .rooms-tile {
+  position: relative;
 }
 
-.is-rail .bots {
+.sidebar .bots {
   grid-area: list;
 }
 
-.is-rail .sidebar__foot {
+.sidebar .sidebar__foot {
   grid-area: foot;
 }
 
@@ -609,7 +612,7 @@ select:focus-visible {
 /* As wide as the tiles it comes between. Twenty-four was drawn as a hint of a
    rule and read as a dash somebody had left in the column — a divider says
    "these are two lists" by spanning what it divides, and the tile is 46. */
-.is-rail .rail-group {
+.sidebar .rail-group {
   width: 46px;
   height: 2px;
   margin: 12px auto 10px;
@@ -621,7 +624,7 @@ select:focus-visible {
   border-radius: 1px;
 }
 
-.is-rail .rail-group:first-child {
+.sidebar .rail-group:first-child {
   display: none;
 }
 
@@ -629,18 +632,51 @@ select:focus-visible {
    has no icon of its own — that is what the branch was for, and the branch
    needs the room above it to point at. So the room stands for them, and lights
    up when you are in one of its threads. */
-.is-rail .chan-row--thread {
+.sidebar .chan-row--thread {
   display: none;
 }
 
-.is-rail .chan-row.is-hosting {
+.sidebar .chan-row.is-hosting {
   background: var(--active);
 }
 
 /* ------------------------------------------------------------------ sidebar */
-.sidebar {
+/* The rail and the room list, in the one column the grid lays out. Wrapping
+   them means no grid template has to learn about the list: the wrapper takes
+   the `side` area it already had and divides it. */
+.nav {
+  grid-area: side;
+  display: flex;
+  min-width: 0;
+}
+
+.rooms {
   display: flex;
   flex-direction: column;
+  flex: none;
+  width: 230px;
+  min-height: 0;
+  padding: 44px 8px 10px;
+  overflow: hidden;
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+}
+
+.rooms__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+.rooms .field {
+  margin: 0 2px 10px;
+}
+
+.sidebar {
+  flex: none;
+  width: 92px;
   min-width: 0;
   /* Reserve the traffic-light strip here rather than inside the header, so no
      amount of layout pressure can put a bot row underneath the buttons.
@@ -719,7 +755,7 @@ select:focus-visible {
    they were overflowing, and centring only split the overflow across both
    sides instead of showing it on one. At 92px there are 72 to work in and the
    stack was solving a problem that had been fixed underneath it. */
-.is-rail .brand {
+.sidebar .brand {
   padding-left: 0;
   /* The expanded header pushes its buttons right with an auto margin. An auto
      margin beats justify-content, so leaving it on here would defeat the
@@ -825,7 +861,8 @@ select:focus-visible {
    pile on your side of the table. One line, and a count only when there is
    something in it — a zero in a badge is a badge that has taught you to
    ignore badges. */
-.desk-row {
+.desk-row,
+.rooms-tile {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -838,22 +875,26 @@ select:focus-visible {
   transition: background 0.13s;
 }
 
-.desk-row:hover {
+.desk-row:hover,
+.rooms-tile:hover {
   background: var(--hover);
 }
 
-.desk-row.is-active {
+.desk-row.is-active,
+.rooms-tile.is-active {
   background: var(--active);
 }
 
-.desk-row__icon svg {
+.desk-row__icon svg,
+.rooms-tile__icon svg {
   display: block;
   width: 16px;
   height: 16px;
   color: var(--text-2);
 }
 
-.desk-row__name {
+.desk-row__name,
+.rooms-tile__name {
   flex: 1;
   min-width: 0;
   font-size: var(--type-small);
@@ -861,7 +902,17 @@ select:focus-visible {
   color: var(--text);
 }
 
-.desk-row__count {
+/* Amber is for something addressed to you — the desk's count, and a room where
+   a bot said your name. A room that is merely unread gets the same shape in
+   grey: the tile stands for every room at once, and a column of chatter must
+   not look like a column of questions. */
+.rooms-tile__count.is-quiet {
+  color: var(--text);
+  background: var(--fill-3);
+}
+
+.desk-row__count,
+.rooms-tile__count {
   min-width: 19px;
   height: 19px;
   padding: 0 6px;
@@ -7207,8 +7258,8 @@ body.is-dragging {
 
 /* In a rail there is no room for a name, and what is under it is still there,
    so the heading simply goes. */
-.is-rail .cat,
-.is-rail .cat__edit {
+.sidebar .cat,
+.sidebar .cat__edit {
   display: none;
 }
 

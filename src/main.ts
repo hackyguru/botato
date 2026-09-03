@@ -338,7 +338,9 @@ interface Persisted {
   screenWidth?: number;
   screenHeight?: number;
   /** Sidebar collapsed to a rail by choice (it also collapses when cramped). */
-  railed?: boolean;
+  /** Whether the room list beside the rail is open. Named for what it is
+   *  rather than for the sidebar state it replaced. */
+  rooms?: boolean;
   app?: AppSettings;
 }
 
@@ -411,7 +413,6 @@ const SCREEN_ROW = { min: 200, max: 700, initial: 320 };
 /** The chat needs at least this much width; below it, the desktop stacks under. */
 const MIN_CHAT_WIDTH = 480;
 /** Below this, the sidebar collapses to a rail whether you asked for it or not. */
-const RAIL_AT = 720;
 
 /* ----------------------------------------------------------------- elements */
 
@@ -424,6 +425,13 @@ const $ = <T extends Element>(sel: string): T => {
 };
 
 const botsEl = $<HTMLDivElement>("#bots");
+/* The rail and the room list together. Every delegated handler in the sidebar
+   is bound here rather than to either list, because a room now draws in one of
+   them and a bot in both, and a handler bound to one list is a handler that
+   works on half the rows. */
+const navEl = $<HTMLElement>(".nav");
+const roomsEl = $<HTMLElement>("#rooms");
+const roomsList = $<HTMLElement>("#rooms-list");
 const searchEl = $<HTMLInputElement>("#search");
 const topbarId = $<HTMLDivElement>("#topbar-id");
 const thread = $<HTMLElement>("#thread");
@@ -1360,7 +1368,7 @@ function load(): void {
     state.screenOpen = Boolean(data.screenOpen);
     state.screenWidth = data.screenWidth;
     state.screenHeight = data.screenHeight;
-    state.railed = Boolean(data.railed);
+    state.rooms = Boolean(data.rooms);
     state.app = { ...DEFAULT_APP, ...(data.app ?? {}) };
   } catch {
     seed();
@@ -1741,6 +1749,9 @@ function onYourDesk(): Waiting[] {
 /** Is the desk what the main pane is showing? */
 let deskOpen = false;
 
+/** Is the room list beside the rail? */
+let roomsOpen = false;
+
 const AGO = (at: number): string => {
   const mins = Math.round((Date.now() - at) / 60_000);
   if (mins < 1) return "just now";
@@ -1873,10 +1884,6 @@ function renderRoster(): void {
       b.messages.some((m) => m.text.toLowerCase().includes(q)),
   );
 
-  if (!hits.length) {
-    botsEl.innerHTML = `<p class="bot-row__last" style="padding:8px 10px">No bots match</p>`;
-    return;
-  }
 
   // Rooms first, then bots. A channel is where several of them are, so it sits
   // above the list of individuals — the same order every app with both has
@@ -1931,9 +1938,6 @@ function renderRoster(): void {
         .join("")
     : "";
 
-  const botsHtml = "";
-  void botsHtml;
-
   const waiting = onYourDesk().length;
   // Above everything, and only ever one line: it is not a channel and not a
   // bot, it is the pile on your side of the table.
@@ -1944,11 +1948,45 @@ function renderRoster(): void {
     (waiting ? `<span class="desk-row__count">${waiting > 99 ? "99+" : waiting}</span>` : "") +
     `</button>`;
 
-  botsEl.innerHTML =
-    deskHtml +
-    roomsHtml +
-    (roomsHtml ? `<p class="rail-group">Bots</p>` : "") +
-    botRows(hits);
+  // The rail: the desk, the way into the rooms, and a face per bot. No channel
+  // rows — that is the whole point of the list beside it, since ten identical
+  // hashes cannot say which room is which.
+  botsEl.innerHTML = deskHtml + roomsTile() + `<p class="rail-group"></p>` + botRows(hits);
+
+  // And the list: the rooms, with their names. Rooms only — a bot is already a
+  // face in the rail and putting it here as well would be the same list twice,
+  // one of them redundant. Searching still narrows the faces beside it.
+  roomsList.innerHTML =
+    roomsHtml || `<p class="bot-row__last" style="padding:8px 10px">${q ? "No rooms match" : "No channels yet"}</p>`;
+}
+
+/** The rail's way into the room list.
+ *
+ *  One hash for every room rather than one per room. What it cannot do is say
+ *  which room is which — so it does not try, and the column it opens does that
+ *  with words. The count is every room's unread added up, because a tile that
+ *  stands for all of them has to answer for all of them. */
+function roomsTile(): string {
+  if (!rooms().length) return "";
+  let unread = 0;
+  let mentions = 0;
+  for (const ch of channels()) {
+    if (ch.muted || ch.id === state.activeChannel) continue;
+    const news = unreadIn(ch.messages, ch.seenAt);
+    unread += news.unread;
+    mentions += news.mentions;
+  }
+  const count = mentions || unread;
+  return (
+    `<button type="button" class="rooms-tile${roomsOpen ? " is-active" : ""}" ` +
+    `title="Channels  (⌘B)" data-rooms-open>` +
+    `<span class="rooms-tile__icon">${icon("hash")}</span>` +
+    `<span class="rooms-tile__name">Channels</span>` +
+    (count
+      ? `<span class="rooms-tile__count${mentions ? "" : " is-quiet"}">${count > 99 ? "99+" : count}</span>`
+      : "") +
+    `</button>`
+  );
 }
 
 /** Make one, and ask for its name where it will live.
@@ -1971,7 +2009,7 @@ function newCategory(): void {
  *  button on every heading. Its channels are not touched — they go back to
  *  being unfiled, which is where a channel with no category belongs. */
 function nameCategory(id: string): void {
-  const head = botsEl.querySelector<HTMLElement>(`[data-cat="${CSS.escape(id)}"]`);
+  const head = navEl.querySelector<HTMLElement>(`[data-cat="${CSS.escape(id)}"]`);
   const cat = categories().find((c) => c.id === id);
   if (!head || !cat) return;
 
@@ -2027,7 +2065,7 @@ function nameCategory(id: string): void {
 let carrying: { id: string; from: number; moved: boolean } | null = null;
 
 function unmark(): void {
-  for (const el of botsEl.querySelectorAll(".is-over, .is-over-below, .is-target")) {
+  for (const el of navEl.querySelectorAll(".is-over, .is-over-below, .is-target")) {
     el.classList.remove("is-over", "is-over-below", "is-target");
   }
 }
@@ -2036,12 +2074,12 @@ function unmark(): void {
 function landing(y: number, x: number): { on: HTMLElement; above: boolean } | null {
   const el = document.elementFromPoint(x, y) as HTMLElement | null;
   const on = el?.closest<HTMLElement>("[data-channel], [data-drop]") ?? null;
-  if (!on || !botsEl.contains(on)) return null;
+  if (!on || !navEl.contains(on)) return null;
   const box = on.getBoundingClientRect();
   return { on, above: y < box.top + box.height / 2 };
 }
 
-botsEl.addEventListener("pointerdown", (event) => {
+navEl.addEventListener("pointerdown", (event) => {
   if (event.button !== 0) return;
   const row = (event.target as HTMLElement).closest<HTMLElement>("[data-channel]");
   // A thread is not picked up: it follows the room it hangs off, and there is
@@ -2057,7 +2095,7 @@ window.addEventListener("pointermove", (event) => {
   if (!carrying.moved && Math.abs(event.clientY - carrying.from) < 5) return;
   if (!carrying.moved) {
     carrying.moved = true;
-    botsEl
+    navEl
       .querySelector(`[data-channel="${CSS.escape(carrying.id)}"]`)
       ?.classList.add("is-carried");
     // Otherwise the sidebar's text highlights blue as the pointer sweeps it.
@@ -2075,7 +2113,7 @@ window.addEventListener("pointerup", (event) => {
   const held = carrying;
   carrying = null;
   document.body.classList.remove("is-dragging");
-  for (const el of botsEl.querySelectorAll(".is-carried")) el.classList.remove("is-carried");
+  for (const el of navEl.querySelectorAll(".is-carried")) el.classList.remove("is-carried");
   if (!held?.moved) {
     unmark();
     return;
@@ -2127,9 +2165,14 @@ function put(ch: Channel, target: Channel | null, above = false): void {
   renderRoster();
 }
 
-botsEl.addEventListener("click", (event) => {
+navEl.addEventListener("click", (event) => {
   if ((event.target as HTMLElement).closest("[data-desk-open]")) {
     showDesk(!deskOpen);
+    return;
+  }
+
+  if ((event.target as HTMLElement).closest("[data-rooms-open]")) {
+    showRooms(!roomsOpen);
     return;
   }
 
@@ -2142,7 +2185,7 @@ botsEl.addEventListener("click", (event) => {
   renderRoster();
 });
 
-botsEl.addEventListener("dblclick", (event) => {
+navEl.addEventListener("dblclick", (event) => {
   const head = (event.target as HTMLElement).closest<HTMLElement>("[data-cat]");
   if (head?.dataset.cat) nameCategory(head.dataset.cat);
 });
@@ -3071,7 +3114,7 @@ document.addEventListener("click", (e) => {
 });
 
 // A bot leans over when you point at it in the list.
-botsEl.addEventListener("mouseover", (e) => {
+navEl.addEventListener("mouseover", (e) => {
   const row = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-bot]");
   const botId = row?.dataset.bot;
   if (botId && !moods.has(botId)) setMood(botId, "peek");
@@ -8623,13 +8666,13 @@ const isStacked = () => appEl.classList.contains("is-stacked");
 /** Rail and stacking follow the room available, not a fixed window size — a
     collapsed sidebar can buy back enough width to stay side by side. */
 function relayout(): void {
-  const railed = Boolean(state.railed) || appEl.clientWidth < RAIL_AT;
-  appEl.classList.toggle("is-rail", railed);
+  // The sidebar is a rail and nothing else now: there is no expanded state to
+  // switch to, and the room list beside it is what the names moved into.
+  appEl.classList.add("is-rail");
 
-  // Both of these are `--sidebar-w` in the stylesheet, which this cannot read;
-  // the rail was widened to 92 there and this still said 66, so the width left
-  // for the conversation was being over-estimated by twenty-six points.
-  const sidebar = railed ? 92 : 268;
+  // These follow `--sidebar-w` in the stylesheet, which this cannot read. The
+  // rail is 92 and the list is 230 with a hairline of its own.
+  const sidebar = 92 + (roomsOpen ? 231 : 0);
 
   // One column, one width, whichever of the two is in it. Giving the settings
   // pane a width of its own meant it and the computer crossed the stacking
@@ -8640,12 +8683,21 @@ function relayout(): void {
   const chatWidth = appEl.clientWidth - sidebar - pane;
   appEl.classList.toggle("is-stacked", anyPane && chatWidth < MIN_CHAT_WIDTH);
 
-  $<HTMLButtonElement>("#btn-rail").title = railed ? "Expand sidebar  (⌘B)" : "Collapse sidebar  (⌘B)";
 }
 
-function toggleRail(): void {
-  state.railed = !state.railed;
+/** Show it or put it away.
+ *
+ *  One place, like showSheet: the class the grid reads, the element's own
+ *  hidden, the tile's lit state and the width relayout measures all have to
+ *  agree, and four call sites each doing three of them is how they stop
+ *  agreeing. */
+function showRooms(open: boolean): void {
+  roomsOpen = open;
+  state.rooms = open;
+  roomsEl.hidden = !open;
+  appEl.classList.toggle("has-rooms", open);
   save();
+  renderRoster();
   relayout();
 }
 
@@ -9344,27 +9396,23 @@ document.addEventListener("keyup", (e) => {
 
 $<HTMLButtonElement>("#btn-plugins").addEventListener("click", () => void openPlugins());
 
-$<HTMLButtonElement>("#btn-rail").addEventListener("click", toggleRail);
-
-// In rail mode the search box is just an icon; clicking it opens the sidebar.
-$<HTMLDivElement>(".field").addEventListener("click", () => {
-  if (!appEl.classList.contains("is-rail")) return;
-  state.railed = false;
-  save();
-  relayout();
+// The rail's search icon: the field it used to hold is in the room list, so
+// this opens that list and puts the caret where the words are.
+$<HTMLDivElement>("#btn-find").addEventListener("click", () => {
+  if (!roomsOpen) showRooms(true);
   searchEl.focus();
 });
 
 searchEl.addEventListener("input", renderRoster);
 
-botsEl.addEventListener("click", (e) => {
+navEl.addEventListener("click", (e) => {
   const room = (e.target as HTMLElement).closest<HTMLElement>("[data-channel]");
   if (room) return openChannel(room.dataset.channel!);
   const row = (e.target as HTMLElement).closest<HTMLElement>("[data-bot]");
   if (row) openBot(row.dataset.bot!);
 });
 
-botsEl.addEventListener("contextmenu", (e) => {
+navEl.addEventListener("contextmenu", (e) => {
   const row = (e.target as HTMLElement).closest<HTMLElement>("[data-bot]");
   if (!row) return;
   e.preventDefault();
@@ -10131,9 +10179,11 @@ document.addEventListener("keydown", (e) => {
     openSheet();
   } else if (meta && e.key.toLowerCase() === "b") {
     e.preventDefault();
-    toggleRail();
+    showRooms(!roomsOpen);
   } else if (meta && e.key.toLowerCase() === "k") {
     e.preventDefault();
+    // The field lives in the room list, so finding is also opening it.
+    if (!roomsOpen) showRooms(true);
     searchEl.focus();
     searchEl.select();
   } else if (meta && e.key.toLowerCase() === "f") {
@@ -11966,8 +12016,9 @@ void listen<RemoteRequest>("remote-request", async (event) => {
 load();
 setPaneWidth(state.screenWidth ?? SCREEN_PANE.initial);
 setPaneHeight(state.screenHeight ?? SCREEN_ROW.initial);
-relayout();
-renderRoster();
+// However you left it. showRooms paints the roster itself, so this is also the
+// first render of both lists.
+showRooms(Boolean(state.rooms));
 // Reopen whatever was on screen last. A room you were reading is as much
 // "where you were" as a bot you were talking to.
 if (activeChannel()) {
