@@ -1015,6 +1015,55 @@ const MARKS = [
   "halo",
 ];
 
+/** What a name asks to look like.
+ *
+ *  A bot called "Artist" should look like one. Until now a new bot wore
+ *  whatever its id happened to index into, and its id is a random string made
+ *  a millisecond before — so the face said nothing about the bot and the
+ *  preview in the sheet could not change, because there was nothing yet to
+ *  derive it from.
+ *
+ *  The name is the one thing you have typed by the time the face is drawn. The
+ *  parts come from a hash of it, so two names never come out twins and the same
+ *  name always comes out the same. The worn thing comes from meaning instead,
+ *  where the name says something a mark can say back.
+ *
+ *  These marks are deliberately absent from MARKS: they are things a name earns
+ *  rather than things a die can roll, and adding to that list would change the
+ *  face of every bot whose own face was never written down. */
+const LOOKS: { mark: string; words: string[] }[] = [
+  // The head is all this system draws — no hands, so no brush to hold. What an
+  // artist can wear is the beret.
+  { mark: "beret", words: ["artist", "art", "design", "paint", "draw", "illustrat", "creative", "brand", "studio"] },
+  { mark: "headset", words: ["support", "helpdesk", "concierge", "sales", "success", "reception", "triage", "oncall", "on-call"] },
+  { mark: "bolt", words: ["engineer", "builder", "build", "dev", "ops", "sre", "infra", "mechanic", "electric", "power", "fix"] },
+  { mark: "band", words: ["analyst", "research", "scientist", "data", "quant", "editor", "writer", "archivist", "librarian"] },
+  { mark: "halo", words: ["guide", "angel", "mentor", "guardian", "shepherd", "oracle", "sage", "ethic"] },
+  { mark: "cap", words: ["coach", "trainer", "gym", "fitness", "runner", "courier", "delivery", "intern", "rookie", "scout"] },
+  { mark: "cowboy", words: ["ranger", "wrangler", "cowboy", "sheriff", "outlaw", "maverick", "herder"] },
+  { mark: "antenna", words: ["monitor", "watch", "radar", "signal", "news", "scanner", "sentry", "listen"] },
+  { mark: "tuft", words: ["garden", "grower", "farm", "chef", "cook", "baker", "barista", "kitchen"] },
+  { mark: "bow", words: ["host", "butler", "waiter", "greeter", "assistant", "secretary", "planner", "concert"] },
+];
+
+/** The plain one, for a sheet nobody has typed into yet. */
+const BLANK_FACE: Face = { head: "squircle", eyes: "dot", brow: "none", smile: "soft", mark: "none" };
+
+/** The face a name implies. */
+function faceFromName(name: string): Face {
+  const said = name.trim().toLowerCase();
+  if (!said) return { ...BLANK_FACE };
+  const seed = seedOf(said);
+  const meant = LOOKS.find((look) => look.words.some((word) => said.includes(word)))?.mark;
+  return {
+    head: HEADS[seed % HEADS.length],
+    eyes: EYES[(seed >> 3) % EYES.length],
+    brow: BROWS[(seed >> 6) % BROWS.length],
+    smile: SMILES[(seed >> 9) % SMILES.length],
+    mark: meant ?? MARKS[(seed >> 12) % MARKS.length],
+  };
+}
+
 /** A number from a string, stable across restarts and machines.
  *
  *  Faces are derived rather than stored so every bot that already exists gets
@@ -3972,12 +4021,12 @@ function renderSheetPreview(bot?: Bot | null): void {
   const shown: Bot = bot
     ? { ...bot, color: draftColor }
     : ({
-        // A bot that does not exist yet has no id to derive a face from, so it
-        // gets a plain one — the real face is settled the moment it is made.
+        // No id yet, so the name stands in for one: the face changes as you
+        // type it, and what it settles on is what the bot is made with.
         id: "",
         color: draftColor,
         shape: SHAPES[state.bots.length % SHAPES.length],
-        face: { head: SHAPES[state.bots.length % SHAPES.length], eyes: "dot", brow: "none", smile: "soft", mark: "none" },
+        face: faceFromName(sheetName.value),
       } as unknown as Bot);
   sheetPreview.innerHTML = faceHtml(shown, "lg");
   swatches.innerHTML = COLORS.map(
@@ -5908,6 +5957,9 @@ function createBot(): void {
     routines: [],
     messages: [],
   };
+  // The face the sheet was showing, not one derived from the id it was just
+  // given: a preview that is not a promise is a preview of nothing.
+  bot.face = faceFromName(name);
   pinFace(bot);
   state.bots.unshift(bot);
   state.activeId = bot.id;
@@ -9537,6 +9589,12 @@ $<HTMLButtonElement>("#btn-plugins").addEventListener("click", () => void openPl
 $<HTMLDivElement>("#btn-find").addEventListener("click", () => {
   if (!roomsOpen) showRooms(true);
   searchEl.focus();
+});
+
+// As you type, and only while hiring: an existing bot's face is its own and
+// renaming it must not redraw it.
+sheetName.addEventListener("input", () => {
+  if (!editing) renderSheetPreview();
 });
 
 searchEl.addEventListener("input", renderRoster);

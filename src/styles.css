@@ -1588,6 +1588,75 @@ select:focus-visible {
   opacity: 1;
 }
 
+/* Earned rather than rolled: these two are reached only by naming a bot
+   something they answer to — see LOOKS in main.ts. A beret is what an artist
+   can wear when the drawing has no hands to hold a brush with. */
+.face[data-mark="beret"] .face__mark {
+  --hat: #b3413f;
+  --hat-dark: #7d2c2b;
+}
+
+.face[data-mark="beret"] .face__mark::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--u) * -0.17);
+  left: 50%;
+  width: calc(var(--u) * 0.64);
+  height: calc(var(--u) * 0.27);
+  background: var(--hat);
+  /* Not a circle: a beret is a soft disc that has slumped to one side, and the
+     four different corners are what say slumped. */
+  border-radius: 52% 48% 42% 58%;
+  transform: translateX(-50%) rotate(-9deg);
+  opacity: 1;
+}
+
+/* The stalk on top, which is the half of a beret people actually recognise. */
+.face[data-mark="beret"] .face__mark::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--u) * -0.24);
+  left: 61%;
+  width: calc(var(--u) * 0.09);
+  height: calc(var(--u) * 0.09);
+  background: var(--hat-dark);
+  border-radius: 50%;
+  transform: translateX(-50%);
+  opacity: 1;
+}
+
+/* A band over the head with an ear cup showing, for whatever answers the door.
+   Drawn as a ring with its bottom half cut off, so one element is both the
+   headband and the two cups at the ends of it. */
+.face[data-mark="headset"] .face__mark::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--u) * -0.1);
+  left: 50%;
+  width: calc(var(--u) * 0.96);
+  height: calc(var(--u) * 0.62);
+  border: calc(var(--u) * 0.08) solid #45464c;
+  border-bottom: 0;
+  border-radius: calc(var(--u) * 0.5) calc(var(--u) * 0.5) 0 0;
+  transform: translateX(-50%);
+  opacity: 1;
+}
+
+/* And the mic, on the end of nothing — an arm as well would need a third
+   pseudo-element, and a floating bead reads as a mic in front of a headset. */
+.face[data-mark="headset"] .face__mark::after {
+  content: "";
+  position: absolute;
+  top: 52%;
+  left: calc(50% + var(--u) * 0.44);
+  width: calc(var(--u) * 0.13);
+  height: calc(var(--u) * 0.13);
+  background: #45464c;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  opacity: 1;
+}
+
 .face[data-mark="cap"] .face__mark::before {
   content: "";
   position: absolute;
@@ -4016,15 +4085,22 @@ select:focus-visible {
    sheet is only as tall as its contents so a footer after them *is* the
    bottom; in a column that is a metre of empty panel with three buttons
    floating above it. */
+/* One gap between every button, stated once. It was a block with a margin
+   under the delete button only, so Back sat flush against Next in the wizard
+   and Share sat flush against Save in the settings pane — two buttons touching
+   read as one control with a seam down it. */
 .pane .sheet__foot {
+  display: grid;
+  gap: 10px;
   padding: 16px 22px 22px;
 }
 
 /* The same shape as the buttons it sits with. It was a bare red line between
-   two full-width buttons, which read as a link that had lost its paragraph. */
+   two full-width buttons, which read as a link that had lost its paragraph.
+   No margin of its own: the footer's gap spaces every button in it. */
 .pane .sheet__foot .danger {
   min-height: 40px;
-  margin: 0 0 8px;
+  margin: 0;
   border: 1px solid var(--line);
   border-radius: 12px;
   font-size: 15px;
