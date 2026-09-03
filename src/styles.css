@@ -5239,14 +5239,15 @@ select:focus-visible {
      top of a hand's width of empty card. */
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   /* Room to think in. At 480 with a 22px gutter every step read as a form
-     squeezed into a phone: the presets nearly touched the edges, the role box
-     was three narrow lines, and step three was a stack of settings with no air
-     between the words and the frame. */
-  width: min(600px, 94vw);
+     squeezed into a phone; at 600 with 28 it still had nothing spare around
+     the edges. This is a dialog you fill a form in, not a dialog that asks one
+     question, so it is sized like a window: wide enough for three preset tiles
+     to be tiles rather than slivers, and with a gutter you can see. */
+  width: min(720px, 92vw);
   /* One height for all three steps. Sized to each, the card would grow and
      shrink under the pointer as you moved through it, and the buttons would
      never be twice in the same place. */
-  height: min(640px, 88vh);
+  height: min(720px, 88vh);
   min-height: 0;
   background: var(--bg-main);
   border: 1px solid var(--line);
@@ -5254,16 +5255,19 @@ select:focus-visible {
   overflow: hidden;
 }
 
+/* The safe area, stated in one place for the four rows that need it: the
+   head, the stepper, the body and the buttons all start at the same left edge
+   and stop at the same right one. */
 .pane.is-wizard .sheet__head {
-  padding: 24px 18px 4px 28px;
+  padding: 28px 22px 6px 36px;
 }
 
 .pane.is-wizard .sheet__body {
-  padding: 0 28px 30px;
+  padding: 0 36px 36px;
 }
 
 .pane.is-wizard .sheet__foot {
-  padding: 18px 28px 26px;
+  padding: 22px 36px 32px;
 }
 
 /* The three of them across the top: a number, a name, and a rule between one
@@ -5275,7 +5279,7 @@ select:focus-visible {
   align-items: center;
   gap: 4px;
   margin: 0;
-  padding: 10px 28px 16px;
+  padding: 14px 36px 20px;
   list-style: none;
 }
 
