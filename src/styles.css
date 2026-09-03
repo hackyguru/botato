@@ -3881,11 +3881,17 @@ select:focus-visible {
  * gap below so a heading sits nearer the card it names than the card above it.
  */
 .pane .tabs {
-  margin: 2px 20px 14px;
+  margin: 4px 22px 20px;
+}
+
+/* The title sits over a column rather than a card, so it can have the room a
+   column gives it. Ten points under a heading is a dialog's economy. */
+.pane .sheet__head {
+  padding: 20px 16px 14px 22px;
 }
 
 .pane .sheet__body {
-  padding: 0 20px 24px;
+  padding: 0 22px 28px;
 }
 
 /* The rhythm lives here, not on the body. The body's children are the panels;
@@ -3894,7 +3900,7 @@ select:focus-visible {
    gap of its own. Setting the body's gap changed the space between one panel
    and the next, of which there is never more than one on screen. */
 .pane .settings-panel {
-  gap: 14px;
+  gap: 20px;
 }
 
 .pane .sheet__preview,
@@ -3903,6 +3909,10 @@ select:focus-visible {
 .pane .settings + .settings {
   margin-top: 0;
   margin-bottom: 0;
+}
+
+.pane .prose textarea {
+  min-height: 96px;
 }
 
 .pane .sheet {
