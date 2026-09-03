@@ -205,8 +205,14 @@ select:focus-visible {
   /* Pin the row height. Without this the implicit row is auto-sized, so a long
      thread makes .main taller than the window, body becomes scrollable, and
      focusing the composer scrolls the entire app out of view. */
-  grid-template-rows: 100%;
-  grid-template-areas: "side main";
+  /* Two rows: the header band, then everything under it. The band spans every
+     column to the right of the sidebar, so opening a panel beside the
+     conversation divides what is under the header without redrawing the
+     header — its width is the window's, not the conversation's. */
+  grid-template-rows: var(--head-h) minmax(0, 1fr);
+  grid-template-areas:
+    "side head"
+    "side main";
   height: 100%;
   overflow: hidden;
 }
@@ -222,7 +228,9 @@ select:focus-visible {
 /* Wide enough for three columns: chat left, desktop right. */
 .app.has-screen {
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--screen-w, 460px);
-  grid-template-areas: "side main screen";
+  grid-template-areas:
+    "side head head"
+    "side main screen";
 }
 
 /* A bot's settings, in the same slot its computer uses. Only one of the two at
@@ -272,7 +280,9 @@ select:focus-visible {
 .app.has-sheet,
 .app:has(> .pane:not([hidden])) {
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--screen-w, 460px);
-  grid-template-areas: "side main pane";
+  grid-template-areas:
+    "side head head"
+    "side main pane";
 }
 
 /* Too narrow to split, so it goes under the conversation instead — the same
@@ -280,8 +290,9 @@ select:focus-visible {
 .app.has-sheet.is-stacked,
 .app.is-stacked:has(> .pane:not([hidden])) {
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) var(--screen-h, 320px);
+  grid-template-rows: var(--head-h) minmax(0, 1fr) var(--screen-h, 320px);
   grid-template-areas:
+    "side head"
     "side main"
     "side pane";
 }
@@ -295,8 +306,9 @@ select:focus-visible {
    grip becomes a horizontal one. */
 .app.has-screen.is-stacked {
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) var(--screen-h, 320px);
+  grid-template-rows: var(--head-h) minmax(0, 1fr) var(--screen-h, 320px);
   grid-template-areas:
+    "side head"
     "side main"
     "side screen";
 }
@@ -1882,6 +1894,7 @@ select:focus-visible {
  * The height is shared with the panel's own head, so the two sit on one line
  * across the window however the columns are divided. */
 .topbar {
+  grid-area: head;
   display: grid;
   /* border-box: the top 14 reserves the traffic-light strip, and the rest is
      the row the controls sit in. */
@@ -2027,16 +2040,14 @@ select:focus-visible {
   grid-template-rows: auto minmax(0, 1fr);
 }
 
-/* The same band, continued over this column. Same height, same line under it,
-   so the header reads as one segment across the window that the pane's own
-   border happens to cross. */
+/* A title over the list, under the header band rather than part of it — the
+   band spans this column now, so what is left to say here is which list this
+   is and how to close it. */
 .aside__head {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: var(--head-h);
-  padding: 14px 12px 0 18px;
-  border-bottom: 1px solid var(--line);
+  padding: 14px 10px 10px 18px;
 }
 
 
@@ -4235,18 +4246,8 @@ select:focus-visible {
   padding: 22px 18px 12px 30px;
 }
 
-/* And a safe area at the top, which is what was actually missing.
- *
- * Every other column reserves the title-bar strip — the sidebar takes 50, the
- * conversation takes 14 plus its bar — and this one took 22, so a bot's name
- * sat a centimetre higher than everything beside it and hard against the top
- * of the window. The same 50, so the three columns start on one line.
- *
- * Only while it is a column. Stacked under the conversation there is no title
- * bar above it, and 50 points of nothing would be a stripe of empty panel. */
-.app:not(.is-stacked) .pane .sheet__head {
-  padding-top: 50px;
-}
+/* No title-bar reserve here any more: the header band spans this column too,
+   so the pane begins under it and the strip is already accounted for. */
 
 /* Room above the first thing in it, and the first thing is a face.
  *
@@ -6835,12 +6836,16 @@ label.setting {
    as an empty stripe beside the conversation. */
 .app.has-screen.has-screen-modal {
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
-  grid-template-areas: "side main";
+  grid-template-areas:
+    "side head"
+    "side main";
 }
 
 .app.has-screen.is-stacked.has-screen-modal {
-  grid-template-rows: minmax(0, 1fr);
-  grid-template-areas: "side main";
+  grid-template-rows: var(--head-h) minmax(0, 1fr);
+  grid-template-areas:
+    "side head"
+    "side main";
 }
 
 .routines {
@@ -6903,7 +6908,8 @@ label.setting {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 22px 10px 10px 14px;
+  /* Under the header band, so no strip to reserve. */
+  padding: 12px 10px 10px 14px;
   flex: none;
   border-bottom: 1px solid var(--line);
 }
