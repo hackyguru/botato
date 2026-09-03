@@ -3868,6 +3868,43 @@ select:focus-visible {
  *
  * Scoped rather than changed at the source: eight other dialogs wear this
  * class and all of them are still dialogs. */
+/* One rhythm down the pane.
+ *
+ * It was a 10px flex gap with ad-hoc margins on top of it — 4 above the
+ * swatches, 4 below the face, 4 above every prose block, 14 between groups —
+ * so no two gaps in the column were the same and none of them was chosen. The
+ * tab strip contributed nothing at all, which is why the face underneath it
+ * looked stuck to it.
+ *
+ * Fourteen everywhere, from the gap alone. A caption keeps its negative margin
+ * because that is not spacing, it is grouping: it buys four points from the
+ * gap below so a heading sits nearer the card it names than the card above it.
+ */
+.pane .tabs {
+  margin: 2px 20px 14px;
+}
+
+.pane .sheet__body {
+  padding: 0 20px 24px;
+}
+
+/* The rhythm lives here, not on the body. The body's children are the panels;
+   the things anybody actually sees down the column — the face, the name, the
+   swatches, the role, the groups — are children of the panel, and it carries a
+   gap of its own. Setting the body's gap changed the space between one panel
+   and the next, of which there is never more than one on screen. */
+.pane .settings-panel {
+  gap: 14px;
+}
+
+.pane .sheet__preview,
+.pane .swatches,
+.pane .prose,
+.pane .settings + .settings {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
 .pane .sheet {
   flex: 1;
   width: auto;
