@@ -888,11 +888,14 @@ select:focus-visible {
   margin: 0;
 }
 
+/* No reading measure here. A desk row is a name, one line and some buttons —
+   not a paragraph — so capping it left a gutter of empty pane beside every
+   card and made the list look like it had failed to load. It takes the width
+   it is given; the view's padding is the only margin. */
 .desk__list {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-width: 720px;
 }
 
 /* One thing waiting. The kind is a word rather than a colour alone: "Failed"
