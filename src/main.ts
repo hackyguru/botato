@@ -1969,14 +1969,11 @@ const activeBot = () => state.bots.find((b) => b.id === state.activeId) ?? null;
 
 
 function renderRoster(): void {
+  // The field sits over the rooms, so it searches the rooms. It used to narrow
+  // the bots as well, which made the rail flicker down to one face while you
+  // looked for a channel — a list disappearing beside the one you are reading
+  // is a list you did not ask about.
   const q = searchEl.value.trim().toLowerCase();
-  const hits = state.bots.filter(
-    (b) =>
-      !q ||
-      b.name.toLowerCase().includes(q) ||
-      b.role.toLowerCase().includes(q) ||
-      b.messages.some((m) => m.text.toLowerCase().includes(q)),
-  );
 
 
   // Rooms first, then bots. A channel is where several of them are, so it sits
@@ -2048,7 +2045,10 @@ function renderRoster(): void {
   // rows — that is the whole point of the list beside it, since ten identical
   // hashes cannot say which room is which.
   botsEl.innerHTML =
-    deskHtml + serverTiles() + (servers().length ? `<p class="rail-group"></p>` : "") + botRows(hits);
+    deskHtml +
+    serverTiles() +
+    (servers().length ? `<p class="rail-group"></p>` : "") +
+    botRows(state.bots);
 
   // The name of the one you are looking at, over its rooms. Left alone while
   // you are typing in it, since it is also the field you rename it in.
