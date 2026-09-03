@@ -522,6 +522,7 @@ let editing: Bot | null = null;
 const toastEl = $<HTMLDivElement>("#toast");
 const appEl = $<HTMLDivElement>(".app");
 const screenPane = $<HTMLElement>("#screen-pane");
+const screenScrim = $<HTMLElement>("#screen-scrim");
 const screenGrip = $<HTMLDivElement>("#screen-grip");
 const screenId = $<HTMLDivElement>("#screen-id");
 const screenStateEl = $<HTMLSpanElement>("#screen-state");
@@ -8579,6 +8580,7 @@ async function openScreen(): Promise<void> {
 
 function closeScreen(): void {
   disconnectScreen();
+  setScreenModal(false);
   screenPane.hidden = true;
   appEl.classList.remove("has-screen");
   screen.botId = null;
@@ -8633,7 +8635,7 @@ function relayout(): void {
   // pane a width of its own meant it and the computer crossed the stacking
   // threshold at different window sizes — so on one window the computer opened
   // beside the conversation and settings opened underneath it.
-  const anyPane = !screenPane.hidden || !sheetWrap.hidden;
+  const anyPane = (!screenPane.hidden && !screenModal()) || !sheetWrap.hidden;
   const pane = anyPane ? (state.screenWidth ?? SCREEN_PANE.initial) : 0;
   const chatWidth = appEl.clientWidth - sidebar - pane;
   appEl.classList.toggle("is-stacked", anyPane && chatWidth < MIN_CHAT_WIDTH);
@@ -8939,11 +8941,36 @@ $<HTMLButtonElement>("#btn-screen-power").addEventListener("click", () => {
   void invoke("sandbox_stop", { botId }).catch((err) => pushLog(String(err)));
 });
 
-$<HTMLButtonElement>("#btn-expand").addEventListener("click", (event) => {
-  const button = event.currentTarget as HTMLButtonElement;
-  const focused = screenPane.classList.toggle("is-focus");
-  button.title = focused ? "Shrink the screen" : "Expand the screen";
+/** Is the computer expanded over the window rather than docked beside it?
+ *  A declaration rather than a const: relayout() and closeScreen() are defined
+ *  above this and would hit the temporal dead zone otherwise. */
+function screenModal(): boolean {
+  return screenPane.classList.contains("is-modal");
+}
+
+/** Expand the computer over everything, or put it back in its column.
+ *
+ *  The pane itself never moves in the document: noVNC keeps a canvas and a
+ *  websocket in it, and reparenting that element would be a reconnection. Only
+ *  its box changes — CSS lifts it out of the grid and the ResizeObserver
+ *  already watching the canvas rescales the session to fit. */
+function setScreenModal(on: boolean): void {
+  screenPane.classList.toggle("is-modal", on);
+  appEl.classList.toggle("has-screen-modal", on);
+  screenScrim.hidden = !on;
+  $<HTMLButtonElement>("#btn-expand").title = on
+    ? "Leave full screen  (Esc)"
+    : "Expand the screen";
+  // The pane is out of the layout while it floats, so the width it was taking
+  // is back and the conversation may no longer need to stack.
+  relayout();
+}
+
+$<HTMLButtonElement>("#btn-expand").addEventListener("click", () => {
+  setScreenModal(!screenModal());
 });
+
+screenScrim.addEventListener("click", () => setScreenModal(false));
 
 controlBtn.addEventListener("click", () => {
   screen.control = !screen.control;
@@ -10131,6 +10158,7 @@ document.addEventListener("keydown", (e) => {
     else if (teach.arming) cancelArming();
     else if (teach.on) void stopTeaching();
     else if (!menu.hidden) closeMenu();
+    else if (screenModal()) setScreenModal(false);
     else if (!sheetWrap.hidden) showSheet(false);
     // Not a panel you are trapped in, so it goes last — after everything that
     // is covering something else.
