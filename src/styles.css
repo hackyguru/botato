@@ -7654,16 +7654,15 @@ body.is-dragging {
   color: #fff;
   cursor: pointer;
 }
-/* Sized to undo the glyph's own scaling rather than to a round number: the
-   handset is drawn at 0.82 inside its box so that turning it does not push it
-   out, which makes it that much smaller and its stroke that much thinner than
-   the numbers here suggest. Twenty-four by 0.82 is the twenty it drew before,
-   and 2.2 by 0.82 is the 1.8 it was drawn with. */
+/* Heavier than the sprite's usual 1.7 and smaller than its usual box: this one
+   sits alone in the middle of a 48px circle of solid red, where a hairline
+   reads as a scratch rather than as a mark. */
 .call__end svg {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   stroke: currentColor;
   stroke-width: 2.2;
+  stroke-linecap: round;
   fill: none;
 }
 .call__end:hover {
