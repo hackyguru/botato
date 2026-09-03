@@ -198,9 +198,16 @@
            in it. Bots are here too, because a face is the only place their
            name appears otherwise. -->
       <aside class="rooms" id="rooms" hidden data-tauri-drag-region>
-        <div class="field" id="rooms-find">
-          <svg><use href="#i-search" /></svg>
-          <input id="search" placeholder="Search" spellcheck="false" />
+        <div class="rooms__head">
+          <div class="field" id="rooms-find">
+            <svg><use href="#i-search" /></svg>
+            <input id="search" placeholder="Search" spellcheck="false" />
+          </div>
+          <!-- Rooms are made where rooms are listed. The rail's plus is for
+               bots, which is what the rail is a list of. -->
+          <button class="icon-btn" id="btn-new-room" title="New channel" aria-label="New channel">
+            <svg><use href="#i-plus" /></svg>
+          </button>
         </div>
         <div class="rooms__list" id="rooms-list"></div>
       </aside>

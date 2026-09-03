@@ -9323,14 +9323,16 @@ $<HTMLButtonElement>("#btn-monitor").addEventListener("click", () => {
   if (screenPane.hidden) void openScreen();
   else closeScreen();
 });
-$<HTMLButtonElement>("#btn-new").addEventListener("click", (event) => {
-  // One plus, two things it could make. A menu rather than a second icon in a
-  // two-icon header: "new" is one intention, and which kind is the question it
-  // is already asking.
+// The rail is a list of bots, so its plus makes one — no menu, since there is
+// nothing left to ask. Rooms are made in the column that lists rooms.
+$<HTMLButtonElement>("#btn-new").addEventListener("click", () => openSheet());
+
+$<HTMLButtonElement>("#btn-new-room").addEventListener("click", (event) => {
+  // Two things a plus over a list of rooms could mean, and which one is the
+  // question it is already asking.
   openMenu(
     event.currentTarget as HTMLElement,
-    `<button type="button" class="menu-item" data-new="bot">${icon("plus")}New bot</button>` +
-      `<button type="button" class="menu-item" data-new="channel">${icon("hash")}New channel</button>` +
+    `<button type="button" class="menu-item" data-new="channel">${icon("hash")}New channel</button>` +
       `<button type="button" class="menu-item" data-new="category">${icon("chev")}New category</button>`,
   );
 });
