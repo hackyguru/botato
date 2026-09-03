@@ -5277,6 +5277,10 @@ select:focus-visible {
 .steps {
   display: flex;
   align-items: center;
+  /* Across the middle. Left-aligned it read as a caption under the title —
+     three words trailing off to the right of a heading — rather than as the
+     three of them being the width of the dialog. */
+  justify-content: center;
   gap: 4px;
   margin: 0;
   padding: 14px 36px 20px;
