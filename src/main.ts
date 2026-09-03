@@ -2659,6 +2659,21 @@ function saidBy(msg: Message, ch?: Channel): { name: string; face: string } {
     : { name: "", face: `<span class="turn__me">·</span>` };
 }
 
+/** A marker's colour: the bot whose marker it is.
+ *
+ *  A routine ran because one bot was told to run it, and in a room with four
+ *  bots in it a row of identical grey chips says only that something happened.
+ *  In the bot's own colour it says which of them.
+ *
+ *  The value is checked rather than trusted: it goes into a style attribute,
+ *  which escapeHtml does not make safe, and a colour is a colour or it is
+ *  nothing. */
+function tintOf(msg: Message, ch?: Channel): string {
+  const ran = msg.by ? state.bots.find((b) => b.id === msg.by) : ch ? null : activeBot();
+  const colour = ran?.color ?? "";
+  return /^#[0-9a-f]{3,8}$/i.test(colour) ? ` style="--tint:${colour}"` : "";
+}
+
 function turnEl(msg: Message, ch?: Channel, prev?: Message): HTMLElement {
   const wrap = document.createElement("div");
   wrap.dataset.msg = msg.id;
@@ -2666,7 +2681,8 @@ function turnEl(msg: Message, ch?: Channel, prev?: Message): HTMLElement {
   if (msg.kind === "routine") {
     wrap.className = "turn turn--note";
     wrap.innerHTML =
-      `<span class="learn-badge">${icon("clock")}Routine · ${escapeHtml(msg.meta?.name ?? "")}</span>`;
+      `<span class="learn-badge"${tintOf(msg, ch)}>${icon("clock")}` +
+      `Routine · ${escapeHtml(msg.meta?.name ?? "")}</span>`;
     return wrap;
   }
 
@@ -2676,7 +2692,7 @@ function turnEl(msg: Message, ch?: Channel, prev?: Message): HTMLElement {
     wrap.className = "turn turn--note";
     const label = msg.meta?.name ? `Learned: ${escapeHtml(msg.meta.name)}` : "Learned from demonstration";
     wrap.innerHTML =
-      `<span class="learn-badge">${icon("cube")}${label}</span>` +
+      `<span class="learn-badge"${tintOf(msg, ch)}>${icon("cube")}${label}</span>` +
       `<span class="learn-meta">${steps} step${steps === 1 ? "" : "s"} · ${frames} frame${frames === 1 ? "" : "s"}</span>`;
     return wrap;
   }

@@ -3026,6 +3026,13 @@ select:focus-visible {
   gap: 10px;
 }
 
+/* In the colour of the bot it belongs to. A routine ran because one bot was
+   told to run it, and down a room with four bots in it a column of identical
+   grey chips says only that something happened — the colour says which of
+   them, the same colour its face is drawn in.
+ *
+ * The neutral fill first, for engines with no color-mix, and as the fallback
+   for a marker with no bot behind it. */
 .learn-badge {
   display: inline-flex;
   align-items: center;
@@ -3033,9 +3040,10 @@ select:focus-visible {
   padding: 7px 15px;
   font-size: 13.5px;
   font-weight: 500;
-  color: var(--text);
+  color: var(--tint, var(--text));
   background: var(--fill-2);
-  border-radius: 999px;
+  background: color-mix(in srgb, var(--tint, var(--text)) 15%, transparent);
+  border-radius: var(--radius-pill);
 }
 
 .learn-badge svg {
