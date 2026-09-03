@@ -1310,14 +1310,14 @@
                   class="face__brows"><i></i><i></i></span><span class="face__eyes"><i></i><i></i></span><span
                   class="face__mouth"></span><span class="face__mark"></span><span class="face__aura"></span></span>
             <h2 class="setup__title">Welcome to botcage</h2>
-            <p class="setup__blurb">
-              Bots live on this machine. Each one keeps its own memory and workspace, and can be
-              given a private Linux desktop to work on.
-            </p>
+            <!-- No blurb and no question over the field. The title says where
+                 you are and the placeholder says what the box is for; a
+                 paragraph explaining the app to somebody who has just opened it
+                 is a paragraph they skip. The label goes to aria-label so the
+                 field still has a name for anything not reading the screen. -->
             <label class="prose setup__name" for="setup-name">
-              <span class="prose__label">What should your bots call you?</span>
               <input id="setup-name" placeholder="Your name" spellcheck="false" maxlength="40"
-                     autocomplete="name" />
+                     autocomplete="name" aria-label="What your bots should call you" />
             </label>
             <p class="setup__blurb setup__blurb--dim">A few more things to settle — it takes a minute.</p>
           </section>
