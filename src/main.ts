@@ -487,7 +487,7 @@ const swatches = $<HTMLDivElement>("#swatches");
 const sheetTitle = $<HTMLHeadingElement>("#sheet-title");
 const sheetSubmit = $<HTMLButtonElement>("#sheet-submit");
 const sheetBack = $<HTMLButtonElement>("#sheet-back");
-const sheetWiz = $<HTMLParagraphElement>("#sheet-wiz");
+const sheetSteps = $<HTMLElement>("#sheet-steps");
 const sheetDelete = $<HTMLButtonElement>("#sheet-delete");
 
 const sheetComputer = $<HTMLInputElement>("#sheet-computer");
@@ -3760,10 +3760,10 @@ const HIRES: { name: string; blurb: string; colour: string; shape: Shape; role: 
  *
  *  It is the same form either way. Two forms would be two places for a field
  *  to be added and one place for it to be forgotten. */
-const HIRING: { wiz: string; title: string; of: string }[] = [
-  { wiz: "start", title: "Start from", of: "One of ours, one somebody sent you, or nothing at all." },
-  { wiz: "who", title: "Who it is", of: "Its name, its face, and the work it owns." },
-  { wiz: "how", title: "How it works", of: "What answers for it, when, and whether it gets a computer." },
+const HIRING: { wiz: string; title: string }[] = [
+  { wiz: "start", title: "Start from" },
+  { wiz: "who", title: "Who it is" },
+  { wiz: "how", title: "How it works" },
 ];
 
 /** Which step the sheet is on. Meaningless while editing. */
@@ -3787,12 +3787,27 @@ function paintHiring(): void {
   const tabs = sheet.querySelector<HTMLElement>(".tabs");
   if (tabs) tabs.hidden = hiring;
 
-  sheetWiz.hidden = !hiring;
+  sheetSteps.hidden = !hiring;
   sheetBack.hidden = !hiring || hiringAt === 0;
   if (hiring) {
-    sheetWiz.textContent = `Step ${hiringAt + 1} of ${HIRING.length} · ${step.of}`;
-    sheetTitle.textContent = step.title;
+    // "New bot" stays the title: the step's own name is in the stepper, and a
+    // heading that repeats the lit step says it twice and the act not at all.
+    sheetTitle.textContent = "New bot";
     sheetSubmit.textContent = last ? "Create bot" : "Next";
+    sheetSteps.innerHTML = HIRING.map(
+      (one, at) =>
+        `<li class="step${at < hiringAt ? " is-done" : ""}${at === hiringAt ? " is-now" : ""}">` +
+        // A button only where it leads somewhere: pressing the step you are on
+        // does nothing, and the ones ahead are reached by the button that
+        // checks what this one asked for.
+        (at < hiringAt
+          ? `<button type="button" class="step__hit" data-step="${at}">`
+          : `<span class="step__hit">`) +
+        `<span class="step__no">${at < hiringAt ? icon("check") : String(at + 1)}</span>` +
+        `<span class="step__name">${escapeHtml(one.title)}</span>` +
+        (at < hiringAt ? `</button>` : `</span>`) +
+        `</li>`,
+    ).join("");
   }
 
   for (const el of sheet.querySelectorAll<HTMLElement>("[data-wiz]")) {
@@ -3856,6 +3871,16 @@ function paintHires(hiring: boolean): void {
   wrap.hidden = !hiring;
   if (!hiring) return;
 
+  // Nothing, said out loud. Pressing Next with no preset picked has always made
+  // a blank bot, but a row of five filled-in ones and no sixth option reads as
+  // a choice you have to make rather than one you can decline — so the decline
+  // is a tile like the others, and it completes the row at six.
+  const scratch =
+    `<button type="button" class="hire hire--scratch" data-scratch>` +
+    `<span class="hire__blank">${icon("plus")}</span>` +
+    `<span class="hire__name">From scratch</span>` +
+    `<span class="hire__blurb">You say what it is</span></button>`;
+
   $<HTMLDivElement>("#sheet-hires-row").innerHTML = HIRES.map(
     (hire) =>
       `<button type="button" class="hire" data-hire="${escapeHtml(hire.name)}">` +
@@ -3870,7 +3895,7 @@ function paintHires(hiring: boolean): void {
       ) +
       `<span class="hire__name">${escapeHtml(hire.name)}</span>` +
       `<span class="hire__blurb">${escapeHtml(hire.blurb)}</span></button>`,
-  ).join("");
+  ).join("") + scratch;
 }
 
 /** The manner picker: what its id chose, then the rest by name.
@@ -9844,6 +9869,14 @@ sheet.addEventListener("submit", (e) => {
   else nextHiring();
 });
 
+sheetSteps.addEventListener("click", (event) => {
+  const hit = (event.target as HTMLElement).closest<HTMLElement>("[data-step]");
+  if (!hit) return;
+  hiringAt = Number(hit.dataset.step);
+  paintHiring();
+  focusHiring();
+});
+
 sheetBack.addEventListener("click", () => {
   if (hiringAt === 0) return;
   hiringAt -= 1;
@@ -10258,6 +10291,20 @@ $<HTMLDivElement>("#sheet-hours-days").addEventListener("click", (e) => {
 });
 
 $<HTMLDivElement>("#sheet-hires-row").addEventListener("click", (e) => {
+  // From scratch: empty the fields a preset may have filled, and go on to the
+  // step that asks you for them. Only a preset's words are cleared — a name you
+  // typed yourself is yours and survives.
+  if ((e.target as HTMLElement).closest("[data-scratch]")) {
+    const typed = sheetName.value.trim();
+    if (HIRES.some((h) => h.name === typed)) sheetName.value = "";
+    if (HIRES.some((h) => h.role === sheetRole.value)) sheetRole.value = "";
+    draftColor = COLORS[state.bots.length % COLORS.length];
+    renderSheetPreview();
+    for (const el of document.querySelectorAll(".hire.is-on")) el.classList.remove("is-on");
+    nextHiring();
+    return;
+  }
+
   const pick = (e.target as HTMLElement).closest<HTMLElement>("[data-hire]");
   if (!pick) return;
   const hire = HIRES.find((h) => h.name === pick.dataset.hire);
@@ -10275,7 +10322,10 @@ $<HTMLDivElement>("#sheet-hires-row").addEventListener("click", (e) => {
 
   for (const el of document.querySelectorAll(".hire.is-on")) el.classList.remove("is-on");
   pick.classList.add("is-on");
-  sheetName.focus();
+  // Picking one answers this step, so it moves on rather than leaving you to
+  // find the button. Editing a bot has no steps to move through.
+  if (editing) sheetName.focus();
+  else nextHiring();
 });
 
 swatches.addEventListener("click", (e) => {

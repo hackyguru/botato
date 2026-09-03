@@ -5155,16 +5155,22 @@ select:focus-visible {
 
 .pane.is-wizard .sheet {
   display: grid;
-  /* Three, not the pane's four: the tab strip is `hidden` while hiring, and
-     hidden is `display: none`, so it is not a grid item at all. With four rows
-     declared the footer landed in the `1fr` and stretched, leaving the button
-     at the top of a stretched row with a hand's width of empty card under it. */
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  width: min(480px, 92vw);
+  /* Four, like the pane's own: the head, then whichever of the stepper and the
+     tab strip belongs to this mode, then the body, then the buttons. Exactly
+     one of those two is ever visible — the other is `hidden`, which is
+     `display: none` and so not a grid item — so one template serves both. Get
+     the count wrong and the footer lands in the stretchy row, sitting at the
+     top of a hand's width of empty card. */
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  /* Room to think in. At 480 with a 22px gutter every step read as a form
+     squeezed into a phone: the presets nearly touched the edges, the role box
+     was three narrow lines, and step three was a stack of settings with no air
+     between the words and the frame. */
+  width: min(600px, 94vw);
   /* One height for all three steps. Sized to each, the card would grow and
      shrink under the pointer as you moved through it, and the buttons would
      never be twice in the same place. */
-  height: min(560px, 86vh);
+  height: min(640px, 88vh);
   min-height: 0;
   background: var(--bg-main);
   border: 1px solid var(--line);
@@ -5172,19 +5178,113 @@ select:focus-visible {
   overflow: hidden;
 }
 
-/* The title and the step under it, as one block, so the close button stays
-   where it is rather than being pushed down by a second line. */
-.sheet__id {
+.pane.is-wizard .sheet__head {
+  padding: 24px 18px 4px 28px;
+}
+
+.pane.is-wizard .sheet__body {
+  padding: 0 28px 30px;
+}
+
+.pane.is-wizard .sheet__foot {
+  padding: 18px 28px 26px;
+}
+
+/* The three of them across the top: a number, a name, and a rule between one
+   and the next. The rule is drawn by the item rather than between items —
+   ::before on each but the first — because a separator element per gap is two
+   more elements that have to be kept in step with the steps. */
+.steps {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 28px 16px;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   min-width: 0;
 }
 
-.wiz {
-  margin: 0;
-  font-size: var(--type-hint);
+.step + .step::before {
+  content: "";
+  width: 14px;
+  height: 1px;
+  flex: none;
+  background: var(--line);
+}
+
+.step__hit {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 4px 8px 4px 4px;
+  border-radius: var(--radius-pill);
+  background: none;
+}
+
+/* Only the ones behind you are buttons at all, so only they light up. */
+.step__hit:is(button) {
+  cursor: pointer;
+}
+
+.step__hit:is(button):hover {
+  background: var(--hover);
+}
+
+.step__no {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  font-size: var(--type-caption);
+  font-weight: 600;
   color: var(--text-3);
+  background: var(--fill-2);
+  border-radius: var(--radius-pill);
+}
+
+.step__no svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.4;
+}
+
+.step__name {
+  font-size: var(--type-hint);
+  font-weight: 500;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* Where you are: the one lit number in the row. Done steps keep the colour but
+   drop the fill, so the row reads left to right as finished, here, not yet —
+   rather than as three things of equal weight. */
+.step.is-now .step__no {
+  color: var(--on-accent);
+  background: var(--blue);
+}
+
+.step.is-now .step__name {
+  color: var(--text);
+}
+
+.step.is-done .step__no {
+  color: var(--blue);
+  /* The neutral fill first, for engines with no color-mix: a tinted chip that
+     falls back to the blue it prints its tick in would hide the tick. */
+  background: var(--fill-2);
+  background: color-mix(in srgb, var(--blue) 18%, transparent);
+}
+
+.step.is-done .step__name {
+  color: var(--text-2);
 }
 
 /* The app's own settings: a column of sections on the left, the one you picked
@@ -6187,6 +6287,28 @@ label.setting {
 
 .is-wizard .hire {
   width: auto;
+}
+
+/* The blank one. A face would be a lie — there is nobody there yet — so it is
+   the same 34px square the others' faces occupy, drawn as an outline with a
+   plus in it. Keeping the square is what keeps the six tiles the same tile. */
+.hire__blank {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  color: var(--text-3);
+  border: 1px dashed var(--line-2, var(--line));
+  border-radius: 10px;
+}
+
+.hire__blank svg {
+  width: 18px;
+  height: 18px;
+}
+
+.hire--scratch:hover .hire__blank {
+  color: var(--text);
 }
 
 .hire {

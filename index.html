@@ -54,6 +54,7 @@
         <path d="M5 9.5h3l4-3.5v12l-4-3.5H5z" /><path d="m16.5 10 5 4M21.5 10l-5 4" />
       </symbol>
       <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 13 4.5 4.5L19 7" /></symbol>
       <symbol id="i-power" viewBox="0 0 24 24">
         <path d="M12 3v9" /><path d="M6.3 6.3a8 8 0 1 0 11.4 0" />
       </symbol>
@@ -394,16 +395,16 @@
     <aside class="pane" id="sheet-wrap" hidden>
       <form class="sheet" id="sheet">
         <div class="sheet__head">
-          <div class="sheet__id">
-            <h2 id="sheet-title">New bot</h2>
-            <!-- Where you are, and how much is left. A wizard with no count is
-                 a form that could go on forever. -->
-            <p class="wiz" id="sheet-wiz" hidden></p>
-          </div>
+          <h2 id="sheet-title">New bot</h2>
           <button type="button" class="icon-btn icon-btn--sm" id="sheet-close" aria-label="Close">
             <svg><use href="#i-x" /></svg>
           </button>
         </div>
+        <!-- Where you are and how much is left, as the three of them rather
+             than as a sentence counting them. Steps behind you can be clicked;
+             steps ahead cannot, since the way forward is the button that
+             checks what you typed. -->
+        <ol class="steps" id="sheet-steps" hidden></ol>
         <div class="tabs" role="tablist">
           <button type="button" class="tab" role="tab" data-tab="general" aria-selected="true">General</button>
           <button type="button" class="tab" role="tab" data-tab="computer" aria-selected="false">Computer</button>
