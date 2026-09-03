@@ -592,14 +592,10 @@ select:focus-visible {
   height: 28px;
 }
 
-/* And the mark grows with them. A face's box is 34, but a face overhangs its
-   box — hair, ears, an antenna — and lands nearer forty on screen, so a mark
-   drawn at exactly 34 beside one is the smaller thing rather than the matching
-   one. Thirty-eight is what makes them read as a pair. */
-.is-rail .brand__mark {
-  width: 38px;
-  height: 38px;
-}
+/* The mark is 38 everywhere now — see .brand__mark. The number came from here:
+   a face's box is 34, but a face overhangs its box — hair, ears, an antenna —
+   and lands nearer forty on screen, so a mark drawn at exactly 34 beside one is
+   the smaller thing rather than the matching one. */
 
 .is-rail #btn-rail {
   grid-area: rail;
@@ -682,7 +678,11 @@ select:focus-visible {
      them. */
   justify-content: flex-start;
   gap: 8px;
-  height: 34px;
+  /* The rail's tile height, not a header's. The mark is the same 38 in both
+     states, and giving the row the same 46 the rail gives it puts the mark's
+     centre in the same place in both — so collapsing the sidebar moves the
+     column beside the mark without moving the mark. */
+  height: 46px;
   flex: none;
 }
 
@@ -709,9 +709,12 @@ select:focus-visible {
   user-select: none;
 }
 
+/* One size, both states. It was 20 here and 38 in the rail, which made the
+   app's own mark the one thing in the window that changed size depending on
+   how wide the column beside it was. */
 .brand__mark {
-  width: 20px;
-  height: 20px;
+  width: 38px;
+  height: 38px;
   flex: none;
   /* One colour, set here and nowhere else: the mark is a single fill with the
      face punched out of it. */
