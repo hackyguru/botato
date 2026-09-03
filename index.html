@@ -1304,12 +1304,20 @@
         <div class="setup__rail" id="setup-rail" aria-hidden="true"></div>
 
         <div class="setup__body">
+          <!-- Guide, drawn by the same renderer as every other face and filled
+               in from the real bot — so the one showing you around is the one
+               that will be in the roster a minute later, with the face it will
+               still have then. It sits above the steps rather than inside the
+               first, because it is doing all of them. -->
+          <div class="setup__host" id="setup-face"></div>
+
+          <div class="setup__steps">
           <section class="setup__step" data-step="welcome">
-            <span class="face face--lg" data-head="squircle" data-mood="idle" data-eyes="dot"
-                  data-brow="none" data-smile="soft" data-mark="none" style="--skin:#0a84ff;--beat:2.6s"><span
-                  class="face__brows"><i></i><i></i></span><span class="face__eyes"><i></i><i></i></span><span
-                  class="face__mouth"></span><span class="face__mark"></span><span class="face__aura"></span></span>
-            <h2 class="setup__title">Welcome to botcage</h2>
+            <h2 class="setup__title">Hi — I'm Guide</h2>
+            <p class="setup__blurb">
+              I live in here with the bots you make, and I can explain any of it later. First,
+              what should we call you?
+            </p>
             <!-- No blurb and no question over the field. The title says where
                  you are and the placeholder says what the box is for; a
                  paragraph explaining the app to somebody who has just opened it
@@ -1319,14 +1327,14 @@
               <input id="setup-name" placeholder="Your name" spellcheck="false" maxlength="40"
                      autocomplete="name" aria-label="What your bots should call you" />
             </label>
-            <p class="setup__blurb setup__blurb--dim">A few more things to settle — it takes a minute.</p>
+            <p class="setup__blurb setup__blurb--dim">Then a few things to settle — a minute, no more.</p>
           </section>
 
           <section class="setup__step" data-step="answers" hidden>
-            <h2 class="setup__title">What answers your bots</h2>
+            <h2 class="setup__title">What answers for us</h2>
             <p class="setup__blurb">
-              botcage ships no model of its own. Pick one way to start — any bot can be changed
-              later, and different bots can use different ones.
+              botcage ships no model of its own, so pick one way to start. You can change any of
+              us later, and we don't all have to use the same one.
             </p>
 
             <div class="picks" id="setup-picks">
@@ -1370,10 +1378,11 @@
           </section>
 
           <section class="setup__step" data-step="engine" hidden>
-            <h2 class="setup__title">A computer for your bots</h2>
+            <h2 class="setup__title">Whether we get a computer</h2>
             <p class="setup__blurb">
-              Optional. A bot given its own computer gets a sandboxed Linux desktop with a browser
-              and a terminal, which you can watch it use. Everything else works without this.
+              Optional. Give one of us its own computer and it gets a sandboxed Linux desktop with
+              a browser and a terminal, and you can watch it work. Everything else runs without
+              this.
             </p>
             <div class="setup__check" id="setup-engine-check">
               <span class="setup__dot" data-state="wait"></span>
@@ -1383,11 +1392,11 @@
           </section>
 
           <section class="setup__step" data-step="voice" hidden>
-            <h2 class="setup__title">Talking to your bots</h2>
+            <h2 class="setup__title">Whether we talk out loud</h2>
             <p class="setup__blurb">
-              Optional. You can call a bot and talk to it — it listens, thinks and answers out
-              loud, all on this machine. That needs a speech model and a set of voices; they can
-              come now, or the first time you make a call.
+              Optional. You can call any of us and talk — we listen, think and answer out loud,
+              all on this machine. That needs a speech model and a set of voices; they can come
+              now, or the first time you make a call.
             </p>
             <div class="setup__check" id="setup-voice-check">
               <span class="setup__dot" data-state="wait"></span>
@@ -1397,14 +1406,16 @@
           </section>
 
           <section class="setup__step" data-step="done" hidden>
-            <h2 class="setup__title">Ready</h2>
+            <h2 class="setup__title">That's us ready</h2>
             <p class="setup__blurb" id="setup-done-blurb">Everything botcage needs is in place.</p>
             <ul class="setup__list">
-              <li><b>New bot</b> — the + above the list on the left.</li>
-              <li><b>Plugins</b> — connect GitHub, Gmail, Notion and the rest from the top bar.</li>
-              <li><b>Routines</b> — give a bot something to do on a schedule.</li>
+              <li><b>Make one of us</b> — the + at the foot of the rail on the left.</li>
+              <li><b>Plug things in</b> — GitHub, Gmail, Notion and the rest, from the bar above.</li>
+              <li><b>Set a routine</b> — give a bot something to do on a schedule.</li>
+              <li><b>Ask me</b> — I'm the first face in the rail.</li>
             </ul>
           </section>
+          </div>
         </div>
 
         <div class="sheet__foot setup__foot">

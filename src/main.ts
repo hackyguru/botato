@@ -10859,6 +10859,14 @@ setupMute.addEventListener("click", () => {
 
 async function openSetup(at: SetupStep = "welcome"): Promise<void> {
   setupAt = at;
+  // The host, drawn from the real bot: whoever is showing you around here is
+  // the one you can ask afterwards, and it should look the same in both
+  // places. A fresh install always has it; an install that deleted it gets the
+  // app's own mark instead of a stranger's face.
+  const host = state.bots.find((b) => b.guide);
+  $<HTMLElement>("#setup-face").innerHTML = host
+    ? faceHtml(host, "lg")
+    : `<svg class="setup__mark"><use href="#i-cube" /></svg>`;
   $<HTMLInputElement>("#setup-name").value = appSettings().name ?? "";
   // Start on whatever this app is already set up to use, so reopening setup
   // shows the arrangement someone made rather than the one botcage prefers.

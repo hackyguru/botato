@@ -7175,6 +7175,20 @@ label.setting {
   overflow-y: auto;
 }
 
+/* The one showing you around, over every step rather than on the first. */
+.setup__host {
+  display: grid;
+  place-items: center;
+  flex: none;
+  padding-bottom: 16px;
+}
+
+.setup__mark {
+  width: 44px;
+  height: 44px;
+  color: var(--blue);
+}
+
 .setup__step {
   min-height: 0;
   overflow-y: auto;
@@ -7199,13 +7213,20 @@ label.setting {
  *
  * The distance is small and the fade does most of the work. A panel that flies
  * across the sheet is a slideshow; this should feel like a page turning. */
-.setup__body {
+/* The steps get a box of their own, under the host. A leaving step is taken
+   out of the flow so the arriving one can have its place — which needs an
+   anchor that *is* that place: against the body it would have been sized to
+   the body's padding and drawn over the face. */
+.setup__steps {
   position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
 }
 
 .setup__step.is-leaving {
   position: absolute;
-  inset: 24px 28px 10px;
+  inset: 0;
   pointer-events: none;
 }
 
