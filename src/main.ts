@@ -431,7 +431,11 @@ const state: Persisted = {
 const appSettings = () => state.app ?? DEFAULT_APP;
 
 const SCREEN_PANE = { min: 300, max: 900, initial: 460 };
-const SCREEN_ROW = { min: 200, max: 700, initial: 320 };
+/* Taller than it was. Stacked under the conversation, this row holds a whole
+   settings page — a head, a tab strip, the settings themselves and a footer of
+   buttons — and at 320 the chrome took all of it: the name field and the
+   colour swatches were the only two things you could see without scrolling. */
+const SCREEN_ROW = { min: 200, max: 700, initial: 440 };
 
 /** The chat needs at least this much width; below it, the desktop stacks under. */
 const MIN_CHAT_WIDTH = 480;
@@ -1462,7 +1466,11 @@ function load(): void {
     for (const bot of state.bots) freshenGuide(bot);
     state.screenOpen = Boolean(data.screenOpen);
     state.screenWidth = data.screenWidth;
-    state.screenHeight = data.screenHeight;
+    // The old default, treated as never having been chosen. A height saved at
+    // exactly 320 is one nobody dragged to — the app wrote it on first run —
+    // and leaving it would mean the taller default only ever reached people
+    // installing for the first time.
+    state.screenHeight = data.screenHeight === 320 ? undefined : data.screenHeight;
     state.rooms = Boolean(data.rooms);
     state.app = { ...DEFAULT_APP, ...(data.app ?? {}) };
   } catch {

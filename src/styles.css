@@ -4273,10 +4273,21 @@ select:focus-visible {
    under the delete button only, so Back sat flush against Next in the wizard
    and Share sat flush against Save in the settings pane — two buttons touching
    read as one control with a seam down it. */
+/* Two secondary buttons share a row and the primary takes its own. Three
+   full-width buttons stacked is 170 points of footer, which in a pane docked
+   under the conversation was as much room as the settings themselves got.
+ *
+ * A hidden button is `display: none` and not a grid item, so a sheet with only
+ * Save in its footer still gets one full-width button rather than a half one. */
 .pane .sheet__foot {
   display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
   padding: 18px 30px 26px;
+}
+
+.pane .sheet__foot .btn-primary {
+  grid-column: 1 / -1;
 }
 
 /* The same shape as the buttons it sits with. It was a bare red line between
