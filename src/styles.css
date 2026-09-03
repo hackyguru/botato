@@ -7200,7 +7200,11 @@ label.setting {
   min-height: 0;
   overflow-y: auto;
   display: flex;
-  flex: 1;
+  /* Its own height, and shrinking rather than overflowing when a step has more
+     in it than the dialog has room for — at flex: 1 it stretched, which put
+     the group off centre by half the slack. */
+  flex: 0 1 auto;
+  width: 100%;
   flex-direction: column;
   align-items: center;
   /* Centred rather than top-aligned: the steps differ in height by a couple of
@@ -7220,20 +7224,30 @@ label.setting {
  *
  * The distance is small and the fade does most of the work. A panel that flies
  * across the sheet is a slideshow; this should feel like a page turning. */
-/* The steps get a box of their own, under the host. A leaving step is taken
-   out of the flow so the arriving one can have its place — which needs an
-   anchor that *is* that place: against the body it would have been sized to
-   the body's padding and drawn over the face. */
+/* The host and the step it is hosting, centred together as one group.
+ *
+ * The face was pinned to the top of the dialog while the step was centred in
+ * whatever was left under it, which put a hand's width of nothing between
+ * somebody's face and the sentence they were saying. They are one thing on the
+ * screen, so they are one thing in the layout.
+ *
+ * A leaving step is taken out of the flow so the arriving one can have its
+ * place, and its box starts under the face — 54 of face and 22 of gap — or it
+ * would animate from a position it never occupied. */
 .setup__steps {
+  --host-h: 76px;
   position: relative;
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   flex: 1;
   min-height: 0;
 }
 
 .setup__step.is-leaving {
   position: absolute;
-  inset: 0;
+  inset: var(--host-h) 0 0;
   pointer-events: none;
 }
 
