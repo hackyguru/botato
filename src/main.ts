@@ -71,6 +71,9 @@ interface Channel {
    *  is the only way a room full of bots talking to each other is bearable —
    *  otherwise you have to remember where you got to. */
   seenAt?: number;
+  /** Which server this room belongs to. A thread has none of its own — it
+   *  belongs wherever the room it hangs off does. */
+  server?: string;
   /** A thread: the room it hangs off and the message it started from.
    *
    *  A thread is a channel with a parent and nothing else different, which is
@@ -107,9 +110,25 @@ interface Channel {
  *  channel, and deleting one leaves its channels where every unfiled channel
  *  is. That is the whole of what makes it safe to let someone make these
  *  freely — the worst case is a heading you stop using. */
+/** A set of channels kept together, and the tile in the rail that opens them.
+ *
+ *  The rail can hold a face per bot because faces differ; it cannot hold a
+ *  hash per channel because hashes do not. A server is the thing the rail can
+ *  hold instead — one tile standing for a set of rooms, with the rooms' names
+ *  in the column beside it. Which is Discord's arrangement, arrived at from the
+ *  same constraint. */
+interface Server {
+  id: string;
+  name: string;
+  color: string;
+}
+
 interface Category {
   id: string;
   name: string;
+  /** Which server it belongs to. Absent on every category filed before servers
+   *  existed; load() gives those to the first one. */
+  server?: string;
   /** Collapsed. Its channels are hidden, except any with something unread —
    *  a category cannot be a way to miss things. */
   shut?: boolean;
@@ -330,6 +349,10 @@ interface Persisted {
   channels?: Channel[];
   /** Absent on every state saved before categories existed. */
   categories?: Category[];
+  /** Absent on every state saved before servers existed. */
+  servers?: Server[];
+  /** Whose channels the column beside the rail is showing. */
+  activeServer?: string | null;
   activeId: string | null;
   /** The room on screen, if it is a room rather than a bot. */
   activeChannel?: string | null;
@@ -432,6 +455,7 @@ const botsEl = $<HTMLDivElement>("#bots");
 const navEl = $<HTMLElement>(".nav");
 const roomsEl = $<HTMLElement>("#rooms");
 const roomsList = $<HTMLElement>("#rooms-list");
+const roomsName = $<HTMLInputElement>("#rooms-name");
 const searchEl = $<HTMLInputElement>("#search");
 const topbarId = $<HTMLDivElement>("#topbar-id");
 const thread = $<HTMLElement>("#thread");
@@ -1413,6 +1437,25 @@ function load(): void {
     // Persisted has to be added here too, which is the cost of loading field by
     // field rather than trusting whatever was on disk.
     state.categories = data.categories ?? [];
+
+    // Servers, and everything that predates them. A channel with no server
+    // belongs to no tile in the rail, which is a channel you cannot reach — so
+    // the first load after this ships puts them all in one, and calls it Home
+    // because that is what it is: where everything already was.
+    state.servers = data.servers ?? [];
+    if (!state.servers.length && (state.channels.length || state.categories.length)) {
+      state.servers = [{ id: uid(), name: "Home", color: COLORS[0] }];
+    }
+    const home = state.servers[0]?.id;
+    if (home) {
+      for (const ch of state.channels) ch.server ??= home;
+      for (const cat of state.categories) cat.server ??= home;
+    }
+    state.activeServer =
+      data.activeServer && state.servers.some((one) => one.id === data.activeServer)
+        ? data.activeServer
+        : (state.servers[0]?.id ?? null);
+
     state.activeId = data.activeId ?? state.bots[0].id;
     state.activeChannel = data.activeChannel ?? null;
     for (const bot of state.bots) freshenGuide(bot);
@@ -1945,14 +1988,16 @@ function renderRoster(): void {
   // A room, then its threads under it. A thread whose room does not match is
   // still worth showing when the thread itself does, so the room comes along
   // to say where it belongs.
-  const shown = rooms().filter((ch) => matches(ch) || threadsOf(ch).some(matches));
+  const shown = roomsOf(state.activeServer ?? null).filter(
+    (ch) => matches(ch) || threadsOf(ch).some(matches),
+  );
 
   // Ungrouped rooms first and then each category, which is the order Discord
   // uses and the one that keeps a channel you never filed from disappearing
   // under a heading you made for something else.
   const groups: { cat: Category | null; rooms: Channel[] }[] = [
     { cat: null, rooms: shown.filter((ch) => !catOf(ch)) },
-    ...categories().map((cat) => ({
+    ...catsOf(state.activeServer ?? null).map((cat) => ({
       cat,
       rooms: shown.filter((ch) => catOf(ch)?.id === cat.id),
     })),
@@ -2002,42 +2047,122 @@ function renderRoster(): void {
   // The rail: the desk, the way into the rooms, and a face per bot. No channel
   // rows — that is the whole point of the list beside it, since ten identical
   // hashes cannot say which room is which.
-  botsEl.innerHTML = deskHtml + roomsTile() + `<p class="rail-group"></p>` + botRows(hits);
+  botsEl.innerHTML =
+    deskHtml + serverTiles() + (servers().length ? `<p class="rail-group"></p>` : "") + botRows(hits);
+
+  // The name of the one you are looking at, over its rooms. Left alone while
+  // you are typing in it, since it is also the field you rename it in.
+  const here = theServer();
+  if (document.activeElement !== roomsName) roomsName.value = here?.name ?? "";
+  roomsName.placeholder = "Server name";
 
   // And the list: the rooms, with their names. Rooms only — a bot is already a
   // face in the rail and putting it here as well would be the same list twice,
   // one of them redundant. Searching still narrows the faces beside it.
   roomsList.innerHTML =
-    roomsHtml || `<p class="bot-row__last" style="padding:8px 10px">${q ? "No rooms match" : "No channels yet"}</p>`;
+    roomsHtml ||
+    `<p class="bot-row__last" style="padding:8px 10px">${
+      q ? "No rooms match" : "No channels in here yet"
+    }</p>`;
 }
 
-/** The rail's way into the room list.
+/** A tile per server, which is what the rail can hold.
  *
- *  One hash for every room rather than one per room. What it cannot do is say
- *  which room is which — so it does not try, and the column it opens does that
- *  with words. The count is every room's unread added up, because a tile that
- *  stands for all of them has to answer for all of them. */
-function roomsTile(): string {
-  if (!rooms().length) return "";
-  let unread = 0;
-  let mentions = 0;
-  for (const ch of channels()) {
-    if (ch.muted || ch.id === state.activeChannel) continue;
-    const news = unreadIn(ch.messages, ch.seenAt);
-    unread += news.unread;
-    mentions += news.mentions;
+ *  Its initials rather than a hash. A hash says "this is a channel" and every
+ *  server would say it identically — the same problem the rail had when it held
+ *  the channels themselves. Two letters and the server's own colour say which
+ *  one, at the size a rail has room for.
+ *
+ *  The count is every room in it added up, because a tile standing for a set
+ *  has to answer for the set. */
+function serverTiles(): string {
+  return servers()
+    .map((one) => {
+      let unread = 0;
+      let mentions = 0;
+      for (const ch of channels()) {
+        if ((ch.server ?? null) !== one.id || ch.muted || ch.id === state.activeChannel) continue;
+        const news = unreadIn(ch.messages, ch.seenAt);
+        unread += news.unread;
+        mentions += news.mentions;
+      }
+      const count = mentions || unread;
+      const here = one.id === state.activeServer && roomsOpen;
+      return (
+        `<button type="button" class="rooms-tile${here ? " is-active" : ""}" ` +
+        `title="${escapeHtml(one.name || "Untitled")}" data-server="${one.id}">` +
+        `<span class="rooms-tile__icon"><span class="server-mark" ` +
+        `style="background:${escapeHtml(one.color)}">${escapeHtml(initialsOf(one.name))}</span></span>` +
+        `<span class="rooms-tile__name">${escapeHtml(one.name || "Untitled")}</span>` +
+        (count
+          ? `<span class="rooms-tile__count${mentions ? "" : " is-quiet"}">${count > 99 ? "99+" : count}</span>`
+          : "") +
+        `</button>`
+      );
+    })
+    .join("");
+}
+
+/** Up to two letters for a tile: the initials of the first two words, or the
+ *  first two letters of a one-word name. "#" for one that has no name yet,
+ *  which is a server you are still typing the name of. */
+function initialsOf(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return "#";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+/** Show a server's rooms, or put the column away if it is already showing
+ *  them — the tile is the switch for its own list. */
+function openServer(id: string): void {
+  if (state.activeServer === id && roomsOpen) {
+    showRooms(false);
+    return;
   }
-  const count = mentions || unread;
-  return (
-    `<button type="button" class="rooms-tile${roomsOpen ? " is-active" : ""}" ` +
-    `title="Channels  (⌘B)" data-rooms-open>` +
-    `<span class="rooms-tile__icon">${icon("hash")}</span>` +
-    `<span class="rooms-tile__name">Channels</span>` +
-    (count
-      ? `<span class="rooms-tile__count${mentions ? "" : " is-quiet"}">${count > 99 ? "99+" : count}</span>`
-      : "") +
-    `</button>`
-  );
+  state.activeServer = id;
+  save();
+  showRooms(true);
+}
+
+/** One more, named in place.
+ *
+ *  Same as a category: a dialog that exists to type one word into is a dialog
+ *  too many, so the server appears immediately, its column opens, and the
+ *  caret lands in its name. */
+function newServer(): void {
+  const made: Server = {
+    id: uid(),
+    name: "",
+    color: COLORS[servers().length % COLORS.length],
+  };
+  servers().push(made);
+  state.activeServer = made.id;
+  save();
+  showRooms(true);
+  roomsName.focus();
+}
+
+/** Take one away.
+ *
+ *  Only an empty one. Its channels have nowhere else to be — there is no
+ *  unfiled place for a room the way there is for a room with no category — so
+ *  a server with rooms in it says so rather than taking them with it. */
+function deleteServer(id: string): void {
+  const one = servers().find((s) => s.id === id);
+  if (!one) return;
+  const mine = roomsOf(id);
+  if (mine.length) {
+    toast(`#${one.name || "Untitled"} still has ${mine.length} channel${mine.length === 1 ? "" : "s"}`);
+    return;
+  }
+  state.servers = servers().filter((s) => s.id !== id);
+  state.categories = categories().filter((cat) => (cat.server ?? null) !== id);
+  if (state.activeServer === id) state.activeServer = state.servers[0]?.id ?? null;
+  save();
+  if (!state.servers.length) showRooms(false);
+  else renderRoster();
+  toast("Server deleted");
 }
 
 /** Make one, and ask for its name where it will live.
@@ -2046,7 +2171,11 @@ function roomsTile(): string {
  *  that exists to type one word into, so the heading appears immediately and
  *  you name it in place. */
 function newCategory(): void {
-  const cat: Category = { id: uid(), name: "" };
+  const cat: Category = {
+    id: uid(),
+    name: "",
+    ...(state.activeServer ? { server: state.activeServer } : {}),
+  };
   categories().push(cat);
   save();
   renderRoster();
@@ -2222,8 +2351,9 @@ navEl.addEventListener("click", (event) => {
     return;
   }
 
-  if ((event.target as HTMLElement).closest("[data-rooms-open]")) {
-    showRooms(!roomsOpen);
+  const server = (event.target as HTMLElement).closest<HTMLElement>("[data-server]");
+  if (server?.dataset.server) {
+    openServer(server.dataset.server);
     return;
   }
 
@@ -6060,8 +6190,18 @@ interface Budget {
 const hushed = new Set<string>();
 
 const channels = (): Channel[] => (state.channels ??= []);
+const servers = (): Server[] => (state.servers ??= []);
+/** The one whose channels are being shown. */
+const theServer = (): Server | null =>
+  servers().find((one) => one.id === state.activeServer) ?? null;
 /** Rooms, without the threads hanging off them. */
 const rooms = (): Channel[] => channels().filter((c) => !c.from);
+/** The rooms of one server. */
+const roomsOf = (server: string | null): Channel[] =>
+  rooms().filter((ch) => (ch.server ?? null) === server);
+/** Its categories, in the order they were made. */
+const catsOf = (server: string | null): Category[] =>
+  categories().filter((cat) => (cat.server ?? null) === server);
 /** The threads of one room, oldest first. */
 const threadsOf = (ch: Channel): Channel[] =>
   channels().filter((c) => c.from?.channelId === ch.id);
@@ -6840,6 +6980,7 @@ $<HTMLFormElement>("#channel-form").addEventListener("submit", (e) => {
       members: picked,
       messages: [],
       seats: {},
+      ...(state.activeServer ? { server: state.activeServer } : {}),
       ...(filed ? { category: filed } : {}),
     };
     channels().push(made);
@@ -8878,6 +9019,16 @@ function relayout(): void {
  *  agree, and four call sites each doing three of them is how they stop
  *  agreeing. */
 function showRooms(open: boolean): void {
+  // The column is one server's rooms, so opening it means opening a server's.
+  // Every door into it — the tile, the search icon, ⌘B — comes through here, so
+  // this is the one place that has to know there might not be one yet.
+  if (open) {
+    if (!servers().length) {
+      toast("No servers yet — the plus in the rail makes one");
+      return;
+    }
+    if (!theServer()) state.activeServer = servers()[0].id;
+  }
   roomsOpen = open;
   state.rooms = open;
   roomsEl.hidden = !open;
@@ -9509,9 +9660,15 @@ $<HTMLButtonElement>("#btn-monitor").addEventListener("click", () => {
   if (screenPane.hidden) void openScreen();
   else closeScreen();
 });
-// The rail is a list of bots, so its plus makes one — no menu, since there is
-// nothing left to ask. Rooms are made in the column that lists rooms.
-$<HTMLButtonElement>("#btn-new").addEventListener("click", () => openSheet());
+// The rail is a list of bots and of servers, so its plus makes one of those.
+// The rooms inside a server are made from the plus over the rooms.
+$<HTMLButtonElement>("#btn-new").addEventListener("click", (event) => {
+  openMenu(
+    event.currentTarget as HTMLElement,
+    `<button type="button" class="menu-item" data-new="bot">${icon("plus")}New bot</button>` +
+      `<button type="button" class="menu-item" data-new="server">${icon("hash")}New server</button>`,
+  );
+});
 
 $<HTMLButtonElement>("#btn-new-room").addEventListener("click", (event) => {
   // Two things a plus over a list of rooms could mean, and which one is the
@@ -9529,6 +9686,7 @@ menu.addEventListener("click", (event) => {
   closeMenu();
   if (pick.dataset.new === "channel") openChannelSheet(null);
   else if (pick.dataset.new === "category") newCategory();
+  else if (pick.dataset.new === "server") newServer();
   else openSheet();
 });
 
@@ -9591,6 +9749,23 @@ $<HTMLDivElement>("#btn-find").addEventListener("click", () => {
   searchEl.focus();
 });
 
+// The name, as you type it: the tile's initials follow along, which is the
+// only feedback that says which tile this column belongs to.
+roomsName.addEventListener("input", () => {
+  const here = theServer();
+  if (!here) return;
+  here.name = roomsName.value.slice(0, 40);
+  save();
+  renderRoster();
+});
+
+// A name left empty is how you get rid of one, the way it is for a category —
+// but only when it is empty of rooms as well.
+roomsName.addEventListener("blur", () => {
+  const here = theServer();
+  if (here && !here.name.trim()) deleteServer(here.id);
+});
+
 // As you type, and only while hiring: an existing bot's face is its own and
 // renaming it must not redraw it.
 sheetName.addEventListener("input", () => {
@@ -9607,6 +9782,18 @@ navEl.addEventListener("click", (e) => {
 });
 
 navEl.addEventListener("contextmenu", (e) => {
+  const tile = (e.target as HTMLElement).closest<HTMLElement>("[data-server]");
+  if (tile?.dataset.server) {
+    e.preventDefault();
+    const id = tile.dataset.server;
+    openMenu(
+      tile,
+      `<button type="button" class="menu-item" data-rename-server="${id}">${icon("note")}Rename server</button>` +
+        `<button type="button" class="menu-item" data-drop-server="${id}">${icon("trash")}Delete server</button>`,
+    );
+    return;
+  }
+
   const row = (e.target as HTMLElement).closest<HTMLElement>("[data-bot]");
   if (!row) return;
   e.preventDefault();
@@ -9912,6 +10099,19 @@ menu.addEventListener("click", (e) => {
       return;
     }
   }
+
+  const rename = target.closest<HTMLButtonElement>("[data-rename-server]");
+  if (rename?.dataset.renameServer) {
+    // Renaming happens where the name is shown, so this is the same door as
+    // making one: open its column and put the caret in the field.
+    openServer(rename.dataset.renameServer);
+    if (!roomsOpen) showRooms(true);
+    roomsName.focus();
+    roomsName.select();
+  }
+
+  const drop = target.closest<HTMLButtonElement>("[data-drop-server]");
+  if (drop?.dataset.dropServer) deleteServer(drop.dataset.dropServer);
 
   const remove = target.closest<HTMLButtonElement>("[data-remove]");
   if (remove) deleteBot(remove.dataset.remove!);

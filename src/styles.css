@@ -597,6 +597,27 @@ select:focus-visible {
   position: relative;
 }
 
+/* A server's initials, filling the box a glyph would have sat in. Squared off
+   rather than round: a face is a head and a server is a place, and the two
+   should not read as the same kind of thing in one column. */
+.server-mark {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: #fff;
+  border-radius: 10px;
+}
+
+/* Lit, the tile behind it already says which one you are in, so the mark stops
+   competing and the row is what carries the state. */
+.sidebar .rooms-tile .server-mark {
+  font-size: 14px;
+}
+
 .sidebar .bots {
   grid-area: list;
 }
@@ -675,13 +696,44 @@ select:focus-visible {
   align-items: center;
   gap: 6px;
   flex: none;
-  padding: 0 2px 10px;
+  padding: 0 2px 8px;
 }
 
-.rooms .field {
+/* The server's name, and the field you rename it in — the same element, because
+   a heading that turns into an input on some gesture nobody discovers is a
+   heading you cannot rename. It reads as a title until you click it. */
+.rooms__name {
   flex: 1;
   min-width: 0;
-  margin: 0;
+  height: 30px;
+  padding: 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.rooms__name:hover {
+  background: var(--hover);
+}
+
+.rooms__name:focus {
+  background: var(--field);
+  border-color: var(--line);
+  outline: none;
+}
+
+/* `flex: none`, and it matters: the field used to sit in the header's row,
+   where flex-grow meant "take the width left beside the plus". A row down from
+   there it is a child of the column instead, and the same declaration means
+   "take the height left above the list" — which drew a search box a third of
+   the sidebar tall. */
+.rooms .field {
+  flex: none;
+  min-width: 0;
+  margin: 0 2px 10px;
 }
 
 /* The plus is a control in a row of one, not a tile in a rail — so it keeps

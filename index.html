@@ -198,17 +198,26 @@
            the narrow column is what you are in, the one beside it is what is
            in it. Bots are here too, because a face is the only place their
            name appears otherwise. -->
-      <aside class="rooms" id="rooms" hidden data-tauri-drag-region>
+      <!-- No drag region here. The rail is one because it is furniture you
+           cannot type into; this column holds a name field, a search box and a
+           list of buttons, and a drag region over those swallows the clicks
+           meant for them. -->
+      <aside class="rooms" id="rooms" hidden>
+        <!-- The server's name, over its rooms. An input rather than a heading
+             because it is also how you rename it and how you make one: a new
+             server appears here with the caret in it, the way a new category
+             appears in the list with the caret in it. -->
         <div class="rooms__head">
-          <div class="field" id="rooms-find">
-            <svg><use href="#i-search" /></svg>
-            <input id="search" placeholder="Search" spellcheck="false" />
-          </div>
+          <input class="rooms__name" id="rooms-name" placeholder="Server name" spellcheck="false" />
           <!-- Rooms are made where rooms are listed. The rail's plus is for
-               bots, which is what the rail is a list of. -->
+               bots and servers, which is what the rail is a list of. -->
           <button class="icon-btn" id="btn-new-room" title="New channel" aria-label="New channel">
             <svg><use href="#i-plus" /></svg>
           </button>
+        </div>
+        <div class="field" id="rooms-find">
+          <svg><use href="#i-search" /></svg>
+          <input id="search" placeholder="Search" spellcheck="false" />
         </div>
         <div class="rooms__list" id="rooms-list"></div>
       </aside>
