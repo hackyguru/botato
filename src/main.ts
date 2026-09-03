@@ -456,6 +456,7 @@ const navEl = $<HTMLElement>(".nav");
 const roomsEl = $<HTMLElement>("#rooms");
 const roomsList = $<HTMLElement>("#rooms-list");
 const roomsName = $<HTMLInputElement>("#rooms-name");
+const roomsBanner = $<HTMLElement>("#rooms-banner");
 const searchEl = $<HTMLInputElement>("#search");
 const topbarId = $<HTMLDivElement>("#topbar-id");
 const thread = $<HTMLElement>("#thread");
@@ -2055,6 +2056,8 @@ function renderRoster(): void {
   const here = theServer();
   if (document.activeElement !== roomsName) roomsName.value = here?.name ?? "";
   roomsName.placeholder = "Server name";
+  // The same colour its tile is drawn in, washed across the top of its column.
+  roomsBanner.style.setProperty("--tint", here?.color ?? "transparent");
 
   // And the list: the rooms, with their names. Rooms only — a bot is already a
   // face in the rail and putting it here as well would be the same list twice,

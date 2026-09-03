@@ -677,10 +677,34 @@ select:focus-visible {
   flex: none;
   width: 230px;
   min-height: 0;
-  padding: 44px 8px 10px;
+  /* No padding at the top: the banner is full-bleed, and a column that inset
+     it would draw a stripe of colour with a frame of background around it. */
+  padding: 0 8px 10px;
   overflow: hidden;
   background: var(--bg);
   border-right: 1px solid var(--line);
+}
+
+/* The wash of the server's colour, with its name sitting in the bottom of it.
+   The tint comes in as `--tint`, set per server from the same colour its tile
+   in the rail is drawn in — one colour, two places, so the tile and the column
+   are visibly the same server.
+
+   It fades out rather than ending, because a band that stops has an edge, and
+   an edge across a sidebar reads as a divider between two things rather than
+   as the top of one. */
+.rooms__banner {
+  flex: none;
+  /* Back out the column's own gutter: the banner runs to both edges. */
+  margin: 0 -8px 4px;
+  padding: 44px 10px 10px;
+  background-image: linear-gradient(168deg, var(--tint, transparent), transparent 84%);
+  background-image: linear-gradient(
+    168deg,
+    color-mix(in srgb, var(--tint, transparent) 72%, transparent),
+    color-mix(in srgb, var(--tint, transparent) 22%, transparent) 52%,
+    transparent 84%
+  );
 }
 
 .rooms__list {
@@ -696,7 +720,6 @@ select:focus-visible {
   align-items: center;
   gap: 6px;
   flex: none;
-  padding: 0 2px 8px;
 }
 
 /* The server's name, and the field you rename it in — the same element, because
@@ -715,8 +738,10 @@ select:focus-visible {
   border-radius: 8px;
 }
 
+/* A light wash rather than the app's grey hover: over a tint, grey reads as a
+   smear of a different colour. */
 .rooms__name:hover {
-  background: var(--hover);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .rooms__name:focus {
@@ -733,7 +758,7 @@ select:focus-visible {
 .rooms .field {
   flex: none;
   min-width: 0;
-  margin: 0 2px 10px;
+  margin: 0 2px 8px;
 }
 
 /* The plus is a control in a row of one, not a tile in a rail — so it keeps

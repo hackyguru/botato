@@ -203,17 +203,24 @@
            list of buttons, and a drag region over those swallows the clicks
            meant for them. -->
       <aside class="rooms" id="rooms" hidden>
-        <!-- The server's name, over its rooms. An input rather than a heading
-             because it is also how you rename it and how you make one: a new
-             server appears here with the caret in it, the way a new category
-             appears in the list with the caret in it. -->
-        <div class="rooms__head">
-          <input class="rooms__name" id="rooms-name" placeholder="Server name" spellcheck="false" />
-          <!-- Rooms are made where rooms are listed. The rail's plus is for
-               bots and servers, which is what the rail is a list of. -->
-          <button class="icon-btn" id="btn-new-room" title="New channel" aria-label="New channel">
-            <svg><use href="#i-plus" /></svg>
-          </button>
+        <!-- The server's own colour, washed across the top of its column. The
+             tile in the rail already carries it, but the tile is 46 points wide
+             and off to one side; this is the part you are looking at while you
+             read the channel names, and it says which server you are in without
+             anybody having to read anything. -->
+        <div class="rooms__banner" id="rooms-banner">
+          <!-- The server's name, over its rooms. An input rather than a heading
+               because it is also how you rename it and how you make one: a new
+               server appears here with the caret in it, the way a new category
+               appears in the list with the caret in it. -->
+          <div class="rooms__head">
+            <input class="rooms__name" id="rooms-name" placeholder="Server name" spellcheck="false" />
+            <!-- Rooms are made where rooms are listed. The rail's plus is for
+                 bots and servers, which is what the rail is a list of. -->
+            <button class="icon-btn" id="btn-new-room" title="New channel" aria-label="New channel">
+              <svg><use href="#i-plus" /></svg>
+            </button>
+          </div>
         </div>
         <div class="field" id="rooms-find">
           <svg><use href="#i-search" /></svg>
