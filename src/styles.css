@@ -7171,16 +7171,23 @@ label.setting {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 24px 28px 10px;
+  /* Thirty-six above the face. At 24 it sat almost on the progress rail, which
+     made the one thing at the top of the dialog look like part of the frame
+     rather than like somebody standing there. */
+  padding: 36px 28px 10px;
   overflow-y: auto;
 }
 
-/* The one showing you around, over every step rather than on the first. */
+/* The one showing you around, over every step rather than on the first.
+ *
+ * Twenty-two here plus the fourteen a step's title carries makes thirty-six
+ * under the face — the same thirty-six above it. If the title's margin ever
+ * changes, this is the number that has to change with it. */
 .setup__host {
   display: grid;
   place-items: center;
   flex: none;
-  padding-bottom: 16px;
+  padding-bottom: 22px;
 }
 
 .setup__mark {
