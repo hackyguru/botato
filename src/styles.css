@@ -114,6 +114,16 @@ body {
   display: none;
 }
 
+/* Not `display: none`: this one holds the gradients bodies are painted with,
+   and a paint server in a tree that is not rendered does not resolve in
+   WebKit. Nothing to see, nothing taking up room, still referenceable. */
+.paints {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
 svg {
   width: 18px;
   height: 18px;

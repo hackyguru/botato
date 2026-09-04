@@ -9,11 +9,16 @@
   </head>
 
   <body>
-    <svg class="sprite" aria-hidden="true">
-      <!-- The light a body is lit by, declared once. Object bounding box units,
-           so the same two gradients fit every silhouette at every size — a
-           highlight up and to the left, a contact shadow along the bottom. A
-           gradient per face would be a gradient per row of the roster. -->
+    <!-- The light every body is lit by, declared once. Object bounding box
+         units, so the same two gradients fit every silhouette at every size: a
+         highlight up and to the left, a contact shadow along the bottom.
+       -
+         In its own element rather than in the sprite below, and sized to
+         nothing rather than hidden. A paint server inside a `display: none`
+         tree resolves in Chrome and does not in WebKit — which is what this
+         app runs in, so every body came out flat while the design sheet in a
+         browser looked exactly as intended. -->
+    <svg class="paints" aria-hidden="true" width="0" height="0">
       <defs>
         <radialGradient id="face-hi" cx="32%" cy="22%" r="70%">
           <stop offset="0%" stop-color="#fff" stop-opacity="0.34" />
@@ -24,6 +29,9 @@
           <stop offset="100%" stop-color="#000" stop-opacity="0.22" />
         </linearGradient>
       </defs>
+    </svg>
+
+    <svg class="sprite" aria-hidden="true">
       <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
       <symbol id="i-search" viewBox="0 0 24 24">
         <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
