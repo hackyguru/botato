@@ -7157,14 +7157,16 @@ label.setting {
 .sheet--setup {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  /* Wider than it was: this step asks a real question and shows three answers
-     with their trade-offs, and 440px turned every one of them into three lines
-     of wrapped text stacked against the edges. */
-  width: min(540px, 92vw);
-  /* Fixed, so moving between steps does not resize the sheet under the cursor.
-     Sized for the tallest step, which is now the one asking what should answer
-     a bot: three choices and the state of whichever is chosen. */
-  height: min(600px, 88vh);
+  /* The same window the app's own settings get. Setup is the one screen a
+     person meets before anything else, and the tallest step — three answers
+     with their trade-offs, and the state of whichever is chosen — was arriving
+     with its last option below the fold. Nothing here should ever need
+     scrolling to be seen.
+   *
+     Fixed, so moving between steps does not resize the sheet under the
+     cursor. */
+  width: min(1040px, 94vw);
+  height: min(680px, 88vh);
 }
 
 /* Progress as a row of segments rather than "step 2 of 4": it shows how much is
@@ -7221,12 +7223,15 @@ label.setting {
 .setup__step {
   min-height: 0;
   overflow-y: auto;
+  /* A column of readable width down the middle of a wide sheet. The sheet is
+     as wide as the app's settings so that everything fits, not so that a
+     paragraph can be a metre long. */
+  width: min(100%, 620px);
   display: flex;
   /* Its own height, and shrinking rather than overflowing when a step has more
      in it than the dialog has room for — at flex: 1 it stretched, which put
      the group off centre by half the slack. */
   flex: 0 1 auto;
-  width: 100%;
   flex-direction: column;
   align-items: center;
   /* Centred rather than top-aligned: the steps differ in height by a couple of
