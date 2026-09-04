@@ -11499,6 +11499,16 @@ function setupAside(to: SetupStep, from: SetupStep | null): string {
  *  voice as "Ava", "Ava (Enhanced)" or "Ava (Premium)" depending on what has
  *  been downloaded. */
 const HOST_VOICES = [
+  // botcage's own model first, when it is installed: its voices are named for
+  // the speakers they were cut from, so there is no word in them to match on
+  // and a list of macOS names would slide past every one. Without naming one,
+  // the choice fell to whichever sorted first — which is a choice nobody made.
+  "p225",
+  "p228",
+  "p231",
+  "p234",
+  "p240",
+  // Then the machine's own, for an install that has not fetched the model.
   "ava",
   "allison",
   "samantha",
@@ -11538,10 +11548,14 @@ async function findHostVoice(): Promise<void> {
  *  in a hurry is not doing that. Every step hushes whatever the last was still
  *  saying — clicking through four steps should not queue four voices. */
 function narrateStep(step: SetupStep, from: SetupStep | null = null): void {
-  void invoke("hush").catch(() => {});
   if (appSettings().hush) return;
   const said = [setupAside(step, from), SETUP_SAYS[step]].filter(Boolean).join(" ");
   if (!said) return;
+  // No hush of our own first. `speak` silences whatever is talking before it
+  // starts, and the two calls fired side by side were a race: the hush could
+  // land after the speech had begun and cut the line off, or take it entirely.
+  // Which step it happened to hit varied by timing, and that is what an
+  // inconsistent voice sounds like.
   void invoke("speak", { text: said, voice: hostVoice ?? null, rate: 168 }).catch(() => {});
 }
 
