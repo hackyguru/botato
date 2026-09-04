@@ -166,34 +166,13 @@
       <div class="nav">
       <aside class="sidebar" data-tauri-drag-region>
         <div class="sidebar__head" data-tauri-drag-region="deep">
-          <!-- A bot's head: antenna, ears, the app's own dot eyes and soft
-               smile. The first version of this was a blue squircle with a face
-               in it, which is every chat app's icon and said nothing — the
-               antenna is what makes the silhouette recognisable at sixteen
-               pixels, which is the size that decides whether a mark works. -->
+          <!-- The app's own mark, drawn by the same generator its bots are.
+               It was a hand-drawn robot head living outside the face system,
+               which meant the one character that represents botcage was the one
+               character that could not be part of the family — and could never
+               react to anything, being a static path. -->
           <span class="brand" title="botcage">
-            <svg class="brand__mark" viewBox="0 0 24 24" aria-hidden="true">
-              <!-- One colour. The eyes and the mouth are holes in it rather
-                   than marks on top, so the mark is a single fill that takes
-                   whatever colour it is given and shows the surface behind it
-                   through the face. -->
-              <!-- The mask's bounds run past the artwork on every side. Sharing
-                   an edge with the rect it masks leaves that edge half-lit, and
-                   a one-pixel blue square appeared around the mark. -->
-              <mask id="brand-cut" maskUnits="userSpaceOnUse" x="-4" y="-4" width="32" height="32">
-                <rect x="-4" y="-4" width="32" height="32" fill="#000" />
-                <rect x="11.6" y="3.3" width="0.8" height="3.8" rx="0.4" fill="#fff" />
-                <circle cx="12" cy="3.3" r="1.15" fill="#fff" />
-                <rect x="3.7" y="11" width="1.5" height="3.9" rx="0.75" fill="#fff" />
-                <rect x="18.8" y="11" width="1.5" height="3.9" rx="0.75" fill="#fff" />
-                <rect x="4.5" y="5.9" width="15" height="15" rx="4.5" fill="#fff" />
-                <circle cx="9.4" cy="12.5" r="1.4" fill="#000" />
-                <circle cx="14.6" cy="12.5" r="1.4" fill="#000" />
-                <path d="M9.3 15.4Q12 17.9 14.7 15.4" fill="none" stroke="#000"
-                      stroke-width="1.1" stroke-linecap="round" />
-              </mask>
-              <rect x="0" y="0" width="24" height="24" fill="currentColor" mask="url(#brand-cut)" />
-            </svg>
+            <span class="brand__mark" id="brand-mark"></span>
           </span>
           <button class="icon-btn" id="btn-new" title="New bot  (⌘N)" aria-label="New bot">
             <svg><use href="#i-plus" /></svg>

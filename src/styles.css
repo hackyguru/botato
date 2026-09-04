@@ -860,12 +860,20 @@ select:focus-visible {
    app's own mark the one thing in the window that changed size depending on
    how wide the column beside it was. */
 .brand__mark {
+  display: block;
   width: 38px;
   height: 38px;
   flex: none;
-  /* One colour, set here and nowhere else: the mark is a single fill with the
-     face punched out of it. */
-  color: var(--blue);
+}
+
+/* Out of its box on purpose, like every other body in the app: the point on
+   top is drawn above the line the mark sits on. */
+.brand__blob {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  stroke: none;
 }
 
 

@@ -17,7 +17,7 @@ import {
 import { Music } from "./music";
 // Aliased: `bodyOf` in this file is already the DOM body of a message, and a
 // silhouette is not that.
-import { BODIES, body as drawBody, bodyOf as silhouetteOf, gazeOf } from "./blob";
+import { BODIES, body as drawBody, bodyOf as silhouetteOf, gazeOf, markHtml } from "./blob";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import RFB from "@novnc/novnc";
 
@@ -12552,6 +12552,11 @@ void listen<RemoteRequest>("remote-request", async (event) => {
 });
 
 /* --------------------------------------------------------------------- boot */
+
+// The app's own face, in the family its bots belong to. A spike, because the
+// mark it replaces had an antenna and a single point on top is what that is
+// once the drawing is a silhouette rather than a diagram.
+$<HTMLElement>("#brand-mark").innerHTML = markHtml("spike", "#0a84ff");
 
 load();
 setPaneWidth(state.screenWidth ?? SCREEN_PANE.initial);

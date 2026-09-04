@@ -102,6 +102,8 @@ export interface Drawn {
   eyeY: number;
   /** How far apart the eyes go, as a percentage. */
   eyeGap: number;
+  /** And how big each one is. */
+  eyeR: number;
 }
 
 const drawn = new Map<string, Drawn>();
@@ -163,6 +165,7 @@ export function body(name: string): Drawn {
     // on a creature: ears and points are above the eyes, never level with them.
     eyeY: 50 + (bottom - top) * 0.06,
     eyeGap: (right - left) * 0.13,
+    eyeR: (right - left) * 0.075,
   };
   drawn.set(name, made);
   return made;
@@ -170,3 +173,26 @@ export function body(name: string): Drawn {
 
 /** The gaze a body was given, in percent of the box. */
 export const gazeOf = (name: string): number => (SILHOUETTES[bodyOf(name)]?.gaze ?? 0) * 100;
+
+/** The same creature, drawn on its own.
+ *
+ *  For the app's own mark, which is a character in this family rather than a
+ *  logo beside it — the same outline, the same two dots, the same light. It
+ *  carries its features as SVG rather than as the spans a bot's face uses,
+ *  because it has no moods to animate and a logo that could blink would be a
+ *  logo that could blink at the wrong moment. */
+export function markHtml(shape: string, colour: string): string {
+  const made = body(shape);
+  const eye = (x: number) =>
+    `<circle cx="${x.toFixed(1)}" cy="${made.eyeY.toFixed(1)}" ` +
+    `r="${made.eyeR.toFixed(1)}" fill="rgba(0,0,0,0.78)" />`;
+  return (
+    `<svg class="brand__blob" viewBox="0 0 100 100" aria-hidden="true">` +
+    `<path d="${made.d}" fill="${colour}" />` +
+    `<path d="${made.d}" fill="url(#face-lo)" />` +
+    `<path d="${made.d}" fill="url(#face-hi)" />` +
+    eye(50 - made.eyeGap) +
+    eye(50 + made.eyeGap) +
+    `</svg>`
+  );
+}
