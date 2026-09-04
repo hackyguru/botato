@@ -7008,28 +7008,14 @@ const channelWrap = $<HTMLDivElement>("#channel-wrap");
 const channelName = $<HTMLInputElement>("#channel-name");
 const channelPurpose = $<HTMLTextAreaElement>("#channel-purpose");
 const channelMembers = $<HTMLDivElement>("#channel-members");
-const channelCat = $<HTMLSelectElement>("#channel-cat");
 const channelMute = $<HTMLInputElement>("#channel-mute");
 const channelMuteRow = $<HTMLElement>("#channel-mute-row");
-const channelCatRow = $<HTMLLabelElement>("#channel-cat-row");
 
 function openChannelSheet(ch: Channel | null): void {
   editingChannel = ch?.id ?? null;
   channelName.value = ch?.name ?? "";
   channelPurpose.value = ch?.purpose ?? "";
 
-  // Only worth asking once there is somewhere to put it. A picker whose only
-  // entry is "None" is a question with one answer.
-  channelCatRow.hidden = !categories().length;
-  channelCat.innerHTML =
-    `<option value="">None</option>` +
-    categories()
-      .map(
-        (cat) =>
-          `<option value="${cat.id}"${ch?.category === cat.id ? " selected" : ""}>` +
-          `${escapeHtml(cat.name || "Untitled")}</option>`,
-      )
-      .join("");
 
   channelMembers.innerHTML = state.bots.length
     ? state.bots
@@ -7084,8 +7070,6 @@ $<HTMLFormElement>("#channel-form").addEventListener("submit", (e) => {
     (box) => box.value,
   );
 
-  const filed = channelCat.value || undefined;
-
   const existing = channels().find((c) => c.id === editingChannel);
   if (existing) {
     existing.name = name;
@@ -7093,8 +7077,9 @@ $<HTMLFormElement>("#channel-form").addEventListener("submit", (e) => {
     existing.members = picked;
     if (channelMute.checked) existing.muted = true;
     else delete existing.muted;
-    if (filed) existing.category = filed;
-    else delete existing.category;
+    // Its category is left alone. Filing is done by dragging a room onto a
+    // heading, which is where you can see what you are filing it among — this
+    // sheet no longer asks, so it must not answer.
   } else {
     const made: Channel = {
       id: uid(),
@@ -7104,7 +7089,6 @@ $<HTMLFormElement>("#channel-form").addEventListener("submit", (e) => {
       messages: [],
       seats: {},
       ...(state.activeServer ? { server: state.activeServer } : {}),
-      ...(filed ? { category: filed } : {}),
     };
     channels().push(made);
     state.activeChannel = made.id;
