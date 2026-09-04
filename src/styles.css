@@ -4213,7 +4213,7 @@ select:focus-visible {
      different shade from the two panes and the window they open over. */
   background: var(--bg-main);
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: var(--radius-sheet);
   box-shadow: var(--shadow);
   animation: pop 0.14s ease both;
 }
@@ -4361,7 +4361,6 @@ select:focus-visible {
 
 .sheet--about .sheet__body {
   gap: 6px;
-  padding-top: 26px;
 }
 
 .about__name {
@@ -4397,14 +4396,22 @@ select:focus-visible {
   min-width: 208px;
 }
 
+/* One gutter for every dialog in the app, stated once and used by all three
+   rows. It was 20 here, 24 in the settings body, 26 at the top of About and 36
+   in the hiring wizard — four dialogs with four margins, which is what makes a
+   set of windows look assembled rather than designed.
+ *
+ * The close button carries its own padding, hence the smaller number on its
+   side: what lines up down the right edge is the glyph, not the box round it. */
+.sheet {
+  --gutter: 24px;
+}
+
 .sheet__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  /* 20 down both sides, which is the gutter the body and the footer use. The
-     close button carries its own padding, hence the smaller number on its
-     side: what lines up is the glyph, not the box around it. */
-  padding: 16px 14px 10px 20px;
+  padding: 20px calc(var(--gutter) - 8px) 12px var(--gutter);
 }
 
 .sheet__head h2 {
@@ -4422,7 +4429,7 @@ select:focus-visible {
   /* The part that scrolls when there is more than fits: the head stays put and
      the footer's buttons stay reachable. */
   min-height: 0;
-  padding: 10px 20px 20px;
+  padding: 12px var(--gutter) var(--gutter);
   overflow-y: auto;
   /* Room kept for the scrollbar whether or not there is one, so switching to a
      longer tab does not shift every row four pixels left. */
@@ -5488,7 +5495,7 @@ select:focus-visible {
   min-height: 0;
   background: var(--bg-main);
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: var(--radius-sheet);
   overflow: hidden;
 }
 
@@ -5687,7 +5694,7 @@ select:focus-visible {
    independent, which is the point of the column. */
 .sheet--settings .sheet__body {
   align-items: stretch;
-  padding: 0 24px 22px;
+  padding: 0 var(--gutter) var(--gutter);
 }
 
 .market__bar {
@@ -6159,8 +6166,10 @@ a.detail__source:hover {
 }
 
 /* A sheet with one question in it. */
+/* Width, not max-width: every other dialog states one, and a max on its own
+   left this one sized by its contents up to a cap. */
 .sheet--narrow {
-  max-width: 420px;
+  width: min(420px, 92vw);
 }
 
 .sheet--narrow .sheet__body {
@@ -6698,9 +6707,26 @@ label.setting {
 /* The body scrolls between the head and this, and did so against no edge at
    all — a row could be sliced in half by the bottom of the panel and read as
    the end of the sheet rather than as more to come. A rule says which it is. */
+/* A stack of buttons with one gap between them, whatever a dialog puts there.
+   It was a plain block, so two buttons touched and a bare "Delete" sat on the
+   one above it like a caption. Dialogs that want their footer laid out some
+   other way — the routine's row of chips — say so themselves. */
 .sheet__foot {
-  padding: 14px 20px 20px;
+  display: grid;
+  gap: 10px;
+  padding: 16px var(--gutter) var(--gutter);
   border-top: 1px solid var(--line);
+}
+
+/* And a destructive action is a button, not a red sentence. The same shape as
+   the primary it sits with, so the pair reads as two things you could press
+   rather than as a link that lost its paragraph — which is the treatment a
+   bot's settings pane already gives it. */
+.sheet__foot .danger {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 15px;
 }
 
 .btn-primary {
@@ -6801,7 +6827,7 @@ label.setting {
     "body";
   background: var(--bg-main);
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: var(--radius-sheet);
   box-shadow: var(--shadow);
   animation: pop 0.14s ease both;
 }
@@ -7973,9 +7999,22 @@ body.is-dragging {
 
 /* Making one. The sheet's body centres its children by default, which is right
    for a form of short controls and wrong for a column of full-width fields. */
+/* Wider than a prompt, because it is not one: a name, a sentence, a category,
+   a switch with two lines of explanation, and everyone who might be in the
+   room. At 380 the members went two to a row in half a dialog's width and the
+   switch's hint wrapped to three lines. */
+.sheet--channel {
+  width: min(460px, 92vw);
+}
+
 .sheet--channel .sheet__body {
   align-items: stretch;
   text-align: left;
+  /* One rhythm down the column. The gap was ten and the groups then added
+     margins of their own, so the space between two fields and the space
+     between a field and a heading were different numbers arrived at by
+     accident. */
+  gap: 14px;
 }
 .sheet--channel textarea {
   width: 100%;
@@ -8012,8 +8051,10 @@ body.is-dragging {
   font-size: 15px;
 }
 
+/* Its own space above, on top of the body's gap: a heading belongs to what is
+   under it, so the break before it is bigger than the break after. */
 .chan__group {
-  margin: 18px 0 8px 2px;
+  margin: 6px 0 -4px 2px;
   color: var(--text-3);
   font-size: 11px;
   font-weight: 600;
@@ -8023,8 +8064,11 @@ body.is-dragging {
 
 .chan__members {
   display: grid;
-  gap: 2px;
-  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  /* As many as fit rather than always two: at 460 that is still two for a
+     long name and three for short ones, instead of two columns of half-empty
+     rows. */
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 }
 .chan__member {
   display: flex;
