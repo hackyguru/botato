@@ -1096,7 +1096,11 @@ function faceFromName(name: string): Face {
     eyes: EYES[(seed >> 3) % EYES.length],
     brow: BROWS[(seed >> 6) % BROWS.length],
     smile: SMILES[(seed >> 9) % SMILES.length],
-    mark: meant ?? MARKS[(seed >> 12) % MARKS.length],
+    // Nothing worn unless the name asked for it. A hat that was rolled rather
+    // than earned is a hat on a bot that never wanted one — and a blob's whole
+    // case is that the outline carries it, so anything in front of the outline
+    // has to be there for a reason.
+    mark: meant ?? "none",
   };
 }
 

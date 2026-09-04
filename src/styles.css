@@ -1381,55 +1381,46 @@ select:focus-visible {
   background: var(--ink);
 }
 
-/* ---- traits: eyes */
-
-.face[data-eyes="dot"] .face__eyes i {
-  width: calc(var(--u) * 0.12);
-  height: calc(var(--u) * 0.18);
-  border-radius: calc(var(--u) * 0.06);
+/* ---- the resting face
+ *
+ * Two dots and nothing else. A blob carries its identity in its outline, and
+ * every mark added to the front of one takes attention away from the thing
+ * that is actually doing the work — at 34px a brow is two pixels of noise over
+ * a silhouette you could have read across the room.
+ *
+ * The dots are on the spec: diameter 0.15 of the body's width, centres 0.26
+ * apart, both measured from the body that was drawn rather than from the box
+ * it was drawn in. Every eye variant a bot may have chosen is overridden here,
+ * because at rest they are all the same eye.
+ *
+ * Which leaves the brows and the mouth for having something to say. They are
+ * not deleted — they are the whole expressive vocabulary, and a face that
+ * cannot react is a decoration. They are simply silent until a mood fires,
+ * which is what makes a face that does react worth looking at. */
+.face .face__eyes {
+  gap: calc(var(--eye-gap, 13%) * 2 - var(--u) * 0.15);
 }
 
-.face[data-eyes="wide"] .face__eyes i {
-  width: calc(var(--u) * 0.19);
-  height: calc(var(--u) * 0.19);
+.face .face__eyes i {
+  width: calc(var(--u) * 0.15);
+  height: calc(var(--u) * 0.15);
   border-radius: 50%;
 }
 
-.face[data-eyes="sleepy"] .face__eyes i {
-  width: calc(var(--u) * 0.17);
-  height: calc(var(--u) * 0.07);
-  border-radius: calc(var(--u) * 0.04);
+.face .face__brows,
+.face .face__mouth {
+  opacity: 0;
+  transition: opacity 0.16s ease;
 }
 
-.face[data-eyes="tall"] .face__eyes i {
-  width: calc(var(--u) * 0.1);
-  height: calc(var(--u) * 0.26);
-  border-radius: calc(var(--u) * 0.05);
+/* Anything happening, and the face has a face again. */
+.face[data-mood]:not([data-mood="idle"]) .face__brows,
+.face[data-mood]:not([data-mood="idle"]) .face__mouth {
+  opacity: 1;
 }
 
 /* One open, one shut. Asymmetry is the most memorable thing a face this small
    can do. */
-.face[data-eyes="wink"] .face__eyes i {
-  width: calc(var(--u) * 0.15);
-  height: calc(var(--u) * 0.19);
-  border-radius: 50%;
-}
-
-.face[data-eyes="wink"] .face__eyes i:last-child {
-  height: calc(var(--u) * 0.055);
-  border-radius: calc(var(--u) * 0.03);
-  /* It is already closed, so it has nothing to blink with. */
-  animation: none;
-}
-
-.face[data-eyes="ring"] .face__eyes i {
-  width: calc(var(--u) * 0.19);
-  height: calc(var(--u) * 0.19);
-  background: transparent;
-  border: calc(var(--u) * 0.05) solid var(--ink);
-  border-radius: 50%;
-}
-
 /* ---- traits: brows */
 
 .face[data-brow="none"] .face__brows {
