@@ -11488,36 +11488,42 @@ function setupAside(to: SetupStep, from: SetupStep | null): string {
   return "";
 }
 
-/** The voices worth being introduced by, in the order they are wanted.
+/** The voices worth being introduced by, best first.
  *
- *  A warm, unhurried female voice, because this is the one screen where the
- *  app is talking to somebody who has never met it — and because whichever it
- *  lands on, it has to be the same one every step: a narrator that changes
- *  voice between pages is two narrators.
+ *  Two tiers, and the difference between them is why setup can sound like a
+ *  computer. macOS ships *compact* voices — Karen, Samantha, Tessa — which are
+ *  the old formant synthesisers, and downloads *premium* ones on request, which
+ *  are the neural voices Siri uses. A premium voice keeps the same name, so
+ *  asking for "Ava" gets the good one the moment somebody installs it and
+ *  nothing before then.
  *
- *  Matched by the name before any bracket, since a machine lists the same
- *  voice as "Ava", "Ava (Enhanced)" or "Ava (Premium)" depending on what has
- *  been downloaded. */
-/** The voices worth being introduced by, in the order they are wanted.
+ *  The first five are premium-only names: if one answers, this machine has a
+ *  natural voice and that is the end of it. The rest are the compact voices,
+ *  ordered by measurement — each was made to read the same line and scored on
+ *  median pitch, how far that pitch wanders, and spectral centroid, which is
+ *  what "bright" means when somebody calls a voice bright rather than warm:
  *
- *  Chosen by measuring them, not by reading their names. Each was made to read
- *  the same line and scored on three numbers taken from the audio: median
- *  pitch, which says whether the speaker is female; how far that pitch wanders,
- *  which says whether the delivery is steady or animated; and the spectral
- *  centroid, which is what "bright" means when somebody calls a voice bright
- *  rather than warm. Mellow is the low end of the last two.
- *
- *    Karen     193 Hz   steadiest   warm      ← the pick
+ *    Karen     193 Hz   steadiest   warm
  *    Tessa     186 Hz   steady      warmest
  *    Kathy     209 Hz   steady      warm
  *    Moira     186 Hz   steady      middling
  *    Samantha  174 Hz   animated    middling
  *
- *  Samantha is the familiar one and lost on the number that matters most here:
- *  its pitch wanders half again as much as Karen's, which is lively rather than
- *  welcoming. A machine with none of these installed falls through to its own
- *  default, which is the right answer when there is nothing to choose from. */
-const HOST_VOICES = ["karen", "tessa", "kathy", "moira", "samantha"];
+ *  Samantha is the familiar one and loses on the number that matters here: its
+ *  pitch wanders half again as far as Karen's, which is lively rather than
+ *  welcoming. */
+const HOST_VOICES = [
+  "ava",
+  "zoe",
+  "serena",
+  "allison",
+  "nicky",
+  "karen",
+  "tessa",
+  "kathy",
+  "moira",
+  "samantha",
+];
 
 /** Which of them this machine has. `undefined` until asked, `null` once asked
  *  and none found — in which case the machine's own default speaks, rather
