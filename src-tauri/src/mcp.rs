@@ -121,9 +121,16 @@ fn base64(bytes: &[u8]) -> String {
 /// are the whole palette, and a tool that accepts anything would produce a bot
 /// asking for a wizard hat and getting nothing.
 const LOOKS: &[(&str, &[&str])] = &[
+    // The body, which is the whole of what a bot is recognised by at the size a
+    // rail draws one. These are silhouettes rather than corner radii: a drop
+    // has a point, a cat has ears, a moon has a bite out of its side — and a
+    // name you can say out loud is a name a bot can pick from a sentence.
     (
         "head",
-        &["circle", "squircle", "drop", "bean", "egg", "shield"],
+        &[
+            "pebble", "drop", "bean", "cloud", "cat", "hare", "horns", "crest", "tuft", "egg",
+            "spike", "moon",
+        ],
     ),
     ("eyes", &["dot", "wide", "sleepy", "ring", "tall", "wink"]),
     (
@@ -778,7 +785,11 @@ fn base_specs(bot: &Bot) -> Value {
         {
             "name": "set_appearance",
             "description": format!(
-                "Change how you look. You are drawn as a face in botcage: a head, eyes, brows, a                  resting smile, an optional mark, and a colour. Call this when the user asks you                  to change your appearance, or when you want to — you own your own face. Every                  field is optional; the ones you leave out stay as they are.\n\n                 head: {}\neyes: {}\nbrow: {}\nsmile: {}\nmark: {}\n                 colour: a hex value like #30d158.\n\n                 The smile is only how your mouth rests — your expression still follows what you                  are doing, so you will grin when a task lands whatever you set here. Nothing                  outside these words exists: pick the closest thing that does,                  say what you picked, and name what was not available rather than inventing it.                  Hats do exist — cowboy is a cowboy hat, cap is a peaked cap, and halo and bow                  are what they sound like. And if the list genuinely has nothing for what was                  asked, draw it yourself with `parts`: a few shapes will make a monocle, a                  scarf or a crown. Prefer the named marks when one fits — they are tuned to                  read at small sizes — and reach for shapes when none does.",
+                "Change how you look. You are drawn as a face in botcage: a head, eyes, brows, a                  resting smile, an optional mark, and a colour. Call this when the user asks you                  to change your appearance, or when you want to — you own your own face. Every                  field is optional; the ones you leave out stay as they are.\n\n                 head: {}\neyes: {}\nbrow: {}\nsmile: {}\nmark: {}\n                 colour: a hex value like #30d158.\n\n                 The smile is only how your mouth rests — your expression still follows what you                  are doing, so you will grin when a task lands whatever you set here. Nothing                  outside these words exists: pick the closest thing that does,                  say what you picked, and name what was not available rather than inventing it.                  Your head is your outline, and it is what anybody recognises you by \
+                 in a list — pebble and bean and egg are plain, drop and spike come to a \
+                 point, cat and hare and horns have ears, cloud and tuft are lumpy, crest \
+                 leans, and moon has a bite out of one side. \
+                 Hats do exist — cowboy is a cowboy hat, cap is a peaked cap, and halo and bow                  are what they sound like. And if the list genuinely has nothing for what was                  asked, draw it yourself with `parts`: a few shapes will make a monocle, a                  scarf or a crown. Prefer the named marks when one fits — they are tuned to                  read at small sizes — and reach for shapes when none does.",
                 LOOKS[0].1.join(", "), LOOKS[1].1.join(", "), LOOKS[2].1.join(", "),
                 LOOKS[3].1.join(", "), LOOKS[4].1.join(", ")
             ),

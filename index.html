@@ -10,6 +10,20 @@
 
   <body>
     <svg class="sprite" aria-hidden="true">
+      <!-- The light a body is lit by, declared once. Object bounding box units,
+           so the same two gradients fit every silhouette at every size — a
+           highlight up and to the left, a contact shadow along the bottom. A
+           gradient per face would be a gradient per row of the roster. -->
+      <defs>
+        <radialGradient id="face-hi" cx="32%" cy="22%" r="70%">
+          <stop offset="0%" stop-color="#fff" stop-opacity="0.34" />
+          <stop offset="70%" stop-color="#fff" stop-opacity="0" />
+        </radialGradient>
+        <linearGradient id="face-lo" x1="0" y1="0.45" x2="0" y2="1">
+          <stop offset="0%" stop-color="#000" stop-opacity="0" />
+          <stop offset="100%" stop-color="#000" stop-opacity="0.22" />
+        </linearGradient>
+      </defs>
       <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
       <symbol id="i-search" viewBox="0 0 24 24">
         <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />

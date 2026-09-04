@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>botcage — the blob spec</title>
+    <style>
+      :root {
+        --bg: #000;
+        --bg-main: #0c0c0c;
+        --fill-1: rgba(255, 255, 255, 0.035);
+        --fill-2: rgba(255, 255, 255, 0.06);
+        --line: rgba(255, 255, 255, 0.09);
+        --text: #f2f2f7;
+        --text-2: #a1a1a8;
+        --text-3: #6f6f76;
+        --blue: #0a84ff;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 44px 44px 140px;
+        background: var(--bg-main);
+        color: var(--text);
+        font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      h1 { margin: 0 0 10px; font-size: 25px; letter-spacing: -0.015em; }
+      h2 { margin: 0 0 6px; font-size: 18px; letter-spacing: -0.01em; }
+      .lede { max-width: 68ch; margin: 0 0 10px; color: var(--text-2); }
+      .lede b { color: var(--text); font-weight: 600; }
+
+      .panel {
+        margin: 0 0 16px;
+        padding: 26px 28px 28px;
+        background: var(--fill-1);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+      }
+      .cap {
+        margin: 0 0 14px;
+        color: var(--text-3);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      /* The spec, as numbers rather than adjectives. Anything here can be
+         checked against a drawing with a ruler, which is the difference
+         between a specification and a mood. */
+      .spec { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 20px 30px; }
+      .spec dt { color: var(--text); font-size: 13px; font-weight: 600; }
+      .spec dd { margin: 3px 0 0; color: var(--text-2); font-size: 12.5px; }
+      .spec code { color: var(--blue); font-size: 12px; }
+
+      .cast { display: flex; flex-wrap: wrap; gap: 26px; }
+      figure { margin: 0; text-align: center; }
+      figcaption { margin-top: 9px; color: var(--text-3); font-size: 11px; }
+
+      .rail {
+        display: flex; flex-direction: column; align-items: center; gap: 18px;
+        width: 92px; padding: 18px 0; background: var(--bg); border-radius: 14px;
+      }
+      .strip { display: flex; align-items: center; gap: 12px; }
+      .strip--tight { gap: 7px; }
+      .cols { display: flex; gap: 44px; flex-wrap: wrap; align-items: flex-start; }
+
+      .breathe { animation: breathe 3.8s ease-in-out infinite; transform-origin: 50% 62%; }
+      @keyframes breathe { 50% { transform: scale(1.035); } }
+
+      .note {
+        max-width: 70ch; margin: 30px 0 0; padding: 18px 20px;
+        color: var(--text-2); font-size: 13px;
+        background: var(--fill-1); border: 1px solid var(--line); border-radius: 14px;
+      }
+      .note b { color: var(--text); font-weight: 600; }
+      pre {
+        max-height: 210px; margin: 0; padding: 14px 16px; overflow: auto;
+        color: var(--text-2); font-size: 11px; line-height: 1.7;
+        background: #000; border-radius: 12px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>The blob, specified</h1>
+    <p class="lede">
+      One family, drawn to a written rule rather than by hand. Every outline here is
+      <b>generated</b> — a radius that varies with angle, smoothed into one continuous curve and
+      scaled so all twelve carry the same optical mass. That is what makes a set look designed
+      rather than collected: no kinks where two curves were spliced, no character noticeably
+      heavier than the one beside it, and eyes in the same place on every body.
+    </p>
+    <p class="lede" style="margin-bottom: 32px">
+      The paths at the bottom are the real output — they can go straight into the app.
+    </p>
+
+    <section class="panel">
+      <h2>The rule</h2>
+      <p class="cap" style="margin-top:12px">every drawing obeys these</p>
+      <dl class="spec">
+        <div>
+          <dt>Outline</dt>
+          <dd>A radius that varies with angle, <code>r(θ) = 1 + Σ harmonics + Σ lobes</code>, sampled
+            at 96 points and closed with a Catmull-Rom spline. Curvature is continuous everywhere,
+            so there is no seam to find.</dd>
+        </div>
+        <div>
+          <dt>Mass</dt>
+          <dd>Every body is scaled to the same <b>area</b>, not the same width. A pointed shape is
+            wider at the base than a round one so the two weigh the same in a column.</dd>
+        </div>
+        <div>
+          <dt>Eyes</dt>
+          <dd>Diameter <code>0.15</code> of the body's width, centres <code>0.26</code> apart, on a
+            line <code>0.06</code> below the optical centre. Never scaled per character.</dd>
+        </div>
+        <div>
+          <dt>Gaze</dt>
+          <dd>Both pupils shift up to <code>±0.02</code> together — the only per-character licence,
+            and the whole of what makes one look attentive and another dreamy.</dd>
+        </div>
+        <div>
+          <dt>Light</dt>
+          <dd>One source, upper left. A soft highlight at <code>32% 22%</code>, a contact shadow
+            along the lower edge. No outline, ever, at any size.</dd>
+        </div>
+        <div>
+          <dt>Silhouette</dt>
+          <dd>Differences are <b>large and few</b>: a point, a pair of ears, a notch. Nothing that
+            needs more than four pixels to be seen.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="panel">
+      <h2>How one is built</h2>
+      <p class="cap" style="margin-top:12px">the same character, undressed</p>
+      <div id="build" class="strip" style="gap:34px"></div>
+    </section>
+
+    <section class="panel">
+      <h2>The family</h2>
+      <p class="cap" style="margin-top:12px">76 — profile</p>
+      <div id="big" class="cast"></div>
+      <div class="cols" style="margin-top:34px">
+        <div><p class="cap">34 — the rail</p><div id="rail" class="rail"></div></div>
+        <div>
+          <p class="cap">16 — a notification</p><div id="tiny" class="strip strip--tight"></div>
+          <p class="cap" style="margin-top:30px">one shape, every colour</p>
+          <div id="hues" class="strip strip--tight"></div>
+          <p class="cap" style="margin-top:30px">no colour at all</p>
+          <div id="mono" class="strip strip--tight"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Asked for, in words</h2>
+      <p class="lede" style="margin:6px 0 20px">
+        What a bot would get back if it asked. Two layers reach it: the
+        <b>silhouette</b>, which is parameters — a lobe is an ear, a narrow one is a horn, a
+        negative one is a bite — and <b>props</b>, drawn on top against the eye line and the
+        body box rather than against any one shape, so the same glasses land correctly on a
+        drop, a cat and a cloud.
+      </p>
+      <p class="lede" style="margin:0 0 22px">
+        This is a better surface to prompt than what botcage has now. A model is poor at bezier
+        paths and good at "a tall bump at the top" — and <b>every value it can choose still
+        obeys the spec</b>: the generator normalises the mass, keeps the curve smooth and puts
+        the eyes where the rule says. You cannot prompt your way to an off-model character.
+      </p>
+      <div id="asked" class="cast"></div>
+    </section>
+
+    <section class="panel">
+      <h2>The output</h2>
+      <p class="cap" style="margin-top:12px">paths, ready for the app</p>
+      <pre id="out"></pre>
+    </section>
+
+    <p class="note">
+      <b>The test.</b> The last row has no colour in it. However many you can still tell apart
+      there is the identity the silhouette is actually carrying — and that is the number that
+      matters, because colour runs out at seven and bots do not.
+    </p>
+
+    <script>
+      const COLORS = ["#0a84ff", "#8e8e93", "#e0393e", "#ff5a00", "#ffb020", "#30d158", "#bf5af2"];
+      const INK = "rgba(0,0,0,0.8)";
+
+      /* ------------------------------------------------------------ the maths
+         A body is a radius that varies with angle. Harmonics make it organic —
+         a cosine at k=2 gives an oval, k=3 a rounded triangle — and lobes add a
+         single smooth bump at one angle, which is how an ear or a point happens
+         without a corner. Both are continuous functions, so the outline through
+         them cannot kink. That is the whole trick.                            */
+
+      const TAU = Math.PI * 2;
+
+      function radius(shape, t) {
+        let r = 1;
+        for (const [k, amp, phase] of shape.harmonics ?? []) {
+          r += amp * Math.cos(k * t + (phase ?? 0));
+        }
+        for (const [at, amp, width] of shape.lobes ?? []) {
+          // Wrapped to the nearest turn, so a lobe at the top does not tear
+          // where the angle rolls over.
+          let d = t - at;
+          while (d > Math.PI) d -= TAU;
+          while (d < -Math.PI) d += TAU;
+          r += amp * Math.exp(-((d / width) ** 2));
+        }
+        return Math.max(0.16, r);
+      }
+
+      /** Sample, centre, normalise to a fixed area, and close with a spline. */
+      function outline(shape, size) {
+        const N = 96;
+        const pts = [];
+        for (let i = 0; i < N; i++) {
+          const t = (i / N) * TAU - Math.PI / 2; // 0 at the top
+          const r = radius(shape, t);
+          pts.push([Math.cos(t) * r, Math.sin(t) * r]);
+        }
+
+        // Area by the shoelace, so every character can be scaled to weigh the
+        // same. Width would not do it: a shape with ears is taller than it is
+        // heavy, and matching widths makes it loom over its neighbours.
+        let area = 0;
+        for (let i = 0; i < N; i++) {
+          const [x1, y1] = pts[i];
+          const [x2, y2] = pts[(i + 1) % N];
+          area += x1 * y2 - x2 * y1;
+        }
+        area = Math.abs(area) / 2;
+
+        const scale = (size * 0.44) / Math.sqrt(area / Math.PI);
+        const xs = pts.map((p) => p[0] * scale);
+        const ys = pts.map((p) => p[1] * scale);
+        const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+        const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+        const box = [Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)];
+
+        const p = pts.map(([x, y]) => [x * scale - cx + size / 2, y * scale - cy + size / 2]);
+
+        // Catmull-Rom through every sample, converted to cubics: the control
+        // points come from the neighbours, which is what makes the join at each
+        // sample smooth rather than merely continuous.
+        let d = `M${p[0][0].toFixed(2)} ${p[0][1].toFixed(2)}`;
+        for (let i = 0; i < N; i++) {
+          const p0 = p[(i - 1 + N) % N];
+          const p1 = p[i];
+          const p2 = p[(i + 1) % N];
+          const p3 = p[(i + 2) % N];
+          const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+          const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+          d +=
+            `C${c1[0].toFixed(2)} ${c1[1].toFixed(2)},` +
+            `${c2[0].toFixed(2)} ${c2[1].toFixed(2)},` +
+            `${p2[0].toFixed(2)} ${p2[1].toFixed(2)}`;
+        }
+        return { d: d + "Z", box, centre: [size / 2, size / 2] };
+      }
+
+      /* ------------------------------------------------------------ the cast
+         Twelve, differing only in silhouette. The names are what you would call
+         them out loud, which is the point: a shape you can name is a shape you
+         can remember.                                                          */
+
+      const SHAPES = [
+        { n: "pebble", harmonics: [[2, 0.06, 0.4], [3, 0.04, 1.2]], gaze: 0 },
+        { n: "drop", lobes: [[-Math.PI / 2, 0.62, 0.5]], gaze: 0 },
+        { n: "bean", harmonics: [[1, 0.11, 0.9], [2, 0.07, 0]], gaze: 0.014 },
+        { n: "cloud", lobes: [[-2.5, 0.2, 0.42], [-Math.PI / 2, 0.24, 0.42], [-0.64, 0.2, 0.42]], gaze: -0.01 },
+        { n: "cat", lobes: [[-2.1, 0.42, 0.24], [-1.05, 0.42, 0.24]], gaze: 0 },
+        { n: "hare", lobes: [[-1.86, 0.68, 0.15], [-1.28, 0.68, 0.15]], gaze: 0.016 },
+        { n: "horns", lobes: [[-2.5, 0.4, 0.2], [-0.64, 0.4, 0.2]], gaze: -0.014 },
+        { n: "crest", lobes: [[-1.9, 0.52, 0.3]], harmonics: [[1, 0.05, 0]], gaze: 0.01 },
+        { n: "tuft", lobes: [[-1.9, 0.3, 0.17], [-Math.PI / 2, 0.34, 0.17], [-1.24, 0.3, 0.17]], gaze: 0 },
+        { n: "egg", harmonics: [[1, 0.14, Math.PI / 2]], gaze: 0.008 },
+        { n: "spike", lobes: [[-Math.PI / 2, 0.9, 0.16]], gaze: 0 },
+        { n: "moon", lobes: [[0.5, -0.36, 0.6]], harmonics: [[1, 0.07, 0]], gaze: -0.02 },
+      ];
+
+      /* ------------------------------------------------------------ drawing */
+
+      let seq = 0;
+
+      /* ---------------------------------------------------------- the props
+         Worn things, drawn against the body's own measurements — the eye line,
+         the body box — rather than against one silhouette. That is what lets a
+         bot ask for glasses without anybody having to know which shape it is:
+         the same numbers land the same glasses on a drop, a cat and a cloud.
+
+         This is the second of two layers a prompt can reach. The first changes
+         the outline itself (a lobe is an ear); this one puts something on top
+         of whatever outline came out.                                        */
+      const PROPS = {
+        glasses: (m) =>
+          `<g fill="none" stroke="rgba(20,20,22,0.85)" stroke-width="${m.w * 0.028}">` +
+          `<circle cx="${m.lx}" cy="${m.ey}" r="${m.eye * 1.9}" />` +
+          `<circle cx="${m.rx}" cy="${m.ey}" r="${m.eye * 1.9}" />` +
+          `<path d="M${m.lx + m.eye * 1.9} ${m.ey}H${m.rx - m.eye * 1.9}" /></g>`,
+        monocle: (m) =>
+          `<g fill="none" stroke="rgba(20,20,22,0.85)" stroke-width="${m.w * 0.028}">` +
+          `<circle cx="${m.rx}" cy="${m.ey}" r="${m.eye * 2.1}" />` +
+          `<path d="M${m.rx + m.eye * 2.1} ${m.ey}q${m.w * 0.07} ${m.h * 0.12} ${-m.w * 0.02} ${m.h * 0.2}" /></g>`,
+        headphones: (m) =>
+          `<g fill="rgba(28,28,32,0.92)">` +
+          `<path d="M${m.cx - m.w * 0.42} ${m.ey - m.h * 0.02}a${m.w * 0.42} ${m.h * 0.42} 0 0 1 ${m.w * 0.84} 0` +
+          `h${-m.w * 0.08}a${m.w * 0.34} ${m.h * 0.34} 0 0 0 ${-m.w * 0.68} 0Z" />` +
+          `<rect x="${m.cx - m.w * 0.47}" y="${m.ey - m.h * 0.06}" width="${m.w * 0.13}" height="${m.h * 0.2}" rx="${m.w * 0.055}" />` +
+          `<rect x="${m.cx + m.w * 0.34}" y="${m.ey - m.h * 0.06}" width="${m.w * 0.13}" height="${m.h * 0.2}" rx="${m.w * 0.055}" /></g>`,
+        scarf: (m) =>
+          `<g fill="rgba(255,255,255,0.86)">` +
+          `<path d="M${m.cx - m.w * 0.36} ${m.ey + m.h * 0.24}q${m.w * 0.36} ${m.h * 0.14} ${m.w * 0.72} 0` +
+          `l0 ${m.h * 0.1}q${-m.w * 0.36} ${m.h * 0.14} ${-m.w * 0.72} 0Z" />` +
+          `<path d="M${m.cx + m.w * 0.18} ${m.ey + m.h * 0.3}l${m.w * 0.14} ${m.h * 0.22}l${-m.w * 0.11} ${m.h * 0.03}Z" /></g>`,
+        crown: (m) =>
+          `<path d="M${m.cx - m.w * 0.26} ${m.top + m.h * 0.06}l${m.w * 0.09} ${-m.h * 0.13}` +
+          `l${m.w * 0.08} ${m.h * 0.08}l${m.w * 0.09} ${-m.h * 0.12}l${m.w * 0.09} ${m.h * 0.12}` +
+          `l${m.w * 0.08} ${-m.h * 0.08}l${m.w * 0.09} ${m.h * 0.13}Z" fill="#ffd60a" />`,
+        cap: (m) =>
+          `<g fill="rgba(28,28,32,0.9)">` +
+          `<path d="M${m.cx - m.w * 0.32} ${m.top + m.h * 0.09}a${m.w * 0.32} ${m.h * 0.28} 0 0 1 ${m.w * 0.64} 0Z" />` +
+          `<path d="M${m.cx - m.w * 0.34} ${m.top + m.h * 0.08}h${m.w * 0.5}a${m.w * 0.06} ${m.h * 0.05} 0 0 1 0 ${m.h * 0.05}h${-m.w * 0.5}Z" /></g>`,
+      };
+
+      function draw(shape, colour, size, opts = {}) {
+        const { d, box, centre } = outline(shape, 100);
+        const w = box[0];
+        const eyeR = w * 0.075;
+        const gap = w * 0.13;
+        const ey = centre[1] + box[1] * 0.06;
+        const gaze = (opts.plain ? 0 : shape.gaze ?? 0) * w;
+        const id = `s${seq++}`;
+
+        const shading = opts.flat
+          ? ""
+          : `<defs>` +
+            `<radialGradient id="hi${id}" cx="32%" cy="22%" r="70%">` +
+            `<stop offset="0%" stop-color="#fff" stop-opacity="0.34" />` +
+            `<stop offset="70%" stop-color="#fff" stop-opacity="0" />` +
+            `</radialGradient>` +
+            `<linearGradient id="lo${id}" x1="0" y1="0.45" x2="0" y2="1">` +
+            `<stop offset="0%" stop-color="#000" stop-opacity="0" />` +
+            `<stop offset="100%" stop-color="#000" stop-opacity="0.22" />` +
+            `</linearGradient>` +
+            `</defs>`;
+
+        return (
+          `<svg width="${size}" height="${size}" viewBox="0 0 100 100" ` +
+          `class="${opts.motion || ""}" style="display:block;overflow:visible">` +
+          shading +
+          `<path d="${d}" fill="${opts.mono ? "#8e8e93" : colour}" />` +
+          (opts.flat ? "" : `<path d="${d}" fill="url(#lo${id})" /><path d="${d}" fill="url(#hi${id})" />`) +
+          (opts.noEyes
+            ? ""
+            : `<circle cx="${centre[0] - gap + gaze}" cy="${ey}" r="${eyeR}" fill="${INK}" />` +
+              `<circle cx="${centre[0] + gap + gaze}" cy="${ey}" r="${eyeR}" fill="${INK}" />`) +
+          (opts.props ?? [])
+            .map((name) =>
+              PROPS[name]
+                ? PROPS[name]({
+                    cx: centre[0],
+                    ey,
+                    eye: eyeR,
+                    lx: centre[0] - gap,
+                    rx: centre[0] + gap,
+                    w,
+                    h: box[1],
+                    top: centre[1] - box[1] / 2,
+                  })
+                : "",
+            )
+            .join("") +
+          (opts.guides
+            ? `<circle cx="${centre[0]}" cy="${centre[1]}" r="1.6" fill="#0a84ff" />` +
+              `<line x1="8" y1="${ey}" x2="92" y2="${ey}" stroke="#0a84ff" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.8" />` +
+              `<line x1="${centre[0]}" y1="6" x2="${centre[0]}" y2="94" stroke="#0a84ff" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.5" />`
+            : "") +
+          `</svg>`
+        );
+      }
+
+      /** The 96 samples the outline is built from, so the rule is visible. */
+      function dots(shape, size) {
+        let out = "";
+        for (let i = 0; i < 96; i += 2) {
+          const t = (i / 96) * TAU - Math.PI / 2;
+          const r = radius(shape, t);
+          out += `<circle cx="${(50 + Math.cos(t) * r * 30).toFixed(1)}" cy="${(52 + Math.sin(t) * r * 30).toFixed(1)}" r="1.1" fill="#0a84ff" />`;
+        }
+        return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" style="display:block">${out}</svg>`;
+      }
+
+      /* ------------------------------------------------------------ the page */
+
+      const cat = SHAPES[4];
+      document.getElementById("build").innerHTML =
+        `<figure>${dots(cat, 96)}<figcaption>1 · r(θ), sampled</figcaption></figure>` +
+        `<figure>${draw(cat, "#30d158", 96, { flat: true, noEyes: true })}<figcaption>2 · closed, area-scaled</figcaption></figure>` +
+        `<figure>${draw(cat, "#30d158", 96, { flat: true, guides: true })}<figcaption>3 · eyes on the rule</figcaption></figure>` +
+        `<figure>${draw(cat, "#30d158", 96)}<figcaption>4 · one light</figcaption></figure>`;
+
+      document.getElementById("big").innerHTML = SHAPES.map(
+        (s, n) =>
+          `<figure>${draw(s, COLORS[n % COLORS.length], 76, { motion: "breathe" })}` +
+          `<figcaption>${s.n}</figcaption></figure>`,
+      ).join("");
+
+      document.getElementById("rail").innerHTML = SHAPES.slice(0, 6)
+        .map((s, n) => draw(s, COLORS[n % COLORS.length], 34, { motion: "breathe" }))
+        .join("");
+
+      document.getElementById("tiny").innerHTML = SHAPES.map((s, n) =>
+        draw(s, COLORS[n % COLORS.length], 16),
+      ).join("");
+
+      document.getElementById("hues").innerHTML = COLORS.map((c) => draw(SHAPES[1], c, 34)).join("");
+
+      document.getElementById("mono").innerHTML = SHAPES.map((s) =>
+        draw(s, "", 34, { mono: true, plain: true }),
+      ).join("");
+
+      /* What a prompt turns into. The left column is what somebody typed; the
+         middle is the whole of what the model has to produce, and there is
+         nothing in it that can be malformed. */
+      const ASKED = [
+        {
+          say: "“give yourself tall rabbit ears”",
+          spec: { lobes: [[-1.86, 0.68, 0.15], [-1.28, 0.68, 0.15]] },
+          props: [],
+        },
+        {
+          say: "“a single spike on top”",
+          spec: { lobes: [[-Math.PI / 2, 0.9, 0.16]] },
+          props: [],
+        },
+        {
+          say: "“round, and put glasses on me”",
+          spec: { harmonics: [[2, 0.05, 0.4]] },
+          props: ["glasses"],
+        },
+        {
+          say: "“I take support calls”",
+          spec: { harmonics: [[2, 0.06, 0]] },
+          props: ["headphones"],
+        },
+        {
+          say: "“cat ears and a scarf”",
+          spec: { lobes: [[-2.1, 0.42, 0.24], [-1.05, 0.42, 0.24]] },
+          props: ["scarf"],
+        },
+        {
+          say: "“I run the place”",
+          spec: { harmonics: [[1, 0.1, 0.9], [2, 0.06, 0]] },
+          props: ["crown"],
+        },
+        {
+          say: "“a bite out of my side”",
+          spec: { lobes: [[0.5, -0.36, 0.6]], harmonics: [[1, 0.07, 0]] },
+          props: [],
+        },
+        {
+          say: "“cap, and look to the left”",
+          spec: { harmonics: [[2, 0.05, 0]], gaze: -0.02 },
+          props: ["cap"],
+        },
+      ];
+
+      document.getElementById("asked").innerHTML = ASKED.map(
+        (a, n) =>
+          `<figure style="width:150px">` +
+          draw(a.spec, COLORS[n % COLORS.length], 76, { props: a.props }) +
+          `<figcaption style="line-height:1.5">${a.say}</figcaption></figure>`,
+      ).join("");
+
+      document.getElementById("out").textContent = SHAPES.map(
+        (s) => `${s.n}:\n  ${outline(s, 100).d}`,
+      ).join("\n\n");
+    </script>
+  </body>
+</html>

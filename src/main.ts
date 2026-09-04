@@ -15,6 +15,9 @@ import {
 } from "@tauri-apps/plugin-notification";
 
 import { Music } from "./music";
+// Aliased: `bodyOf` in this file is already the DOM body of a message, and a
+// silhouette is not that.
+import { BODIES, body as drawBody, bodyOf as silhouetteOf, gazeOf } from "./blob";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import RFB from "@novnc/novnc";
 
@@ -1026,7 +1029,10 @@ interface Face {
    at all — an antenna, a tuft, a pair of cheeks. Six to the fifth is 7,776
    before colour, and the mark is what makes a bot describable in three words:
    "the green one with the antenna". */
-const HEADS = ["circle", "squircle", "drop", "bean", "egg", "shield"];
+/* The bodies, from src/blob.ts. Six heads used to live here and they were one
+   square with a different corner radius each time — so identity was carried
+   almost entirely by colour, and colour runs out at seven. */
+const HEADS = BODIES;
 const EYES = ["dot", "wide", "sleepy", "ring", "tall", "wink"];
 const BROWS = ["none", "flat", "angled", "raised", "thick", "quirk"];
 const SMILES = ["soft", "wide", "curl", "flat", "open", "tiny"];
@@ -1303,12 +1309,26 @@ function faceHtml(
   // Every face carries every part, whatever its traits say — a mouth a bot does
   // not normally show is hidden rather than absent, so a mood can still open
   // one in surprise without the renderer knowing that mood exists.
+  // The body: one generated outline, one light. Behind the features rather
+  // than around them, so everything a mood does to an eye or a mouth still
+  // works — the shape changed, the expression did not.
+  const shape = silhouetteOf(face.head);
+  const drawn = drawBody(shape);
   return (
     `<span class="face${cls}" data-bot="${bot.id}"${alive ? ` data-mood="${mood}"` : ""}` +
-    ` data-head="${face.head}" data-eyes="${face.eyes}"` +
+    ` data-head="${shape}" data-eyes="${face.eyes}"` +
     ` data-brow="${face.brow}" data-smile="${face.smile}" data-mark="${face.mark}"` +
-    // Its own blink rhythm, so a roster does not blink in unison.
-    ` style="--skin:${bot.color};--beat:${(seedOf(bot.id) % 1700) / 1000 + 2.2}s">` +
+    // Its own blink rhythm, so a roster does not blink in unison. The eye line
+    // comes from the body that was drawn: a teardrop's face sits lower on it
+    // than a pebble's does, and a pair of ears is above the eyes, not level.
+    ` style="--skin:${bot.color};--beat:${(seedOf(bot.id) % 1700) / 1000 + 2.2}s` +
+    `;--eye-y:${drawn.eyeY.toFixed(1)}%;--eye-gap:${drawn.eyeGap.toFixed(1)}%` +
+    `;--gaze:${gazeOf(shape).toFixed(2)}%">` +
+    `<svg class="face__body" viewBox="0 0 100 100" aria-hidden="true">` +
+    `<path d="${drawn.d}" fill="var(--skin)" />` +
+    `<path d="${drawn.d}" fill="url(#face-lo)" />` +
+    `<path d="${drawn.d}" fill="url(#face-hi)" />` +
+    `</svg>` +
     `<span class="face__brows"><i></i><i></i></span>` +
     `<span class="face__eyes"><i></i><i></i></span>` +
     `<span class="face__mouth"></span>` +

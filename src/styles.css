@@ -1309,8 +1309,26 @@ select:focus-visible {
   vertical-align: middle;
   width: var(--u);
   height: var(--u);
-  background: var(--skin);
+  /* No colour of its own any more: the body is an SVG behind the features, so
+     that a silhouette can be a teardrop or a pair of ears rather than a square
+     with its corners rounded off. What is worn on top — brows, eyes, a mouth,
+     a hat — is unchanged. */
   transform-origin: 50% 85%;
+}
+
+/* The body. Behind everything, filling the face exactly, and allowed out of its
+   box: ears and points are drawn above the top edge on purpose. */
+.face__body {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  /* Every svg in this app is an icon, so the global rule strokes them in the
+     current colour and fills them with nothing. A body is the other way round,
+     and without this each one wore a white outline traced round its own
+     silhouette — ears included. */
+  stroke: none;
 }
 
 /* Small enough to sit inside a calendar tile beside a name. Every pixel here
@@ -1329,30 +1347,6 @@ select:focus-visible {
 
 /* ---- traits: the head */
 
-.face[data-head="circle"] {
-  border-radius: 50%;
-}
-
-.face[data-head="squircle"] {
-  border-radius: 30%;
-}
-
-.face[data-head="drop"] {
-  border-radius: 50% 50% 50% 22%;
-}
-
-.face[data-head="bean"] {
-  border-radius: 46% 54% 40% 60% / 56% 44% 56% 44%;
-}
-
-.face[data-head="egg"] {
-  border-radius: 50% 50% 46% 46% / 60% 60% 40% 40%;
-}
-
-.face[data-head="shield"] {
-  border-radius: 34% 34% 50% 50% / 26% 26% 62% 62%;
-}
-
 /* ---- the parts every face has, whether or not its traits show them */
 
 .face__eyes,
@@ -1365,12 +1359,20 @@ select:focus-visible {
   width: 100%;
 }
 
+/* Placed against the body that was drawn, not the box it was drawn in. A
+   teardrop's face sits lower than a pebble's, and a pair of ears is above the
+   eyes rather than level with them — `--eye-y` carries that from the generator,
+   and the brows and the mouth are offsets from it so the three cannot drift
+   apart. `--gaze` shifts them together, which is the whole of what makes one
+   bot look attentive and another dreamy. */
 .face__eyes {
-  top: 42%;
+  top: var(--eye-y, 42%);
+  transform: translateX(var(--gaze, 0));
 }
 
 .face__brows {
-  top: 31%;
+  top: calc(var(--eye-y, 42%) - 11%);
+  transform: translateX(var(--gaze, 0));
 }
 
 .face__eyes i,
@@ -1478,7 +1480,7 @@ select:focus-visible {
    through every success they ever had. Moods below override all of this. */
 .face__mouth {
   position: absolute;
-  top: 64%;
+  top: calc(var(--eye-y, 42%) + 22%);
   left: 50%;
   width: calc(var(--u) * 0.26);
   height: calc(var(--u) * 0.1);
