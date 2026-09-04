@@ -11499,15 +11499,31 @@ function setupAside(to: SetupStep, from: SetupStep | null): string {
  *  voice as "Ava", "Ava (Enhanced)" or "Ava (Premium)" depending on what has
  *  been downloaded. */
 const HOST_VOICES = [
-  // botcage's own model first, when it is installed: its voices are named for
-  // the speakers they were cut from, so there is no word in them to match on
-  // and a list of macOS names would slide past every one. Without naming one,
-  // the choice fell to whichever sorted first — which is a choice nobody made.
+  // botcage's own model first, when it is installed. Its voices are named for
+  // the speakers they were cut from — p225, p228 — so there is no word in them
+  // to match on, and these five were chosen by measuring the samples rather
+  // than by reading the names.
+  //
+  // Every one of the twenty-three was scored on three numbers taken from its
+  // own audio: median pitch, which says whether the speaker is female; how far
+  // the pitch wanders, which says whether the delivery is steady or animated;
+  // and the spectral centroid, which is what "bright" means when you say a
+  // voice is bright rather than warm. Mellow is the low end of the last two.
+  //
+  //   p249  175 Hz   steady    warm     ← the pick
+  //   p225  180 Hz   steady    warm
+  //   p231  183 Hz   animated  warmest
+  //   p282  193 Hz   steady    middling
+  //   p267  187 Hz   animated  warm
+  //
+  // The eleven left out are either male (p237 at 80 Hz, p246 at 103) or bright
+  // and animated in a way that reads as cheerful rather than welcoming — p261
+  // at 235 Hz is the far end of that.
+  "p249",
   "p225",
-  "p228",
   "p231",
-  "p234",
-  "p240",
+  "p282",
+  "p267",
   // Then the machine's own, for an install that has not fetched the model.
   "ava",
   "allison",
