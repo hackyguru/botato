@@ -11498,45 +11498,26 @@ function setupAside(to: SetupStep, from: SetupStep | null): string {
  *  Matched by the name before any bracket, since a machine lists the same
  *  voice as "Ava", "Ava (Enhanced)" or "Ava (Premium)" depending on what has
  *  been downloaded. */
-const HOST_VOICES = [
-  // botcage's own model first, when it is installed. Its voices are named for
-  // the speakers they were cut from — p225, p228 — so there is no word in them
-  // to match on, and these five were chosen by measuring the samples rather
-  // than by reading the names.
-  //
-  // Every one of the twenty-three was scored on three numbers taken from its
-  // own audio: median pitch, which says whether the speaker is female; how far
-  // the pitch wanders, which says whether the delivery is steady or animated;
-  // and the spectral centroid, which is what "bright" means when you say a
-  // voice is bright rather than warm. Mellow is the low end of the last two.
-  //
-  //   p249  175 Hz   steady    warm     ← the pick
-  //   p225  180 Hz   steady    warm
-  //   p231  183 Hz   animated  warmest
-  //   p282  193 Hz   steady    middling
-  //   p267  187 Hz   animated  warm
-  //
-  // The eleven left out are either male (p237 at 80 Hz, p246 at 103) or bright
-  // and animated in a way that reads as cheerful rather than welcoming — p261
-  // at 235 Hz is the far end of that.
-  "p249",
-  "p225",
-  "p231",
-  "p282",
-  "p267",
-  // Then the machine's own, for an install that has not fetched the model.
-  "ava",
-  "allison",
-  "samantha",
-  "serena",
-  "susan",
-  "zoe",
-  "karen",
-  "moira",
-  "tessa",
-  "fiona",
-  "kathy",
-];
+/** The voices worth being introduced by, in the order they are wanted.
+ *
+ *  Chosen by measuring them, not by reading their names. Each was made to read
+ *  the same line and scored on three numbers taken from the audio: median
+ *  pitch, which says whether the speaker is female; how far that pitch wanders,
+ *  which says whether the delivery is steady or animated; and the spectral
+ *  centroid, which is what "bright" means when somebody calls a voice bright
+ *  rather than warm. Mellow is the low end of the last two.
+ *
+ *    Karen     193 Hz   steadiest   warm      ← the pick
+ *    Tessa     186 Hz   steady      warmest
+ *    Kathy     209 Hz   steady      warm
+ *    Moira     186 Hz   steady      middling
+ *    Samantha  174 Hz   animated    middling
+ *
+ *  Samantha is the familiar one and lost on the number that matters most here:
+ *  its pitch wanders half again as much as Karen's, which is lively rather than
+ *  welcoming. A machine with none of these installed falls through to its own
+ *  default, which is the right answer when there is nothing to choose from. */
+const HOST_VOICES = ["karen", "tessa", "kathy", "moira", "samantha"];
 
 /** Which of them this machine has. `undefined` until asked, `null` once asked
  *  and none found — in which case the machine's own default speaks, rather
@@ -11546,7 +11527,9 @@ let hostVoice: string | null | undefined;
 async function findHostVoice(): Promise<void> {
   if (hostVoice !== undefined) return;
   hostVoice = null;
-  const all = await invoke<string[]>("voices", { language: "en" }).catch(() => []);
+  // The machine's own, not botcage's: the model is what varies, so a name
+  // taken from its list would be a name for something that cannot be pinned.
+  const all = await invoke<string[]>("steady_voices", { language: "en" }).catch(() => []);
   const bare = (v: string) => (v.split("(")[0] ?? "").trim().toLowerCase();
   for (const want of HOST_VOICES) {
     const found = all.find((v) => bare(v) === want);
@@ -11572,7 +11555,16 @@ function narrateStep(step: SetupStep, from: SetupStep | null = null): void {
   // land after the speech had begun and cut the line off, or take it entirely.
   // Which step it happened to hit varied by timing, and that is what an
   // inconsistent voice sounds like.
-  void invoke("speak", { text: said, voice: hostVoice ?? null, rate: 168 }).catch(() => {});
+  // `steady`, which is the whole point: botcage's own model re-clones its
+  // reference on every call and lands somewhere different each time — 224 Hz
+  // on one reading of a line and 203 on the next, measured. A bot may sound
+  // like that. A narrator crossing five screens may not.
+  void invoke("speak", {
+    text: said,
+    voice: hostVoice ?? null,
+    rate: 168,
+    steady: true,
+  }).catch(() => {});
 }
 
 function showStep(to: SetupStep): void {
@@ -11698,11 +11690,8 @@ async function installVoice(): Promise<void> {
     }
     voiceNames = [];
     await knownVoices();
-    // The machine's voices are no longer what speaks: botcage's own model is
-    // installed and answers for `speak` from here on, and the name picked from
-    // the system list means nothing to it. Asked again, answered again.
-    hostVoice = undefined;
-    await findHostVoice();
+    // The narrator is unaffected: it asks for the machine's own voice, which
+    // installing a model does not change.
   } catch (err) {
     toast(String(err));
   }

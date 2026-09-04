@@ -1320,10 +1320,14 @@ async fn speak(
     text: String,
     voice: Option<String>,
     rate: Option<u32>,
+    steady: Option<bool>,
 ) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || voice::speak(&app, &text, voice.as_deref(), rate))
-        .await
-        .map_err(|e| format!("speech thread: {e}"))?
+    let steady = steady.unwrap_or(false);
+    tauri::async_runtime::spawn_blocking(move || {
+        voice::speak(&app, &text, voice.as_deref(), rate, steady)
+    })
+    .await
+    .map_err(|e| format!("speech thread: {e}"))?
 }
 
 /// Stop talking — the call ended, or you have heard enough.
@@ -1336,6 +1340,15 @@ fn hush() {
 #[tauri::command]
 fn voices(app: AppHandle, language: String) -> Vec<String> {
     voice::voices(&app, &language)
+}
+
+/// The machine's own voices, whatever botcage has installed of its own.
+///
+/// A separate list because it answers a different question: `voices` asks what
+/// a bot can sound like, and this asks what will sound the same twice.
+#[tauri::command]
+fn steady_voices(language: String) -> Vec<String> {
+    voice::system_voices(&language)
 }
 
 /// Forget the conversation, keeping the bot.
@@ -1716,6 +1729,7 @@ pub fn run() {
             backup_restore,
             take_routines,
             speak,
+            steady_voices,
             hush,
             voices,
             speech_ready,

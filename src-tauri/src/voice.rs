@@ -317,11 +317,21 @@ fn espeak_voices(want: &str) -> Vec<String> {
 /// Blocking on purpose — the caller is on a background thread and wants to
 /// know when the sound stops, because that is when a talking face stops
 /// talking. Interrupting it counts as finishing.
+/// Speak, and if `steady` is set do it with the machine's own voice.
+///
+/// botcage's model is zero-shot: it re-clones a reference recording on every
+/// call, and two readings of one line come out at different pitches — measured
+/// on this text, 224 Hz one time and 203 the next, against a reference sitting
+/// at 175. For a bot's replies that variation is the price of a voice that
+/// sounds like a person. For a narrator who has to be the same person across
+/// five screens of setup it is the one thing that must not happen, and the
+/// machine's own synthesiser is identical every time by construction.
 pub fn speak(
     app: &tauri::AppHandle,
     text: &str,
     voice: Option<&str>,
     rate: Option<u32>,
+    steady: bool,
 ) -> Result<(), String> {
     hush();
     let text = text.trim();
@@ -343,7 +353,7 @@ pub fn speak(
         }
     }
 
-    if crate::speech::ready(app) {
+    if !steady && crate::speech::ready(app) {
         let (cmd, wav) = crate::speech::command(app, voice, text)?;
         let said = rendered(app, cmd, &wav);
         let _ = std::fs::remove_file(&wav);
