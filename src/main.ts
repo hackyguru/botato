@@ -2495,10 +2495,15 @@ function lastSaid(messages: Message[]): string {
 }
 
 function badgeHtml(news: { unread: number; mentions: number }): string {
+  const many = (n: number) => (n > 99 ? "99+" : String(n));
   if (news.mentions) {
-    return `<span class="row-badge">${news.mentions > 9 ? "9+" : news.mentions}</span>`;
+    return `<span class="row-badge">${many(news.mentions)}</span>`;
   }
-  return news.unread ? `<span class="row-dot"></span>` : "";
+  // Counted, not just marked. A dot says there is something in here; a number
+  // says whether that is one line or forty, which is the difference between
+  // opening it now and opening it later. It keeps the dot's colours, because
+  // it means what the dot meant.
+  return news.unread ? `<span class="row-badge row-badge--quiet">${many(news.unread)}</span>` : "";
 }
 
 /** A small drawing per lesson, which moves when the card is hovered or

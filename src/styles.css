@@ -388,7 +388,6 @@ select:focus-visible {
   position: relative;
 }
 
-.sidebar .row-dot,
 .sidebar .row-badge,
 .sidebar .chan-row__live {
   position: absolute;
@@ -414,17 +413,11 @@ select:focus-visible {
   animation: none;
 }
 
-/* One dot to a corner. A room that is busy is also, almost always, unread —
+/* One mark to a corner. A room that is busy is also, almost always, unread —
    and two marks stacked on the same corner is a smudge. What is happening now
    wins over what happened a moment ago. */
-.sidebar .chan-row:has(.chan-row__live) .row-dot {
+.sidebar .chan-row:has(.chan-row__live) .row-badge--quiet {
   display: none;
-}
-
-.sidebar .row-dot {
-  width: 12px;
-  height: 12px;
-  background: var(--blue);
 }
 
 /* A mention keeps its count, which is the whole difference between it and a
@@ -8439,13 +8432,18 @@ body.is-dragging {
   font-variant-numeric: tabular-nums;
 }
 
-.row-dot {
-  flex: none;
-  width: 7px;
-  height: 7px;
-  margin-right: 7px;
-  background: var(--text-2);
-  border-radius: 50%;
+/* Unread, with its count. Quieter than a mention: red is for somebody having
+   addressed you by name, and a room that has merely been talking must not ask
+   for the same attention. In the rail it takes the blue the dot had there,
+   which is what a corner mark on a face has always meant. */
+.row-badge--quiet {
+  color: var(--text);
+  background: var(--fill-3);
+}
+
+.sidebar .row-badge--quiet {
+  color: #fff;
+  background: var(--blue);
 }
 
 /* An unread row reads first. Only the name brightens — the whole row going
