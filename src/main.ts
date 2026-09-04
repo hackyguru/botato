@@ -10843,7 +10843,10 @@ const setupMute = $<HTMLButtonElement>("#setup-mute");
 function paintMute(): void {
   const off = Boolean(appSettings().hush);
   setupMute.querySelector("use")?.setAttribute("href", off ? "#i-hush" : "#i-sound");
-  setupMute.title = off ? "Play music" : "Stop the music";
+  // It governs Guide's voice as well as the music now, so it stops saying
+  // "music": a switch that turns off more than it names is a switch nobody
+  // finds when the thing they want stopped is the other one.
+  setupMute.title = off ? "Turn the sound on" : "Turn the sound off";
   setupMute.setAttribute("aria-label", setupMute.title);
   setupMute.classList.toggle("is-off", off);
 }
@@ -10853,8 +10856,14 @@ setupMute.addEventListener("click", () => {
   state.app = { ...appSettings(), hush: off };
   save();
   paintMute();
-  if (off) music.stop();
-  else void music.start();
+  if (off) {
+    music.stop();
+    // Silence means silence, not "silence from the next step onwards".
+    void invoke("hush").catch(() => {});
+  } else {
+    void music.start();
+    narrateStep(setupAt);
+  }
 });
 
 async function openSetup(at: SetupStep = "welcome"): Promise<void> {
@@ -10897,6 +10906,9 @@ async function openSetup(at: SetupStep = "welcome"): Promise<void> {
 function closeSetup(): void {
   setupWrap.hidden = true;
   music.stop();
+  // A voice that carries on into the app after the dialog it belonged to has
+  // gone is a voice coming from nowhere.
+  void invoke("hush").catch(() => {});
   stopSignInWatch();
   // Shown once. Someone who skipped a step can reopen it from the account menu,
   // and a missing CLI still warns on its own.
@@ -11420,6 +11432,38 @@ let setupWay: "on" | "back" = "on";
  *  Both steps are on screen while it moves: the one leaving is taken out of the
  *  flow so the one arriving can occupy the same place, and put back afterwards.
  *  Without that they stack and the sheet lurches. */
+/** What Guide says on each step.
+ *
+ *  Written to be heard rather than read: shorter than what is on screen, and
+ *  saying the thing the step is for rather than reciting the paragraph beside
+ *  it. A voice repeating text you are already reading is a voice you turn off.
+ *
+ *  It speaks through the same command a bot's voice does, which falls back to
+ *  the machine's own — `say` here, espeak on Linux — when botcage's speech
+ *  model is not installed. Which it never is on the run that matters: this is
+ *  the screen that offers to install it. */
+const SETUP_SAYS: Record<SetupStep, string> = {
+  welcome: "Hi. I'm Guide. Tell me what to call you, and I'll show you around.",
+  answers: "First, what should answer for us. Any of these works, and you can change it later.",
+  engine: "Bots can have a computer of their own — a Linux desktop you can watch them use. It's optional.",
+  voice: "And whether we talk out loud. That's what you're hearing now.",
+  done: "That's everything. Make a bot, or ask me — I'm first in the rail.",
+};
+
+/** Say a step, unless the sound is off.
+ *
+ *  In Guide's own voice, so the narrator here and the bot in the roster are
+ *  audibly the same one. Every step hushes whatever the last was still saying:
+ *  clicking through four steps should not queue four voices. */
+function narrateStep(step: SetupStep): void {
+  void invoke("hush").catch(() => {});
+  if (appSettings().hush) return;
+  const said = SETUP_SAYS[step];
+  if (!said) return;
+  const host = state.bots.find((b) => b.guide);
+  void invoke("speak", { text: said, voice: host?.voice ?? null }).catch(() => {});
+}
+
 function showStep(to: SetupStep): void {
   const all = [...setupWrap.querySelectorAll<HTMLElement>(".setup__step")];
   const next = all.find((s) => s.dataset.step === to);
@@ -11433,6 +11477,7 @@ function showStep(to: SetupStep): void {
 
   const from = all.find((s) => s.dataset.step === setupShown);
   setupShown = to;
+  narrateStep(to);
 
   for (const s of all) {
     if (s !== next && s !== from) s.hidden = true;
