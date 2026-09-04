@@ -1418,17 +1418,8 @@ select:focus-visible {
 }
 
 .face .face__brows,
-.face .face__mouth {
-  opacity: 0;
-  transition: opacity 0.16s ease;
-}
-
 /* Anything happening, and the face has a face again. */
 .face[data-mood]:not([data-mood="idle"]) .face__brows,
-.face[data-mood]:not([data-mood="idle"]) .face__mouth {
-  opacity: 1;
-}
-
 /* One open, one shut. Asymmetry is the most memorable thing a face this small
    can do. */
 /* ---- traits: brows */
@@ -1474,61 +1465,6 @@ select:focus-visible {
 }
 
 /* ---- traits: mouth */
-
-/* ---- the mouth is an expression, not a trait
-   What varies per bot is only *how* it smiles at rest — never whether it does.
-   A mouth in the trait table meant bots born frowning, wearing that frown
-   through every success they ever had. Moods below override all of this. */
-.face__mouth {
-  position: absolute;
-  top: calc(var(--eye-y, 42%) + 22%);
-  left: 50%;
-  width: calc(var(--u) * 0.26);
-  height: calc(var(--u) * 0.1);
-  transform: translateX(-50%);
-}
-
-.face[data-smile="soft"] .face__mouth {
-  width: calc(var(--u) * 0.24);
-  border-bottom: calc(var(--u) * 0.05) solid var(--ink);
-  border-radius: 0 0 calc(var(--u) * 0.18) calc(var(--u) * 0.18);
-}
-
-.face[data-smile="wide"] .face__mouth {
-  width: calc(var(--u) * 0.34);
-  border-bottom: calc(var(--u) * 0.055) solid var(--ink);
-  border-radius: 0 0 calc(var(--u) * 0.24) calc(var(--u) * 0.24);
-}
-
-/* Up at one corner only — a face that finds something faintly funny. */
-.face[data-smile="curl"] .face__mouth {
-  width: calc(var(--u) * 0.22);
-  border-bottom: calc(var(--u) * 0.05) solid var(--ink);
-  border-radius: 0 0 calc(var(--u) * 0.2) calc(var(--u) * 0.05);
-  transform: translateX(-50%) rotate(-7deg);
-}
-
-/* Level, not downturned: the resting face of somebody waiting to be asked. */
-.face[data-smile="flat"] .face__mouth {
-  width: calc(var(--u) * 0.2);
-  height: calc(var(--u) * 0.045);
-  background: var(--ink);
-  border-radius: calc(var(--u) * 0.03);
-}
-
-.face[data-smile="open"] .face__mouth {
-  width: calc(var(--u) * 0.2);
-  height: calc(var(--u) * 0.13);
-  background: var(--ink);
-  border-radius: calc(var(--u) * 0.06) calc(var(--u) * 0.06) calc(var(--u) * 0.14)
-    calc(var(--u) * 0.14);
-}
-
-.face[data-smile="tiny"] .face__mouth {
-  width: calc(var(--u) * 0.14);
-  border-bottom: calc(var(--u) * 0.045) solid var(--ink);
-  border-radius: 0 0 calc(var(--u) * 0.12) calc(var(--u) * 0.12);
-}
 
 /* ---- traits: the mark
    Not part of a face — an antenna, a tuft, a pair of cheeks. This is the trait
@@ -3370,46 +3306,6 @@ select:focus-visible {
   animation: mood-happy 0.9s cubic-bezier(0.3, 0.9, 0.4, 1.3);
 }
 
-/* Every mood sets the mouth, because that is what a mouth is for. Written
-   with all four sides declared so a mood never inherits half of a trait's
-   shape — the commonest way an expression comes out looking like neither. */
-.face[data-mood="happy"] .face__mouth {
-  width: calc(var(--u) * 0.32);
-  height: calc(var(--u) * 0.16);
-  background: var(--ink);
-  border: 0;
-  border-radius: 0 0 calc(var(--u) * 0.18) calc(var(--u) * 0.18);
-}
-
-/* Thinking: pushed to one side, the way a mouth goes when someone is working
-   something out. */
-.face[data-mood="think"] .face__mouth {
-  width: calc(var(--u) * 0.16);
-  height: calc(var(--u) * 0.045);
-  background: var(--ink);
-  border: 0;
-  border-radius: calc(var(--u) * 0.03);
-  transform: translateX(-90%) rotate(-6deg);
-}
-
-/* Working: level and unbothered. */
-.face[data-mood="work"] .face__mouth {
-  width: calc(var(--u) * 0.2);
-  height: calc(var(--u) * 0.045);
-  background: var(--ink);
-  border: 0;
-  border-radius: calc(var(--u) * 0.03);
-}
-
-/* Being picked: the widest it gets. */
-.face[data-mood="wave"] .face__mouth {
-  width: calc(var(--u) * 0.3);
-  height: calc(var(--u) * 0.12);
-  background: var(--ink);
-  border: 0;
-  border-radius: 0 0 calc(var(--u) * 0.16) calc(var(--u) * 0.16);
-}
-
 /* Failed: a slump, brows in, eyes down. */
 @keyframes mood-sad {
   0%,
@@ -3436,16 +3332,6 @@ select:focus-visible {
 
 .face[data-mood="sad"] .face__brows i:last-child {
   transform: rotate(14deg);
-}
-
-/* The only frown in the app, and it lasts under two seconds. */
-.face[data-mood="sad"] .face__mouth {
-  width: calc(var(--u) * 0.24);
-  height: calc(var(--u) * 0.09);
-  background: none;
-  border: 0;
-  border-top: calc(var(--u) * 0.05) solid var(--ink);
-  border-radius: calc(var(--u) * 0.2) calc(var(--u) * 0.2) 0 0;
 }
 
 /* Picked, or poked: the body rocks and a hand comes up beside it. A lean on
@@ -3512,14 +3398,6 @@ select:focus-visible {
 .face[data-mood="sleep"] .face__eyes i {
   clip-path: inset(78% 0 0 0);
   animation: none;
-}
-
-.face[data-mood="sleep"] .face__mouth {
-  width: calc(var(--u) * 0.12);
-  height: calc(var(--u) * 0.045);
-  background: var(--ink);
-  border: 0;
-  border-radius: calc(var(--u) * 0.03);
 }
 
 .face[data-mood="sleep"] {
@@ -3598,15 +3476,6 @@ select:focus-visible {
 
 .face[data-mood="shrug"] .face__brows {
   top: 24%;
-}
-
-.face[data-mood="shrug"] .face__mouth {
-  width: calc(var(--u) * 0.18);
-  height: calc(var(--u) * 0.045);
-  background: var(--ink);
-  border: 0;
-  border-radius: calc(var(--u) * 0.03);
-  transform: translateX(-50%) rotate(-8deg);
 }
 
 /* Something arrived that nobody typed. */
@@ -3701,14 +3570,6 @@ select:focus-visible {
   transform: rotate(-38deg);
 }
 
-.face[data-mood="dizzy"] .face__mouth {
-  width: calc(var(--u) * 0.12);
-  height: calc(var(--u) * 0.12);
-  background: var(--ink);
-  border: 0;
-  border-radius: 50%;
-}
-
 /* Pointed at in the list: a lean towards you, eyes a little wider. */
 .face[data-mood="peek"] {
   animation: mood-peek 0.9s ease-in-out;
@@ -3756,14 +3617,6 @@ select:focus-visible {
    flick back, the way anybody's do, and the mouth sets. */
 .face[data-mood="write"] .face__eyes {
   animation: eyes-track 1.5s ease-in-out infinite;
-}
-
-.face[data-mood="write"] .face__mouth {
-  width: calc(var(--u) * 0.16);
-  height: calc(var(--u) * 0.04);
-  background: var(--ink);
-  border: 0;
-  border-radius: calc(var(--u) * 0.03);
 }
 
 .face[data-mood="write"] {
@@ -8408,43 +8261,6 @@ body.is-dragging {
 }
 .call__end:hover {
   filter: brightness(1.1);
-}
-
-/* Talking: the mouth opens and closes for as long as there is sound. Two
-   frames, not a waveform — a face made of five boxes that suddenly animated
-   smoothly would look like a different character. */
-.face[data-mood="talk"] .face__mouth {
-  width: calc(var(--u) * 0.24);
-  height: calc(var(--u) * 0.15);
-  background: var(--ink);
-  border: 0;
-  border-radius: calc(var(--u) * 0.1);
-  animation: mood-talk 0.34s steps(1, end) infinite;
-}
-
-/* Following the actual sound. The timed flap is switched off, because two
-   things moving the same mouth to different rhythms looks like neither.
-   Sized from the loudness rather than snapped between two frames: speech has
-   a shape, and this is that shape. */
-.face[data-lip][data-mood="talk"] .face__mouth {
-  height: calc(var(--u) * (0.035 + 0.13 * var(--mouth, 0)));
-  transform: translateY(calc(var(--u) * (0.055 - 0.055 * var(--mouth, 0))));
-  animation: none;
-  transition:
-    height 60ms linear,
-    transform 60ms linear;
-}
-@keyframes mood-talk {
-  0%,
-  49% {
-    height: calc(var(--u) * 0.15);
-    transform: translateY(0);
-  }
-  50%,
-  100% {
-    height: calc(var(--u) * 0.05);
-    transform: translateY(calc(var(--u) * 0.05));
-  }
 }
 
 /* And the head keeps a little life in it while the mouth is going. */

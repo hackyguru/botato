@@ -137,7 +137,6 @@ const LOOKS: &[(&str, &[&str])] = &[
         "brow",
         &["none", "flat", "angled", "raised", "thick", "quirk"],
     ),
-    ("smile", &["soft", "wide", "curl", "flat", "open", "tiny"]),
     (
         "mark",
         // Things worn as well as things grown: asked for a cowboy hat, a bot
@@ -455,8 +454,7 @@ fn set_look(bot: &Bot, args: &Value) -> Value {
     }
     if chosen.is_empty() {
         return text_result(
-            "nothing to change — name at least one of head, eyes, brow, smile, mark or colour"
-                .to_string(),
+            "nothing to change — name at least one of head, eyes, brow, mark or colour".to_string(),
             true,
         );
     }
@@ -785,13 +783,13 @@ fn base_specs(bot: &Bot) -> Value {
         {
             "name": "set_appearance",
             "description": format!(
-                "Change how you look. You are drawn as a face in botcage: a head, eyes, brows, a                  resting smile, an optional mark, and a colour. Call this when the user asks you                  to change your appearance, or when you want to — you own your own face. Every                  field is optional; the ones you leave out stay as they are.\n\n                 head: {}\neyes: {}\nbrow: {}\nsmile: {}\nmark: {}\n                 colour: a hex value like #30d158.\n\n                 The smile is only how your mouth rests — your expression still follows what you                  are doing, so you will grin when a task lands whatever you set here. Nothing                  outside these words exists: pick the closest thing that does,                  say what you picked, and name what was not available rather than inventing it.                  Your head is your outline, and it is what anybody recognises you by \
+                "Change how you look. You are drawn as a face in botcage: a body, eyes, brows, an                  optional mark, and a colour. There is no mouth — the shape you are and                  the colour you are is how anybody knows you. Call this when the user asks you                  to change your appearance, or when you want to — you own your own face. Every                  field is optional; the ones you leave out stay as they are.\n\n                 head: {}\neyes: {}\nbrow: {}\nmark: {}\n                 colour: a hex value like #30d158.\n\n                 Nothing                  outside these words exists: pick the closest thing that does,                  say what you picked, and name what was not available rather than inventing it.                  Your head is your outline, and it is what anybody recognises you by \
                  in a list — pebble and bean and egg are plain, drop and spike come to a \
                  point, cat and hare and horns have ears, cloud and tuft are lumpy, crest \
                  leans, and moon has a bite out of one side. \
                  Hats do exist — cowboy is a cowboy hat, cap is a peaked cap, and halo and bow                  are what they sound like. And if the list genuinely has nothing for what was                  asked, draw it yourself with `parts`: a few shapes will make a monocle, a                  scarf or a crown. Prefer the named marks when one fits — they are tuned to                  read at small sizes — and reach for shapes when none does.",
                 LOOKS[0].1.join(", "), LOOKS[1].1.join(", "), LOOKS[2].1.join(", "),
-                LOOKS[3].1.join(", "), LOOKS[4].1.join(", ")
+                LOOKS[3].1.join(", ")
             ),
             "inputSchema": {
                 "type": "object",
@@ -799,7 +797,6 @@ fn base_specs(bot: &Bot) -> Value {
                     "head": { "type": "string" },
                     "eyes": { "type": "string" },
                     "brow": { "type": "string" },
-                    "smile": { "type": "string" },
                     "mark": { "type": "string" },
                     "colour": { "type": "string" },
                     "parts": {

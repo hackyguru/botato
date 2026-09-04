@@ -345,7 +345,7 @@ pub fn speak(
 
     if crate::speech::ready(app) {
         let (cmd, wav) = crate::speech::command(app, voice, text)?;
-        let said = rendered(app, cmd, &wav);
+        let said = rendered(cmd, &wav);
         let _ = std::fs::remove_file(&wav);
         return said;
     }
@@ -398,95 +398,8 @@ pub fn speak(
     Ok(())
 }
 
-/// How loud the speech is, moment by moment, so a mouth can follow it.
-///
-/// Real lip sync rather than a mouth flapping on a timer: the shape of a
-/// sentence is in the audio, and reading it out of the file we are about to
-/// play costs a few milliseconds. Only works where the synthesiser hands us a
-/// file — which the one botcage installs does.
-///
-/// Returns levels in 0..1, one every `STEP_MS`.
-const STEP_MS: u32 = 45;
-
-fn envelope(wav: &[u8]) -> Option<Vec<f32>> {
-    // Enough of a RIFF reader to find the format and the samples. Chunks are
-    // walked rather than assumed at fixed offsets, because a wav from one tool
-    // has a LIST chunk where another has none, and a hardcoded offset reads
-    // metadata as audio.
-    if wav.len() < 12 || &wav[0..4] != b"RIFF" || &wav[8..12] != b"WAVE" {
-        return None;
-    }
-    let word =
-        |at: usize| -> Option<u16> { Some(u16::from_le_bytes([*wav.get(at)?, *wav.get(at + 1)?])) };
-    let long = |at: usize| {
-        Some(u32::from_le_bytes([
-            *wav.get(at)?,
-            *wav.get(at + 1)?,
-            *wav.get(at + 2)?,
-            *wav.get(at + 3)?,
-        ]))
-    };
-
-    let (mut channels, mut rate, mut bits) = (1u16, 24_000u32, 16u16);
-    let mut samples: Option<&[u8]> = None;
-    let mut at = 12usize;
-    while at + 8 <= wav.len() {
-        let id = &wav[at..at + 4];
-        let size = long(at + 4)? as usize;
-        let body = at + 8;
-        if id == b"fmt " && body + 16 <= wav.len() {
-            channels = word(body + 2)?.max(1);
-            rate = long(body + 4)?;
-            bits = word(body + 14)?;
-        } else if id == b"data" {
-            samples = wav.get(body..(body + size).min(wav.len()));
-            break;
-        }
-        // Chunks are padded to even lengths.
-        at = body + size + (size & 1);
-    }
-
-    let samples = samples?;
-    if bits != 16 || rate == 0 {
-        return None;
-    }
-
-    let per_step = (rate as usize * STEP_MS as usize / 1000) * channels as usize;
-    if per_step == 0 {
-        return None;
-    }
-
-    let mut levels = Vec::with_capacity(samples.len() / (per_step * 2) + 1);
-    let mut peak = 0f32;
-    for block in samples.chunks(per_step * 2) {
-        let mut sum = 0f64;
-        let mut count = 0usize;
-        for pair in block.as_chunks::<2>().0 {
-            let value = i16::from_le_bytes(*pair) as f64 / 32768.0;
-            sum += value * value;
-            count += 1;
-        }
-        let rms = if count == 0 {
-            0.0
-        } else {
-            (sum / count as f64).sqrt() as f32
-        };
-        peak = peak.max(rms);
-        levels.push(rms);
-    }
-
-    // Normalised against this utterance rather than against full scale: a
-    // quietly recorded voice would otherwise barely open its mouth.
-    if peak > 0.0 {
-        for level in &mut levels {
-            *level = (*level / peak).clamp(0.0, 1.0);
-        }
-    }
-    Some(levels)
-}
-
 /// Run a synthesiser that writes a file, then play the file.
-fn rendered(app: &tauri::AppHandle, mut cmd: Command, wav: &std::path::Path) -> Result<(), String> {
+fn rendered(mut cmd: Command, wav: &std::path::Path) -> Result<(), String> {
     let made = cmd
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -499,19 +412,6 @@ fn rendered(app: &tauri::AppHandle, mut cmd: Command, wav: &std::path::Path) -> 
     // waiting for a sentence nobody wants to hear any more.
     if wait_for(claim(made))?.is_none() || !wav.is_file() {
         return Ok(());
-    }
-
-    // Sent before the player starts, so the face begins moving with the sound
-    // rather than after it. The few milliseconds of process spawn are the
-    // error, and they are smaller than one frame of the mouth.
-    if let Ok(bytes) = std::fs::read(wav) {
-        if let Some(levels) = envelope(&bytes) {
-            use tauri::Emitter;
-            let _ = app.emit(
-                "mouth",
-                serde_json::json!({ "step": STEP_MS, "levels": levels }),
-            );
-        }
     }
 
     let played = player(wav)
@@ -778,64 +678,5 @@ Pty Language       Age/Gender VoiceName          File                 Other Lang
         );
         std::env::remove_var(CUSTOM);
         assert!(said.is_ok(), "{said:?}");
-    }
-
-    /// A wav with a loud half and a silent half should give levels that say
-    /// so — which is the whole job, and the part a hardcoded header offset
-    /// gets wrong the moment a tool writes a LIST chunk.
-    #[test]
-    fn the_envelope_follows_the_sound() {
-        let rate: u32 = 24_000;
-        let loud = rate as usize / 2;
-        let quiet = rate as usize / 2;
-        let mut pcm: Vec<u8> = Vec::new();
-        for i in 0..loud {
-            let value = ((i as f32 * 0.3).sin() * 20_000.0) as i16;
-            pcm.extend_from_slice(&value.to_le_bytes());
-        }
-        pcm.extend(std::iter::repeat_n(0u8, quiet * 2));
-
-        let mut wav: Vec<u8> = Vec::new();
-        wav.extend_from_slice(b"RIFF");
-        wav.extend_from_slice(&(36u32 + pcm.len() as u32).to_le_bytes());
-        wav.extend_from_slice(b"WAVE");
-        // A chunk before `fmt ` that nothing should trip over.
-        wav.extend_from_slice(b"LIST");
-        wav.extend_from_slice(&4u32.to_le_bytes());
-        wav.extend_from_slice(b"INFO");
-        wav.extend_from_slice(b"fmt ");
-        wav.extend_from_slice(&16u32.to_le_bytes());
-        wav.extend_from_slice(&1u16.to_le_bytes());
-        wav.extend_from_slice(&1u16.to_le_bytes());
-        wav.extend_from_slice(&rate.to_le_bytes());
-        wav.extend_from_slice(&(rate * 2).to_le_bytes());
-        wav.extend_from_slice(&2u16.to_le_bytes());
-        wav.extend_from_slice(&16u16.to_le_bytes());
-        wav.extend_from_slice(b"data");
-        wav.extend_from_slice(&(pcm.len() as u32).to_le_bytes());
-        wav.extend_from_slice(&pcm);
-
-        let levels = envelope(&wav).expect("a wav this plain should parse");
-        assert!(
-            (20..24).contains(&levels.len()),
-            "expected about 22 steps, got {}",
-            levels.len()
-        );
-        assert!(
-            levels[3] > 0.8,
-            "the loud half should be loud: {}",
-            levels[3]
-        );
-        assert!(
-            levels[18] < 0.05,
-            "the silent half should be silent: {}",
-            levels[18]
-        );
-    }
-
-    #[test]
-    fn something_that_is_not_a_wav_is_not_guessed_at() {
-        assert!(envelope(b"not a wav at all").is_none());
-        assert!(envelope(&[]).is_none());
     }
 }

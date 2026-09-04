@@ -239,8 +239,7 @@ interface Bot {
     head?: string;
     eyes?: string;
     brow?: string;
-    smile?: string;
-    mark?: string;
+      mark?: string;
     /** What it drew for itself, when the wardrobe had nothing that fit. */
     parts?: Part[];
   };
@@ -1018,10 +1017,6 @@ interface Face {
   head: string;
   eyes: string;
   brow: string;
-  /** How this bot smiles when nothing is happening — never *whether* it does.
-   *  The mouth is an expression, not a feature: a bot born with a frown is a
-   *  bot that looks unhappy about everything forever. */
-  smile: string;
   mark: string;
 }
 
@@ -1035,7 +1030,6 @@ interface Face {
 const HEADS = BODIES;
 const EYES = ["dot", "wide", "sleepy", "ring", "tall", "wink"];
 const BROWS = ["none", "flat", "angled", "raised", "thick", "quirk"];
-const SMILES = ["soft", "wide", "curl", "flat", "open", "tiny"];
 const MARKS = [
   "none",
   "antenna",
@@ -1083,7 +1077,7 @@ const LOOKS: { mark: string; words: string[] }[] = [
 ];
 
 /** The plain one, for a sheet nobody has typed into yet. */
-const BLANK_FACE: Face = { head: "squircle", eyes: "dot", brow: "none", smile: "soft", mark: "none" };
+const BLANK_FACE: Face = { head: "squircle", eyes: "dot", brow: "none", mark: "none" };
 
 /** The face a name implies. */
 function faceFromName(name: string): Face {
@@ -1095,7 +1089,6 @@ function faceFromName(name: string): Face {
     head: HEADS[seed % HEADS.length],
     eyes: EYES[(seed >> 3) % EYES.length],
     brow: BROWS[(seed >> 6) % BROWS.length],
-    smile: SMILES[(seed >> 9) % SMILES.length],
     // Nothing worn unless the name asked for it. A hat that was rolled rather
     // than earned is a hat on a bot that never wanted one — and a blob's whole
     // case is that the outline carries it, so anything in front of the outline
@@ -1122,7 +1115,7 @@ function seedOf(text: string): number {
 /** Write down the face a bot was born with, so it keeps it.
  *
  *  Same reason as the voice: the traits are picked by indexing the bot's id
- *  into lists of heads, eyes, brows, smiles and marks. Those lists are
+ *  into lists of heads, eyes, brows and marks. Those lists are
  *  constants today, and the day one of them gains an entry every bot in every
  *  install changes face — which is a strange thing for an update to do to
  *  something you have been talking to for a month. Recorded once and derived
@@ -1140,7 +1133,6 @@ function faceOf(bot: Bot): Face {
     head: bot.face?.head ?? bot.shape ?? HEADS[seed % HEADS.length],
     eyes: bot.face?.eyes ?? EYES[(seed >> 3) % EYES.length],
     brow: bot.face?.brow ?? BROWS[(seed >> 6) % BROWS.length],
-    smile: bot.face?.smile ?? SMILES[(seed >> 9) % SMILES.length],
     mark: bot.face?.mark ?? MARKS[(seed >> 12) % MARKS.length],
   };
 }
@@ -1321,7 +1313,7 @@ function faceHtml(
   return (
     `<span class="face${cls}" data-bot="${bot.id}"${alive ? ` data-mood="${mood}"` : ""}` +
     ` data-head="${shape}" data-eyes="${face.eyes}"` +
-    ` data-brow="${face.brow}" data-smile="${face.smile}" data-mark="${face.mark}"` +
+    ` data-brow="${face.brow}" data-mark="${face.mark}"` +
     // Its own blink rhythm, so a roster does not blink in unison. The eye line
     // comes from the body that was drawn: a teardrop's face sits lower on it
     // than a pebble's does, and a pair of ears is above the eyes, not level.
@@ -1335,7 +1327,6 @@ function faceHtml(
     `</svg>` +
     `<span class="face__brows"><i></i><i></i></span>` +
     `<span class="face__eyes"><i></i><i></i></span>` +
-    `<span class="face__mouth"></span>` +
     `<span class="face__mark">${face.mark === "custom" ? partsHtml(bot.face?.parts) : ""}</span>` +
     // Empty at rest, and owned by no trait: whatever a mood wants to put above
     // a bot's head lives here — a thought cloud today, a spark or a "zzz"
@@ -6500,50 +6491,6 @@ function channelPromptFor(ch: Channel, bot: Bot): string {
     .join("\n\n");
 }
 
-/* ------------------------------------------------------------- lip sync */
-/* The mouth follows the sound rather than flapping on a timer.
- *
- *  Rust reads the loudness out of the wav it is about to play and sends it
- *  here as one number every 45 ms; this walks that list in step with the clock
- *  and sets how far open the mouth is. It is the difference between a face
- *  that is animated while a voice happens and a face that is saying the words
- *  — the pauses between sentences land in the right place, and so do the
- *  loud syllables.
- *
- *  Only where the synthesiser hands us a file, which is the one botcage
- *  installs. `say` and espeak stream straight to the speakers and keep the
- *  simple flap. */
-let lips: { levels: number[]; step: number; from: number; frame: number } | null = null;
-
-void listen<{ step: number; levels: number[] }>("mouth", (event) => {
-  stopLips();
-  if (!call || !event.payload.levels.length) return;
-  lips = { levels: event.payload.levels, step: event.payload.step, from: performance.now(), frame: 0 };
-  moveLips();
-});
-
-function moveLips(): void {
-  if (!lips || !call) return stopLips();
-  const at = Math.floor((performance.now() - lips.from) / lips.step);
-  if (at >= lips.levels.length) return stopLips();
-
-  const who = call.speakingFor ?? call.botId;
-  for (const face of document.querySelectorAll<HTMLElement>(`.face[data-bot="${who}"]`)) {
-    face.dataset.lip = "1";
-    face.style.setProperty("--mouth", lips.levels[at].toFixed(2));
-  }
-  lips.frame = requestAnimationFrame(moveLips);
-}
-
-function stopLips(): void {
-  if (lips) cancelAnimationFrame(lips.frame);
-  lips = null;
-  for (const face of document.querySelectorAll<HTMLElement>(".face[data-lip]")) {
-    delete face.dataset.lip;
-    face.style.removeProperty("--mouth");
-  }
-}
-
 // How the download is going, while it is going.
 void listen<string>("hearing", (event) => voiceProgress(event.payload));
 
@@ -7480,7 +7427,6 @@ async function startCall(bot: Bot, room?: Channel): Promise<void> {
 function endCall(): void {
   if (!call) return;
   call.saying = [];
-  stopLips();
   // A room hushed by talking over it is only hushed for the call; typing in
   // it afterwards should not be met with silence.
   const room = callRoom();
@@ -7579,7 +7525,6 @@ function startListening(): void {
   // which is the opposite of being interrupted. In a room the whole wave
   // stops, including whoever was about to be brought in.
   call.saying = [];
-  stopLips();
   const room = callRoom();
   if (room) {
     hushed.add(room.id);
@@ -7866,7 +7811,6 @@ async function pumpVoice(): Promise<void> {
   if (!call) return;
 
   call.voicing = false;
-  stopLips();
   const busy = [...inflight.values()].some((p) =>
     call?.channelId ? p.channelId === call.channelId : true,
   );
