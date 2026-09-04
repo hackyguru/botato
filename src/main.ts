@@ -10856,10 +10856,7 @@ const setupMute = $<HTMLButtonElement>("#setup-mute");
 function paintMute(): void {
   const off = Boolean(appSettings().hush);
   setupMute.querySelector("use")?.setAttribute("href", off ? "#i-hush" : "#i-sound");
-  // It governs Guide's voice as well as the music now, so it stops saying
-  // "music": a switch that turns off more than it names is a switch nobody
-  // finds when the thing they want stopped is the other one.
-  setupMute.title = off ? "Turn the sound on" : "Turn the sound off";
+  setupMute.title = off ? "Play music" : "Stop the music";
   setupMute.setAttribute("aria-label", setupMute.title);
   setupMute.classList.toggle("is-off", off);
 }
@@ -10869,14 +10866,8 @@ setupMute.addEventListener("click", () => {
   state.app = { ...appSettings(), hush: off };
   save();
   paintMute();
-  if (off) {
-    music.stop();
-    // Silence means silence, not "silence from the next step onwards".
-    void invoke("hush").catch(() => {});
-  } else {
-    void music.start();
-    narrateStep(setupAt);
-  }
+  if (off) music.stop();
+  else void music.start();
 });
 
 async function openSetup(at: SetupStep = "welcome"): Promise<void> {
@@ -10909,11 +10900,6 @@ async function openSetup(at: SetupStep = "welcome"): Promise<void> {
   setupLog = [];
   setupWrap.hidden = false;
   setupShown = null;
-  // Asked once per opening, before the first step speaks — or it would speak
-  // in one voice and the rest in another. Afresh each time, because what this
-  // machine can say may have changed since the last.
-  hostVoice = undefined;
-  await findHostVoice();
   paintMute();
   if (!appSettings().hush) void music.start();
   paintSetup();
@@ -10924,9 +10910,6 @@ async function openSetup(at: SetupStep = "welcome"): Promise<void> {
 function closeSetup(): void {
   setupWrap.hidden = true;
   music.stop();
-  // A voice that carries on into the app after the dialog it belonged to has
-  // gone is a voice coming from nowhere.
-  void invoke("hush").catch(() => {});
   stopSignInWatch();
   // Shown once. Someone who skipped a step can reopen it from the account menu,
   // and a missing CLI still warns on its own.
@@ -11450,129 +11433,6 @@ let setupWay: "on" | "back" = "on";
  *  Both steps are on screen while it moves: the one leaving is taken out of the
  *  flow so the one arriving can occupy the same place, and put back afterwards.
  *  Without that they stack and the sheet lurches. */
-/** What Guide says on each step.
- *
- *  Written to be heard rather than read: shorter than what is on screen, and
- *  saying the thing the step is for rather than reciting the paragraph beside
- *  it. A voice repeating text you are already reading is a voice you turn off.
- *
- *  It speaks through the same command a bot's voice does, which falls back to
- *  the machine's own — `say` here, espeak on Linux — when botcage's speech
- *  model is not installed. Which it never is on the run that matters: this is
- *  the screen that offers to install it. */
-const SETUP_SAYS: Record<SetupStep, string> = {
-  welcome: "Hi. I'm Guide. Tell me what to call you, and I'll show you around.",
-  answers: "First, what should answer for us. Any of these works, and you can change it later.",
-  engine: "Bots can have a computer of their own — a Linux desktop you can watch them use. It's optional.",
-  voice: "And whether we talk out loud. That's what you're hearing now.",
-  done: "That's everything. Make a bot, or ask me — I'm first in the rail.",
-};
-
-/** And what it says on the way there.
- *
- *  A step arriving with the same sentence every time is a recording. Something
- *  said about what you just did — your name, the choice you made — is somebody
- *  in the room with you, which is the whole point of a face doing the hosting.
- *
- *  Only where there is something to remark on: an empty greeting ("right
- *  then!") in front of every step is worse than none, because it is the same
- *  recording with more words in it. */
-function setupAside(to: SetupStep, from: SetupStep | null): string {
-  const called = (appSettings().name ?? "").trim().split(/\s+/)[0] ?? "";
-  if (to === "answers" && from === "welcome") {
-    return called ? `Oh, hello there, ${called}! Pleased to meet you.` : "Good to meet you.";
-  }
-  if (to === "engine" && from === "answers") return "Good choice.";
-  if (to === "voice" && from === "engine") return "Nearly there.";
-  if (to === "done") return called ? `That's us set up, ${called}.` : "That's us set up.";
-  return "";
-}
-
-/** The voices worth being introduced by, best first.
- *
- *  Two tiers, and the difference between them is why setup can sound like a
- *  computer. macOS ships *compact* voices — Karen, Samantha, Tessa — which are
- *  the old formant synthesisers, and downloads *premium* ones on request, which
- *  are the neural voices Siri uses. A premium voice keeps the same name, so
- *  asking for "Ava" gets the good one the moment somebody installs it and
- *  nothing before then.
- *
- *  The first five are premium-only names: if one answers, this machine has a
- *  natural voice and that is the end of it. The rest are the compact voices,
- *  ordered by measurement — each was made to read the same line and scored on
- *  median pitch, how far that pitch wanders, and spectral centroid, which is
- *  what "bright" means when somebody calls a voice bright rather than warm:
- *
- *    Karen     193 Hz   steadiest   warm
- *    Tessa     186 Hz   steady      warmest
- *    Kathy     209 Hz   steady      warm
- *    Moira     186 Hz   steady      middling
- *    Samantha  174 Hz   animated    middling
- *
- *  Samantha is the familiar one and loses on the number that matters here: its
- *  pitch wanders half again as far as Karen's, which is lively rather than
- *  welcoming. */
-const HOST_VOICES = [
-  "ava",
-  "zoe",
-  "serena",
-  "allison",
-  "nicky",
-  "karen",
-  "tessa",
-  "kathy",
-  "moira",
-  "samantha",
-];
-
-/** Which of them this machine has. `undefined` until asked, `null` once asked
- *  and none found — in which case the machine's own default speaks, rather
- *  than whichever voice happens to be first in a list. */
-let hostVoice: string | null | undefined;
-
-async function findHostVoice(): Promise<void> {
-  if (hostVoice !== undefined) return;
-  hostVoice = null;
-  // The machine's own, not botcage's: the model is what varies, so a name
-  // taken from its list would be a name for something that cannot be pinned.
-  const all = await invoke<string[]>("steady_voices", { language: "en" }).catch(() => []);
-  const bare = (v: string) => (v.split("(")[0] ?? "").trim().toLowerCase();
-  for (const want of HOST_VOICES) {
-    const found = all.find((v) => bare(v) === want);
-    if (found) {
-      hostVoice = found;
-      return;
-    }
-  }
-}
-
-/** Say a step, unless the sound is off.
- *
- *  One voice for the whole of setup, a little under the default pace: the
- *  point of this screen is that somebody is showing you around, and somebody
- *  in a hurry is not doing that. Every step hushes whatever the last was still
- *  saying — clicking through four steps should not queue four voices. */
-function narrateStep(step: SetupStep, from: SetupStep | null = null): void {
-  if (appSettings().hush) return;
-  const said = [setupAside(step, from), SETUP_SAYS[step]].filter(Boolean).join(" ");
-  if (!said) return;
-  // No hush of our own first. `speak` silences whatever is talking before it
-  // starts, and the two calls fired side by side were a race: the hush could
-  // land after the speech had begun and cut the line off, or take it entirely.
-  // Which step it happened to hit varied by timing, and that is what an
-  // inconsistent voice sounds like.
-  // `steady`, which is the whole point: botcage's own model re-clones its
-  // reference on every call and lands somewhere different each time — 224 Hz
-  // on one reading of a line and 203 on the next, measured. A bot may sound
-  // like that. A narrator crossing five screens may not.
-  void invoke("speak", {
-    text: said,
-    voice: hostVoice ?? null,
-    rate: 168,
-    steady: true,
-  }).catch(() => {});
-}
-
 function showStep(to: SetupStep): void {
   const all = [...setupWrap.querySelectorAll<HTMLElement>(".setup__step")];
   const next = all.find((s) => s.dataset.step === to);
@@ -11585,9 +11445,7 @@ function showStep(to: SetupStep): void {
   }
 
   const from = all.find((s) => s.dataset.step === setupShown);
-  const was = setupShown;
   setupShown = to;
-  narrateStep(to, was);
 
   for (const s of all) {
     if (s !== next && s !== from) s.hidden = true;
@@ -11696,8 +11554,6 @@ async function installVoice(): Promise<void> {
     }
     voiceNames = [];
     await knownVoices();
-    // The narrator is unaffected: it asks for the machine's own voice, which
-    // installing a model does not change.
   } catch (err) {
     toast(String(err));
   }
