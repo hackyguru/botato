@@ -2079,7 +2079,7 @@ function renderRoster(): void {
     deskHtml +
     serverTiles() +
     (servers().length ? `<p class="rail-group"></p>` : "") +
-    botRows(state.bots);
+    botRows(guideFirst(state.bots));
 
   // The name of the one you are looking at, over its rooms. Left alone while
   // you are typing in it, since it is also the field you rename it in.
@@ -2470,6 +2470,19 @@ function roomRows(shown: Channel[], matches: (ch: Channel) => boolean, q: string
             );
           })
           .join("");
+}
+
+/** The roster with the guide at the top of it.
+ *
+ *  A new bot is unshifted onto the front, so the one that explains the place
+ *  sank a row every time somebody made something — and it is the one you go
+ *  back to when you do not know what to do next, which is exactly when hunting
+ *  for it is worst. Sorted for the drawing rather than moved in the roster:
+ *  where a bot sits in `state.bots` is the order it was made in, and that is
+ *  not this question. */
+function guideFirst(bots: Bot[]): Bot[] {
+  // A stable sort, so everything that is not the guide keeps the order it had.
+  return [...bots].sort((a, b) => Number(Boolean(b.guide)) - Number(Boolean(a.guide)));
 }
 
 /** The rows for the bots themselves. */
