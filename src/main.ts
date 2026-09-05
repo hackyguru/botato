@@ -8569,6 +8569,12 @@ function showRoutines(open: boolean): void {
     return;
   }
 
+  // The other way round from showDesk, which has always done this: both are the
+  // whole of the main column, and only one of them said so. Opening the
+  // calendar over an open desk left the desk sitting above it and the calendar
+  // in whatever was left at the bottom, cut off at the window's edge.
+  if (deskOpen) showDesk(false);
+
   // Whose calendar, in the bar where a bot's face usually is. The shared one is
   // the one view in the app that belongs to no bot, so it says so — and the top
   // right is emptied, because a plug, a screen and a clock all belong to a
