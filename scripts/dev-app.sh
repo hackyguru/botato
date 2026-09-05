@@ -58,8 +58,14 @@ echo "→ building"
 (cd "$here/src-tauri" && cargo build --quiet)
 
 rm -rf "$app"
-mkdir -p "$app/Contents/MacOS"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$binary" "$app/Contents/MacOS/botcage"
+
+# The icon, which a bundle has somewhere to put and a bare binary does not —
+# the same reason this script exists for the microphone. Without it the dev app
+# sits in the Dock as a blank sheet of paper, and every change to the icon looks
+# like it did nothing.
+cp "$here/src-tauri/icons/icon.icns" "$app/Contents/Resources/icon.icns"
 
 # The usage descriptions come from the same file the release build uses, so
 # there is one place to change what macOS shows the person being asked.
@@ -71,6 +77,10 @@ root, app = Path(sys.argv[1]), Path(sys.argv[2])
 info = plistlib.loads((root / "src-tauri" / "Info.plist").read_bytes())
 info.update({
     "CFBundleExecutable": "botcage",
+    # Named without the extension, which is how CFBundleIconFile has always
+    # wanted it; CFBundleIconName is what newer macOS reads.
+    "CFBundleIconFile": "icon",
+    "CFBundleIconName": "icon",
     # Its own identifier, so this is a scratch copy rather than the real one.
     "CFBundleIdentifier": "com.hackyguru.botcage.dev",
     "CFBundleName": "botcage (dev)",
