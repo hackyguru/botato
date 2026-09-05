@@ -69,7 +69,10 @@
   --radius-surface: 16px;
   --radius-sheet: 18px;
 
-  --type-caption: 11px;
+  /* Smaller than a caption, for a timestamp beside a name or the count on a
+     badge — text you read only when you go looking for it. */
+  --type-micro: 10.5px;
+  --type-caption: 11.5px;
   --type-hint: 12.5px;
   --type-small: 13.5px;
   --type-body: 15px;
@@ -105,7 +108,7 @@ body {
 
 body {
   font-family: var(--font);
-  font-size: 15px;
+  font-size: var(--type-body);
   line-height: 1.5;
   color: var(--text);
   background: var(--bg);
@@ -440,7 +443,7 @@ select:focus-visible {
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
-  font-size: 10px;
+  font-size: var(--type-micro);
   border-radius: var(--radius-chip);
 }
 
@@ -516,7 +519,7 @@ select:focus-visible {
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
-  font-size: 10px;
+  font-size: var(--type-micro);
   line-height: 16px;
 }
 
@@ -596,7 +599,7 @@ select:focus-visible {
   place-items: center;
   width: 100%;
   height: 100%;
-  font-size: 13px;
+  font-size: var(--type-small);
   font-weight: 700;
   letter-spacing: 0.2px;
   color: #fff;
@@ -606,7 +609,7 @@ select:focus-visible {
 /* Lit, the tile behind it already says which one you are in, so the mark stops
    competing and the row is what carries the state. */
 .sidebar .rooms-tile .server-mark {
-  font-size: 14px;
+  font-size: var(--type-small);
 }
 
 .sidebar .bots {
@@ -721,7 +724,7 @@ select:focus-visible {
   min-width: 0;
   height: 30px;
   padding: 0 6px;
-  font-size: 15px;
+  font-size: var(--type-body);
   font-weight: 600;
   color: var(--text);
   background: none;
@@ -930,7 +933,7 @@ select:focus-visible {
 .field input {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
+  font-size: var(--type-small);
 }
 
 /* -------------------------------------------------------------- bot roster */
@@ -1158,7 +1161,7 @@ select:focus-visible {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  font-size: 15px;
+  font-size: var(--type-body);
   font-weight: 700;
   line-height: 1;
   padding-bottom: 1px;
@@ -1252,7 +1255,7 @@ select:focus-visible {
 .bot-row__name {
   flex: 1;
   overflow: hidden;
-  font-size: 15px;
+  font-size: var(--type-body);
   font-weight: 500;
   letter-spacing: -0.01em;
   text-overflow: ellipsis;
@@ -1260,13 +1263,13 @@ select:focus-visible {
 }
 
 .bot-row__time {
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   color: var(--text-2);
 }
 
 .bot-row__last {
   overflow: hidden;
-  font-size: 13.5px;
+  font-size: var(--type-small);
   color: var(--text-2);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1768,7 +1771,7 @@ select:focus-visible {
   place-items: center;
   width: 28px;
   height: 28px;
-  font-size: 12px;
+  font-size: var(--type-hint);
   font-weight: 600;
   color: var(--text-2);
   background: var(--field);
@@ -1778,7 +1781,7 @@ select:focus-visible {
 .foot-label {
   flex: 1;
   overflow: hidden;
-  font-size: 14.5px;
+  font-size: var(--type-body);
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1912,7 +1915,7 @@ select:focus-visible {
   flex: 1;
   min-width: 0;
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   color: var(--text);
   background: none;
   border: 0;
@@ -1969,7 +1972,7 @@ select:focus-visible {
   min-width: 0;
   margin: 0;
   color: var(--text-2);
-  font-size: 12px;
+  font-size: var(--type-hint);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -2003,13 +2006,13 @@ select:focus-visible {
 }
 
 .hit__name {
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   font-weight: 600;
   color: var(--text);
 }
 
 .hit__when {
-  font-size: 10.5px;
+  font-size: var(--type-micro);
   color: var(--text-3);
 }
 
@@ -2019,7 +2022,7 @@ select:focus-visible {
   -webkit-box-orient: vertical;
   overflow: hidden;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   line-height: 1.45;
 }
 
@@ -2032,7 +2035,7 @@ select:focus-visible {
 .found__none {
   padding: 10px;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--type-hint);
 }
 
 /* Where a result took you, so the eye lands on the right line. */
@@ -2077,7 +2080,7 @@ select:focus-visible {
   /* So a long channel name gives way to the field rather than the other way
      round. */
   max-width: 40%;
-  font-size: 15px;
+  font-size: var(--type-body);
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -2220,7 +2223,7 @@ select:focus-visible {
    pointer: a column of timestamps down every line is the thing a flat list has
    to avoid, and having none at all loses the one occasion you want it. */
 .turn__at {
-  font-size: 10.5px;
+  font-size: var(--type-micro);
   color: var(--text-3);
   opacity: 0;
   font-variant-numeric: tabular-nums;
@@ -2236,7 +2239,7 @@ select:focus-visible {
   place-items: center;
   width: 28px;
   height: 28px;
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   font-weight: 600;
   color: var(--text);
   background: var(--active);
@@ -2256,13 +2259,13 @@ select:focus-visible {
 }
 
 .turn__name {
-  font-size: 13.5px;
+  font-size: var(--type-small);
   font-weight: 600;
   color: var(--text);
 }
 
 .turn__when {
-  font-size: 10.5px;
+  font-size: var(--type-micro);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
@@ -2292,7 +2295,7 @@ select:focus-visible {
   align-items: center;
   gap: 4px;
   margin-top: 6px;
-  font-size: 14px;
+  font-size: var(--type-small);
   font-weight: 500;
   color: var(--text);
 }
@@ -2324,7 +2327,7 @@ select:focus-visible {
 .md h2,
 .md h3 {
   margin: 14px 0 8px;
-  font-size: 16px;
+  font-size: var(--type-title-sm);
   font-weight: 600;
 }
 
@@ -2371,14 +2374,14 @@ select:focus-visible {
   align-items: center;
   justify-content: space-between;
   padding: 5px 6px 5px 11px;
-  font-size: 12px;
+  font-size: var(--type-hint);
   color: var(--text-2);
   border-bottom: 1px solid var(--line);
 }
 
 .code__copy {
   padding: 2px 7px;
-  font-size: 12px;
+  font-size: var(--type-hint);
   color: var(--text-2);
   border-radius: 6px;
 }
@@ -2393,7 +2396,7 @@ select:focus-visible {
   padding: 11px;
   overflow-x: auto;
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   line-height: 1.55;
   white-space: pre;
 }
@@ -2402,7 +2405,7 @@ select:focus-visible {
   width: 170px;
   height: 26px;
   padding: 0 10px;
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   background: var(--field);
   border-radius: var(--radius-pill);
 }
@@ -2450,7 +2453,7 @@ select:focus-visible {
 
 .cal__range {
   margin: 0 8px 0 4px;
-  font-size: 16px;
+  font-size: var(--type-title-sm);
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -2476,7 +2479,7 @@ select:focus-visible {
 
 .cal__day {
   padding: 8px 0 7px;
-  font-size: 11.5px;
+  font-size: var(--type-caption);
   color: var(--text-3);
   text-align: center;
 }
@@ -2488,7 +2491,7 @@ select:focus-visible {
 .cal__day b {
   display: block;
   margin-top: 1px;
-  font-size: 15px;
+  font-size: var(--type-body);
   font-weight: 600;
   color: var(--text);
 }
@@ -2527,7 +2530,7 @@ select:focus-visible {
      onto the line looked tidier until the grid was scrolled, at which point the
      top label was sliced in half by the edge of the pane. */
   padding: 3px 8px 0 0;
-  font-size: 10.5px;
+  font-size: var(--type-micro);
   line-height: 1;
   color: var(--text-3);
   text-align: right;
@@ -2598,7 +2601,7 @@ select:focus-visible {
   left: 3px;
   overflow: hidden;
   padding: 3px 6px;
-  font-size: 11px;
+  font-size: var(--type-caption);
   line-height: 1.25;
   text-align: left;
   background: var(--tint, rgba(10, 132, 255, 0.9));
@@ -2628,7 +2631,7 @@ select:focus-visible {
 /* Sharing an hour: no room for anything but the name. */
 .cal__event--tight {
   padding: 1px 6px;
-  font-size: 10.5px;
+  font-size: var(--type-micro);
 }
 
 .cal__event.is-off {
@@ -2645,7 +2648,7 @@ select:focus-visible {
   gap: 6px;
   align-items: center;
   padding: 3px 9px;
-  font-size: 11.5px;
+  font-size: var(--type-caption);
   background: var(--fill-2);
   border-radius: var(--radius-pill);
 }
@@ -2671,7 +2674,7 @@ select:focus-visible {
 
 .cal__empty {
   padding: 3px 2px;
-  font-size: 12px;
+  font-size: var(--type-hint);
   color: var(--text-3);
 }
 
@@ -2688,7 +2691,7 @@ select:focus-visible {
 
 .cal__span {
   padding: 4px 11px;
-  font-size: 12px;
+  font-size: var(--type-hint);
   font-weight: 500;
   color: var(--text-2);
   background: none;
@@ -2750,7 +2753,7 @@ select:focus-visible {
   align-self: center;
   min-width: 19px;
   height: 19px;
-  font-size: 11.5px;
+  font-size: var(--type-caption);
   line-height: 19px;
   color: var(--text-3);
   text-align: center;
@@ -2772,7 +2775,7 @@ select:focus-visible {
   align-items: center;
   min-width: 0;
   padding: 1px 5px;
-  font-size: 11px;
+  font-size: var(--type-caption);
   line-height: 1.45;
   text-align: left;
   background: var(--hover);
@@ -2817,7 +2820,7 @@ select:focus-visible {
    that grew would push the row below it off the bottom of the month. */
 .cal__more {
   padding: 0 5px;
-  font-size: 10.5px;
+  font-size: var(--type-micro);
   color: var(--text-3);
   text-align: left;
   background: none;
@@ -2834,7 +2837,7 @@ select:focus-visible {
 .sheet--routine #routine-name {
   width: 100%;
   padding: 9px 12px;
-  font-size: 13.5px;
+  font-size: var(--type-small);
   background: var(--field);
   border-radius: var(--radius-control);
   resize: none;
@@ -2848,7 +2851,7 @@ select:focus-visible {
 
 .routine__next {
   margin: 2px 0 0;
-  font-size: 12px;
+  font-size: var(--type-hint);
   color: var(--text-3);
 }
 
@@ -2869,7 +2872,7 @@ select:focus-visible {
 .sheet--routine .sheet__foot .chip {
   height: 40px;
   padding: 0 16px;
-  font-size: 15px;
+  font-size: var(--type-body);
   border-radius: var(--radius-card);
 }
 
@@ -2881,7 +2884,7 @@ select:focus-visible {
   bottom: 0;
   min-width: 13px;
   padding: 0 3px;
-  font-size: 9.5px;
+  font-size: var(--type-micro);
   font-weight: 600;
   line-height: 13px;
   color: #fff;
@@ -2951,7 +2954,7 @@ select:focus-visible {
   align-items: center;
   gap: 8px;
   padding: 7px 15px;
-  font-size: 13.5px;
+  font-size: var(--type-small);
   font-weight: 500;
   color: var(--tint, var(--text));
   background: var(--fill-2);
@@ -2967,7 +2970,7 @@ select:focus-visible {
 
 .learn-meta {
   align-self: center;
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   color: var(--text-3);
 }
 
@@ -3026,7 +3029,7 @@ select:focus-visible {
 
 .react {
   padding: 1px 7px;
-  font-size: 13px;
+  font-size: var(--type-small);
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
@@ -3764,7 +3767,7 @@ select:focus-visible {
 .empty p {
   max-width: 380px;
   margin: 0;
-  font-size: 14px;
+  font-size: var(--type-small);
   line-height: 1.5;
   /* A job description can be several lines, written as lines. Honour them here,
      and keep it to the first few — this is a greeting, not the whole brief. */
@@ -3904,7 +3907,7 @@ select:focus-visible {
 .card__name {
   margin: 0;
   color: var(--text);
-  font-size: 15px;
+  font-size: var(--type-body);
   font-weight: 600;
 }
 
@@ -3913,7 +3916,7 @@ select:focus-visible {
 .card__doing {
   margin: 2px 0 0;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--type-hint);
 }
 
 .card__doing.is-working {
@@ -3924,7 +3927,7 @@ select:focus-visible {
   margin: 0;
   padding: 0 14px 12px;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: var(--type-small);
   line-height: 1.45;
 }
 
@@ -3938,7 +3941,7 @@ select:focus-visible {
   gap: 10px;
   justify-content: space-between;
   padding: 3px 0;
-  font-size: 12px;
+  font-size: var(--type-hint);
 }
 
 .card__label {
@@ -3964,7 +3967,7 @@ select:focus-visible {
   gap: 8px;
   align-items: baseline;
   padding: 2px 0;
-  font-size: 12px;
+  font-size: var(--type-hint);
 }
 
 .card__cmd code {
@@ -3995,7 +3998,7 @@ select:focus-visible {
   background: var(--fill-1);
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--type-small);
   cursor: pointer;
 }
 
@@ -4010,7 +4013,7 @@ select:focus-visible {
   gap: 10px;
   width: 100%;
   padding: 7px 9px;
-  font-size: 14px;
+  font-size: var(--type-small);
   text-align: left;
   border-radius: var(--radius-chip);
 }
@@ -4034,7 +4037,7 @@ select:focus-visible {
 .menu--emoji button {
   width: 34px;
   height: 34px;
-  font-size: 19px;
+  font-size: var(--type-title);
   border-radius: var(--radius-chip);
 }
 
@@ -4174,7 +4177,7 @@ select:focus-visible {
   margin: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
-  font-size: 15px;
+  font-size: var(--type-body);
 }
 
 /* Bigger, in a column that has the room. The preview is the one thing here
@@ -4219,19 +4222,19 @@ select:focus-visible {
 
 .about__name {
   margin: 10px 0 0;
-  font-size: 19px;
+  font-size: var(--type-title);
   font-weight: 600;
 }
 
 .about__version {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   color: var(--text-3);
 }
 
 .about__blurb {
   margin: 8px 0 0;
-  font-size: 13.5px;
+  font-size: var(--type-small);
   line-height: 1.5;
   color: var(--text-2);
 }
@@ -4270,7 +4273,7 @@ select:focus-visible {
 
 .sheet__head h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--type-title-sm);
   font-weight: 600;
 }
 
@@ -4321,7 +4324,7 @@ select:focus-visible {
 }
 
 .prose__label {
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   color: var(--text-2);
 }
 
@@ -4340,7 +4343,7 @@ select:focus-visible {
   display: flex;
   gap: 9px;
   align-items: baseline;
-  font-size: 12.5px;
+  font-size: var(--type-hint);
 }
 
 .cmd code {
@@ -4362,7 +4365,7 @@ select:focus-visible {
 .prose__hint {
   display: block;
   margin-top: 2px;
-  font-size: 12px;
+  font-size: var(--type-hint);
   line-height: 1.45;
   color: var(--text-3);
 }
@@ -4374,7 +4377,7 @@ select:focus-visible {
   min-height: 78px;
   padding: 10px 12px;
   font: inherit;
-  font-size: 13.5px;
+  font-size: var(--type-small);
   line-height: 1.45;
   background: var(--field);
   border-radius: var(--radius-control);
@@ -4394,7 +4397,7 @@ select:focus-visible {
   width: 100%;
   height: 38px;
   padding: 0 12px;
-  font-size: 14px;
+  font-size: var(--type-small);
   background: var(--field);
   border-radius: var(--radius-control);
 }
@@ -4433,7 +4436,7 @@ select:focus-visible {
 .prose__note {
   width: 100%;
   margin: -2px 0 0;
-  font-size: 12px;
+  font-size: var(--type-hint);
   line-height: 1.4;
   color: var(--text-3);
 }
@@ -4487,7 +4490,7 @@ select:focus-visible {
 }
 
 .lessons .lesson:first-child .lesson__title {
-  font-size: 17px;
+  font-size: var(--type-title-sm);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -4817,7 +4820,7 @@ select:focus-visible {
 }
 
 .lesson__title {
-  font-size: 14px;
+  font-size: var(--type-small);
   font-weight: 500;
 }
 
@@ -4855,7 +4858,7 @@ select:focus-visible {
 
 .lessons--bar .lesson__title,
 .lessons--bar .lesson:first-child .lesson__title {
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   white-space: nowrap;
 }
 
@@ -4884,7 +4887,7 @@ select:focus-visible {
 
 .lesson__go {
   margin-top: auto;
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   color: var(--blue);
   opacity: 0;
   transition: opacity 0.13s;
@@ -4934,7 +4937,7 @@ select:focus-visible {
 }
 
 .tour__count {
-  font-size: 11px;
+  font-size: var(--type-caption);
   font-weight: 600;
   color: var(--text-3);
   letter-spacing: 0.04em;
@@ -4942,13 +4945,13 @@ select:focus-visible {
 
 .tour__title {
   margin: 6px 0 0;
-  font-size: 16px;
+  font-size: var(--type-title-sm);
   font-weight: 600;
 }
 
 .tour__body {
   margin: 8px 0 0;
-  font-size: 13px;
+  font-size: var(--type-small);
   line-height: 1.55;
   color: var(--text-2);
 }
@@ -4969,7 +4972,7 @@ select:focus-visible {
   min-width: 76px;
   height: 30px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--type-small);
   border-radius: var(--radius-control);
 }
 
@@ -5017,12 +5020,12 @@ select:focus-visible {
 }
 
 .pick__name {
-  font-size: 14px;
+  font-size: var(--type-small);
   font-weight: 500;
 }
 
 .pick__what {
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   line-height: 1.5;
   color: var(--text-2);
 }
@@ -5064,7 +5067,7 @@ select:focus-visible {
 
 .chooser__label {
   padding: 10px 14px 6px;
-  font-size: 11px;
+  font-size: var(--type-caption);
   font-weight: 600;
   color: var(--text-3);
   letter-spacing: 0.04em;
@@ -5106,14 +5109,14 @@ select:focus-visible {
 .provider-row__name {
   flex: 1;
   overflow: hidden;
-  font-size: 13px;
+  font-size: var(--type-small);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .provider-row__count {
   flex: 0 0 auto;
-  font-size: 11px;
+  font-size: var(--type-caption);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
@@ -5189,7 +5192,7 @@ select:focus-visible {
 .model-row__name {
   flex: 0 1 auto;
   overflow: hidden;
-  font-size: 13.5px;
+  font-size: var(--type-small);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -5197,7 +5200,7 @@ select:focus-visible {
 .model-row__by {
   flex: 1;
   overflow: hidden;
-  font-size: 12px;
+  font-size: var(--type-hint);
   color: var(--text-2);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -5205,7 +5208,7 @@ select:focus-visible {
 
 .model-row__facts {
   flex: 0 0 auto;
-  font-size: 11.5px;
+  font-size: var(--type-caption);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
@@ -5215,7 +5218,7 @@ select:focus-visible {
 .model-row__locked {
   flex: 0 0 auto;
   padding: 1px 7px;
-  font-size: 10.5px;
+  font-size: var(--type-micro);
   color: var(--text-3);
   background: var(--fill-2);
   border-radius: var(--radius-pill);
@@ -5229,7 +5232,7 @@ select:focus-visible {
 
 .models__note {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--type-hint);
   line-height: 1.4;
   color: var(--text-3);
 }
@@ -5244,7 +5247,7 @@ select:focus-visible {
 .models__keyhead {
   flex: 0 0 auto;
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--type-caption);
   color: var(--text-2);
 }
 
@@ -5259,7 +5262,7 @@ select:focus-visible {
   min-width: 0;
   height: 32px;
   padding: 0 12px;
-  font-size: 13px;
+  font-size: var(--type-small);
   background: var(--field);
   border-radius: var(--radius-control);
 }
@@ -5541,7 +5544,7 @@ select:focus-visible {
   align-items: center;
   height: 38px;
   padding: 0 12px;
-  font-size: 14px;
+  font-size: var(--type-small);
   text-align: left;
   border-radius: var(--radius-control);
 }
@@ -5583,7 +5586,7 @@ select:focus-visible {
   min-width: 0;
   height: 33px;
   padding: 0 12px;
-  font-size: 13px;
+  font-size: var(--type-small);
   background: var(--field);
   border-radius: var(--radius-control);
 }
@@ -5643,7 +5646,7 @@ select:focus-visible {
 }
 
 .mark__initial {
-  font-size: 14px;
+  font-size: var(--type-small);
   font-weight: 600;
   color: rgba(255, 255, 255, 0.92);
 }
@@ -5672,7 +5675,7 @@ select:focus-visible {
 }
 
 .detail__head .mark__initial {
-  font-size: 19px;
+  font-size: var(--type-title);
 }
 
 .detail__id {
@@ -5683,7 +5686,7 @@ select:focus-visible {
 .detail__source {
   display: block;
   margin-top: 1px;
-  font-size: 12px;
+  font-size: var(--type-hint);
   color: var(--text-3);
 }
 
@@ -5697,7 +5700,7 @@ a.detail__source:hover {
 
 .group__head {
   padding: 7px 10px;
-  font-size: 12px;
+  font-size: var(--type-hint);
   font-weight: 550;
   color: var(--text-2);
   list-style: none;
@@ -5727,7 +5730,7 @@ a.detail__source:hover {
 
 .detail__back {
   margin-bottom: 10px;
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   color: var(--text-2);
 }
 
@@ -5738,13 +5741,13 @@ a.detail__source:hover {
 .detail__name {
   display: block;
   margin: 0;
-  font-size: 17px;
+  font-size: var(--type-title-sm);
   font-weight: 600;
 }
 
 .detail__desc {
   margin: 6px 0 4px;
-  font-size: 13px;
+  font-size: var(--type-small);
   line-height: 1.5;
   color: var(--text-2);
 }
@@ -5768,20 +5771,20 @@ a.detail__source:hover {
 
 .comp__kind {
   flex: none;
-  font-size: 11px;
+  font-size: var(--type-caption);
   color: var(--text-3);
 }
 
 .comp__name {
   display: block;
-  font-size: 13px;
+  font-size: var(--type-small);
   font-weight: 550;
 }
 
 .comp__desc {
   display: block;
   margin-top: 2px;
-  font-size: 12px;
+  font-size: var(--type-hint);
   line-height: 1.45;
   color: var(--text-3);
 }
@@ -5793,7 +5796,7 @@ a.detail__source:hover {
 
 .pcard__name {
   display: block;
-  font-size: 13.5px;
+  font-size: var(--type-small);
   font-weight: 550;
 }
 
@@ -5803,14 +5806,14 @@ a.detail__source:hover {
   -webkit-box-orient: vertical;
   overflow: hidden;
   margin-top: 1px;
-  font-size: 12px;
+  font-size: var(--type-hint);
   line-height: 1.4;
   color: var(--text-2);
 }
 
 .pcard__added {
   flex: 0 0 auto;
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   color: var(--text-3);
 }
 
@@ -5819,7 +5822,7 @@ a.detail__source:hover {
   margin-top: 6px;
   padding: 6px 8px;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--type-caption);
   line-height: 1.5;
   color: var(--text-2);
   white-space: pre-wrap;
@@ -5864,19 +5867,19 @@ a.detail__source:hover {
 
 .scope__label {
   display: block;
-  font-size: 12.5px;
+  font-size: var(--type-hint);
 }
 
 .scope__note {
   display: block;
-  font-size: 11.5px;
+  font-size: var(--type-caption);
   line-height: 1.4;
   color: var(--text-3);
 }
 
 /* A code the user retypes: big enough to read across a desk. */
 .pcard__code--code {
-  font-size: 17px;
+  font-size: var(--type-title-sm);
   font-weight: 600;
   letter-spacing: 0.12em;
   color: var(--text);
@@ -5888,7 +5891,7 @@ a.detail__source:hover {
   height: 30px;
   margin-top: 4px;
   padding: 0 10px;
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   background: var(--field);
   border-radius: var(--radius-chip);
 }
@@ -5901,7 +5904,7 @@ a.detail__source:hover {
 }
 
 .pcard__link {
-  font-size: 11.5px;
+  font-size: var(--type-caption);
   color: var(--text-3);
 }
 
@@ -5912,13 +5915,13 @@ a.detail__source:hover {
 .pcard__help {
   display: inline-block;
   margin-top: 4px;
-  font-size: 11.5px;
+  font-size: var(--type-caption);
   color: var(--link);
 }
 
 .market__empty {
   padding: 28px 2px;
-  font-size: 13px;
+  font-size: var(--type-small);
   text-align: center;
   color: var(--text-3);
 }
@@ -5927,7 +5930,7 @@ a.detail__source:hover {
   width: 100%;
   margin: 8px 0 -2px;
   padding-left: 2px;
-  font-size: 11px;
+  font-size: var(--type-caption);
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -5939,7 +5942,7 @@ a.detail__source:hover {
   min-height: 36px;
   margin-top: 2px;
   padding: 8px 10px;
-  font-size: 13px;
+  font-size: var(--type-small);
   font-weight: 500;
   color: var(--red);
   border-radius: var(--radius-control);
@@ -5973,7 +5976,7 @@ a.detail__source:hover {
 .tab {
   flex: 1;
   height: 27px;
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   font-weight: 500;
   color: var(--text-3);
   border-radius: var(--radius-chip);
@@ -6010,7 +6013,7 @@ a.detail__source:hover {
   padding: 0;
   color: var(--text-2);
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   background: none;
   border: 0;
   cursor: pointer;
@@ -6098,7 +6101,7 @@ a.detail__source:hover {
   width: auto;
   padding: 0 16px;
   height: 34px;
-  font-size: 13px;
+  font-size: var(--type-small);
 }
 
 /* A paragraph at the top of a settings panel, for the one thing a person needs
@@ -6106,7 +6109,7 @@ a.detail__source:hover {
 .setting__note {
   margin: 0;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   line-height: 1.5;
 }
 
@@ -6255,7 +6258,7 @@ a.detail__source:hover {
 
 .machine__note {
   margin: 0 2px;
-  font-size: 12px;
+  font-size: var(--type-hint);
   line-height: 1.45;
   color: var(--text-3);
 }
@@ -6294,7 +6297,7 @@ a.detail__source:hover {
    above it already said that. */
 .settings__cap {
   margin: 4px 4px -4px;
-  font-size: 11px;
+  font-size: var(--type-caption);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -6337,11 +6340,11 @@ label.setting {
   /* Three points read as a line that had wrapped rather than as a sentence
      explaining the one above it. */
   gap: 5px;
-  font-size: 14px;
+  font-size: var(--type-small);
 }
 
 .setting__hint {
-  font-size: 12px;
+  font-size: var(--type-hint);
   line-height: 1.45;
   color: var(--text-3);
 }
@@ -6355,7 +6358,7 @@ label.setting {
   max-width: 46%;
   padding: 0 8px;
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   color: var(--text);
   background: var(--field);
   border: 0;
@@ -6437,7 +6440,7 @@ label.setting {
   margin-top: 8px;
   padding: 9px;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--type-small);
   color: var(--text-2);
   background: var(--fill-1);
   border: 1px solid var(--line);
@@ -6531,7 +6534,7 @@ label.setting {
 }
 
 .hire__blurb {
-  font-size: 10.5px;
+  font-size: var(--type-micro);
   line-height: 1.3;
   color: var(--text-3);
 }
@@ -6580,13 +6583,13 @@ label.setting {
   min-height: 40px;
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
-  font-size: 15px;
+  font-size: var(--type-body);
 }
 
 .btn-primary {
   width: 100%;
   height: 40px;
-  font-size: 15px;
+  font-size: var(--type-body);
   font-weight: 500;
   color: #fff;
   background: var(--blue);
@@ -6602,7 +6605,7 @@ label.setting {
 .btn-quiet {
   width: 100%;
   height: 40px;
-  font-size: 15px;
+  font-size: var(--type-body);
   font-weight: 500;
   color: var(--text);
   background: var(--fill-1);
@@ -6655,7 +6658,7 @@ label.setting {
 .screen__caption {
   grid-area: caption;
   padding: 7px 12px 10px;
-  font-size: 12px;
+  font-size: var(--type-hint);
   color: var(--text-3);
   text-align: center;
 }
@@ -6803,7 +6806,7 @@ label.setting {
   display: flex;
   align-items: center;
   gap: 9px;
-  font-size: 14.5px;
+  font-size: var(--type-body);
   font-weight: 600;
 }
 
@@ -6816,7 +6819,7 @@ label.setting {
 
 .state-pill {
   padding: 2px 9px;
-  font-size: 12px;
+  font-size: var(--type-hint);
   color: var(--text-2);
   background: var(--fill-2);
   border-radius: var(--radius-pill);
@@ -6890,7 +6893,7 @@ label.setting {
 .screen__idle p {
   max-width: 380px;
   margin: 0;
-  font-size: 13.5px;
+  font-size: var(--type-small);
   color: var(--text-2);
 }
 
@@ -6902,7 +6905,7 @@ label.setting {
   gap: 6px;
   height: 28px;
   padding: 0 11px;
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   font-weight: 500;
   color: var(--text-2);
   white-space: nowrap;
@@ -6935,7 +6938,7 @@ label.setting {
 
 .screen-pane .screen__id {
   min-width: 0;
-  font-size: 13.5px;
+  font-size: var(--type-small);
 }
 
 .screen-pane .screen__id span {
@@ -6967,7 +6970,7 @@ label.setting {
   padding: 10px 12px;
   overflow: auto;
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--type-caption);
   line-height: 1.5;
   color: var(--text-3);
   text-align: left;
@@ -6983,7 +6986,7 @@ label.setting {
   left: 50%;
   z-index: 60;
   padding: 8px 14px;
-  font-size: 13.5px;
+  font-size: var(--type-small);
   color: #0a0a0a;
   background: #f2f2f2;
   border-radius: var(--radius-pill);
@@ -7188,13 +7191,13 @@ label.setting {
 
 .setup__title {
   margin: 14px 0 0;
-  font-size: 19px;
+  font-size: var(--type-title);
   font-weight: 600;
 }
 
 .setup__blurb {
   margin: 10px 0 0;
-  font-size: 13.5px;
+  font-size: var(--type-small);
   line-height: 1.55;
   color: var(--text-2);
 }
@@ -7213,7 +7216,7 @@ label.setting {
   width: 100%;
   margin-top: 18px;
   padding: 12px 14px;
-  font-size: 13px;
+  font-size: var(--type-small);
   text-align: left;
   background: var(--field);
   border-radius: var(--radius-card);
@@ -7276,7 +7279,7 @@ label.setting {
   padding: 10px 12px;
   overflow-y: auto;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--type-caption);
   line-height: 1.5;
   color: var(--text-2);
   text-align: left;
@@ -7288,21 +7291,21 @@ label.setting {
 
 .setup__fine {
   margin: 12px 0 0;
-  font-size: 11.5px;
+  font-size: var(--type-caption);
   line-height: 1.5;
   color: var(--text-3);
 }
 
 .setup__fine code {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--type-caption);
   color: var(--text-2);
 }
 
 .setup__list {
   margin: 16px 0 0;
   padding: 0;
-  font-size: 13px;
+  font-size: var(--type-small);
   line-height: 1.75;
   color: var(--text-2);
   text-align: left;
@@ -7347,7 +7350,7 @@ label.setting {
   flex: 0 0 auto;
   height: 40px;
   padding: 0 18px;
-  font-size: 15px;
+  font-size: var(--type-body);
   border-radius: var(--radius-card);
 }
 
@@ -7376,7 +7379,7 @@ label.setting {
 .pairing-code {
   align-self: center;
   font-family: var(--mono);
-  font-size: 27px;
+  font-size: var(--type-display);
   font-weight: 600;
   letter-spacing: 0.24em;
   /* The letter spacing is applied after each glyph, including the last, which
@@ -7445,14 +7448,14 @@ label.setting {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-size: 13.5px;
+  font-size: var(--type-small);
   color: var(--text);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .device__kind {
-  font-size: 11.5px;
+  font-size: var(--type-caption);
   color: var(--text-3);
 }
 
@@ -7519,7 +7522,7 @@ label.setting {
   align-self: stretch;
   padding: 10px 12px;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--type-hint);
   line-height: 1.9;
   color: var(--text);
   text-align: center;
@@ -7576,7 +7579,7 @@ label.setting {
 }
 
 .engine-row__name {
-  font-size: 13.5px;
+  font-size: var(--type-small);
   color: var(--text);
 }
 
@@ -7584,7 +7587,7 @@ label.setting {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-size: 12px;
+  font-size: var(--type-hint);
   color: var(--text-3);
   text-align: right;
   text-overflow: ellipsis;
@@ -7599,7 +7602,7 @@ label.setting {
   border-radius: var(--radius-control);
   background: rgba(10, 132, 255, 0.13);
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   line-height: 1.45;
 }
 
@@ -7670,7 +7673,7 @@ body.is-dragging {
   padding: 0 10px;
   color: var(--text-3);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--type-caption);
   font-weight: 600;
   letter-spacing: 0.4px;
   text-transform: uppercase;
@@ -7720,7 +7723,7 @@ body.is-dragging {
   margin: 12px 10px 2px;
   padding: 3px 8px;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--type-caption);
   font-weight: 600;
   letter-spacing: 0.4px;
   text-transform: uppercase;
@@ -7742,7 +7745,7 @@ body.is-dragging {
   margin: 12px 0 4px;
   padding: 0 10px;
   color: var(--text-3);
-  font-size: 11px;
+  font-size: var(--type-caption);
   font-weight: 600;
   letter-spacing: 0.4px;
   text-transform: uppercase;
@@ -7884,7 +7887,7 @@ body.is-dragging {
   border-radius: var(--radius-control);
   color: var(--text);
   font: inherit;
-  font-size: 13.5px;
+  font-size: var(--type-small);
   line-height: 1.5;
   resize: none;
 }
@@ -7899,7 +7902,7 @@ body.is-dragging {
 }
 .chan__name > span {
   color: var(--text-3);
-  font-size: 17px;
+  font-size: var(--type-title-sm);
 }
 .chan__name input {
   flex: 1;
@@ -7908,7 +7911,7 @@ body.is-dragging {
   border: 0;
   color: var(--text);
   font: inherit;
-  font-size: 15px;
+  font-size: var(--type-body);
 }
 
 /* Its own space above, on top of the body's gap: a heading belongs to what is
@@ -7916,7 +7919,7 @@ body.is-dragging {
 .chan__group {
   margin: 6px 0 -4px 2px;
   color: var(--text-3);
-  font-size: 11px;
+  font-size: var(--type-caption);
   font-weight: 600;
   letter-spacing: 0.4px;
   text-transform: uppercase;
@@ -7948,7 +7951,7 @@ body.is-dragging {
 .chan__memberName {
   overflow: hidden;
   color: var(--text);
-  font-size: 13.5px;
+  font-size: var(--type-small);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -7956,7 +7959,7 @@ body.is-dragging {
 .chan__fine {
   margin: 14px 2px 0;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   line-height: 1.5;
 }
 
@@ -7986,7 +7989,7 @@ body.is-dragging {
   padding: 5px 8px 5px 12px;
   color: var(--text-2);
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   background: var(--active);
   border: 1px solid var(--line);
   border-radius: var(--radius-chip);
@@ -8093,7 +8096,7 @@ body.is-dragging {
 
 .mention__name {
   flex: none;
-  font-size: 13.5px;
+  font-size: var(--type-small);
   font-weight: 500;
 }
 
@@ -8102,7 +8105,7 @@ body.is-dragging {
 .mention__role {
   overflow: hidden;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--type-hint);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -8167,7 +8170,7 @@ body.is-dragging {
 .call__state {
   margin: 0;
   color: var(--text-2);
-  font-size: 14px;
+  font-size: var(--type-small);
 }
 
 /* What it heard you say, so a misheard word is visible rather than mysterious. */
@@ -8176,7 +8179,7 @@ body.is-dragging {
   min-height: 22px;
   margin: 6px 0 0;
   color: var(--text);
-  font-size: 15px;
+  font-size: var(--type-body);
   line-height: 1.45;
 }
 
@@ -8208,7 +8211,7 @@ body.is-dragging {
   border-radius: 26px;
   color: var(--text);
   font: inherit;
-  font-size: 15px;
+  font-size: var(--type-body);
   cursor: pointer;
   user-select: none;
 }
@@ -8294,7 +8297,7 @@ body.is-dragging {
   background: var(--red);
   border-radius: var(--radius-control);
   color: #fff;
-  font-size: 11px;
+  font-size: var(--type-caption);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -8334,7 +8337,7 @@ body.is-dragging {
      looking at, and a title under a grid reads as a caption for it. */
   order: -1;
   margin: 0;
-  font-size: 15px;
+  font-size: var(--type-body);
   color: var(--text-2);
   font-weight: 500;
 }
@@ -8386,7 +8389,7 @@ body.is-dragging {
   background: rgba(0, 0, 0, 0.45);
   border-radius: 7px;
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--type-hint);
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -8484,7 +8487,7 @@ body.is-dragging {
 }
 
 .chan-row--thread .bot-row__name {
-  font-size: 13px;
+  font-size: var(--type-small);
   color: var(--text-2);
 }
 
@@ -8502,7 +8505,7 @@ body.is-dragging {
 .chan__parent {
   margin-left: 8px;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--type-hint);
 }
 
 /* Pinned: a mark on the bubble, and a list behind the pin in the header. */
@@ -8555,7 +8558,7 @@ body.is-dragging {
 .ask__q {
   margin: 0 0 6px;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: var(--type-small);
 }
 
 .ask__row {
@@ -8573,7 +8576,7 @@ body.is-dragging {
   background: var(--fill-1);
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--type-small);
   cursor: pointer;
   transition:
     background 0.12s ease,
@@ -8615,7 +8618,7 @@ body.is-dragging {
   border-radius: var(--radius-pill);
   color: var(--text-2);
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--type-hint);
   cursor: pointer;
 }
 .thread-strip:hover {
