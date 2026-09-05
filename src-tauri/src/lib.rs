@@ -1812,6 +1812,8 @@ pub fn run() {
                     let _ = child.wait();
                 }
                 sandbox::stop_all();
+                // Before the C++ globals get their turn: see hearing::unload.
+                hearing::unload();
             }
         });
 }

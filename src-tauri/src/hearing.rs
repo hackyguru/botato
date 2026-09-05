@@ -35,6 +35,22 @@ pub const RATE: u32 = 16_000;
 /// the first press of the talk button pays for it and the rest do not.
 static LOADED: Mutex<Option<WhisperContext>> = Mutex::new(None);
 
+/// Let the model go before the process does.
+///
+/// A Rust `static` is never dropped, which is normally the point — the model
+/// should outlive every utterance. But whisper's Metal backend keeps its own
+/// C++ global for the GPU device, and that one *does* have a destructor, which
+/// runs at exit and calls `ggml_abort` if buffers made from the device are
+/// still alive. Ours are, because nothing dropped them, so quitting botcage
+/// after dictating anything ends in a crash report for an app that had already
+/// decided to quit.
+///
+/// Dropping the context here releases those buffers first, in the ordinary
+/// order, while there is still a program to release them into.
+pub fn unload() {
+    drop(LOADED.lock().unwrap_or_else(|held| held.into_inner()).take());
+}
+
 fn model_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app
         .path()
