@@ -1,0 +1,41 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>botcage — the app icon</title>
+<!--
+  The source of the app icon, drawn by the same generator the app draws its
+  bots with, so the thing in the Dock and the thing in the rail cannot drift
+  apart. Potato on a plate: macOS wants a rounded square with the mark inside
+  it rather than a bare shape.
+
+  To regenerate, with the dev server running:
+
+    brave --headless --screenshot=icon.png --window-size=1024,1024 \
+      --default-background-color=00000000 http://localhost:1420/design/icon.html
+    npx tauri icon icon.png
+
+  The gradients are declared here because index.html's copy is not on this
+  page, and a paint server that does not resolve leaves the body flat.
+-->
+<style>
+  html,body{margin:0;padding:0;background:transparent}
+  #stage{position:fixed;inset:0;display:grid;place-items:center}
+  svg.defs{position:absolute;width:0;height:0}
+  /* macOS wants a rounded square with the mark inside it, not a bare shape */
+  .plate{width:840px;height:840px;border-radius:188px;display:grid;place-items:center;
+         background:linear-gradient(160deg,#1b1b1f 0%,#0b0b0d 70%)}
+  svg{width:560px;height:560px;overflow:visible}
+</style>
+<div id="stage"><div class="plate"><div id="mark"></div></div></div>
+<script type="module">
+  import { markHtml } from "/src/blob.ts";
+  document.getElementById("mark").innerHTML = markHtml("pebble", "#c8a06a");
+  const defs = `<svg class="defs" width="0" height="0"><defs>
+    <radialGradient id="face-hi" cx="32%" cy="22%" r="70%">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.34"/>
+      <stop offset="70%" stop-color="#fff" stop-opacity="0"/></radialGradient>
+    <linearGradient id="face-lo" x1="0" y1="0.45" x2="0" y2="1">
+      <stop offset="0%" stop-color="#000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000" stop-opacity="0.22"/></linearGradient>
+  </defs></svg>`;
+  document.body.insertAdjacentHTML("afterbegin", defs);
+</script>
