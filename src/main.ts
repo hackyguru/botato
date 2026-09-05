@@ -1404,11 +1404,11 @@ function seed(): void {
   state.bots = [
     {
       ...make(
-      "Guide",
+      "Potato",
       "Shows you around botcage. Ask it what a bot is, what routines and " +
         "connectors do, how to give a bot its own computer, or what to make next — " +
         "and when you know, make that bot and leave this one behind.",
-      "#0a84ff",
+      "#c8a06a",
       "circle",
       ),
       guide: true,
@@ -2065,6 +2065,11 @@ function renderRoster(): void {
     `<span class="desk-row__name">Your desk</span>` +
     (waiting ? `<span class="desk-row__count">${waiting > 99 ? "99+" : waiting}</span>` : "") +
     `</button>`;
+
+  // The app's mark is the guide's face, so it is redrawn with everything else:
+  // renaming that bot, or letting it redraw itself, changes the corner of the
+  // window too.
+  paintMark();
 
   // The rail: the desk, the way into the rooms, and a face per bot. No channel
   // rows — that is the whole point of the list beside it, since ten identical
@@ -10824,6 +10829,9 @@ async function openSetup(at: SetupStep = "welcome"): Promise<void> {
   $<HTMLElement>("#setup-face").innerHTML = host
     ? faceHtml(host, "lg")
     : `<svg class="setup__mark"><use href="#i-cube" /></svg>`;
+  // By name, not by the name it shipped with: somebody who renamed it should
+  // be greeted by the bot they have rather than the one we made.
+  $<HTMLElement>("#setup-hello").textContent = `Hi — I'm ${host?.name ?? "your guide"}`;
   $<HTMLInputElement>("#setup-name").value = appSettings().name ?? "";
   // Start on whatever this app is already set up to use, so reopening setup
   // shows the arrangement someone made rather than the one botcage prefers.
@@ -12553,12 +12561,29 @@ void listen<RemoteRequest>("remote-request", async (event) => {
 
 /* --------------------------------------------------------------------- boot */
 
-// The app's own face, in the family its bots belong to. A spike, because the
-// mark it replaces had an antenna and a single point on top is what that is
-// once the drawing is a silhouette rather than a diagram.
-$<HTMLElement>("#brand-mark").innerHTML = markHtml("spike", "#0a84ff");
-
 load();
+
+/** The app's own mark: the bot that shows you around, drawn by the generator
+ *  its whole roster is drawn by.
+ *
+ *  Not a logo beside the characters but one of them — the same body, the same
+ *  two dots, the same light — because the thing that greets you in setup and
+ *  the thing in the corner of the window ought to be one creature and not two.
+ *  It follows the real bot, so a guide that redraws itself redraws the mark.
+ *
+ *  Its own face when there is nobody to be: an install where the guide has
+ *  been deleted still has a corner to fill, and a stranger's face there would
+ *  be worse than the app's own. */
+function paintMark(): void {
+  const host = state.bots.find((b) => b.guide);
+  const face = host ? faceOf(host) : null;
+  $<HTMLElement>("#brand-mark").innerHTML = markHtml(
+    silhouetteOf(face?.head),
+    host?.color ?? "#0a84ff",
+  );
+}
+
+paintMark();
 setPaneWidth(state.screenWidth ?? SCREEN_PANE.initial);
 setPaneHeight(state.screenHeight ?? SCREEN_ROW.initial);
 // However you left it. showRooms paints the roster itself, so this is also the
