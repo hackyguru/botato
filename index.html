@@ -935,6 +935,18 @@
           <div class="settings-panel" data-tab="general" role="tabpanel">
             <p class="settings__cap">Preferences</p>
             <div class="settings">
+              <!-- Sound is a thing an application should never make without
+                   saying where it came from and how to stop it. The setup
+                   music had a switch inside setup; the bots make a noise
+                   wherever you are, so the switch belongs where you are. -->
+              <label class="setting">
+                <span class="setting__label">Sounds
+                  <span class="setting__hint">A note when you pick a bot, and the music under
+                    setup. Each bot has its own note.</span>
+                </span>
+                <input type="checkbox" id="app-sounds" class="switch" />
+              </label>
+
               <label class="setting">
                 <span class="setting__label">Your name</span>
                 <input id="app-name" class="picker picker--text" placeholder="Your name"

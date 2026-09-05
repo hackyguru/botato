@@ -18,6 +18,7 @@ import { Music } from "./music";
 // Aliased: `bodyOf` in this file is already the DOM body of a message, and a
 // silhouette is not that.
 import { BODIES, body as drawBody, bodyOf as silhouetteOf, gazeOf, markHtml } from "./blob";
+import { blip } from "./blip";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import RFB from "@novnc/novnc";
 
@@ -7880,6 +7881,7 @@ function paintNotifyRow(): void {
   }
 }
 const appAwake = $<HTMLInputElement>("#app-awake");
+const appSounds = $<HTMLInputElement>("#app-sounds");
 const appLid = $<HTMLInputElement>("#app-lid");
 const appLogin = $<HTMLInputElement>("#app-login");
 
@@ -8310,6 +8312,9 @@ async function openAppSettings(): Promise<void> {
   appNotify.checked = Boolean(settings.notify);
   paintNotifyRow();
   appAwake.checked = settings.awake;
+  // Stored as `hush` because the setup music asked the question that way; shown
+  // as "Sounds" because a switch is read as the thing it turns on.
+  appSounds.checked = !settings.hush;
   appWrap.hidden = false;
 
   void refreshRemote();
@@ -8415,6 +8420,7 @@ function saveAppSettings(): void {
     idleMinutes: Number(appIdle.value),
     routinesOn: appRoutines.checked,
     awake: appAwake.checked,
+    hush: !appSounds.checked,
     notify: appNotify.checked,
     name: $<HTMLInputElement>("#app-name").value.trim() || undefined,
     engine: appSettings().engine,
@@ -9878,7 +9884,13 @@ navEl.addEventListener("click", (e) => {
   const room = (e.target as HTMLElement).closest<HTMLElement>("[data-channel]");
   if (room) return openChannel(room.dataset.channel!);
   const row = (e.target as HTMLElement).closest<HTMLElement>("[data-bot]");
-  if (row) openBot(row.dataset.bot!);
+  if (!row?.dataset.bot) return;
+  // Its own note, from the same seed its face is drawn from — so the bot that
+  // looks a particular way sounds a particular way, and a roster clicked
+  // quickly is a phrase rather than a pile. Under the app's own sound switch,
+  // because nothing here should make a noise somebody cannot stop.
+  if (!appSettings().hush) blip(seedOf(row.dataset.bot));
+  openBot(row.dataset.bot);
 });
 
 navEl.addEventListener("contextmenu", (e) => {
@@ -10242,9 +10254,17 @@ sheetBack.addEventListener("click", () => {
   focusHiring();
 });
 
-for (const control of [appModel, appScreen, appIdle, appRoutines, appAwake]) {
+for (const control of [appModel, appScreen, appIdle, appRoutines, appAwake, appSounds]) {
   control.addEventListener("change", saveAppSettings);
 }
+
+// Silence means silence now, not from the next screen onwards: the setup music
+// is the one sound that can already be playing when the switch is turned off.
+appSounds.addEventListener("change", () => {
+  if (appSounds.checked) return;
+  music.stop();
+  paintMute();
+});
 
 // Switching it on is when the machine asks — which is the whole reason it
 // starts off. A refusal turns the switch back rather than leaving it on and

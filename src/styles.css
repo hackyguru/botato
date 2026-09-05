@@ -551,6 +551,10 @@ select:focus-visible {
   /* The same 46 every other line in the column stands in, so the rhythm does
      not start with a short one. */
   height: 46px;
+  /* And clear of the list below it. The mark is the app; the first thing under
+     it is the first of your things, and the two sat a hair apart once the
+     search button that used to divide them was taken out. */
+  margin-bottom: 16px;
 }
 
 /* Big enough to weigh what a face weighs.
