@@ -4392,6 +4392,14 @@ select:focus-visible {
 }
 
 /* The name field on the welcome screen: a prose block, but one line. */
+/* Room either side of the field. The title, the box and the line under it were
+   a heading, a control and a footnote stacked four points apart — which reads
+   as one paragraph that happens to contain an input rather than as a question
+   with an answer under it. */
+.setup__name {
+  margin: 26px 0 4px;
+}
+
 .setup__name input {
   width: 100%;
   height: 38px;
@@ -7210,6 +7218,7 @@ label.setting {
 }
 
 .setup__blurb--dim {
+  margin-top: 20px;
   color: var(--text-3);
 }
 
