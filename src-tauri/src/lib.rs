@@ -1264,6 +1264,38 @@ fn allow_the_microphone(app: &tauri::App) {
 #[cfg(not(target_os = "linux"))]
 fn allow_the_microphone(_app: &tauri::App) {}
 
+/// Someone clicked "Add to botcage" on a template.
+///
+/// The link carries the whole template rather than an id to fetch, so the app
+/// never has to talk to the website and a link keeps working after the page it
+/// came from is gone. It arrives here as a `botcage://` URL and goes straight
+/// to the window as text — this end deliberately does not parse it, because
+/// the thing that has to understand a template is the thing that builds a bot
+/// out of one, and that lives in the front end already.
+///
+/// Nothing is created by a link arriving. It opens the new-bot sheet with the
+/// fields filled in, and a person presses the button. A web page that could
+/// silently add a bot to your roster is a web page that could add a bot to
+/// your roster while you were reading something else.
+fn handed_a_bot(app: &tauri::App) {
+    use tauri_plugin_deep_link::DeepLinkExt;
+
+    let handle = app.handle().clone();
+    app.deep_link().on_open_url(move |event| {
+        for url in event.urls() {
+            // Raise the window first. A link opened from a browser means the
+            // browser has the front, and filling in a form nobody can see is
+            // the same as doing nothing.
+            if let Some(window) = handle.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+            let _ = handle.emit("deep-link", url.to_string());
+        }
+    });
+}
+
 /// Whether botcage's own speech engine is installed.
 #[tauri::command]
 fn speech_ready(app: AppHandle) -> bool {
@@ -1688,6 +1720,9 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         // Notifications when botcage is not the window you are looking at.
         .plugin(tauri_plugin_notification::init())
+        // "botcage://" — how a template on the website gets into the roster.
+        // Nothing is created by a link arriving; see `handed_a_bot`.
+        .plugin(tauri_plugin_deep_link::init())
         .manage(Running::default())
         .manage(sandbox::Sandboxes::default())
         .invoke_handler(tauri::generate_handler![
@@ -1788,6 +1823,7 @@ pub fn run() {
         ])
         .setup(|app| {
             allow_the_microphone(app);
+            handed_a_bot(app);
 
             // If botcage installed its own engine, use that rather than whatever
             // is on PATH — it is the one the user agreed to.

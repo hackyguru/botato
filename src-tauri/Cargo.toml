@@ -45,6 +45,7 @@ tauri-plugin-notification = "2.3.3"
 # aws-lc, no TLS stack. `rust_crypto` keeps it to pure Rust, which keeps the
 # binary small and the build honest on both platforms.
 jsonwebtoken = { version = "11.0.0", default-features = false, features = ["use_pem", "rust_crypto"] }
+tauri-plugin-deep-link = "2.4.10"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

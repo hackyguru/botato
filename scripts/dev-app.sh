@@ -68,13 +68,23 @@ cp "$binary" "$app/Contents/MacOS/botcage"
 cp "$here/src-tauri/icons/icon.icns" "$app/Contents/Resources/icon.icns"
 
 # The usage descriptions come from the same file the release build uses, so
-# there is one place to change what macOS shows the person being asked.
+# there is one place to change what macOS shows the person being asked. The URL
+# scheme comes from tauri.conf.json for the same reason: the real bundler reads
+# it from there, and a dev bundle that claimed a different one would answer
+# links the shipped app does not.
 python3 - "$here" "$app" <<'PY'
-import plistlib, sys
+import json, plistlib, sys
 from pathlib import Path
 
 root, app = Path(sys.argv[1]), Path(sys.argv[2])
 info = plistlib.loads((root / "src-tauri" / "Info.plist").read_bytes())
+conf = json.loads((root / "src-tauri" / "tauri.conf.json").read_text())
+schemes = conf.get("plugins", {}).get("deep-link", {}).get("desktop", {}).get("schemes", [])
+if schemes:
+    info["CFBundleURLTypes"] = [{
+        "CFBundleURLName": conf["identifier"],
+        "CFBundleURLSchemes": schemes,
+    }]
 info.update({
     "CFBundleExecutable": "botcage",
     # Named without the extension, which is how CFBundleIconFile has always

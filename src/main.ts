@@ -6239,6 +6239,20 @@ function createBot(): void {
   // The face the sheet was showing, not one derived from the id it was just
   // given: a preview that is not a promise is a preview of nothing.
   bot.face = faceFromName(name);
+  // Work that came in with a template. Only now can it be attached: a routine
+  // belongs to a bot id, and until this line there was no bot to belong to.
+  if (importedRoutines?.length) {
+    // On, because a template whose schedule arrives switched off is not the
+    // ready-made thing somebody clicked for, and the switch is somewhere they
+    // would have to go looking. Said out loud instead: work that will happen
+    // on its own should be announced by the thing that arranged it.
+    bot.routines = importedRoutines.map((r) => ({ ...r, id: uid(), active: true }));
+    toast(
+      `${bot.name} added · ` +
+        bot.routines.map((r) => `${r.name}, ${howOften(r).toLowerCase()}`).join(" · "),
+    );
+    importedRoutines = null;
+  }
   pinFace(bot);
   state.bots.unshift(bot);
   state.activeId = bot.id;
@@ -10902,6 +10916,153 @@ $<HTMLDivElement>("#sheet-hires-row").addEventListener("click", (e) => {
   else nextHiring();
 });
 
+/* ---------------------------------------------------- a bot from a link */
+
+/** What a "botcage://bot?t=…" link carries.
+ *
+ *  The website puts the whole template in the URL rather than an id to fetch,
+ *  so botcage never has to talk to the website and a link keeps working after
+ *  the page it came from is gone. Which also means anyone can share a bot they
+ *  worked out, without it having to be on our site first.
+ *
+ *  Versioned, because the two ends are updated separately: a link made today
+ *  gets opened by whatever build somebody happens to be running. */
+interface Handover {
+  v: number;
+  name: string;
+  role: string;
+  color: string;
+  computer: boolean;
+  network: Bot["network"];
+  routines?: { name: string; instruction: string; every: Routine["every"]; at: string; day?: number }[];
+  from?: string;
+}
+
+/** Routines that came in with a template, waiting for the bot to exist.
+ *
+ *  The hiring sheet makes a bot out of what its fields say, and it has no
+ *  field for a schedule. Rather than teach it one for this, the work is held
+ *  here and attached on the way out of `createBot` — which is also the only
+ *  moment it can be attached, since a routine belongs to a bot id that does
+ *  not exist until then. */
+let importedRoutines: Handover["routines"] | null = null;
+
+/** Read one, and be unfriendly about it.
+ *
+ *  This is the one thing in botcage that arrives from a web page, so nothing
+ *  is trusted for being present: every field is checked for the type it is
+ *  supposed to be, the colour has to be a colour, the network has to be one of
+ *  the three, and anything else is dropped rather than passed through. A bad
+ *  link should do nothing, not half of something. */
+function readHandover(raw: string): Handover | null {
+  let got: unknown;
+  try {
+    const url = new URL(raw);
+    const packed = url.searchParams.get("t");
+    if (!packed) return null;
+    // base64url back to bytes, then bytes back to text: the roles have em
+    // dashes in them, and atob alone would mangle every one.
+    const padded = packed.replace(/-/g, "+").replace(/_/g, "/");
+    const binary = atob(padded + "=".repeat((4 - (padded.length % 4)) % 4));
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    got = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    return null;
+  }
+
+  const t = got as Record<string, unknown>;
+  if (!t || typeof t !== "object") return null;
+  if (t.v !== 1) {
+    toast("That template was made for a newer botcage");
+    return null;
+  }
+  const name = typeof t.name === "string" ? t.name.trim().slice(0, 60) : "";
+  const role = typeof t.role === "string" ? t.role.trim().slice(0, 8000) : "";
+  if (!name || !role) return null;
+
+  const networks = ["full", "no-lan", "offline"];
+  const routines = Array.isArray(t.routines)
+    ? (t.routines as Record<string, unknown>[])
+        .filter(
+          (r) =>
+            typeof r?.name === "string" &&
+            typeof r?.instruction === "string" &&
+            EVERY.includes(String(r?.every)) &&
+            /^\d{2}:\d{2}$/.test(String(r?.at)),
+        )
+        .slice(0, 8)
+        .map((r) => ({
+          name: String(r.name).slice(0, 60),
+          instruction: String(r.instruction).slice(0, 2000),
+          every: String(r.every) as Routine["every"],
+          at: String(r.at),
+          ...(typeof r.day === "number" && r.day >= 0 && r.day <= 6 ? { day: r.day } : {}),
+        }))
+    : undefined;
+
+  return {
+    v: 1,
+    name,
+    role,
+    // Anything that is not a plain hex colour gets the one a new bot would
+    // have had: a colour is written into a style attribute later.
+    color: typeof t.color === "string" && /^#[0-9a-f]{6}$/i.test(t.color)
+      ? t.color
+      : COLORS[state.bots.length % COLORS.length],
+    computer: t.computer === true,
+    network: (networks.includes(String(t.network)) ? t.network : "full") as Bot["network"],
+    ...(routines?.length ? { routines } : {}),
+    ...(typeof t.from === "string" ? { from: t.from.slice(0, 80) } : {}),
+  };
+}
+
+/** The schedules a routine may be on. Here rather than inlined so the check
+ *  above and the type it produces cannot drift apart. */
+const EVERY = ["once", "week", "day", "weekday", "hour", "minutes"];
+
+/** Open the sheet on somebody else's bot.
+ *
+ *  Filled in, not created. A link from a web page that could silently add a
+ *  bot to your roster could add one while you were reading something else —
+ *  so this goes as far as the form and stops, on the step that shows you who
+ *  it is, with the step after it showing what it is allowed to reach. */
+function offerBot(handover: Handover): void {
+  openSheet(null);
+  sheetName.value = handover.name;
+  sheetRole.value = handover.role;
+  draftColor = handover.color;
+  sheetComputer.checked = handover.computer;
+  sheetNetwork.value = handover.network;
+  importedRoutines = handover.routines ?? null;
+  // Past "Start from": the starting point is the thing that just arrived, and
+  // offering the built-in list underneath it would invite somebody to
+  // overwrite what they clicked on.
+  hiringAt = 1;
+  paintHiring();
+  renderSheetPreview();
+  focusHiring();
+
+  // What it is asking for, said on the way in. The step that holds those two
+  // settings has them below its fold, and a bot that arrived from a web page
+  // asking for a desktop and the internet should not have that be something
+  // you find by scrolling after you have already agreed.
+  const asks = [
+    handover.computer ? "a desktop of its own" : null,
+    handover.network === "full"
+      ? "the internet"
+      : handover.network === "no-lan"
+        ? "the internet, but not your network"
+        : null,
+  ].filter(Boolean);
+  if (asks.length) toast(`${handover.name} wants ${asks.join(" and ")}`);
+}
+
+void listen<string>("deep-link", (event) => {
+  const handover = readHandover(event.payload);
+  if (handover) offerBot(handover);
+  else toast("That botcage link could not be read");
+});
+
 swatches.addEventListener("click", (e) => {
   const swatch = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-color]");
   if (!swatch) return;
@@ -10911,6 +11072,9 @@ swatches.addEventListener("click", (e) => {
 
 $<HTMLButtonElement>("#sheet-close").addEventListener("click", () => {
   showSheet(false);
+  // Whatever a link brought in goes with the sheet it filled. Otherwise the
+  // next bot you make by hand quietly inherits somebody else's schedule.
+  importedRoutines = null;
 });
 
 // Only while it is a dialog, and only the dim itself: a click that started
