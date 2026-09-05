@@ -63,6 +63,9 @@
   --radius-chip: 8px;
   --radius-control: 10px;
   --radius-card: 12px;
+  /* A tile: the rail's, the calendar's panel, a face on a call. Six rules were
+     already drawing this and there was no name for it, so they wrote 14. */
+  --radius-tile: 14px;
   --radius-surface: 16px;
   --radius-sheet: 18px;
 
@@ -205,7 +208,7 @@ select:focus-visible {
   background: rgba(255, 255, 255, 0.16);
   background-clip: content-box;
   border: 3px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 /* -------------------------------------------------------------------- shell */
@@ -438,7 +441,7 @@ select:focus-visible {
   height: 16px;
   padding: 0 4px;
   font-size: 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-chip);
 }
 
 .sidebar .bot-row,
@@ -458,7 +461,7 @@ select:focus-visible {
 .sidebar .bot-row {
   width: auto;
   padding: 6px;
-  border-radius: 14px;
+  border-radius: var(--radius-tile);
 }
 
 /* And room to breathe between them. Down the middle rather than justified,
@@ -484,7 +487,7 @@ select:focus-visible {
      other, for no reason anybody could name. */
   margin: 0 auto;
   padding: 6px;
-  border-radius: 14px;
+  border-radius: var(--radius-tile);
 }
 
 .sidebar .desk-row__name,
@@ -597,7 +600,7 @@ select:focus-visible {
   font-weight: 700;
   letter-spacing: 0.2px;
   color: #fff;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 
 /* Lit, the tile behind it already says which one you are in, so the mark stops
@@ -723,7 +726,7 @@ select:focus-visible {
   color: var(--text);
   background: none;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-chip);
 }
 
 /* A light wash rather than the app's grey hover: over a tint, grey reads as a
@@ -867,7 +870,7 @@ select:focus-visible {
 .sidebar__head .icon-btn {
   width: 46px;
   height: 46px;
-  border-radius: 14px;
+  border-radius: var(--radius-tile);
 }
 
 .sidebar__head .icon-btn svg {
@@ -882,7 +885,7 @@ select:focus-visible {
   width: 30px;
   height: 30px;
   color: var(--text-2);
-  border-radius: 8px;
+  border-radius: var(--radius-chip);
   transition: background 0.13s, color 0.13s;
 }
 
@@ -916,7 +919,7 @@ select:focus-visible {
   margin: 6px 0 8px;
   color: var(--text-3);
   background: var(--field);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 
 .field svg {
@@ -1223,7 +1226,7 @@ select:focus-visible {
   width: 100%;
   padding: 9px 10px;
   text-align: left;
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   transition: background 0.13s;
 }
 
@@ -1472,7 +1475,7 @@ select:focus-visible {
 }
 
 .face__part[data-shape="line"] {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .face__part[data-shape="triangle"] {
@@ -1751,7 +1754,7 @@ select:focus-visible {
   align-items: center;
   gap: 12px;
   padding: 7px 8px;
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   transition: background 0.13s;
 }
 
@@ -1984,7 +1987,7 @@ select:focus-visible {
   text-align: left;
   background: none;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-chip);
   cursor: pointer;
 }
 
@@ -2360,7 +2363,7 @@ select:focus-visible {
   overflow: hidden;
   background: rgba(0, 0, 0, 0.34);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 
 .code__bar {
@@ -2401,7 +2404,7 @@ select:focus-visible {
   padding: 0 10px;
   font-size: 12.5px;
   background: var(--field);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 /* A bot's routines as a week, because that is the shape a schedule has. The
@@ -2459,7 +2462,7 @@ select:focus-visible {
   min-height: 0;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-tile);
 }
 
 /* The gutter width is repeated in every row so the columns line up; changing it
@@ -2644,7 +2647,7 @@ select:focus-visible {
   padding: 3px 9px;
   font-size: 11.5px;
   background: var(--fill-2);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .cal__chip b {
@@ -2680,7 +2683,7 @@ select:focus-visible {
   gap: 2px;
   padding: 2px;
   background: var(--field);
-  border-radius: 9px;
+  border-radius: var(--radius-control);
 }
 
 .cal__span {
@@ -2751,7 +2754,7 @@ select:focus-visible {
   line-height: 19px;
   color: var(--text-3);
   text-align: center;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .cal__cell.is-today .cal__date {
@@ -2833,7 +2836,7 @@ select:focus-visible {
   padding: 9px 12px;
   font-size: 13.5px;
   background: var(--field);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   resize: none;
 }
 
@@ -2867,7 +2870,7 @@ select:focus-visible {
   height: 40px;
   padding: 0 16px;
   font-size: 15px;
-  border-radius: 12px;
+  border-radius: var(--radius-card);
 }
 
 /* The count beside the clock. Small enough to read as a badge rather than a
@@ -2884,7 +2887,7 @@ select:focus-visible {
   color: #fff;
   text-align: center;
   background: var(--blue);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .icon-btn__count:empty {
@@ -2907,7 +2910,7 @@ select:focus-visible {
   color: var(--text);
   white-space: nowrap;
   background: var(--fill-3);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .ref svg {
@@ -2983,7 +2986,7 @@ select:focus-visible {
   opacity: 0;
   background: var(--active);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-chip);
   transition: opacity 0.13s;
 }
 
@@ -3002,7 +3005,7 @@ select:focus-visible {
   width: 28px;
   height: 28px;
   color: var(--text-2);
-  border-radius: 8px;
+  border-radius: var(--radius-chip);
 }
 
 .acts button svg {
@@ -3026,7 +3029,7 @@ select:focus-visible {
   font-size: 13px;
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 /* typing indicator */
@@ -3988,7 +3991,7 @@ select:focus-visible {
   flex: 1;
   padding: 7px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-chip);
   background: var(--fill-1);
   color: var(--text);
   font: inherit;
@@ -4009,7 +4012,7 @@ select:focus-visible {
   padding: 7px 9px;
   font-size: 14px;
   text-align: left;
-  border-radius: 8px;
+  border-radius: var(--radius-chip);
 }
 
 .menu-item:hover {
@@ -4032,7 +4035,7 @@ select:focus-visible {
   width: 34px;
   height: 34px;
   font-size: 19px;
-  border-radius: 8px;
+  border-radius: var(--radius-chip);
 }
 
 .menu--emoji button:hover {
@@ -4170,7 +4173,7 @@ select:focus-visible {
   min-height: 40px;
   margin: 0;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   font-size: 15px;
 }
 
@@ -4303,7 +4306,7 @@ select:focus-visible {
   height: 38px;
   padding: 0 12px;
   background: var(--field);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 
 /* A field with something to say about itself. The name above it needs no label
@@ -4330,7 +4333,7 @@ select:focus-visible {
   gap: 3px;
   padding: 9px 12px;
   background: var(--fill-1);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 
 .cmd {
@@ -4374,7 +4377,7 @@ select:focus-visible {
   font-size: 13.5px;
   line-height: 1.45;
   background: var(--field);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   resize: vertical;
 }
 
@@ -4393,7 +4396,7 @@ select:focus-visible {
   padding: 0 12px;
   font-size: 14px;
   background: var(--field);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 
 /* A picker that is a text field rather than a menu. */
@@ -4473,7 +4476,7 @@ select:focus-visible {
   text-align: left;
   background: var(--fill-1);
   border: 1px solid var(--line);
-  border-radius: 15px;
+  border-radius: var(--radius-surface);
   transition: background 0.14s, border-color 0.14s, transform 0.14s;
 }
 
@@ -4517,7 +4520,7 @@ select:focus-visible {
 /* A face, which blinks when you look at it. */
 .art--bot {
   background: var(--blue);
-  border-radius: 9px;
+  border-radius: var(--radius-control);
 }
 
 .art--bot i {
@@ -4847,7 +4850,7 @@ select:focus-visible {
   align-items: center;
   min-height: 0;
   padding: 6px 11px 6px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .lessons--bar .lesson__title,
@@ -4913,7 +4916,7 @@ select:focus-visible {
 .tour__ring {
   position: absolute;
   border: 2px solid var(--blue);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.22);
   pointer-events: none;
   transition: all 0.22s ease;
@@ -4925,7 +4928,7 @@ select:focus-visible {
   padding: 16px 18px 14px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: var(--radius-surface);
   box-shadow: var(--shadow);
   transition: top 0.22s ease, left 0.22s ease;
 }
@@ -4967,7 +4970,7 @@ select:focus-visible {
   height: 30px;
   padding: 0 14px;
   font-size: 13px;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
 }
 
 
@@ -4988,7 +4991,7 @@ select:focus-visible {
   text-align: left;
   background: var(--fill-1);
   border: 1px solid transparent;
-  border-radius: 11px;
+  border-radius: var(--radius-card);
   cursor: pointer;
 }
 
@@ -5089,7 +5092,7 @@ select:focus-visible {
   width: 100%;
   padding: 7px 10px;
   text-align: left;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
 }
 
 .provider-row:hover {
@@ -5143,7 +5146,7 @@ select:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
   background: var(--field);
-  border-radius: 8px;
+  border-radius: var(--radius-chip);
 }
 
 /* `--fill-3` is this, to within a percent, and is the colour every other
@@ -5172,7 +5175,7 @@ select:focus-visible {
   width: 100%;
   padding: 8px 10px;
   text-align: left;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 
 .model-row:hover {
@@ -5215,7 +5218,7 @@ select:focus-visible {
   font-size: 10.5px;
   color: var(--text-3);
   background: var(--fill-2);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .models__foot {
@@ -5248,7 +5251,7 @@ select:focus-visible {
 .models__key .chip {
   height: 32px;
   padding: 0 14px;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
 }
 
 .models__key input {
@@ -5258,7 +5261,7 @@ select:focus-visible {
   padding: 0 12px;
   font-size: 13px;
   background: var(--field);
-  border-radius: 9px;
+  border-radius: var(--radius-control);
 }
 
 /* A sheet with tabs holds one size across all of them. Each panel has its own
@@ -5540,7 +5543,7 @@ select:focus-visible {
   padding: 0 12px;
   font-size: 14px;
   text-align: left;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
 }
 
 .sheet--settings .tab svg {
@@ -5582,7 +5585,7 @@ select:focus-visible {
   padding: 0 12px;
   font-size: 13px;
   background: var(--field);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 
 /* The catalogue is hundreds of entries, so the list scrolls inside the sheet
@@ -5620,7 +5623,7 @@ select:focus-visible {
   gap: 12px;
   align-items: center;
   padding: 9px 10px;
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   transition: background 0.13s;
 }
 
@@ -5636,7 +5639,7 @@ select:focus-visible {
   width: 32px;
   height: 32px;
   overflow: hidden;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
 }
 
 .mark__initial {
@@ -5665,7 +5668,7 @@ select:focus-visible {
 .detail__head .mark {
   width: 46px;
   height: 46px;
-  border-radius: 12px;
+  border-radius: var(--radius-card);
 }
 
 .detail__head .mark__initial {
@@ -5700,7 +5703,7 @@ a.detail__source:hover {
   list-style: none;
   cursor: default;
   background: var(--field);
-  border-radius: 9px;
+  border-radius: var(--radius-control);
 }
 
 .group__head::-webkit-details-marker {
@@ -5822,7 +5825,7 @@ a.detail__source:hover {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   background: var(--field);
-  border-radius: 8px;
+  border-radius: var(--radius-chip);
 }
 
 .chip--quiet {
@@ -5847,7 +5850,7 @@ a.detail__source:hover {
   gap: 9px;
   align-items: flex-start;
   padding: 5px 6px;
-  border-radius: 8px;
+  border-radius: var(--radius-chip);
 }
 
 .scope:hover {
@@ -5887,7 +5890,7 @@ a.detail__source:hover {
   padding: 0 10px;
   font-size: 12.5px;
   background: var(--field);
-  border-radius: 8px;
+  border-radius: var(--radius-chip);
 }
 
 .pcard__links {
@@ -5939,7 +5942,7 @@ a.detail__source:hover {
   font-size: 13px;
   font-weight: 500;
   color: var(--red);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   transition: background 0.13s, color 0.13s;
 }
 
@@ -5964,7 +5967,7 @@ a.detail__source:hover {
   margin: 2px 20px 0;
   padding: 3px;
   background: var(--field);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 
 .tab {
@@ -5973,7 +5976,7 @@ a.detail__source:hover {
   font-size: 12.5px;
   font-weight: 500;
   color: var(--text-3);
-  border-radius: 8px;
+  border-radius: var(--radius-chip);
   transition: background 0.13s, color 0.13s;
 }
 
@@ -6270,7 +6273,7 @@ a.detail__source:hover {
   flex-direction: column;
   width: 100%;
   background: var(--fill-1);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   /* So a row lit by hover cannot square off the corner it sits in. */
   overflow: hidden;
 }
@@ -6356,7 +6359,7 @@ label.setting {
   color: var(--text);
   background: var(--field);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-chip);
 }
 
 /* A checkbox drawn as a switch, at roughly the platform's 1.65:1 proportions —
@@ -6373,7 +6376,7 @@ label.setting {
   appearance: none;
   cursor: pointer;
   background: var(--fill-3);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   transition: background 0.18s ease;
 }
 
@@ -6438,7 +6441,7 @@ label.setting {
   color: var(--text-2);
   background: var(--fill-1);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   cursor: pointer;
 }
 
@@ -6484,7 +6487,7 @@ label.setting {
   height: 34px;
   color: var(--text-3);
   border: 1px dashed var(--line-2, var(--line));
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 
 .hire__blank svg {
@@ -6576,7 +6579,7 @@ label.setting {
 .sheet__foot .danger {
   min-height: 40px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   font-size: 15px;
 }
 
@@ -6587,7 +6590,7 @@ label.setting {
   font-weight: 500;
   color: #fff;
   background: var(--blue);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
 }
 
 .btn-primary:hover {
@@ -6604,7 +6607,7 @@ label.setting {
   color: var(--text);
   background: var(--fill-1);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
 }
 
 .btn-quiet:hover {
@@ -6646,7 +6649,7 @@ label.setting {
      The expand button trades back. */
   aspect-ratio: 16 / 10;
   margin: 12px 12px 0;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 
 .screen__caption {
@@ -6816,7 +6819,7 @@ label.setting {
   font-size: 12px;
   color: var(--text-2);
   background: var(--fill-2);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .state-pill.is-live {
@@ -6905,7 +6908,7 @@ label.setting {
   white-space: nowrap;
   background: var(--fill-2);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   transition: background 0.14s, color 0.14s, border-color 0.14s;
 }
 
@@ -6970,7 +6973,7 @@ label.setting {
   text-align: left;
   white-space: pre-wrap;
   background: rgba(255, 255, 255, 0.04);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 
 /* -------------------------------------------------------------------- toast */
@@ -6983,7 +6986,7 @@ label.setting {
   font-size: 13.5px;
   color: #0a0a0a;
   background: #f2f2f2;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   transform: translateX(-50%);
   animation: pop 0.13s ease both;
 }
@@ -7213,7 +7216,7 @@ label.setting {
   font-size: 13px;
   text-align: left;
   background: var(--field);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
 }
 
 .setup__dot {
@@ -7280,7 +7283,7 @@ label.setting {
   white-space: pre-wrap;
   word-break: break-word;
   background: #121214;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 
 .setup__fine {
@@ -7345,7 +7348,7 @@ label.setting {
   height: 40px;
   padding: 0 18px;
   font-size: 15px;
-  border-radius: 12px;
+  border-radius: var(--radius-card);
 }
 
 /* ------------------------------------------------------------- phone access */
@@ -7393,7 +7396,7 @@ label.setting {
   aspect-ratio: 1;
   padding: 10px;
   background: #fff;
-  border-radius: 12px;
+  border-radius: var(--radius-card);
 }
 
 .pairing-qr[hidden] {
@@ -7419,7 +7422,7 @@ label.setting {
   gap: 10px;
   align-items: center;
   padding: 7px 8px;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
 }
 
 .device:hover {
@@ -7522,7 +7525,7 @@ label.setting {
   text-align: center;
   word-spacing: 3px;
   background: var(--field);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   user-select: all;
   filter: blur(5px);
   transition: filter 0.14s ease;
@@ -7557,7 +7560,7 @@ label.setting {
   gap: 9px;
   align-items: baseline;
   padding: 6px 8px;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
 }
 
 .engine-row__light {
@@ -7593,7 +7596,7 @@ label.setting {
 .routine__by {
   margin: 0 0 12px;
   padding: 9px 11px;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   background: rgba(10, 132, 255, 0.13);
   color: var(--text-2);
   font-size: 12.5px;
@@ -7878,7 +7881,7 @@ body.is-dragging {
   padding: 9px 12px;
   background: var(--field);
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   color: var(--text);
   font: inherit;
   font-size: 13.5px;
@@ -7892,7 +7895,7 @@ body.is-dragging {
   gap: 2px;
   padding: 0 12px;
   background: var(--field);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 .chan__name > span {
   color: var(--text-3);
@@ -7932,7 +7935,7 @@ body.is-dragging {
   align-items: center;
   gap: 8px;
   padding: 7px 8px;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   cursor: pointer;
 }
 .chan__member:hover {
@@ -7986,7 +7989,7 @@ body.is-dragging {
   font-size: 12.5px;
   background: var(--active);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-chip);
   cursor: pointer;
   animation: jump-in 120ms ease-out;
 }
@@ -8044,7 +8047,7 @@ body.is-dragging {
   overflow-y: auto;
   background: var(--active);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-tile);
   box-shadow: var(--shadow);
 }
 
@@ -8056,7 +8059,7 @@ body.is-dragging {
   padding: 7px 9px;
   background: none;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   color: var(--text);
   font: inherit;
   text-align: left;
@@ -8289,7 +8292,7 @@ body.is-dragging {
   margin-right: 2px;
   padding: 0 5px;
   background: var(--red);
-  border-radius: 9px;
+  border-radius: var(--radius-control);
   color: #fff;
   font-size: 11px;
   font-weight: 600;
@@ -8362,7 +8365,7 @@ body.is-dragging {
   min-height: 132px;
   background: var(--field);
   border: 2px solid transparent;
-  border-radius: 14px;
+  border-radius: var(--radius-tile);
   transition:
     border-color 160ms ease,
     background 160ms ease;
@@ -8524,27 +8527,6 @@ body.is-dragging {
   fill: none;
 }
 
-.menu--pins {
-  max-width: 340px;
-}
-.menu-item--pin {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-}
-.pin-who {
-  color: var(--text-2);
-  font-size: 11.5px;
-}
-.pin-said {
-  overflow: hidden;
-  width: 100%;
-  color: var(--text);
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* Jumped to from the pin list — a flash, so the eye knows where it landed. */
 .turn.is-found .bubble {
   animation: found 1.4s ease-out;
@@ -8587,7 +8569,7 @@ body.is-dragging {
 .ask__opt {
   padding: 6px 12px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--fill-1);
   color: var(--text);
   font: inherit;
@@ -8630,7 +8612,7 @@ body.is-dragging {
   padding: 5px 11px 5px 8px;
   background: none;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--text-2);
   font: inherit;
   font-size: 12.5px;
