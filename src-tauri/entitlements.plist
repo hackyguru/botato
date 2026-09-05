@@ -19,10 +19,11 @@
   <key>com.apple.security.cs.allow-jit</key>
   <true/>
 
-  <!-- The microphone, for calls. Under the hardened runtime an app is refused
-       protected resources unless it says which ones it wants, so this is what
-       makes "hold to talk" able to hear anything. It is a claim we can justify:
-       nothing listens unless the button is held. -->
+  <!-- The microphone, for calls and for dictating into the composer. Under the
+       hardened runtime an app is refused protected resources unless it says
+       which ones it wants, so this is what makes "hold to talk" and the mic
+       button able to hear anything. It is a claim we can justify: nothing
+       listens except between a press and the press that stops it. -->
   <key>com.apple.security.device.audio-input</key>
   <true/>
 </dict>

@@ -7467,7 +7467,16 @@ function endCall(): void {
  *  front of every sentence, which is about a second of a two-second thought. */
 let microphone: MediaStream | null = null;
 
-async function openMicrophone(): Promise<MediaStream | null> {
+/**
+ * Open it, and say where to complain if it will not open.
+ *
+ * The caller passes that in because there is no one place to put it. On a call
+ * the news belongs on the call screen, under the face you are trying to talk
+ * to. Dictating in the composer there is no call screen — it is hidden — so
+ * writing there means the microphone fails and the app says nothing at all,
+ * which from the outside is a button that does nothing.
+ */
+async function openMicrophone(complain: (why: string) => void): Promise<MediaStream | null> {
   if (microphone?.active) return microphone;
   try {
     microphone = await navigator.mediaDevices.getUserMedia({
@@ -7481,7 +7490,7 @@ async function openMicrophone(): Promise<MediaStream | null> {
     return microphone;
   } catch (err) {
     const why = String(err);
-    callSays(
+    complain(
       why.includes("NotAllowed") || why.includes("denied")
         ? "botcage needs the microphone: System Settings → Privacy & Security → Microphone."
         : `No microphone: ${why}`,
@@ -7490,11 +7499,67 @@ async function openMicrophone(): Promise<MediaStream | null> {
   }
 }
 
+/** What a recording turned out to contain: the audio whisper wants, and how
+ *  loud it was before we touched it — which is the difference between "you
+ *  said nothing" and "you said something I could not make out". */
+/** Under this a recording is a room rather than a voice: a laptop's own fan
+ *  and the street outside sit around here, and speech never does. */
+const AUDIBLE = 0.006;
+
+interface Heard {
+  samples: Float32Array;
+  /** Loudest sample as recorded, 0 to 1. */
+  peak: number;
+}
+
+/**
+ * Wait until the microphone is actually delivering sound.
+ *
+ * `getUserMedia` resolves when the track exists, which is a good half second
+ * before the hardware is producing anything — and in that gap the device hands
+ * out exact digital zeroes. Start recording there and the first words of the
+ * first dictation of a session are simply not in the file. Measured: pressing
+ * and speaking immediately lost "Hello Potato, this is a test of"; pressing
+ * again with the stream already warm caught the sentence whole.
+ *
+ * So rather than guess at a delay, watch for the zeroes to stop. Anything
+ * live has a noise floor, even a quiet room, so the first sample that is not
+ * flat is the device arriving. Capped, because a microphone that never wakes
+ * up should still let you record silence and find out.
+ */
+async function micAwake(stream: MediaStream): Promise<void> {
+  const at = new AudioContext();
+  try {
+    const listen = at.createAnalyser();
+    listen.fftSize = 512;
+    at.createMediaStreamSource(stream).connect(listen);
+    const frame = new Float32Array(listen.fftSize);
+    const giveUp = performance.now() + 1200;
+    for (;;) {
+      listen.getFloatTimeDomainData(frame);
+      for (const v of frame) if (v !== 0) return;
+      if (performance.now() > giveUp) return;
+      await new Promise((go) => setTimeout(go, 20));
+    }
+  } catch {
+    // No analyser is not a reason to refuse to record.
+  } finally {
+    void at.close();
+  }
+}
+
 /** Whatever the browser gave us, as the mono 16 kHz whisper wants.
  *
  *  Decoded and resampled here rather than in Rust because the webview already
- *  has the codecs — asking Rust to unpick Opus would mean shipping one. */
-async function samplesFrom(recorded: Blob): Promise<Float32Array> {
+ *  has the codecs — asking Rust to unpick Opus would mean shipping one.
+ *
+ *  And levelled, which matters more than it sounds. whisper does no gain
+ *  control of its own: hand it a quiet recording and it returns nothing, with
+ *  no way to tell that apart from a bad model or a broken pipe. A far mic, a
+ *  soft voice, or a laptop with its input gain low all land there. So the
+ *  loudest sample is brought up near full scale first, and the level as
+ *  recorded is handed back so the caller can say which of the two happened. */
+async function samplesFrom(recorded: Blob): Promise<Heard> {
   const bytes = await recorded.arrayBuffer();
   const ctx = new AudioContext();
   try {
@@ -7511,8 +7576,21 @@ async function samplesFrom(recorded: Blob): Promise<Float32Array> {
       for (let i = 0; i < length; i += 1) mixed[i] /= decoded.numberOfChannels;
     }
 
+    let peak = 0;
+    for (const v of mixed) {
+      const size = Math.abs(v);
+      if (size > peak) peak = size;
+    }
+    // Below this there is nothing to bring up — only a room's noise floor,
+    // and amplifying that hands whisper static, which it will gamely turn
+    // into words that nobody said.
+    if (peak > AUDIBLE) {
+      const gain = 0.85 / peak;
+      for (let i = 0; i < mixed.length; i += 1) mixed[i] *= gain;
+    }
+
     const ratio = decoded.sampleRate / WHISPER_RATE;
-    if (Math.abs(ratio - 1) < 0.001) return mixed;
+    if (Math.abs(ratio - 1) < 0.001) return { samples: mixed, peak };
 
     // Linear interpolation. A speech model at 16 kHz is not going to notice
     // the difference between this and a windowed sinc, and this is ten lines.
@@ -7524,7 +7602,7 @@ async function samplesFrom(recorded: Blob): Promise<Float32Array> {
       const frac = at - low;
       out[i] = mixed[low] * (1 - frac) + mixed[high] * frac;
     }
-    return out;
+    return { samples: out, peak };
   } finally {
     void ctx.close();
   }
@@ -7555,10 +7633,12 @@ function startListening(): void {
   $<HTMLButtonElement>("#call-talk").classList.add("is-live");
   paintCallStage();
 
-  void openMicrophone().then((stream) => {
+  void openMicrophone(callSays).then(async (stream) => {
+    if (!stream || !call?.listening) return;
+    await micAwake(stream);
     // Let go before the microphone opened: nothing to record, and starting now
     // would leave it running with nobody to stop it.
-    if (!stream || !call?.listening) return;
+    if (!call?.listening) return;
     const tape = new MediaRecorder(stream);
     call.tape = tape;
     tape.ondataavailable = (e) => {
@@ -7596,12 +7676,16 @@ async function heardIt(): Promise<void> {
 
   callSays("Working out what you said…");
   try {
-    const samples = await samplesFrom(recorded);
+    const { samples, peak } = await samplesFrom(recorded);
     const said = await invoke<string>("transcribe", { samples: Array.from(samples) });
     if (!call) return;
     if (!said.trim()) {
       callHeard.textContent = "";
-      callSays("Didn't catch that — hold and try again.");
+      callSays(
+        peak > AUDIBLE
+          ? "Didn't catch that — hold and try again."
+          : "Nothing came through. Check the microphone is not muted.",
+      );
       return;
     }
     call.heard = said;
@@ -9565,8 +9649,11 @@ async function dictate(): Promise<void> {
     input.placeholder = was;
   }
 
-  const mic = await openMicrophone();
+  const mic = await openMicrophone(toast);
   if (!mic) return;
+  // Only the first press of a session waits here; the stream is kept open
+  // afterwards, so the second one is instant.
+  await micAwake(mic);
 
   const tape = new MediaRecorder(mic);
   const bits: Blob[] = [];
@@ -9592,10 +9679,13 @@ async function wroteItDown(bits: Blob[]): Promise<void> {
   const was = input.placeholder;
   input.placeholder = "Working out what you said…";
   try {
-    const samples = await samplesFrom(recorded);
+    const { samples, peak } = await samplesFrom(recorded);
     const said = (await invoke<string>("transcribe", { samples: Array.from(samples) })).trim();
     if (!said) {
-      toast("Didn't catch that");
+      // Two different problems, and telling them apart is the whole value of
+      // the message: one is "say it again", the other is "your microphone is
+      // off" — and guessing wrong sends somebody to the wrong settings pane.
+      toast(peak > AUDIBLE ? "Didn't catch that" : "Nothing came through — is the microphone muted?");
       return;
     }
     // Appended, not replaced: dictating twice should add a sentence, and
