@@ -35,6 +35,11 @@
   --text-3: #636366;
   /* Type on blue, red or green. */
   --on-accent: #ffffff;
+  /* A surface that inverts — the mic while it is idle, a toast — and the ink
+     that goes on it. The ink is also what green and amber want on top of them:
+     which way contrast runs is decided by the ground, not by the theme. */
+  --bright: #f2f2f2;
+  --on-bright: #0a0a0a;
   /* The one accent: what is chosen, what is yours to press. */
   --blue: #0a84ff;
   /* Blue that has to stay legible in a paragraph. */
@@ -602,7 +607,7 @@ select:focus-visible {
   font-size: var(--type-small);
   font-weight: 700;
   letter-spacing: 0.2px;
-  color: #fff;
+  color: var(--on-accent);
   border-radius: var(--radius-control);
 }
 
@@ -2612,7 +2617,7 @@ select:focus-visible {
   display: block;
   overflow: hidden;
   font-weight: 600;
-  color: #fff;
+  color: var(--on-accent);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2761,7 +2766,7 @@ select:focus-visible {
 }
 
 .cal__cell.is-today .cal__date {
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
   background: var(--blue);
 }
@@ -2887,7 +2892,7 @@ select:focus-visible {
   font-size: var(--type-micro);
   font-weight: 600;
   line-height: 13px;
-  color: #fff;
+  color: var(--on-accent);
   text-align: center;
   background: var(--blue);
   border-radius: var(--radius-pill);
@@ -3814,8 +3819,8 @@ select:focus-visible {
 }
 
 .mic {
-  color: #0a0a0a;
-  background: #f2f2f2;
+  color: var(--on-bright);
+  background: var(--bright);
 }
 
 .mic svg {
@@ -3838,7 +3843,7 @@ select:focus-visible {
    picture — the one state in this app where somebody needs to know without
    being told. */
 .mic.is-listening {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--red);
   animation: mic-live 1.5s ease-in-out infinite;
 }
@@ -5956,7 +5961,7 @@ a.detail__source:hover {
 /* Second press confirms. Filling it in makes the armed state impossible to
    miss, since the next click is not undoable. */
 .danger.is-armed {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--red);
 }
 
@@ -6591,7 +6596,7 @@ label.setting {
   height: 40px;
   font-size: var(--type-body);
   font-weight: 500;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--blue);
   border-radius: var(--radius-card);
 }
@@ -6826,22 +6831,22 @@ label.setting {
 }
 
 .state-pill.is-live {
-  color: #0a0a0a;
+  color: var(--on-bright);
   background: var(--green);
 }
 
 .state-pill.is-busy {
-  color: #0a0a0a;
+  color: var(--on-bright);
   background: var(--amber);
 }
 
 .state-pill.is-bad {
-  color: #fff;
+  color: var(--on-accent);
   background: #e0393e;
 }
 
 .chip.is-recording {
-  color: #fff;
+  color: var(--on-accent);
   background: #e0393e;
   border-color: transparent;
 }
@@ -6987,8 +6992,8 @@ label.setting {
   z-index: 60;
   padding: 8px 14px;
   font-size: var(--type-small);
-  color: #0a0a0a;
-  background: #f2f2f2;
+  color: var(--on-bright);
+  background: var(--bright);
   border-radius: var(--radius-pill);
   transform: translateX(-50%);
   animation: pop 0.13s ease both;
@@ -7390,6 +7395,8 @@ label.setting {
 
 /* A pairing code is read by a camera across a desk, so it is given room and a
    white quiet zone — a QR on a dark background scans badly or not at all. */
+/* True white rather than the flip surface: a scanner reads contrast, and a
+   phone camera at an angle in a dim room needs all of it. */
 .pairing-qr {
   align-self: center;
   /* Never wider than the sheet, whatever size it was drawn at. */
@@ -8005,7 +8012,7 @@ body.is-dragging {
 /* Unread is the loud state, and only that one: a bot answering while you read
  * back through a channel is the case this exists for. */
 .jump.is-new {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--blue);
   border-color: transparent;
 }
@@ -8230,7 +8237,7 @@ body.is-dragging {
    state this screen can be in. */
 .call__talk.is-live {
   background: var(--blue);
-  color: #fff;
+  color: var(--on-accent);
   animation: call-live 1.5s ease-in-out infinite;
 }
 @keyframes call-live {
@@ -8247,7 +8254,7 @@ body.is-dragging {
   background: var(--red);
   border: 0;
   border-radius: 50%;
-  color: #fff;
+  color: var(--on-accent);
   cursor: pointer;
 }
 /* Heavier than the sprite's usual 1.7 and smaller than its usual box: this one
@@ -8296,7 +8303,7 @@ body.is-dragging {
   padding: 0 5px;
   background: var(--red);
   border-radius: var(--radius-control);
-  color: #fff;
+  color: var(--on-accent);
   font-size: var(--type-caption);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -8312,7 +8319,7 @@ body.is-dragging {
 }
 
 .sidebar .row-badge--quiet {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--blue);
 }
 
