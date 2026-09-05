@@ -9849,13 +9849,6 @@ document.addEventListener("keyup", (e) => {
 
 $<HTMLButtonElement>("#btn-plugins").addEventListener("click", () => void openPlugins());
 
-// The rail's search icon: the field it used to hold is in the room list, so
-// this opens that list and puts the caret where the words are.
-$<HTMLDivElement>("#btn-find").addEventListener("click", () => {
-  if (!roomsOpen) showRooms(true);
-  searchEl.focus();
-});
-
 // The name, as you type it: the tile's initials follow along, which is the
 // only feedback that says which tile this column belongs to.
 roomsName.addEventListener("input", () => {

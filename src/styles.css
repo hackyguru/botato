@@ -530,10 +530,9 @@ select:focus-visible {
 .sidebar {
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   grid-template-areas:
     "mark"
-    "find"
     "list"
     "new"
     "foot";
@@ -554,42 +553,6 @@ select:focus-visible {
   height: 46px;
 }
 
-/* One shape for the whole column.
- *
- * Everything below these is a 46px tile with either a 34px face or a 20px mark
- * inside it. These two were a 34px box holding a 16px glyph and a 30px box
- * holding a 20px one — three sizes down a column of one, which is what made
- * them look like the wrong size rather than like smaller things.
- *
- * The search box also loses its fill. Stretched across a sidebar it is a field
- * you type into; at 46 square in a rail it is a button that opens one, and a
- * filled square beside an unfilled one is the same mismatch again. */
-.sidebar .field {
-  grid-area: find;
-  justify-self: center;
-  justify-content: center;
-  width: 46px;
-  height: 46px;
-  min-width: 0;
-  padding: 0;
-  margin: 8px 0 0;
-  background: none;
-  border-radius: 14px;
-  cursor: pointer;
-  /* The same grey as every other mark in this column. Expanded, this element
-     is a search box and its icon sits at the dimmer text-3, which is right
-     beside a placeholder — it is furniture next to something you type in. In
-     the rail it is a control in a row of controls, and the darker grey read as
-     a thinner stroke than its neighbours even though the stroke is identical:
-     same sprite, same 1.7, same 28 points. Dimmer looks lighter. */
-  color: var(--text-2);
-}
-
-.sidebar .field:hover {
-  color: var(--text);
-  background: var(--hover);
-}
-
 /* Big enough to weigh what a face weighs.
  *
  * Twenty is the size these are in a row, where they sit beside a name and are
@@ -600,7 +563,6 @@ select:focus-visible {
  *
  * Twenty-eight in a 46 tile leaves nine points of air, which is what keeps them
  * from looking crammed into their own square. */
-.sidebar .field svg,
 .sidebar .chan-row__hash svg,
 .sidebar .desk-row__icon svg,
 .sidebar .rooms-tile__icon svg {
