@@ -2835,7 +2835,7 @@ function modelSays(bot: Bot): string {
 function cardHtml(bot: Bot): string {
   const working = inflight.get(bot.id);
   const manner = mannerOf(bot);
-  const week = bot.spend?.weekUsd ?? 0;
+  const turnsThisWeek = bot.spend?.weekTurns ?? 0;
   const live = (bot.routines ?? []).filter((r) => r.active).length;
 
   // What it is doing, in the present tense, because that is the question
@@ -2866,9 +2866,10 @@ function cardHtml(bot: Bot): string {
     line("Answered by", modelSays(bot)) +
     line("Manner", manner.name) +
     (live ? line("Routines", `${live} active`) : "") +
-    // Only once it has cost something. A row saying $0.00 is a row about
-    // nothing, and this week's is the number worth knowing.
-    (week > 0 ? line("This week", money(week)) : "") +
+    // Turns, not money. What Claude Code reports is what the same tokens would
+    // have cost through the API, which is not what anybody on a subscription
+    // paid — a number that looks like a bill and is not one.
+    (turnsThisWeek > 0 ? line("This week", `${turnsThisWeek} turn${turnsThisWeek === 1 ? "" : "s"}`) : "") +
     `</div>` +
     // What it says it can do — the same list a slash offers, in the place
     // somebody looks when they are asking what a bot is for.
@@ -3538,12 +3539,10 @@ function paintPayroll(): void {
     return;
   }
 
-  const money = (usd: number) => (usd >= 0.005 ? `$${usd.toFixed(2)}` : "—");
   const turns = (n: number) => `${n} turn${n === 1 ? "" : "s"}`;
 
   const week_ = paid.filter((bot) => bot.spend?.week === week && bot.spend.weekTurns);
   const totalTurns = week_.reduce((all, bot) => all + (bot.spend?.weekTurns ?? 0), 0);
-  const totalUsd = week_.reduce((all, bot) => all + (bot.spend?.weekUsd ?? 0), 0);
 
   wrap.innerHTML =
     `<p class="payroll__cap">This week</p>` +
@@ -3556,7 +3555,6 @@ function paintPayroll(): void {
               faceHtml(bot, "xs") +
               `<span class="payroll__who">${escapeHtml(bot.name)}</span>` +
               `<span class="payroll__turns">${turns(tab.weekTurns)}</span>` +
-              `<span class="payroll__usd">${money(tab.weekUsd)}</span>` +
               `</div>`
             );
           })
@@ -3564,14 +3562,13 @@ function paintPayroll(): void {
         `<div class="payroll__row payroll__row--sum">` +
         `<span class="payroll__who">Everyone</span>` +
         `<span class="payroll__turns">${turns(totalTurns)}</span>` +
-        `<span class="payroll__usd">${money(totalUsd)}</span>` +
         `</div>`
       : `<p class="payroll__none">Nothing yet this week.</p>`) +
     // All time, one line: the week is the useful number and the total is the
     // one people want once and then rarely again.
     `<p class="payroll__all">All time: ${turns(
       paid.reduce((all, bot) => all + (bot.spend?.turns ?? 0), 0),
-    )} · ${money(paid.reduce((all, bot) => all + (bot.spend?.usd ?? 0), 0))}</p>`;
+    )}</p>`;
 }
 
 /** Put a turn on a bot's tab.
@@ -9513,11 +9510,107 @@ composer.addEventListener("submit", (e) => {
     }
   }
 
-  if (!input.value.trim()) return;
+  // Empty, and nothing to stop: the button is showing a microphone, so it
+  // should do what a microphone does. It said "dictate" and submitted nothing
+  // at all, which is the worst of both — an icon that promises and a click
+  // that is silently ignored.
+  if (!input.value.trim()) {
+    void dictate();
+    return;
+  }
   send(input.value);
 });
 
 input.addEventListener("input", autoGrow);
+
+/* ------------------------------------------------------------- dictation */
+
+/** Talking to the composer instead of typing into it.
+ *
+ *  The same three pieces a call uses — the microphone, the decoder, and
+ *  whisper on this machine — with none of a call's turn-taking: what comes
+ *  back is text in the box rather than a message on its way. You still read it
+ *  before it goes, which is the difference between dictating and phoning.
+ *
+ *  Press once to start and again to stop. Not hold-to-talk: a call is a
+ *  sentence at a time and holding suits it, and a message you are composing
+ *  may be a paragraph with a pause in the middle of it. */
+let taking: { tape: MediaRecorder; bits: Blob[] } | null = null;
+
+function dictating(on: boolean): void {
+  sendBtn.classList.toggle("is-listening", on);
+  sendBtn.title = on ? "Stop and write it down" : "Send";
+  sendIcon.setAttribute("href", on ? "#i-stop" : "#i-mic");
+}
+
+async function dictate(): Promise<void> {
+  if (taking) {
+    // The text arrives in onstop, which is where the transcribing happens.
+    taking.tape.stop();
+    return;
+  }
+
+  // The ears are a few hundred megabytes and are fetched once. A call says so
+  // in the call; here the only place to say it is the composer's placeholder.
+  if (!(await invoke<boolean>("hearing_ready").catch(() => false))) {
+    const was = input.placeholder;
+    input.placeholder = "Getting ready to listen — a few hundred megabytes, once…";
+    try {
+      await invoke("hearing_install");
+    } catch (err) {
+      toast(String(err));
+      input.placeholder = was;
+      return;
+    }
+    input.placeholder = was;
+  }
+
+  const mic = await openMicrophone();
+  if (!mic) return;
+
+  const tape = new MediaRecorder(mic);
+  const bits: Blob[] = [];
+  taking = { tape, bits };
+  dictating(true);
+
+  tape.ondataavailable = (event) => {
+    if (event.data.size) bits.push(event.data);
+  };
+  tape.onstop = () => {
+    taking = null;
+    dictating(false);
+    void wroteItDown(bits);
+  };
+  tape.start();
+}
+
+/** What the dictation turned out to be, appended to whatever is in the box. */
+async function wroteItDown(bits: Blob[]): Promise<void> {
+  const recorded = new Blob(bits, { type: bits[0]?.type || "audio/webm" });
+  if (!recorded.size) return;
+
+  const was = input.placeholder;
+  input.placeholder = "Working out what you said…";
+  try {
+    const samples = await samplesFrom(recorded);
+    const said = (await invoke<string>("transcribe", { samples: Array.from(samples) })).trim();
+    if (!said) {
+      toast("Didn't catch that");
+      return;
+    }
+    // Appended, not replaced: dictating twice should add a sentence, and
+    // anything already typed is not ours to throw away.
+    input.value = input.value.trim() ? `${input.value.trim()} ${said}` : said;
+    autoGrow();
+    input.focus();
+    // The button is showing an arrow again now there are words to send.
+    sendIcon.setAttribute("href", "#i-arrow-up");
+  } catch (err) {
+    toast(String(err));
+  } finally {
+    input.placeholder = was;
+  }
+}
 
 
 /* --------------------------------------------------------- mentioning them */

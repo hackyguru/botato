@@ -3827,6 +3827,27 @@ select:focus-visible {
   stroke: none;
 }
 
+/* Listening. Red because it is recording and everything that records is red,
+   and breathing because a microphone that is open should never be a still
+   picture — the one state in this app where somebody needs to know without
+   being told. */
+.mic.is-listening {
+  color: #fff;
+  background: var(--red);
+  animation: mic-live 1.5s ease-in-out infinite;
+}
+
+.mic.is-listening svg {
+  fill: currentColor;
+  stroke: none;
+}
+
+@keyframes mic-live {
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--red) 26%, transparent);
+  }
+}
+
 /* --------------------------------------------------------------------- menu */
 /* The app's own ground, like every dialog in it. `--field` is the colour of a
    thing you type into — a raised grey, two shades off the window — and using
@@ -6136,20 +6157,12 @@ a.detail__source:hover {
   white-space: nowrap;
 }
 
-.payroll__turns,
-.payroll__usd {
+.payroll__turns {
   flex: none;
+  width: 74px;
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
   text-align: right;
-}
-
-.payroll__turns {
-  width: 74px;
-}
-
-.payroll__usd {
-  width: 54px;
 }
 
 /* The line under the list. Bordered rather than bold: it is a sum, not a
