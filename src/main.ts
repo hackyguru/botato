@@ -5239,6 +5239,37 @@ async function paintModels(): Promise<void> {
   );
 }
 
+/** How old the model list may get before it is worth fetching again.
+ *
+ *  Providers ship models constantly, and this list was only ever fetched once
+ *  — on the first run, because nothing after that asked. So a copy taken in
+ *  August stayed the answer in September, and a model released yesterday could
+ *  not be found however carefully somebody searched for it. The catalogue is
+ *  a snapshot; it has to be told to take a new one. */
+const CATALOGUE_STALE_DAYS = 3;
+
+/** Fetch again if the copy on disk has gone stale.
+ *
+ *  Quietly and in the background: this runs when the picker opens, and the
+ *  list already on screen is fine to use meanwhile. A failure is not worth
+ *  saying anything about — the models that were there a moment ago are still
+ *  there, which is a working picker with an old list rather than a broken one. */
+async function refreshCatalogueIfStale(): Promise<void> {
+  const state = await invoke<{ models: number; fetchedAt: number | null }>("catalogue_state").catch(
+    () => null,
+  );
+  if (!state) return;
+  const age = state.fetchedAt ? (Date.now() / 1000 - state.fetchedAt) / 86400 : Infinity;
+  if (state.models && age < CATALOGUE_STALE_DAYS) return;
+  try {
+    await invoke<number>("catalogue_refresh");
+    providerList = await invoke<ProviderInfo[]>("catalogue_providers").catch(() => providerList);
+    if (!modelsWrap.hidden) await paintModels();
+  } catch {
+    /* the list on screen is still the list that worked */
+  }
+}
+
 async function fetchCatalogue(): Promise<void> {
   modelsNote.textContent = "Fetching the catalogue from models.dev…";
   try {
@@ -5299,6 +5330,7 @@ async function openModels(pick?: (model: Listing) => void): Promise<void> {
   modelsWrap.hidden = false;
   modelsSearch.value = "";
   providerList = await invoke<ProviderInfo[]>("catalogue_providers").catch(() => []);
+  void refreshCatalogueIfStale();
 
   // Open where this bot already is, or on something that will answer without a
   // key. Landing on six thousand strangers is not a starting point.
