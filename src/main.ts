@@ -5054,6 +5054,16 @@ let draftModel: { provider?: string; model: string } = { model: "" };
 let pending: Listing | null = null;
 let providerList: ProviderInfo[] = [];
 
+/** Whether the operating system is holding botcage's credentials, or a file
+ *  is. True everywhere with a keychain or a running keyring; false on a box
+ *  with neither, which is the only case anybody needs telling about. */
+let keysProtected = true;
+void invoke<boolean>("credentials_protected")
+  .then((safe) => {
+    keysProtected = safe;
+  })
+  .catch(() => {});
+
 /** Search is typed, and 6,000 models is a lot to re-rank on every keystroke. */
 let searchTimer = 0;
 /** Which provider's models are being shown. Null means every provider, which
@@ -5196,9 +5206,18 @@ function askForKey(model: Listing): void {
   modelsKeyInput.value = "";
   modelsKey.hidden = false;
   $<HTMLButtonElement>("#models-key-forget").hidden = !provider?.hasKey;
+  // Where it actually goes, rather than where it goes on the machine this was
+  // written on. macOS has the login keychain and most Linux desktops have a
+  // keyring; a box with neither gets a file, and somebody handing over an API
+  // key deserves to be told which of those is about to happen rather than
+  // reading a promise that is true elsewhere.
+  const kept = keysProtected
+    ? "botcage keeps it in your keychain"
+    : "botcage keeps it in a file in your home folder — no keyring is running, so anything " +
+      "that can read your files can read it";
   modelsNote.textContent = provider?.doc
-    ? `${model.providerName} issues keys at ${provider.doc} — botcage keeps it in your keychain.`
-    : "botcage keeps the key in your keychain, and hands it to nothing but this provider.";
+    ? `${model.providerName} issues keys at ${provider.doc} — ${kept}.`
+    : `${kept}, and hands it to nothing but this provider.`;
   modelsKeyInput.focus();
 }
 

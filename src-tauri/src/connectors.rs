@@ -1221,9 +1221,165 @@ fn delete_token(key: &str) {
         .output();
 }
 
+/* On Linux the credentials used to live in a file, in plain text.
+ *
+ * macOS has had the login keychain since this existed; everywhere else got a
+ * JSON file at 0600, which is a permission rather than a protection. Anything
+ * running as the user could read every API key and OAuth token botcage holds:
+ * a curious script, a compromised dependency, a backup, a synced home
+ * directory. botcage ships deb, appimage and rpm, so that is real people.
+ *
+ * Linux desktops have the same facility under a different name — the Secret
+ * Service, which GNOME Keyring and KWallet both implement, reached through
+ * `secret-tool` exactly as macOS is reached through `security`. So the shape
+ * below is the shape above, with a different binary.
+ *
+ * Three rules, in the order they matter:
+ *
+ * 1. Never lose a credential. Every read falls back to the file, so an install
+ *    that predates this keeps working and a keyring that is not running is an
+ *    inconvenience rather than a lost account.
+ * 2. Never fail closed into plain text silently. If the Secret Service is
+ *    there, it is used. If it is not, the file is used and `stored_safely`
+ *    reports false, so the window can say so rather than letting somebody
+ *    assume otherwise.
+ * 3. Move what is already there. The first successful write migrates the old
+ *    file into the keyring and removes it, so the plain text does not sit
+ *    around after it has stopped being the answer.
+ */
+
 #[cfg(not(target_os = "macos"))]
 fn token_file() -> PathBuf {
     crate::home().join(".botcage").join("connectors.json")
+}
+
+/// Is there a Secret Service to talk to?
+///
+/// Both halves are needed. `secret-tool` present but no keyring running — a
+/// headless box, a session without D-Bus — fails at the call rather than at
+/// the lookup, so asking whether the binary exists is not the same question.
+/// A cheap read against our own service answers both, and a failure that is
+/// only "no such item" still proves the service replied.
+#[cfg(not(target_os = "macos"))]
+fn secret_service() -> bool {
+    use std::sync::OnceLock;
+    static FOUND: OnceLock<bool> = OnceLock::new();
+    *FOUND.get_or_init(|| {
+        Command::new("secret-tool")
+            .args(["lookup", "service", SERVICE_NAME, "account", "botcage-probe"])
+            .output()
+            // Ran at all, and did not die on a missing bus. An empty answer to
+            // a key nobody stored is exactly the right reply.
+            .map(|out| out.status.code().is_some_and(|code| code == 0 || code == 1))
+            .unwrap_or(false)
+    })
+}
+
+/// The label the keyring files these under, matching the macOS service name.
+#[cfg(not(target_os = "macos"))]
+const SERVICE_NAME: &str = "botcage";
+
+/// Whether credentials are going somewhere the operating system protects.
+///
+/// False means the file, which is readable by anything running as this user.
+/// Worth saying out loud rather than leaving somebody to assume: it is the
+/// difference between "my keys are in the keyring" and "my keys are in a file
+/// I have never looked at".
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn stored_safely() -> bool {
+    secret_service()
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn stored_safely() -> bool {
+    true
+}
+
+/// Where credentials are being kept, for a window that should say so.
+///
+/// Asked rather than assumed, because the answer differs by machine and the
+/// one case worth knowing about — a Linux box with no keyring running — looks
+/// exactly like the good case from the outside until somebody reads the file.
+#[tauri::command(async)]
+pub fn credentials_protected() -> bool {
+    stored_safely()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn keyring_store(key: &str, token: &str) -> Result<(), String> {
+    use std::io::Write;
+    use std::process::Stdio;
+    // Through stdin rather than argv: an argument is visible in `ps` to every
+    // process on the machine for as long as the call takes.
+    let mut child = Command::new("secret-tool")
+        .args(["store", "--label=botcage", "service", SERVICE_NAME, "account", key])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("could not reach the keyring: {e}"))?;
+    child
+        .stdin
+        .take()
+        .ok_or("no stdin")?
+        .write_all(token.as_bytes())
+        .map_err(|e| e.to_string())?;
+    let out = child.wait_with_output().map_err(|e| e.to_string())?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn keyring_read(key: &str) -> Option<String> {
+    let out = Command::new("secret-tool")
+        .args(["lookup", "service", SERVICE_NAME, "account", key])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let token = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    (!token.is_empty()).then_some(token)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn keyring_delete(key: &str) {
+    let _ = Command::new("secret-tool")
+        .args(["clear", "service", SERVICE_NAME, "account", key])
+        .output();
+}
+
+/// Move anything still in the file into the keyring, then remove the file.
+///
+/// Once, on the first successful write. Each entry has to land before the file
+/// goes: a migration that deletes first and fails halfway is the one bug this
+/// must not have, because what it loses is the thing somebody cannot get back
+/// without going and re-authorising every connector they own.
+#[cfg(not(target_os = "macos"))]
+fn migrate_file_into_keyring() {
+    use std::sync::OnceLock;
+    static DONE: OnceLock<()> = OnceLock::new();
+    if DONE.get().is_some() {
+        return;
+    }
+    let tokens = all_tokens();
+    if tokens.is_empty() {
+        let _ = DONE.set(());
+        return;
+    }
+    for (key, value) in &tokens {
+        let Some(token) = value.as_str() else { continue };
+        if keyring_store(key, token).is_err() {
+            // Leave the file exactly as it is and try again next time. Half a
+            // migration is worse than none.
+            return;
+        }
+    }
+    let _ = std::fs::remove_file(token_file());
+    let _ = DONE.set(());
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -1236,6 +1392,20 @@ fn all_tokens() -> serde_json::Map<String, serde_json::Value> {
 
 #[cfg(not(target_os = "macos"))]
 fn store_token(key: &str, token: &str) -> Result<(), String> {
+    if secret_service() {
+        keyring_store(key, token)?;
+        // Now that one credential is safely in, bring the rest across.
+        migrate_file_into_keyring();
+        return Ok(());
+    }
+    file_store(key, token)
+}
+
+/// The old way, still here because it is what happens on a machine with no
+/// keyring — and because refusing to store anything at all would be a worse
+/// answer than storing it the way this app always has.
+#[cfg(not(target_os = "macos"))]
+fn file_store(key: &str, token: &str) -> Result<(), String> {
     let path = token_file();
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
@@ -1259,15 +1429,23 @@ fn store_token(key: &str, token: &str) -> Result<(), String> {
 
 #[cfg(not(target_os = "macos"))]
 fn read_token(key: &str) -> Option<String> {
-    all_tokens().get(key)?.as_str().map(str::to_string)
+    // Keyring first, file second. The fallback is what makes an upgrade
+    // invisible: an install from before this still finds its credentials, and
+    // a keyring that is not running today is an inconvenience rather than an
+    // afternoon of re-authorising every connector.
+    keyring_read(key).or_else(|| all_tokens().get(key)?.as_str().map(str::to_string))
 }
 
 #[cfg(not(target_os = "macos"))]
 fn delete_token(key: &str) {
+    // Both, always. Forgetting a credential has to forget every copy of it,
+    // and a half-migrated machine has two.
+    keyring_delete(key);
     let mut tokens = all_tokens();
-    tokens.remove(key);
-    if let Ok(body) = serde_json::to_string(&tokens) {
-        let _ = std::fs::write(token_file(), body);
+    if tokens.remove(key).is_some() {
+        if let Ok(body) = serde_json::to_string(&tokens) {
+            let _ = std::fs::write(token_file(), body);
+        }
     }
 }
 

@@ -1779,6 +1779,7 @@ pub fn run() {
             speech_ready,
             speech_install,
             speech_forget,
+            connectors::credentials_protected,
             rooms::rooms_mirror,
             rooms::rooms_unseen,
             hearing_ready,
