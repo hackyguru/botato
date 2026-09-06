@@ -172,7 +172,7 @@ textarea {
  * something into one. `:focus-visible` rather than `:focus`, so this appears
  * for the keyboard and not for every click. */
 :focus-visible {
-  outline: 2px solid var(--blue);
+  outline: 2px solid var(--accent, var(--blue));
   outline-offset: 2px;
 }
 
@@ -5994,7 +5994,10 @@ a.detail__source:hover {
 
 .tab[aria-selected="true"] {
   color: var(--text);
-  background: var(--fill-3);
+  /* A wash of whichever bot's page this is, and the plain fill everywhere
+     else. Nothing here means anything but "you are on this tab", so it is free
+     to carry the identity the Save button cannot. */
+  background: color-mix(in srgb, var(--accent, transparent) 26%, var(--fill-3));
 }
 
 /* A row naming a file, which may be longer than the sheet is wide. Without
@@ -6405,7 +6408,9 @@ label.setting {
 }
 
 .switch:checked {
-  background: var(--green);
+  /* Green means on everywhere; inside a bot's settings, on is the bot's own
+     colour, so the whole page reads as that one creature's page. */
+  background: var(--accent, var(--green));
 }
 
 .switch:checked::after {
@@ -6596,6 +6601,13 @@ label.setting {
   height: 40px;
   font-size: var(--type-body);
   font-weight: 500;
+  /* Deliberately not the bot's colour, when everything around it is.
+     A primary button's colour is a signal rather than decoration: it says
+     "this is the safe one", and red says the opposite everywhere else in this
+     app. Painted with the bot's colour, the red bot got a solid red Save
+     directly under an outlined red "Delete bot" — the safe action became the
+     loudest warning on the page. Colour that carries a meaning cannot also
+     carry an identity. */
   color: var(--on-accent);
   background: var(--blue);
   border-radius: var(--radius-card);

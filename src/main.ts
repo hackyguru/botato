@@ -4394,7 +4394,42 @@ function tidyClock(typed: string): string {
   return `${pad2(Math.min(23, hh))}:${pad2(Math.min(59, mm))}`;
 }
 
+/** Dress the settings page in the bot's own colour.
+ *
+ *  Set on the form, so it reaches the Save button, the switches and the focus
+ *  rings by inheritance — every one of those reads `var(--accent, …)` and
+ *  falls back to the app's blue anywhere this has not been set. One variable
+ *  rather than a rule per control, and nothing to keep in step.
+ *
+ *  It follows `draftColor` rather than the saved bot, so picking a swatch
+ *  recolours the page under your hand. Which is the point: you are choosing
+ *  what this bot looks like, and the page is the largest sample of it. */
+function paintSheetAccent(): void {
+  sheet.style.setProperty("--accent", draftColor);
+  sheet.style.setProperty("--accent-ink", inkOn(draftColor));
+}
+
+/** Which ink stays readable on a colour.
+ *
+ *  White on the amber bot is a contrast ratio of about 1.8 — a label you have
+ *  to lean in for. The rule is white unless white falls below 3:1, which is
+ *  the floor for text this size, and that lands exactly where the eye does:
+ *  blue, red, orange and violet keep white; amber and green flip. Better than
+ *  a guessed lightness threshold, and it keeps working if the palette grows. */
+function inkOn(colour: string): string {
+  const hex = colour.replace("#", "");
+  if (hex.length !== 6) return "var(--on-accent)";
+  const channel = (at: number) => {
+    const v = parseInt(hex.slice(at, at + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+  const whiteOnIt = 1.05 / (luminance + 0.05);
+  return whiteOnIt < 3 ? "var(--on-bright)" : "var(--on-accent)";
+}
+
 function renderSheetPreview(bot?: Bot | null): void {
+  paintSheetAccent();
   const shown: Bot = bot
     ? { ...bot, color: draftColor }
     : ({
