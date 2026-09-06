@@ -515,8 +515,13 @@ function showSheet(open: boolean): void {
   if (open && !found.hidden) closeFind();
   sheetWrap.hidden = !open;
   appEl.classList.toggle("has-sheet", open);
-  relayout();
+  // Before the measurement, not after. `makeRoom` raises the flag that stops
+  // `relayout` putting a pane away, and it raises it synchronously — called
+  // second, the measurement below has already run at the old width, decided
+  // there was no room, and closed the thing being opened. Which looked from
+  // the outside like the window widening and nothing else happening.
   if (open) void makeRoom();
+  relayout();
 }
 const sheet = $<HTMLFormElement>("#sheet");
 const sheetName = $<HTMLInputElement>("#sheet-name");
@@ -3180,8 +3185,8 @@ function showAside(open: boolean): void {
     if (!sheetWrap.hidden) showSheet(false);
   }
   found.hidden = !open;
-  relayout();
   if (open) void makeRoom();
+  relayout();
 }
 
 function closeFind(): void {
@@ -9473,10 +9478,14 @@ let widening = false;
 async function makeRoom(): Promise<void> {
   widening = true;
   try {
-    if (await roomFor()) return;
+    if (shortfall() <= 0) return;
+    if (await invoke<boolean>("make_room", { need: shortfall() + 2 }).catch(() => false)) {
+      await widthLands();
+      return;
+    }
     if (roomsOpen) {
       showRooms(false);
-      if (await roomFor()) return;
+      if (shortfall() <= 0) return;
     }
     squeezeOut();
     toast("Not enough width to show that beside the conversation");
@@ -9486,29 +9495,39 @@ async function makeRoom(): Promise<void> {
   }
 }
 
+/** How much wider the window has to be for a pane to sit beside the chat. */
+function shortfall(): number {
+  const sidebar = 92 + (roomsOpen ? 231 : 0);
+  const pane = state.screenWidth ?? SCREEN_PANE.initial;
+  return sidebar + pane + MIN_CHAT_WIDTH - appEl.clientWidth;
+}
+
+/** Wait for the window to actually be the size it was asked to be.
+ *
+ *  `make_room` returns as soon as the resize is requested; the webview learns
+ *  its new width a frame or two later. Measuring in between reads the old
+ *  width, decides the pane does not fit, and closes the thing that was just
+ *  opened — which from the outside looked exactly like the window widening and
+ *  nothing else happening.
+ *
+ *  Bounded, and it stops the moment the width is enough rather than waiting a
+ *  fixed time: a window manager that refuses the resize should cost a frame or
+ *  two, not a visible pause. */
+async function widthLands(): Promise<void> {
+  for (let frame = 0; frame < 40 && shortfall() > 0; frame += 1) {
+    await new Promise((go) => requestAnimationFrame(() => go(null)));
+  }
+}
+
 /** Put away whatever is on the right, because there is no longer room for it.
  *
  *  Only ever called by a window getting narrower. Opening something goes the
- *  other way — see `roomFor`, which widens the window instead — so this is not
+ *  other way — see `makeRoom`, which widens the window instead — so this is not
  *  a thing you can trip by clicking. */
 function squeezeOut(): void {
   if (!screenPane.hidden && !screenModal()) closeScreen();
   if (!found.hidden) closeFind();
   if (!sheetWrap.hidden && !sheetWrap.classList.contains("is-wizard")) showSheet(false);
-}
-
-/** Make sure there is room on the right before something opens there.
- *
- *  Widens the window by whatever is missing rather than letting the layout
- *  reflow around the shortage. Answers false only when the screen itself is
- *  too small to hold a conversation and a pane side by side, which is the one
- *  case where opening would have to cost you the thread you were reading. */
-async function roomFor(): Promise<boolean> {
-  const sidebar = 92 + (roomsOpen ? 231 : 0);
-  const pane = state.screenWidth ?? SCREEN_PANE.initial;
-  const short = sidebar + pane + MIN_CHAT_WIDTH - appEl.clientWidth;
-  if (short <= 0) return true;
-  return await invoke<boolean>("make_room", { need: short + 2 }).catch(() => false);
 }
 
 /** Show it or put it away.
