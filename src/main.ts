@@ -19,6 +19,7 @@ import { Music } from "./music";
 // silhouette is not that.
 import { BODIES, body as drawBody, bodyOf as silhouetteOf, gazeOf, markHtml } from "./blob";
 import { blip } from "./blip";
+import { installAccessibility } from "./accessibility";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import RFB from "@novnc/novnc";
 
@@ -2208,7 +2209,8 @@ function renderRoster(): void {
   // Above everything, and only ever one line: it is not a channel and not a
   // bot, it is the pile on your side of the table.
   const deskHtml =
-    `<button type="button" class="desk-row${deskOpen ? " is-active" : ""}" data-desk-open>` +
+    `<button type="button" class="desk-row${deskOpen ? " is-active" : ""}" data-desk-open ` +
+    `aria-label="Your desk${waiting ? `, ${waiting} waiting` : ""}" title="Your desk" aria-current="${deskOpen}">` +
     `<span class="desk-row__icon">${icon("bell")}</span>` +
     `<span class="desk-row__name">Your desk</span>` +
     (waiting ? `<span class="desk-row__count">${waiting > 99 ? "99+" : waiting}</span>` : "") +
@@ -2270,7 +2272,7 @@ function serverTiles(): string {
       const here = one.id === state.activeServer && roomsOpen;
       return (
         `<button type="button" class="rooms-tile${here ? " is-active" : ""}" ` +
-        `title="${escapeHtml(one.name || "Untitled")}" data-server="${one.id}">` +
+        `title="${escapeHtml(one.name || "Untitled")}" aria-label="${escapeHtml(one.name || "Untitled")}${count ? `, ${count} unread` : ""}" aria-expanded="${here}" data-server="${one.id}">` +
         `<span class="rooms-tile__icon"><span class="server-mark" ` +
         `style="background:${escapeHtml(one.color)}">${escapeHtml(initialsOf(one.name))}</span></span>` +
         `<span class="rooms-tile__name">${escapeHtml(one.name || "Untitled")}</span>` +
@@ -2642,7 +2644,9 @@ function botRows(hits: Bot[]): string {
           : unreadIn(bot.messages, bot.seenAt);
       return (
         `<button class="bot-row${bot.id === state.activeId && !state.activeChannel ? " is-active" : ""}` +
-        `${news.unread ? " is-unread" : ""}" data-bot="${bot.id}">` +
+        `${news.unread ? " is-unread" : ""}" data-bot="${bot.id}" ` +
+        `aria-label="${escapeHtml(bot.name)}${news.unread ? `, ${news.unread} unread` : ""}" ` +
+        `title="${escapeHtml(bot.name)}" aria-current="${bot.id === state.activeId && !state.activeChannel && !deskOpen}">` +
         faceHtml(bot, "md", true) +
         `<span class="bot-row__body">` +
         // Name and time, and nothing else. The second line used to carry the
@@ -3137,6 +3141,7 @@ function paintPins(): void {
   const button = $<HTMLButtonElement>("#btn-pins");
   button.hidden = false;
   button.title = many ? `${many} pinned` : "Nothing pinned yet";
+  button.setAttribute("aria-label", many ? `${many} pinned messages` : "Pinned messages");
   $<HTMLSpanElement>("#btn-pins-count").textContent = many ? String(many) : "";
 }
 
@@ -3629,7 +3634,8 @@ function systemPromptFor(bot: Bot): string {
 function setStreaming(on: boolean): void {
   sendIcon.setAttribute("href", on ? "#i-stop" : input.value.trim() ? "#i-arrow-up" : "#i-mic");
   sendBtn.classList.toggle("is-stop", on);
-  sendBtn.title = on ? "Stop" : "Send";
+  sendBtn.title = on ? "Stop reply" : input.value.trim() ? "Send message" : "Dictate a message";
+  sendBtn.setAttribute("aria-label", sendBtn.title);
 }
 
 const syncSend = () => {
@@ -4235,10 +4241,20 @@ function autoGrow(): void {
 
 /* ------------------------------------------------------------- menus, sheet */
 
+let menuAnchor: HTMLElement | null = null;
+
 function openMenu(anchor: HTMLElement | null, html: string, extraClass = ""): void {
   if (!anchor) throw new Error("botcage: openMenu called without an anchor");
   menu.className = `menu ${extraClass}`.trim();
   menu.innerHTML = html;
+  menuAnchor = anchor;
+  anchor.setAttribute("aria-expanded", "true");
+  if (!extraClass.includes("menu--card")) {
+    menu.setAttribute("role", "menu");
+    for (const item of menu.querySelectorAll<HTMLButtonElement>("button")) {
+      item.setAttribute("role", "menuitem");
+    }
+  } else menu.removeAttribute("role");
   menu.hidden = false;
 
   const a = anchor.getBoundingClientRect();
@@ -4246,11 +4262,34 @@ function openMenu(anchor: HTMLElement | null, html: string, extraClass = ""): vo
   const top = a.bottom + 6 + box.height < window.innerHeight ? a.bottom + 6 : a.top - box.height - 6;
   menu.style.top = `${Math.max(8, top)}px`;
   menu.style.left = `${Math.min(Math.max(8, a.left), window.innerWidth - box.width - 8)}px`;
+  menu.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
 }
 
 const closeMenu = () => {
+  const hadFocus = menu.contains(document.activeElement);
   menu.hidden = true;
+  menuAnchor?.setAttribute("aria-expanded", "false");
+  if (hadFocus && menuAnchor?.isConnected) menuAnchor.focus({ preventScroll: true });
 };
+
+menu.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" || event.key === "Tab") {
+    if (event.key === "Escape") event.preventDefault();
+    event.stopPropagation();
+    closeMenu();
+    return;
+  }
+  const items = Array.from(menu.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
+  const at = items.indexOf(document.activeElement as HTMLButtonElement);
+  let next = at;
+  if (event.key === "ArrowDown") next = (at + 1) % items.length;
+  else if (event.key === "ArrowUp") next = (at + items.length - 1) % items.length;
+  else if (event.key === "Home") next = 0;
+  else if (event.key === "End") next = items.length - 1;
+  else return;
+  event.preventDefault();
+  items[next]?.focus();
+});
 
 /** The face at the top of a bot's sheet, in the colour being chosen.
  *
@@ -4606,10 +4645,12 @@ function renderSheetPreview(bot?: Bot | null): void {
         face: faceFromName(sheetName.value),
       } as unknown as Bot);
   sheetPreview.innerHTML = faceHtml(shown, "lg");
+  const colorNames = ["Blue", "Gray", "Red", "Orange", "Amber", "Green", "Purple"];
   swatches.innerHTML = COLORS.map(
-    (c) =>
+    (c, index) =>
       `<button type="button" class="swatch${c === draftColor ? " is-on" : ""}" data-color="${c}" ` +
-      `style="background:${c};color:${c}" aria-label="${c}"></button>`,
+      `style="background:${c};color:${c}" aria-label="${colorNames[index] ?? c}" ` +
+      `title="${colorNames[index] ?? c}" aria-pressed="${c === draftColor}"></button>`,
   ).join("");
 }
 
@@ -5464,9 +5505,6 @@ modelsTools.addEventListener("change", () => void paintModels());
 $<HTMLButtonElement>("#models-close").addEventListener("click", () => {
   modelsWrap.hidden = true;
 });
-modelsWrap.addEventListener("mousedown", (e) => {
-  if (e.target === modelsWrap) modelsWrap.hidden = true;
-});
 $<HTMLFormElement>("#models-sheet").addEventListener("submit", (e) => e.preventDefault());
 
 $<HTMLDivElement>("#models-providers").addEventListener("click", (e) => {
@@ -6167,9 +6205,6 @@ $<HTMLButtonElement>("#plugins-close").addEventListener("click", () => {
   pluginsWrap.hidden = true;
 });
 
-pluginsWrap.addEventListener("mousedown", (event) => {
-  if (event.target === pluginsWrap) pluginsWrap.hidden = true;
-});
 
 pluginsBody.addEventListener("click", (event) => {
   const target = event.target as HTMLElement;
@@ -7352,12 +7387,14 @@ function paintTopbarFor(bot: Bot | null): void {
   // A room can be called too, now: everyone in it, one voice at a time.
   const phone = $<HTMLButtonElement>("#btn-call");
   phone.hidden = false;
-  phone.title = inRoom ? "Call this channel" : "Call it";
+  phone.title = inRoom ? "Call this channel" : `Call ${bot.name}`;
+  phone.setAttribute("aria-label", phone.title);
   // Pins belong to a conversation, and both kinds have one.
   paintPins();
   const gear = $<HTMLButtonElement>("#btn-settings");
   gear.hidden = false;
   gear.title = inRoom ? "Channel settings" : "Bot settings";
+  gear.setAttribute("aria-label", gear.title);
 }
 
 /* --------------------------------------------------------- making a channel */
@@ -7503,9 +7540,6 @@ $<HTMLButtonElement>("#channel-delete").addEventListener("click", () => {
 
 $<HTMLButtonElement>("#channel-close").addEventListener("click", () => {
   channelWrap.hidden = true;
-});
-channelWrap.addEventListener("mousedown", (e) => {
-  if (e.target === channelWrap) channelWrap.hidden = true;
 });
 
 
@@ -8366,6 +8400,15 @@ async function openAbout(): Promise<void> {
 function wireTabs(root: HTMLElement): (name: string) => void {
   const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>(".tabs .tab"));
   const panels = Array.from(root.querySelectorAll<HTMLElement>(".settings-panel"));
+  for (const tab of tabs) {
+    tab.id = `${root.id}-tab-${tab.dataset.tab}`;
+    const panel = panels.find((item) => item.dataset.tab === tab.dataset.tab);
+    if (panel) {
+      panel.id ||= `${root.id}-panel-${tab.dataset.tab}`;
+      tab.setAttribute("aria-controls", panel.id);
+      panel.setAttribute("aria-labelledby", tab.id);
+    }
+  }
 
   // Where there is a heading over the panels, it names the section rather than
   // the window: the window's own name is on the row you clicked to open it, and
@@ -8862,6 +8905,9 @@ function userName(): string {
 
 function paintAccount(): void {
   const name = userName();
+  const account = $<HTMLButtonElement>("#btn-account");
+  account.setAttribute("aria-label", name ? `${name} — app menu` : "App menu");
+  account.title = "App menu";
   $<HTMLSpanElement>("#account-name").textContent = name || "botcage";
   $<HTMLSpanElement>("#account-initial").textContent = (name || "b").slice(0, 1).toUpperCase();
 }
@@ -9456,6 +9502,7 @@ function paintScreen(): void {
 
   controlLabel.textContent = screen.control ? "You have control" : "View only";
   controlBtn.title = screen.control ? "Give control back to the bot" : "Take control of the desktop";
+  controlBtn.setAttribute("aria-label", controlBtn.title);
   controlBtn.classList.toggle("is-on", screen.control);
   controlBtn.querySelector("use")?.setAttribute("href", screen.control ? "#i-hand" : "#i-eye");
 }
@@ -11039,18 +11086,12 @@ $<HTMLButtonElement>("#about-close").addEventListener("click", () => {
 $<HTMLButtonElement>("#about-repo").addEventListener("click", () => {
   void openUrl("https://github.com/hackyguru/botcage");
 });
-aboutWrap.addEventListener("mousedown", (e) => {
-  if (e.target === aboutWrap) aboutWrap.hidden = true;
-});
 
 $<HTMLButtonElement>("#app-settings-close").addEventListener("click", () => {
   appWrap.hidden = true;
 });
 $<HTMLButtonElement>("#app-settings-done").addEventListener("click", () => {
   appWrap.hidden = true;
-});
-appWrap.addEventListener("mousedown", (e) => {
-  if (e.target === appWrap) appWrap.hidden = true;
 });
 
 $<HTMLButtonElement>("#app-open-folder").addEventListener("click", () => {
@@ -11246,9 +11287,6 @@ routineInterval.addEventListener("change", paintRoutineForm);
 $<HTMLButtonElement>("#routine-add").addEventListener("click", () => openRoutine(null));
 $<HTMLButtonElement>("#routine-close").addEventListener("click", () => {
   routineWrap.hidden = true;
-});
-routineWrap.addEventListener("mousedown", (e) => {
-  if (e.target === routineWrap) routineWrap.hidden = true;
 });
 
 $<HTMLButtonElement>("#cal-prev").addEventListener("click", () => {
@@ -11608,12 +11646,6 @@ $<HTMLButtonElement>("#sheet-close").addEventListener("click", () => {
   importedRoutines = null;
 });
 
-// Only while it is a dialog, and only the dim itself: a click that started
-// inside the card and ended outside it is a drag, not a dismissal.
-sheetWrap.addEventListener("click", (event) => {
-  if (!sheetWrap.classList.contains("is-wizard")) return;
-  if (event.target === sheetWrap) showSheet(false);
-});
 
 document.addEventListener("mousedown", (e) => {
   if (!menu.hidden && !menu.contains(e.target as Node)) closeMenu();
@@ -11647,6 +11679,7 @@ document.addEventListener("keydown", (e) => {
     // underneath and leave this standing on its own.
     else if (!restoreWrap.hidden) closeRestore();
     else if (!modelsWrap.hidden) modelsWrap.hidden = true;
+    else if (!pluginsWrap.hidden) pluginsWrap.hidden = true;
     else if (!channelWrap.hidden) channelWrap.hidden = true;
     else if (!routineWrap.hidden) routineWrap.hidden = true;
     else if (!setupWrap.hidden) closeSetup();
@@ -13508,6 +13541,7 @@ function paintMark(): void {
   );
 }
 
+installAccessibility();
 paintMark();
 setPaneWidth(state.screenWidth ?? SCREEN_PANE.initial);
 // However you left it. showRooms paints the roster itself, so this is also the

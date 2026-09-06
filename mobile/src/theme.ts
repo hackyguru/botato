@@ -19,7 +19,7 @@ export const T = {
   line: "rgba(255,255,255,0.09)",
   text: "#f2f2f2",
   text2: "#8e8e93",
-  text3: "#636366",
+  text3: "#85858b",
   onAccent: "#ffffff",
   link: "#4a9dff",
   blue: "#0a84ff",
@@ -46,13 +46,15 @@ export const R = {
   chip: 8,
   control: 10,
   card: 12,
+  tile: 14,
   surface: 16,
   sheet: 18,
 };
 
 /** Sizes. A screen that needs an eighth has a problem the type cannot fix. */
 export const F = {
-  caption: 11,
+  micro: 10.5,
+  caption: 11.5,
   hint: 12.5,
   small: 13.5,
   body: 15,

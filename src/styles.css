@@ -32,14 +32,9 @@
   /* What is beside it. */
   --text-2: #8e8e93;
   /* What explains it. */
-  --text-3: #636366;
+  --text-3: #85858b;
   /* Type on blue, red or green. */
   --on-accent: #ffffff;
-  /* A surface that inverts — the mic while it is idle, a toast — and the ink
-     that goes on it. The ink is also what green and amber want on top of them:
-     which way contrast runs is decided by the ground, not by the theme. */
-  --bright: #f2f2f2;
-  --on-bright: #0a0a0a;
   /* The one accent: what is chosen, what is yours to press. */
   --blue: #0a84ff;
   /* Blue that has to stay legible in a paragraph. */
@@ -63,19 +58,13 @@
   --space-loose: 24px;
 
   --radius-pill: 999px;
-  /* The header band, and the panel head that has to line up with it. */
-  --head-h: 62px;
   --radius-chip: 8px;
   --radius-control: 10px;
   --radius-card: 12px;
-  /* A tile: the rail's, the calendar's panel, a face on a call. Six rules were
-     already drawing this and there was no name for it, so they wrote 14. */
   --radius-tile: 14px;
   --radius-surface: 16px;
   --radius-sheet: 18px;
 
-  /* Smaller than a caption, for a timestamp beside a name or the count on a
-     badge — text you read only when you go looking for it. */
   --type-micro: 10.5px;
   --type-caption: 11.5px;
   --type-hint: 12.5px;
@@ -92,6 +81,11 @@
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 }
 /* --- end palette --- */
+
+:root {
+  /* Desktop header height; shared colors and sizes come from tokens.json. */
+  --head-h: 62px;
+}
 
 * {
   box-sizing: border-box;
@@ -176,20 +170,22 @@ textarea {
   outline-offset: 2px;
 }
 
-/* Except on anything you type into.
- *
- * A field already says where you are: the caret is in it, blinking, which is
- * the oldest and quietest indicator in the interface. A ring around it as well
- * is a second answer to a question already answered, and it is the loudest
- * thing on a sheet the moment you click a name — which is what it looked like,
- * a box lit up in blue around a word you were only editing.
- *
- * Buttons, links and tabs keep theirs. Nothing else marks them, and a keyboard
- * tabbing to Save with no ring is a keyboard lost. */
+/* A caret cannot identify focus on a select or switch. Keep a quiet ring
+   on fields as well as buttons, inset so clipped settings rows remain clear. */
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: none;
+  outline: 2px solid var(--text-2);
+  outline-offset: -2px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+button:disabled:hover {
+  filter: none;
 }
 
 ::placeholder {
@@ -3771,6 +3767,19 @@ select:focus-visible {
   border-radius: 26px;
 }
 
+/* No ring on this one.
+ *
+ * A ring answers "where am I" for a field among other fields — tabbing a
+ * settings sheet, where six of them look alike. The composer has no
+ * neighbours: it is the width of the window, it is the thing the screen is
+ * for, and a caret blinking in it says everything a ring would. Text fields
+ * match :focus-visible on a click as well as a tab, so this one drew a box
+ * round itself every time somebody went to type, which is the one moment
+ * nobody needed telling. */
+.composer textarea:focus-visible {
+  outline: none;
+}
+
 .composer textarea {
   flex: 1;
   min-width: 0;
@@ -4136,6 +4145,7 @@ select:focus-visible {
  * A hidden button is `display: none` and not a grid item, so a sheet with only
  * Save in its footer still gets one full-width button rather than a half one. */
 .pane .sheet__foot {
+  flex-shrink: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
@@ -4242,6 +4252,7 @@ select:focus-visible {
 }
 
 .sheet__head {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -5283,13 +5294,15 @@ select:focus-visible {
 
 .models__key {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   width: 100%;
 }
 
 .models__keyhead {
-  flex: 0 0 auto;
+  flex: 1 0 100%;
+  overflow-wrap: anywhere;
   font-family: var(--mono);
   font-size: var(--type-caption);
   color: var(--text-2);
@@ -5570,7 +5583,7 @@ select:focus-visible {
    which. */
 .settings__title {
   margin: 0;
-  padding: 22px 24px 14px;
+  padding: 22px 56px 14px 24px;
   font-size: 21px;
   font-weight: 600;
   color: var(--text);
@@ -6029,7 +6042,7 @@ a.detail__source:hover {
 
 .tab {
   flex: 1;
-  height: 27px;
+  height: 32px;
   font-size: var(--type-hint);
   font-weight: 500;
   color: var(--text-3);
@@ -6668,6 +6681,7 @@ label.setting {
    one above it like a caption. Dialogs that want their footer laid out some
    other way — the routine's row of chips — say so themselves. */
 .sheet__foot {
+  flex-shrink: 0;
   display: grid;
   gap: 10px;
   padding: 16px var(--gutter) var(--gutter);
@@ -7173,7 +7187,7 @@ label.setting {
   align-items: center;
   /* Centred rather than top-aligned: the steps differ in height by a couple of
      paragraphs, and pinning them to the top left a hole above the buttons. */
-  justify-content: center;
+  justify-content: safe center;
   min-height: 0;
   text-align: center;
 }
@@ -8745,4 +8759,82 @@ body.is-dragging {
 }
 .thread-strip.is-unread .thread-strip__count {
   color: var(--blue);
+}
+
+/* Keep dialogs usable at the desktop's 520px minimum window width. */
+@media (max-width: 700px) {
+  .sheet--settings {
+    grid-template-columns: 140px minmax(0, 1fr);
+    --gutter: 16px;
+  }
+
+  .sheet--settings .tabs {
+    padding: 12px 8px;
+  }
+
+  .sheet--settings .tab {
+    gap: 8px;
+    padding: 0 8px;
+  }
+
+  .settings__title {
+    padding: 20px 46px 14px 16px;
+    font-size: var(--type-title);
+  }
+
+  .sheet--settings .setting {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .sheet--settings .setting:has(> .picker) {
+    flex-wrap: wrap;
+  }
+
+  .sheet--settings .setting:has(> .picker) > .setting__label {
+    flex-basis: 100%;
+  }
+
+  .sheet--settings .setting > .picker {
+    width: 100%;
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .chooser__side {
+    flex-basis: 150px;
+  }
+
+  .market__bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .market__search {
+    flex-basis: 100%;
+  }
+
+  .model-row {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+
+  .model-row__name {
+    flex-basis: 100%;
+  }
+
+  .models__key input {
+    flex-basis: 100%;
+  }
+}
+
+/* Respect reduced motion throughout the interface, including animated faces.
+   A tiny duration preserves animationend handlers that retire leaving steps. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

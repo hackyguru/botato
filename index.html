@@ -180,7 +180,7 @@
           <span class="brand" title="botcage">
             <span class="brand__mark" id="brand-mark"></span>
           </span>
-          <button class="icon-btn" id="btn-new" title="New bot  (⌘N)" aria-label="New bot">
+          <button class="icon-btn" id="btn-new" title="New bot or server" aria-label="New bot or server" aria-haspopup="menu">
             <svg><use href="#i-plus" /></svg>
           </button>
         </div>
@@ -188,7 +188,7 @@
         <div class="bots" id="bots"></div>
 
         <div class="sidebar__foot">
-          <button class="foot-row" id="btn-account">
+          <button class="foot-row" id="btn-account" aria-haspopup="menu">
             <span class="foot-avatar" id="account-initial">·</span>
             <span class="foot-label" id="account-name">botcage</span>
           </button>
@@ -219,7 +219,7 @@
             <input class="rooms__name" id="rooms-name" placeholder="Server name" spellcheck="false" />
             <!-- Rooms are made where rooms are listed. The rail's plus is for
                  bots and servers, which is what the rail is a list of. -->
-            <button class="icon-btn" id="btn-new-room" title="New channel" aria-label="New channel">
+            <button class="icon-btn" id="btn-new-room" title="New channel or category" aria-label="New channel or category" aria-haspopup="menu">
               <svg><use href="#i-plus" /></svg>
             </button>
           </div>
@@ -564,7 +564,7 @@
                 <span class="setting__hint">How it sounds on a call.</span>
               </span>
               <select id="sheet-voice" class="picker"></select>
-              <button type="button" class="picker picker--open" id="sheet-voice-try"
+              <button type="button" class="picker picker--open" aria-label="Preview voice" id="sheet-voice-try"
                       title="Hear it">Hear it</button>
             </label>
             </div>
@@ -781,7 +781,7 @@
         </div>
 
         <div class="market__bar">
-          <input id="models-search" class="market__search" spellcheck="false"
+          <input aria-label="Search models" id="models-search" class="market__search" spellcheck="false"
                  placeholder="Search every model — sonnet, llama, gpt" />
           <label class="chip chip--check">
             <input type="checkbox" id="models-tools" />
@@ -804,7 +804,7 @@
           <p class="models__note" id="models-note"></p>
           <div class="models__key" id="models-key" hidden>
             <span class="models__keyhead" id="models-key-head"></span>
-            <input type="password" id="models-key-input" spellcheck="false"
+            <input type="password" aria-labelledby="models-key-head" id="models-key-input" spellcheck="false"
                    placeholder="Paste the key" autocomplete="off" />
             <button type="button" class="chip" id="models-key-save"><span>Save key</span></button>
             <button type="button" class="chip" id="models-key-forget" hidden><span>Forget</span></button>
@@ -824,9 +824,9 @@
         <div class="sheet__body">
           <label class="chan__name">
             <span>#</span>
-            <input id="channel-name" placeholder="finance" spellcheck="false" maxlength="24" />
+            <input aria-label="Channel name" id="channel-name" placeholder="finance" spellcheck="false" maxlength="24" />
           </label>
-          <textarea id="channel-purpose" rows="3"
+          <textarea aria-label="Channel purpose" id="channel-purpose" rows="3"
                     placeholder="What is this channel for? Everyone in it is told, so it is worth a sentence."></textarea>
 
           <label class="setting" id="channel-mute-row" hidden>
@@ -961,7 +961,7 @@
           <svg><use href="#i-x" /></svg>
         </button>
 
-        <nav class="tabs" role="tablist">
+        <nav class="tabs" role="tablist" aria-label="Settings sections" aria-orientation="vertical">
           <button type="button" class="tab" role="tab" data-tab="general" aria-selected="true">
             <svg><use href="#i-gear" /></svg>General
           </button>
@@ -1221,7 +1221,7 @@
                     is not this machine.</span>
                 </span>
                 <div class="row">
-                  <input id="app-backup-pass" class="picker picker--text" type="password"
+                  <input aria-label="Backup passphrase" id="app-backup-pass" class="picker picker--text" type="password"
                          placeholder="At least eight characters" autocomplete="new-password" />
                   <button type="button" class="btn-primary" id="app-backup-pass-save">Turn on</button>
                 </div>
@@ -1238,7 +1238,7 @@
                     <span class="setting__hint">iCloud Drive, Dropbox, or a disk you plug in.</span>
                   </span>
                   <div class="row">
-                    <input id="app-backup-folder" class="picker picker--text" spellcheck="false"
+                    <input aria-label="Backup folder" id="app-backup-folder" class="picker picker--text" spellcheck="false"
                            placeholder="No folder chosen" />
                     <button type="button" class="chip" id="app-backup-pick"><span>Choose…</span></button>
                   </div>
@@ -1296,7 +1296,7 @@
             Everything in botcage now — every bot, conversation and channel — is replaced by what
             is in this backup. What is here is not kept.
           </p>
-          <input id="restore-pass" class="picker picker--text" type="password"
+          <input aria-label="Backup passphrase" id="restore-pass" class="picker picker--text" type="password"
                  placeholder="Passphrase for this backup" autocomplete="off" />
         </div>
         <div class="sheet__foot">
@@ -1399,8 +1399,8 @@
                 <input type="radio" name="setup-route" value="ollama" />
                 <span class="pick__body">
                   <span class="pick__name">Ollama, on this machine</span>
-                  <span class="pick__what">Free and private, no account. Bots get connectors
-                    and a computer — not files or the web.</span>
+                  <span class="pick__what">Runs locally with no account. Models that support tools can use workspace files,
+                    connectors and an optional computer.</span>
                 </span>
               </label>
 
@@ -1409,7 +1409,7 @@
                 <span class="pick__body">
                   <span class="pick__name">A hosted model</span>
                   <span class="pick__what">Any of thousands on models.dev, with your own API key.
-                    Bots get connectors and a computer — not files or the web.</span>
+                    Models that support tools can use workspace files, connectors and an optional computer.</span>
                 </span>
               </label>
             </div>
@@ -1493,6 +1493,6 @@
       </div>
     </div>
 
-    <div class="toast" id="toast" hidden></div>
+    <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
   </body>
 </html>
