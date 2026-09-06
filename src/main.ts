@@ -9396,6 +9396,16 @@ function noEngineSays(): string {
 
 function paintScreen(): void {
   const bot = state.bots.find((b) => b.id === screen.botId);
+  // Whose machine this is, as the colour of the column it is in — the same
+  // variable and the same gradient the settings column uses. Cleared when
+  // there is no bot, or the last one's colour would sit behind the next.
+  if (bot) {
+    screenPane.style.setProperty("--accent", bot.color);
+    screenPane.style.setProperty("--accent-ink", inkOn(bot.color));
+  } else {
+    screenPane.style.removeProperty("--accent");
+    screenPane.style.removeProperty("--accent-ink");
+  }
   screenId.innerHTML = bot
     ? `${faceHtml(bot, "sm")}<span>${escapeHtml(bot.name)}'s computer</span>`
     : "";

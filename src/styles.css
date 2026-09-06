@@ -6745,6 +6745,15 @@ label.setting {
      — one point off the token and mixed by hand, so the computer pane and the
      settings pane that shares its slot were two almost-identical greys. */
   background: var(--bg-main);
+  /* And the same wash the settings column wears, for the same reason: this is
+     one bot's machine, and the column should say whose without being read.
+     After the shorthand, which resets background-image. */
+  background-image: linear-gradient(
+    168deg,
+    color-mix(in srgb, var(--accent, transparent) 28%, transparent),
+    color-mix(in srgb, var(--accent, transparent) 9%, transparent) 32%,
+    transparent 70%
+  );
   border-left: 1px solid var(--line);
 }
 
