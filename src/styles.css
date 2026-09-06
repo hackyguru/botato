@@ -5187,6 +5187,75 @@ button:disabled:hover {
   gap: 2px;
 }
 
+/* A template of this bot, written to a file. Shaped like the computer card
+   below, because both are the same kind of thing: a note in the thread saying
+   something now exists outside it. */
+.shared {
+  margin-top: 8px;
+  max-width: 620px;
+  padding: 12px;
+  background: var(--fill-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-surface);
+}
+
+.shared__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.shared__name {
+  font-size: var(--type-small);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.shared__state {
+  font-size: var(--type-caption);
+  color: var(--green);
+}
+
+.shared__blurb {
+  margin: 4px 0 8px;
+  overflow: hidden;
+  font-size: var(--type-hint);
+  color: var(--text-2);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* The path in full, wrapping rather than truncating: half a path is not
+   somewhere you can go. */
+.shared__where {
+  margin: 0 0 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--type-caption);
+  color: var(--text-3);
+  word-break: break-all;
+}
+
+.shared__acts {
+  display: flex;
+  gap: 8px;
+}
+
+.shared__do {
+  padding: 5px 12px;
+  font-size: var(--type-caption);
+  color: var(--text);
+  background: var(--fill-2);
+  border: 0;
+  border-radius: var(--radius-chip);
+  cursor: pointer;
+}
+
+.shared__do:hover {
+  background: var(--fill-3);
+}
+
 /* What a bot did on its own computer, under what it said about it.
  *
  * A card rather than an inline image: the picture is evidence for a claim in

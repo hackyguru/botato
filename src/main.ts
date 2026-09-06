@@ -56,6 +56,8 @@ interface Message {
    *  few hundred kilobytes of base64 per picture would fill it in an
    *  afternoon. */
   desk?: { shot: string; acts: number };
+  /** A template of this bot, written to a file somebody else can import. */
+  shared?: { path: string; name: string; blurb: string };
   /** In a channel, which bot said it. A private chat has two voices and needs
    *  no attribution; a room has as many as it has members. */
   by?: string;
@@ -2934,6 +2936,7 @@ function turnEl(msg: Message, ch?: Channel, prev?: Message): HTMLElement {
       : "") +
     bubbleHtml(msg, ch) +
     deskHtml(msg, ch) +
+    sharedHtml(msg) +
     askHtml(msg) +
     (hanging ? threadStrip(hanging, msg) : "") +
     `</div>` +
@@ -2951,6 +2954,31 @@ function turnEl(msg: Message, ch?: Channel, prev?: Message): HTMLElement {
  *  the browser's storage and a few hundred kilobytes of base64 per turn would
  *  fill it. So the card is drawn empty and the image arrives into it, which
  *  also means a long thread does not read a hundred files to scroll. */
+/** The template this bot was made into, as a card in its own thread.
+ *
+ *  A template is a file, and a file that has just been written is the easiest
+ *  thing in the world to lose track of — you chose the folder a moment ago and
+ *  will not remember it tomorrow. So the thread keeps a note of what was made
+ *  and where, with the two things you would want next: open the folder, or
+ *  copy the path to paste somewhere. */
+function sharedHtml(msg: Message): string {
+  if (!msg.shared) return "";
+  return (
+    `<div class="shared" data-path="${escapeHtml(msg.shared.path)}">` +
+    `<div class="shared__head">` +
+    `<span class="shared__name">${escapeHtml(msg.shared.name)}</span>` +
+    `<span class="shared__state">Saved</span>` +
+    `</div>` +
+    `<p class="shared__blurb">${escapeHtml(msg.shared.blurb)}</p>` +
+    `<p class="shared__where">${escapeHtml(msg.shared.path)}</p>` +
+    `<div class="shared__acts">` +
+    `<button type="button" class="shared__do" data-reveal>Show file</button>` +
+    `<button type="button" class="shared__do" data-copy>Copy path</button>` +
+    `</div>` +
+    `</div>`
+  );
+}
+
 function deskHtml(msg: Message, ch?: Channel): string {
   if (!msg.desk) return "";
   // Whose folder the picture is in. A room has several bots in it, so the card
@@ -7562,6 +7590,19 @@ function removeChannel(ch: Channel): number {
   return going.length;
 }
 
+thread.addEventListener("click", (e) => {
+  const card = (e.target as HTMLElement).closest<HTMLElement>(".shared[data-path]");
+  if (!card) return;
+  const path = card.dataset.path!;
+  if ((e.target as HTMLElement).closest("[data-reveal]")) {
+    // The folder, not the file: opening a .botcage would ask the system what
+    // opens one, and nothing does.
+    void openPath(path.replace(/\/[^/]+$/, "")).catch((err) => toast(String(err)));
+  } else if ((e.target as HTMLElement).closest("[data-copy]")) {
+    void navigator.clipboard.writeText(path).then(() => toast("Path copied"));
+  }
+});
+
 $<HTMLButtonElement>("#sheet-share").addEventListener("click", () => {
   if (editing) void shareTemplate(editing);
 });
@@ -8511,8 +8552,23 @@ async function shareTemplate(bot: Bot): Promise<void> {
       path: where,
       json: JSON.stringify(templateOf(bot), null, 2),
     });
-    // Named plainly, because the difference between a bot and a template of it
-    // is the whole thing somebody needs to understand before sending one.
+    // And a note of it in the thread. A file you have just written is the
+    // easiest thing to lose: you picked the folder a moment ago and will not
+    // remember it tomorrow, and a toast is gone in four seconds.
+    bot.messages.push({
+      id: uid(),
+      from: "bot",
+      at: Date.now(),
+      text: "",
+      shared: {
+        path: where,
+        name: bot.name,
+        blurb: bot.role.trim() || "No role written.",
+      },
+    });
+    save();
+    if (bot.id === state.activeId) renderThread();
+    renderRoster();
     toast(`Saved ${bot.name} as a template — its conversation and notes stayed here`);
   } catch (err) {
     toast(err instanceof Error ? err.message : String(err));
