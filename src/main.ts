@@ -3933,6 +3933,14 @@ function renderThreadOrChannel(channelId?: string): void {
   else renderThread();
 }
 
+/** Desktop tools that leave the machine different from how they found it.
+ *
+ *  The rest — screenshot, start_desktop — are the bot looking, and looking is
+ *  not worth a card in the conversation. This is the whole of the decision
+ *  about when a picture is useful: something happened, rather than something
+ *  was observed. */
+const CHANGED_IT = new Set(["click", "type", "key", "scroll", "exec", "replay"]);
+
 function handleBotEvent(event: BotEvent): void {
   // Any event at all proves the CLI ran, and the session file exists from that
   // moment. Marking the bot started only when a turn *finished* meant a first
@@ -4160,7 +4168,10 @@ function handleBotEvent(event: BotEvent): void {
       if (event.botId === screen.botId) window.setTimeout(() => void openScreen(), 4000);
     } else {
       pending.note = desktopTool ? `On its computer — ${tool}…` : `Using ${tool}…`;
-      if (desktopTool) pending.acts = (pending.acts ?? 0) + 1;
+      // Only what changed the screen. A turn that looked at the desktop and
+      // did nothing to it has no picture worth showing: the card would be a
+      // screenshot of whatever was already there, captioned "1 step".
+      if (CHANGED_IT.has(tool)) pending.acts = (pending.acts ?? 0) + 1;
     }
     if (live && !pending.sawText) waitingHtml(pending.message.id, pending.note);
     return;
