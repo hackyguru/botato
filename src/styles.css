@@ -6893,6 +6893,20 @@ label.setting {
   }
 }
 
+/* Buttons in a bot's own column wear its colour.
+ *
+ * The settings sheet keeps blue for its primary, because a red bot there gets
+ * a red Save directly under a red Delete and the safe action becomes the
+ * loudest warning on the page. This column has no destructive action in it —
+ * nothing here can lose anything — so the objection does not apply and the
+ * button can say whose machine it is starting.
+ *
+ * The ink comes with it: white is unreadable on the amber and the green. */
+.screen-pane .btn-primary {
+  color: var(--accent-ink, var(--on-accent));
+  background: var(--accent, var(--blue));
+}
+
 /* What this bot has been shown how to do.
  *
  * Under its screen because that is where it was shown: a demonstration is a

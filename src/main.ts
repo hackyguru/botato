@@ -9412,10 +9412,8 @@ const STATE_LABEL: Record<SandboxState, string> = {
 };
 
 const STATE_MESSAGE: Record<SandboxState, string> = {
-  stopped:
-    "No desktop running for this bot. Starting one gives it a private Linux machine — browser, terminal, files — that only it touches.",
-  building:
-    "Building the sandbox image. The first run pulls Debian and installs a desktop, so this takes a few minutes; it's cached afterwards.",
+  stopped: "No desktop yet. Start one to give this bot a private Linux machine.",
+  building: "Building the image. A few minutes the first time, cached after that.",
   starting: "Waking the desktop…",
   running: "Connecting to the desktop…",
   error: "The desktop didn't come up.",
@@ -9425,8 +9423,7 @@ const STATE_MESSAGE: Record<SandboxState, string> = {
   // in words they may have no reason to know. What it says instead depends on
   // whether botcage can actually supply one here, which `paintScreen` decides.
   "no-docker": "",
-  "no-computer":
-    "This bot doesn't have a computer. Turn on Own computer in its settings to give it one — routines below work either way.",
+  "no-computer": "No computer. Turn on Own computer in its settings to give it one.",
 };
 
 /* ------------------------------------------------- what it has been taught */
@@ -9629,7 +9626,7 @@ function connectScreen(port: number, attempt = 0): void {
       pushLog("The desktop connection dropped.");
     } else if (attempt + 1 < CONNECT_ATTEMPTS) {
       // websockify may not be listening yet even though its port answers.
-      if (attempt === 0) pushLog("Waiting for the desktop to accept connections…");
+      if (attempt === 0) pushLog("Waiting for the desktop…");
       screen.retry = window.setTimeout(() => connectScreen(port, attempt + 1), 1500);
     } else {
       screen.state = "error";
