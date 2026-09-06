@@ -175,13 +175,21 @@ textarea {
   outline-offset: 2px;
 }
 
-/* A caret cannot identify focus on a select or switch. Keep a quiet ring
-   on fields as well as buttons, inset so clipped settings rows remain clear. */
+/* No ring on anything you type into.
+ *
+ * There was a quiet one, on the argument that a caret cannot identify focus on
+ * a select or a switch and that tabbing a sheet of six fields showed nothing
+ * at all. True, and it still drew a box round a field every time somebody
+ * clicked to type — text inputs match :focus-visible on a click as well as a
+ * tab — which is a ring at the one moment it tells you nothing.
+ *
+ * Buttons and the rest keep theirs above. This is fields only, and it is worth
+ * knowing what it costs: tabbing between the settings fields no longer shows
+ * where you are, except by the caret. */
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 2px solid var(--text-2);
-  outline-offset: -2px;
+  outline: none;
 }
 
 button:disabled {
@@ -3790,19 +3798,6 @@ button:disabled:hover {
   padding: 7px 7px 7px 8px;
   background: var(--field);
   border-radius: 26px;
-}
-
-/* No ring on this one.
- *
- * A ring answers "where am I" for a field among other fields — tabbing a
- * settings sheet, where six of them look alike. The composer has no
- * neighbours: it is the width of the window, it is the thing the screen is
- * for, and a caret blinking in it says everything a ring would. Text fields
- * match :focus-visible on a click as well as a tab, so this one drew a box
- * round itself every time somebody went to type, which is the one moment
- * nobody needed telling. */
-.composer textarea:focus-visible {
-  outline: none;
 }
 
 .composer textarea {
