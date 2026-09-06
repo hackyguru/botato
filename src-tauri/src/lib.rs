@@ -24,6 +24,7 @@ mod catalogue;
 mod connectors;
 mod engine;
 mod files;
+mod gateway;
 mod hearing;
 mod inference;
 mod mcp;
@@ -1756,6 +1757,8 @@ pub fn run() {
             speech_ready,
             speech_install,
             speech_forget,
+            gateway::gateway_sign_in,
+            gateway::gateway_sign_in_poll,
             hearing_ready,
             hearing_install,
             transcribe,
