@@ -469,7 +469,15 @@ const SCREEN_PANE = { min: 440, max: 900, initial: 460 };
    colour swatches were the only two things you could see without scrolling. */
 
 /** The chat needs at least this much width; below it, the desktop stacks under. */
-const MIN_CHAT_WIDTH = 480;
+/** The narrowest a conversation may get before the pane beside it gives up.
+ *
+ *  Not the narrowest it can be read at — the narrowest worth reading. At 480 a
+ *  thread still fits, so the pane stayed open while the conversation was
+ *  squeezed to a column of three-word lines, and the window had to get quite
+ *  small before anything gave. The pane is the thing you opened and the thread
+ *  is the thing you were already doing; when only one of them fits, it is the
+ *  visitor that leaves. */
+const MIN_CHAT_WIDTH = 560;
 /** Below this, the sidebar collapses to a rail whether you asked for it or not. */
 
 /* ----------------------------------------------------------------- elements */
