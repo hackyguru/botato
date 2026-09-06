@@ -544,6 +544,60 @@ const sheetDelete = $<HTMLButtonElement>("#sheet-delete");
 
 const sheetComputer = $<HTMLInputElement>("#sheet-computer");
 const sheetAware = $<HTMLInputElement>("#sheet-aware");
+const sheetVaultRow = $<HTMLElement>("#sheet-vault-row");
+const sheetVault = $<HTMLElement>("#sheet-vault");
+const sheetVaultName = $<HTMLInputElement>("#sheet-vault-name");
+const sheetVaultSecret = $<HTMLInputElement>("#sheet-vault-secret");
+
+/** What this bot can sign into, by name.
+ *
+ *  Names and nothing else — there is no path in botcage that reads one of
+ *  these back, including this one. The row exists so you can see what a bot
+ *  holds and take one away, not so you can check what you typed. */
+async function paintVault(bot: Bot | null): Promise<void> {
+  sheetVaultRow.hidden = !bot;
+  if (!bot) return;
+  const held = await invoke<{ name: string }[]>("vault_list", { botId: bot.id }).catch(() => []);
+  sheetVault.innerHTML = held.length
+    ? held
+        .map(
+          (one) =>
+            `<div class="cmd"><code>${escapeHtml(one.name)}</code>` +
+            `<button type="button" class="btn-quiet" data-forget="${escapeHtml(one.name)}">Forget</button></div>`,
+        )
+        .join("")
+    : `<p class="models__note">Nothing yet. Add one and this bot can sign in without ever being told the password.</p>`;
+}
+
+sheetVault.addEventListener("click", (e) => {
+  const gone = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-forget]");
+  if (!gone || !editing) return;
+  const bot = editing;
+  void invoke("vault_forget", { botId: bot.id, name: gone.dataset.forget }).then(() => {
+    void paintVault(bot);
+  });
+});
+
+$<HTMLButtonElement>("#sheet-vault-add").addEventListener("click", () => {
+  if (!editing) return;
+  const bot = editing;
+  const name = sheetVaultName.value.trim();
+  const secret = sheetVaultSecret.value;
+  if (!name || !secret) {
+    toast("A login needs a name and a password");
+    return;
+  }
+  void invoke("vault_put", { botId: bot.id, name, secret })
+    .then(() => {
+      // Cleared rather than left filled: the box should not be sitting there
+      // with a password in it while somebody walks away from the screen.
+      sheetVaultName.value = "";
+      sheetVaultSecret.value = "";
+      toast(`${bot.name} can now sign into ${name}`);
+      void paintVault(bot);
+    })
+    .catch((err) => toast(String(err)));
+});
 const sheetBeat = $<HTMLSelectElement>("#sheet-beat");
 const sheetBeatRow = $<HTMLElement>("#sheet-beat-row");
 
@@ -5372,6 +5426,7 @@ function openSheet(bot: Bot | null = null): void {
     .join("");
   sheetComputer.checked = bot?.computer ?? false;
   sheetAware.checked = bot?.aware ?? false;
+  void paintVault(bot ?? null);
   sheetBeat.value = String(bot?.heartbeat ?? 0);
   paintBeatRow();
   sheetNetwork.value = bot?.network ?? "full";

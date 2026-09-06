@@ -707,6 +707,36 @@ fn catch_up(bot: &Bot) -> Value {
 
 fn tool_specs(bot: &Bot) -> Value {
     let mut specs = base_specs(bot);
+    // A bot with credentials of its own gets the two tools that go with them:
+    // one to see what it has, one to spend it. There is no third that reads
+    // one back, and that is the point rather than an omission.
+    let held = crate::vault::list(&bot.id);
+    if !held.is_empty() {
+        if let Some(list) = specs.as_array_mut() {
+            let names = held
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            list.push(json!({
+                "name": "use_credential",
+                "description": format!(
+                    "Type one of your saved credentials into whatever currently has keyboard \
+                     focus on your desktop. Click the field first. You have: {names}.\n\n\
+                     You cannot read these and do not need to — the value is typed for you and \
+                     never shown to you, so it cannot end up in this conversation. Ask for one \
+                     by name; if you need one that is not listed, ask the user to add it in \
+                     your settings.",
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": { "name": { "type": "string" } },
+                    "required": ["name"]
+                }
+            }));
+        }
+    }
+
     if bot.rooms.is_some() {
         if let Some(list) = specs.as_array_mut() {
             list.push(json!({
@@ -1120,6 +1150,22 @@ fn call_tool(bot: &Bot, params: &Value) -> Value {
     if name == "catch_up" {
         return catch_up(bot);
     }
+    // Whether a credential exists is answerable without a desktop, and a bot
+    // asking for one it does not have should be told that rather than told to
+    // switch a machine on first — the machine was never the problem.
+    if name == "use_credential" {
+        let wanted = params["arguments"]["name"].as_str().unwrap_or_default().trim();
+        if crate::vault::secret(&bot.id, wanted).is_none() {
+            let has: Vec<String> = crate::vault::list(&bot.id).into_iter().map(|c| c.name).collect();
+            return text_result(
+                format!(
+                    "no credential called \"{wanted}\". You have: {}",
+                    if has.is_empty() { "none".into() } else { has.join(", ") }
+                ),
+                true,
+            );
+        }
+    }
 
     // A bot's own folder, for an engine that cannot open a file itself. Before
     // the desktop too: these are the same directory the desktop mounts as
@@ -1183,6 +1229,34 @@ fn call_tool(bot: &Bot, params: &Value) -> Value {
                 ),
                 true,
             ),
+        };
+    }
+
+    // Typed here rather than handed back. The value is looked up on this side
+    // and posted straight to the desktop's keyboard, so the only place it ever
+    // exists is this function and the field it lands in — never the model's
+    // context, never the transcript.
+    if name == "use_credential" {
+        let wanted = args["name"].as_str().unwrap_or_default().trim();
+        let Some(secret) = crate::vault::secret(&bot.id, wanted) else {
+            let has = crate::vault::list(&bot.id)
+                .into_iter()
+                .map(|c| c.name)
+                .collect::<Vec<_>>();
+            return text_result(
+                format!(
+                    "no credential called \"{wanted}\". You have: {}",
+                    if has.is_empty() { "none".into() } else { has.join(", ") }
+                ),
+                true,
+            );
+        };
+        return match request(port, "POST", "/type", Some(&json!({ "text": secret }).to_string())) {
+            Err(err) => text_result(err, true),
+            // Deliberately says nothing about what was typed, including its
+            // length — an answer that varies with the secret is a way to read
+            // it one question at a time.
+            Ok(_) => text_result(format!("typed {wanted} into the focused field"), false),
         };
     }
 

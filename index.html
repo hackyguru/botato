@@ -612,6 +612,25 @@
               </select>
             </label>
             </div>
+
+            <!-- Passwords for the things this bot signs into on its own
+                 desktop. Only shown for an existing bot: a bot that does not
+                 exist yet has nothing to sign into. -->
+            <div class="prose" id="sheet-vault-row" hidden>
+              <span class="prose__label">Its logins
+                <span class="prose__hint">Passwords it can use but never read. It types them into
+                  its own screen; the value is never shown to it, so it cannot end up in a
+                  conversation or a transcript.</span>
+              </span>
+              <div class="cmds" id="sheet-vault"></div>
+              <div class="row">
+                <input id="sheet-vault-name" class="picker picker--text" placeholder="Name, e.g. grafana"
+                       spellcheck="false" autocomplete="off" />
+                <input id="sheet-vault-secret" class="picker picker--text" type="password"
+                       placeholder="Password" autocomplete="off" />
+                <button type="button" class="picker picker--open" id="sheet-vault-add">Add</button>
+              </div>
+            </div>
           </div>
 
           <div class="settings-panel" data-tab="machine" role="tabpanel" hidden>

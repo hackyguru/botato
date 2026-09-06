@@ -38,6 +38,7 @@ mod sandbox;
 mod setup;
 mod speech;
 mod transcript;
+mod vault;
 mod voice;
 
 /// Entry point for `botcage --mcp` (see main.rs). Identity arrives in the
@@ -1843,6 +1844,9 @@ pub fn run() {
             speech_forget,
             make_room,
             connectors::credentials_protected,
+            vault::vault_list,
+            vault::vault_put,
+            vault::vault_forget,
             rooms::rooms_mirror,
             rooms::rooms_unseen,
             hearing_ready,
