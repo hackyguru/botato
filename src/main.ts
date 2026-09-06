@@ -9805,7 +9805,25 @@ async function widthLands(): Promise<void> {
  *  Only ever called by a window getting narrower. Opening something goes the
  *  other way — see `makeRoom`, which widens the window instead — so this is not
  *  a thing you can trip by clicking. */
+let closingPanes = false;
+
 function squeezeOut(): void {
+  // Not while it is already happening. Closing a pane relayouts — closeScreen
+  // reaches relayout through setScreenModal, before it has set `hidden`, so
+  // the nested pass still sees an open pane and closes it again. That is a
+  // stack overflow, and it took the layout down with it: every resize after
+  // the first threw, so nothing moved and the pane sat off the edge of the
+  // window looking like a rule that had not fired.
+  if (closingPanes) return;
+  closingPanes = true;
+  try {
+    squeezeOutOnce();
+  } finally {
+    closingPanes = false;
+  }
+}
+
+function squeezeOutOnce(): void {
   if (!screenPane.hidden && !screenModal()) closeScreen();
   if (!found.hidden) closeFind();
   if (!sheetWrap.hidden && !sheetWrap.classList.contains("is-wizard")) showSheet(false);
