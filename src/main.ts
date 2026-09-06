@@ -5444,9 +5444,8 @@ function openSheet(bot: Bot | null = null): void {
   // while the machine is in fact distinct.
   const resolved = machineProfile(bot);
   $<HTMLParagraphElement>("#sheet-machine-note").textContent =
-    `Automatic here means ${resolved.browser} at ${resolved.screen}, ${resolved.cores} cores, ` +
-    `${resolved.fonts} fonts, ${resolved.rendering} text — derived from this bot's id, so no two ` +
-    `bots get the same machine.`;
+    `Automatic: ${resolved.browser} at ${resolved.screen}, ${resolved.cores} cores, ` +
+    `${resolved.fonts} fonts. Derived from this bot's id, so no two match.`;
   sheetScreen.value = bot?.machine?.screen ?? "";
   sheetCores.value = bot?.machine?.cores ? String(bot.machine.cores) : "";
   sheetWindow.value = bot?.machine?.window ?? "";
@@ -12251,9 +12250,7 @@ async function paintVoiceStep(): Promise<void> {
   text.textContent = "Not set up yet.";
   fine.hidden = false;
   fine.textContent =
-    "About 400 MB: a speech recogniser so it can hear you, and two dozen recorded voices so it " +
-    "does not answer like a satnav. Nothing you say or it says leaves this machine, and Settings " +
-    "can remove the voices later.";
+    "About 400 MB: a speech recogniser and two dozen voices. Nothing you say leaves this machine.";
   setupNext.textContent = "Set up voice";
   setupNext.disabled = false;
   // Skipping is a real answer here, so it is offered rather than implied.

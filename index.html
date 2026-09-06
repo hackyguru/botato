@@ -529,9 +529,8 @@
                  what this bot does when nobody is talking to it. -->
             <label class="setting">
               <span class="setting__label">Keeps up
-                <span class="setting__hint">Lets it read what was said in its channels while it
-                  was not being asked. Costs nothing until it looks, and it only ever sees
-                  channels it is already in.</span>
+                <span class="setting__hint">Lets it read its own channels while nobody
+                  is asking. It only ever sees channels it is already in.</span>
               </span>
               <input type="checkbox" id="sheet-aware" class="switch" />
             </label>
@@ -540,9 +539,8 @@
                  above rather than standing on its own. -->
             <label class="setting" id="sheet-beat-row" hidden>
               <span class="setting__label"><span class="setting__name">Checks in <svg class="leaf" aria-hidden="true"><use href="#i-leaf" /></svg></span>
-                <span class="setting__hint">How often it looks by itself. A check where nothing
-                  has been said costs nothing — no model is asked — so this is only spent on the
-                  times something actually happened.</span>
+                <span class="setting__hint">How often it looks by itself. A check costs nothing when
+                  nothing has been said.</span>
               </span>
               <select id="sheet-beat" class="picker">
                 <option value="0">Never</option>
@@ -556,8 +554,7 @@
 
             <label class="setting">
               <span class="setting__label">Manner
-                <span class="setting__hint">How it writes, not what it says. Its own is chosen by
-                  its id, the way its face and voice are.</span>
+                <span class="setting__hint">How it writes, not what it says. Its own is chosen by its id.</span>
               </span>
               <select id="sheet-manner" class="picker"></select>
             </label>
@@ -579,8 +576,8 @@
                  it pushed every setting you actually came for below the fold. -->
             <label class="prose" id="sheet-memory-row">
               <span class="prose__label">What it has learned
-                <span class="prose__hint">Its own notes, kept between conversations. It writes
-                  these; correct or delete anything that is wrong.</span>
+                <span class="prose__hint">Its own notes, kept between conversations. Correct or delete
+                  anything wrong.</span>
               </span>
               <textarea id="sheet-memory" rows="4"
                         placeholder="Nothing yet. It fills this in as it works."></textarea>
@@ -592,8 +589,8 @@
                  somebody looks to learn what a bot does. -->
             <div class="prose" id="sheet-commands-row" hidden>
               <span class="prose__label">Shortcuts
-                <span class="prose__hint">What it answers to. Type "/" in a message to use one.
-                  It writes these itself.</span>
+                <span class="prose__hint">What it answers to, written by the bot itself. Type "/" in a
+                  message to use one.</span>
               </span>
               <div class="cmds" id="sheet-commands"></div>
             </div>
@@ -624,9 +621,8 @@
                  exist yet has nothing to sign into. -->
             <div class="prose" id="sheet-vault-row" hidden>
               <span class="prose__label">Its logins
-                <span class="prose__hint">Passwords it can use but never read. It types them into
-                  its own screen; the value is never shown to it, so it cannot end up in a
-                  conversation or a transcript.</span>
+                <span class="prose__hint">Passwords it types into its own screen but is never shown,
+                  so they cannot reach a conversation.</span>
               </span>
               <div class="cmds" id="sheet-vault"></div>
               <div class="row">
@@ -835,8 +831,8 @@
 
           <label class="setting" id="channel-mute-row" hidden>
             <span class="setting__label">Mute this channel
-              <span class="setting__hint">No unread mark and no notification. Everything still
-                happens in here, and anything waiting on an answer still reaches your desk.</span>
+              <span class="setting__hint">No unread mark and no notification. Anything waiting on an answer still
+                reaches your desk.</span>
             </span>
             <input type="checkbox" id="channel-mute" class="switch" />
           </label>
@@ -995,8 +991,7 @@
                    wherever you are, so the switch belongs where you are. -->
               <label class="setting">
                 <span class="setting__label">Sounds
-                  <span class="setting__hint">A note when you pick a bot, and the music under
-                    setup. Each bot has its own note.</span>
+                  <span class="setting__hint">A note when you pick a bot, and the music under setup.</span>
                 </span>
                 <input type="checkbox" id="app-sounds" class="switch" />
               </label>
@@ -1024,8 +1019,8 @@
 
               <label class="setting">
                 <span class="setting__label">Tell me when I am needed
-                  <span class="setting__hint">A notification when a bot says your name or a turn
-                    fails, and only while you are looking at something else.</span>
+                  <span class="setting__hint">When a bot says your name or a turn fails, and only while you
+                    are elsewhere.</span>
                 </span>
                 <input type="checkbox" id="app-notify" class="switch" />
               </label>
@@ -1120,8 +1115,8 @@
 
               <label class="setting">
                 <span class="setting__label">Keep running with the lid closed
-                  <span class="setting__hint">Asks for your admin password and changes a system
-                    setting, not just this app. A closed machine working constantly runs hot.</span>
+                  <span class="setting__hint">Changes a system setting, not just this app. A closed machine
+                    working constantly runs hot.</span>
                 </span>
                 <input type="checkbox" id="app-lid" class="switch" />
               </label>
@@ -1168,8 +1163,8 @@
 
               <div class="setting setting--stack">
                 <span class="setting__label">Can't scan?
-                  <span class="setting__hint">Enter this machine's name on the phone, then the code
-                    below. Spaces are there to be read — they can be left out.</span>
+                  <span class="setting__hint">This machine's name on the phone, then the code below. Spaces
+                    can be left out.</span>
                 </span>
                 <span class="machine-key" id="app-remote-key" tabindex="0"
                   title="This machine's name. Hover or focus to read it.">—</span>
@@ -1386,8 +1381,8 @@
           <section class="setup__step" data-step="answers" hidden>
             <h2 class="setup__title">What answers for us</h2>
             <p class="setup__blurb">
-              botcage ships no model of its own, so pick one way to start. You can change any of
-              us later, and we don't all have to use the same one.
+              botcage ships no model of its own, so pick one way to start. You can change this
+              later.
             </p>
 
             <div class="picks" id="setup-picks">
@@ -1425,17 +1420,16 @@
             </div>
             <pre class="setup__log" id="setup-claude-log" hidden></pre>
             <p class="setup__fine" id="setup-claude-fine" hidden>
-              Runs Anthropic's own installer, <code>https://claude.ai/install.sh</code>, as you —
-              no admin password, everything under your home folder.
+              Anthropic's own installer, <code>https://claude.ai/install.sh</code> — no admin
+              password needed.
             </p>
           </section>
 
           <section class="setup__step" data-step="engine" hidden>
             <h2 class="setup__title">Whether we get a computer</h2>
             <p class="setup__blurb">
-              Optional. Give one of us its own computer and it gets a sandboxed Linux desktop with
-              a browser and a terminal, and you can watch it work. Everything else runs without
-              this.
+              Optional. A bot with its own computer gets a sandboxed Linux desktop you can watch
+              it work on.
             </p>
             <div class="setup__check" id="setup-engine-check">
               <span class="setup__dot" data-state="wait"></span>
@@ -1447,9 +1441,7 @@
           <section class="setup__step" data-step="voice" hidden>
             <h2 class="setup__title">Whether we talk out loud</h2>
             <p class="setup__blurb">
-              Optional. You can call any of us and talk — we listen, think and answer out loud,
-              all on this machine. That needs a speech model and a set of voices; they can come
-              now, or the first time you make a call.
+              Optional. Call any of us and talk out loud, all on this machine.
             </p>
             <div class="setup__check" id="setup-voice-check">
               <span class="setup__dot" data-state="wait"></span>
@@ -1465,22 +1457,12 @@
           <section class="setup__step" data-step="care" hidden>
             <h2 class="setup__title">One thing about the cost</h2>
             <p class="setup__blurb">
-              A bot thinking is not free and does not come out of thin air. Every turn runs a
-              model on a machine somewhere — here on your laptop, or in a building full of them
-              — and that machine draws power, and water to stay cool. It is a small amount per
-              answer. It stops being small when a routine fires every hour of every day.
+              A bot thinking is not free. Every turn draws real power — small per answer, not
+              small when a routine fires hourly.
             </p>
-            <p class="setup__blurb">
-              botcage is built to spend it only when there is something to spend it on. A bot
-              checking its channels costs nothing on an hour when nothing was said, because that
-              question is answered off a file rather than by a model. Working hours keep a bot
-              asleep. Nothing here speaks unless you asked it to or something actually changed.
-            </p>
-            <p class="setup__blurb">
-              Where the choice is yours, the setting carries a leaf
-              <svg class="leaf leaf--inline"><use href="#i-leaf" /></svg> — how often a bot looks
-              around by itself, when it is allowed to work, which model answers for it. A smaller
-              model is less of everything, and most work does not need the largest one.
+            <p class="setup__fine">
+              Settings marked with a leaf <svg class="leaf leaf--inline"><use href="#i-leaf" /></svg>
+              are where that is decided.
             </p>
           </section>
 
