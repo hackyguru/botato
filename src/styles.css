@@ -210,18 +210,26 @@ button:disabled:hover {
 }
 
 .scroll,
+/* No bar down the rail.
+ *
+ * A scrollbar is for a list you read and lose your place in. The rail is a
+ * column of faces you scan and click, forty pixels wide — the bar was a tenth
+ * of it, drawn over the thing it was measuring, and it told you nothing you
+ * could not see from the faces themselves. It still scrolls; it just does not
+ * say so. */
 .bots {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+  scrollbar-width: none;
 }
 
-.scroll::-webkit-scrollbar,
 .bots::-webkit-scrollbar {
+  display: none;
+}
+
+.scroll::-webkit-scrollbar {
   width: 10px;
 }
 
-.scroll::-webkit-scrollbar-thumb,
-.bots::-webkit-scrollbar-thumb {
+.scroll::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.16);
   background-clip: content-box;
   border: 3px solid transparent;
