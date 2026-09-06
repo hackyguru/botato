@@ -11521,7 +11521,7 @@ interface ClaudeState {
   trouble: string | null;
 }
 
-const SETUP_STEPS = ["welcome", "answers", "engine", "voice", "done"] as const;
+const SETUP_STEPS = ["welcome", "answers", "engine", "voice", "care", "done"] as const;
 type SetupStep = (typeof SETUP_STEPS)[number];
 
 const setupWrap = $<HTMLDivElement>("#setup");

@@ -6333,6 +6333,46 @@ label.setting {
   font-size: var(--type-small);
 }
 
+/* The label's own line, so a leaf beside it stays beside it.
+ *
+ * `.setting__label` is a flex column — the name over its explanation — which
+ * makes any second child a second row. An icon added after the text landed
+ * under it rather than next to it, looking like a bullet for the sentence
+ * below. This keeps the two on one line and leaves the explanation where it
+ * was. */
+.setting__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The leaf.
+ *
+ * Marks a setting where the choice changes how much computing gets done — how
+ * often a bot looks around by itself, when it is allowed to work, which model
+ * answers for it. Not a badge and not a score: it says "the energy is decided
+ * here", which is a fact, rather than "this is the good option", which would
+ * be a judgement about a trade-off only the person making it can weigh.
+ *
+ * Quiet on purpose, and green only just. A marker that competes with the
+ * setting it marks has stopped being a marker, and a page of nagging is a page
+ * people stop reading. */
+.leaf {
+  width: 12px;
+  height: 12px;
+  color: var(--green);
+  opacity: 0.55;
+  vertical-align: -1px;
+  flex: none;
+}
+
+/* In a sentence rather than beside a label, where it needs to sit on the
+   baseline of the text around it. */
+.leaf--inline {
+  vertical-align: -2px;
+  opacity: 0.8;
+}
+
 .setting__hint {
   font-size: var(--type-hint);
   line-height: 1.45;

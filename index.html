@@ -45,6 +45,12 @@
         <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v3" />
       </symbol>
       <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7M12 19V5" /></symbol>
+      <!-- Marks a setting where your choice changes how much computing happens.
+           Lucide's leaf, so it sits with the rest of the set. -->
+      <symbol id="i-leaf" viewBox="0 0 24 24">
+        <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+        <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+      </symbol>
       <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" /></symbol>
       <symbol id="i-dots" viewBox="0 0 24 24">
         <circle cx="5" cy="12" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="19" cy="12" r="1.4" />
@@ -488,7 +494,7 @@
             </label>
 
             <label class="setting" id="sheet-model-row">
-              <span class="setting__label">Model
+              <span class="setting__label"><span class="setting__name">Model <svg class="leaf" aria-hidden="true"><use href="#i-leaf" /></svg></span>
                 <span class="setting__hint" id="sheet-model-hint">Sonnet is easier on your usage limits.</span>
               </span>
               <select id="sheet-model" class="picker"></select>
@@ -496,7 +502,7 @@
             </label>
 
             <div class="setting setting--stack">
-              <span class="setting__label">Working hours
+              <span class="setting__label"><span class="setting__name">Working hours <svg class="leaf" aria-hidden="true"><use href="#i-leaf" /></svg></span>
                 <span class="setting__hint" id="sheet-hours-says">Any time.</span>
               </span>
               <!-- Routines only, which is what the hint says: a message you
@@ -533,7 +539,7 @@
             <!-- Only useful to a bot that can look, so it hangs off the switch
                  above rather than standing on its own. -->
             <label class="setting" id="sheet-beat-row" hidden>
-              <span class="setting__label">Checks in
+              <span class="setting__label"><span class="setting__name">Checks in <svg class="leaf" aria-hidden="true"><use href="#i-leaf" /></svg></span>
                 <span class="setting__hint">How often it looks by itself. A check where nothing
                   has been said costs nothing — no model is asked — so this is only spent on the
                   times something actually happened.</span>
@@ -1002,7 +1008,7 @@
               </label>
 
               <label class="setting">
-                <span class="setting__label">Model for new bots
+                <span class="setting__label"><span class="setting__name">Model for new bots <svg class="leaf" aria-hidden="true"><use href="#i-leaf" /></svg></span>
                   <span class="setting__hint">Existing bots keep their own choice.</span>
                 </span>
                 <select id="app-model" class="picker">
@@ -1450,6 +1456,32 @@
               <span class="setup__check-text" id="setup-voice-text">Checking…</span>
             </div>
             <p class="setup__fine" id="setup-voice-fine" hidden></p>
+          </section>
+
+          <!-- Said once, here, and not repeated at people afterwards. A
+               notice that appears every time you do the thing it disapproves
+               of is a notice people learn to click past, and then it has cost
+               attention without buying anything. -->
+          <section class="setup__step" data-step="care" hidden>
+            <h2 class="setup__title">One thing about the cost</h2>
+            <p class="setup__blurb">
+              A bot thinking is not free and does not come out of thin air. Every turn runs a
+              model on a machine somewhere — here on your laptop, or in a building full of them
+              — and that machine draws power, and water to stay cool. It is a small amount per
+              answer. It stops being small when a routine fires every hour of every day.
+            </p>
+            <p class="setup__blurb">
+              botcage is built to spend it only when there is something to spend it on. A bot
+              checking its channels costs nothing on an hour when nothing was said, because that
+              question is answered off a file rather than by a model. Working hours keep a bot
+              asleep. Nothing here speaks unless you asked it to or something actually changed.
+            </p>
+            <p class="setup__blurb">
+              Where the choice is yours, the setting carries a leaf
+              <svg class="leaf leaf--inline"><use href="#i-leaf" /></svg> — how often a bot looks
+              around by itself, when it is allowed to work, which model answers for it. A smaller
+              model is less of everything, and most work does not need the largest one.
+            </p>
           </section>
 
           <section class="setup__step" data-step="done" hidden>
