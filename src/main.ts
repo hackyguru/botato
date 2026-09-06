@@ -9730,15 +9730,19 @@ function relayout(): void {
     (!screenPane.hidden && !screenModal()) ||
     (!sheetWrap.hidden && !sheetWrap.classList.contains("is-wizard")) ||
     !found.hidden;
-  const pane = anyPane ? (state.screenWidth ?? SCREEN_PANE.initial) : 0;
-  const chatWidth = appEl.clientWidth - sidebar - pane;
 
   // Squeezed past the point where both fit, so the pane goes away rather than
   // going underneath. Landing under the conversation was a second layout
   // arriving unannounced: what you opened was no longer where you left it, and
   // the thread you were reading became a letterbox. A pane belongs on the
   // right or nowhere.
-  if (anyPane && chatWidth < MIN_CHAT_WIDTH && !widening) squeezeOut();
+  // Framed by what is left for the pane rather than what is left for the chat.
+  // The thread now holds its floor in the grid, so the pane is what actually
+  // shrinks — and a pane narrower than its own minimum is one whose controls
+  // have started disappearing. When there is not room for a whole one, there
+  // is not room for one.
+  const forPane = appEl.clientWidth - sidebar - MIN_CHAT_WIDTH;
+  if (anyPane && forPane < SCREEN_PANE.min && !widening) squeezeOut();
 }
 
 /** True while the window is being made wider, so the measurement above does
@@ -12301,6 +12305,10 @@ window.addEventListener("resize", () => {
  * the size somebody chose. */
 let measuring = 0;
 window.addEventListener("resize", () => {
+  // Straight away, so a pane that no longer fits goes at the moment it stops
+  // fitting rather than a seventh of a second into looking wrong. The trailing
+  // call still runs, to settle on whatever width the drag ends at.
+  relayout();
   window.clearTimeout(measuring);
   measuring = window.setTimeout(relayout, 140);
 });
