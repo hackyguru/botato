@@ -3865,11 +3865,26 @@ function finish(botId: string, event: BotEvent): void {
   // end, because that is the only moment the desktop shows the finished thing
   // rather than a step on the way to it — and a sentence claiming a form was
   // filled in is a claim, while the filled-in form is the thing itself.
-  if (event.kind === "done" && pending.acts) {
+  // Two changes, not one. A single click is a bot pressing a button it was
+  // told to press; the picture afterwards shows a screen that looks much as it
+  // did. A turn that did several things is one where something happened.
+  if (event.kind === "done" && (pending.acts ?? 0) >= WORTH_A_PICTURE) {
     const shot = pending.message;
-    const acts = pending.acts;
+    const acts = pending.acts ?? 0;
     void invoke<string>("desk_shot", { botId, messageId: shot.id })
       .then((path) => {
+        // The newest one only. A thread of these is a gallery you scroll past
+        // — and every one but the last is a screen that has since changed, so
+        // it is showing you something that is no longer true.
+        //
+        // Everywhere this bot has spoken, not only its own thread: a card left
+        // in a room it worked in earlier is the same stale picture.
+        for (const older of bot.messages) delete older.desk;
+        for (const room of channels()) {
+          for (const older of room.messages) {
+            if (older.by === bot.id) delete older.desk;
+          }
+        }
         shot.desk = { shot: path, acts };
         save();
         if (pending.channelId ? pending.channelId === state.activeChannel : botId === state.activeId) {
@@ -3940,6 +3955,9 @@ function renderThreadOrChannel(channelId?: string): void {
  *  about when a picture is useful: something happened, rather than something
  *  was observed. */
 const CHANGED_IT = new Set(["click", "type", "key", "scroll", "exec", "replay"]);
+
+/** How much has to have happened before a picture of it is worth the room. */
+const WORTH_A_PICTURE = 2;
 
 function handleBotEvent(event: BotEvent): void {
   // Any event at all proves the CLI ran, and the session file exists from that
