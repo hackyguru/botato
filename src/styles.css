@@ -292,8 +292,8 @@ select:focus-visible {
   background-image: linear-gradient(
     168deg,
     color-mix(in srgb, var(--accent, transparent) 28%, transparent),
-    color-mix(in srgb, var(--accent, transparent) 9%, transparent) 32%,
-    transparent 70%
+    color-mix(in srgb, var(--accent, transparent) 10%, transparent) 34%,
+    color-mix(in srgb, var(--accent, transparent) 4%, transparent) 100%
   );
   border-left: 1px solid var(--line);
 }
@@ -5410,8 +5410,8 @@ select:focus-visible {
   background-image: linear-gradient(
     168deg,
     color-mix(in srgb, var(--accent, transparent) 28%, transparent),
-    color-mix(in srgb, var(--accent, transparent) 9%, transparent) 32%,
-    transparent 70%
+    color-mix(in srgb, var(--accent, transparent) 10%, transparent) 34%,
+    color-mix(in srgb, var(--accent, transparent) 4%, transparent) 100%
   );
   border: 1px solid var(--line);
   border-radius: var(--radius-sheet);
@@ -6756,8 +6756,8 @@ label.setting {
   background-image: linear-gradient(
     168deg,
     color-mix(in srgb, var(--accent, transparent) 28%, transparent),
-    color-mix(in srgb, var(--accent, transparent) 9%, transparent) 32%,
-    transparent 70%
+    color-mix(in srgb, var(--accent, transparent) 10%, transparent) 34%,
+    color-mix(in srgb, var(--accent, transparent) 4%, transparent) 100%
   );
   border-left: 1px solid var(--line);
 }
