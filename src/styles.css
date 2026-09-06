@@ -6767,11 +6767,12 @@ label.setting {
      above routines when docked to the side, screen beside them when docked
      along the bottom. */
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   grid-template-areas:
     "head"
     "body"
-    "caption";
+    "caption"
+    "taught";
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -6890,6 +6891,87 @@ label.setting {
   .chip {
     padding: 0 8px;
   }
+}
+
+/* What this bot has been shown how to do.
+ *
+ * Under its screen because that is where it was shown: a demonstration is a
+ * thing that happened on that machine, and the list of them belongs beside it
+ * rather than in a menu somewhere else. */
+.taught {
+  grid-area: taught;
+  min-height: 0;
+  padding: 4px 12px 12px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.taught__head {
+  margin: 0 0 6px;
+  font-size: var(--type-caption);
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.taught__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: var(--radius-control);
+}
+
+.taught__row:hover {
+  background: var(--fill-1);
+}
+
+.taught__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--type-hint);
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taught__frames {
+  flex: none;
+  font-size: var(--type-caption);
+  color: var(--text-3);
+}
+
+/* Only under the pointer. A row of buttons down a list is a list you have to
+   read past to find the names. */
+.taught__do,
+.taught__drop {
+  flex: none;
+  padding: 2px 8px;
+  font-size: var(--type-caption);
+  color: var(--text-2);
+  background: var(--fill-2);
+  border: 0;
+  border-radius: var(--radius-chip);
+  opacity: 0;
+  cursor: pointer;
+}
+
+.taught__row:hover .taught__do,
+.taught__row:hover .taught__drop,
+.taught__do:focus-visible,
+.taught__drop:focus-visible {
+  opacity: 1;
+}
+
+.taught__drop:hover {
+  color: var(--red);
+}
+
+.taught__none {
+  margin: 0;
+  font-size: var(--type-hint);
+  color: var(--text-3);
 }
 
 /* Drag the edge to trade thread width for screen detail. */

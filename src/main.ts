@@ -9429,6 +9429,73 @@ const STATE_MESSAGE: Record<SandboxState, string> = {
     "This bot doesn't have a computer. Turn on Own computer in its settings to give it one — routines below work either way.",
 };
 
+/* ------------------------------------------------- what it has been taught */
+
+const taughtWrap = $<HTMLElement>("#taught");
+const taughtList = $<HTMLElement>("#taught-list");
+
+interface Taught {
+  slug: string;
+  name: string;
+  frames: number;
+}
+
+/** List what this bot has been shown how to do.
+ *
+ *  These have existed since teaching did and have never been visible: `replay`
+ *  is a tool the bot calls by slug, so a demonstration you recorded had no
+ *  front door — no way to see it had saved, run it, or get rid of it. */
+async function paintTaught(): Promise<void> {
+  const botId = screen.botId;
+  if (!botId) {
+    taughtWrap.hidden = true;
+    return;
+  }
+  const lessons = await invoke<Taught[]>("teach_list", { botId }).catch(() => []);
+  // Hidden rather than shown empty. A heading over nothing teaches you to skip
+  // the place where the things will be.
+  taughtWrap.hidden = lessons.length === 0;
+  if (!lessons.length) return;
+  taughtList.innerHTML = lessons
+    .map(
+      (one) =>
+        `<div class="taught__row" data-slug="${escapeHtml(one.slug)}">` +
+        `<span class="taught__name">${escapeHtml(one.name)}</span>` +
+        `<span class="taught__frames">${one.frames} frame${one.frames === 1 ? "" : "s"}</span>` +
+        `<button type="button" class="taught__do" data-do>Run</button>` +
+        `<button type="button" class="taught__drop" data-drop>Forget</button>` +
+        `</div>`,
+    )
+    .join("");
+}
+
+taughtList.addEventListener("click", (e) => {
+  const target = e.target as HTMLElement;
+  const row = target.closest<HTMLElement>("[data-slug]");
+  const bot = state.bots.find((b) => b.id === screen.botId);
+  if (!row || !bot) return;
+  const slug = row.dataset.slug!;
+  const name = row.querySelector(".taught__name")?.textContent ?? slug;
+
+  if (target.closest("[data-drop]")) {
+    void invoke("teach_forget", { botId: bot.id, slug })
+      .then(() => paintTaught())
+      .catch((err) => toast(String(err)));
+    return;
+  }
+  if (target.closest("[data-do]")) {
+    // Asked rather than executed. `replay` belongs to the bot — it is the
+    // thing with the desktop and the judgement about whether the screen looks
+    // like it did when you demonstrated. Running it behind the bot's back
+    // would put steps on a machine whose state nobody had checked.
+    if (inflight.has(bot.id)) {
+      toast(`${bot.name} is busy`);
+      return;
+    }
+    void respond(bot, `Replay the "${name}" demonstration on your computer.`);
+  }
+});
+
 function pushLog(line: string): void {
   screen.log.push(line);
   paintScreen();
@@ -9512,6 +9579,7 @@ function paintScreen(): void {
         : "Start desktop";
 
   screenLog.hidden = screen.log.length === 0;
+  void paintTaught();
   screenLog.textContent = screen.log.slice(-40).join("\n");
   screenLog.scrollTop = screenLog.scrollHeight;
 

@@ -1834,6 +1834,73 @@ fn teach_save(
     Ok(format!("teach/{slug}"))
 }
 
+/// One demonstration this bot has been taught.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Lesson {
+    /// The folder it lives in, and what `replay` is asked for.
+    slug: String,
+    /// What the bot called it, or the slug if it never named one.
+    name: String,
+    frames: usize,
+}
+
+/// Everything this bot has been shown how to do.
+///
+/// These have been recorded since teaching existed and never listed anywhere:
+/// `replay` is a tool the bot calls by slug, so a demonstration you made had
+/// no front door — you could not see that it existed, run it yourself, or get
+/// rid of it. The frames and the steps were on disk the whole time.
+#[tauri::command(async)]
+fn teach_list(app: AppHandle, bot_id: String) -> Vec<Lesson> {
+    let Ok(dir) = workspace(&app, &bot_id).map(|w| w.join("teach")) else {
+        return Vec::new();
+    };
+    let Ok(entries) = fs::read_dir(&dir) else {
+        return Vec::new();
+    };
+    let mut out: Vec<Lesson> = entries
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            if !entry.file_type().ok()?.is_dir() {
+                return None;
+            }
+            let slug = entry.file_name().to_string_lossy().into_owned();
+            let here = entry.path();
+            // A folder with no steps in it is a recording that never finished,
+            // and offering to replay one would be offering to replay nothing.
+            if !here.join("steps.json").is_file() {
+                return None;
+            }
+            let name = fs::read_to_string(here.join("name.txt"))
+                .ok()
+                .and_then(|raw| raw.lines().next().map(|l| l.trim().to_string()))
+                .filter(|n| !n.is_empty())
+                .unwrap_or_else(|| slug.clone());
+            let frames = fs::read_dir(&here)
+                .map(|f| {
+                    f.filter_map(Result::ok)
+                        .filter(|e| e.file_name().to_string_lossy().starts_with("frame-"))
+                        .count()
+                })
+                .unwrap_or(0);
+            Some(Lesson { slug, name, frames })
+        })
+        .collect();
+    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    out
+}
+
+/// Forget one. The folder and every frame in it.
+#[tauri::command(async)]
+fn teach_forget(app: AppHandle, bot_id: String, slug: String) -> Result<(), String> {
+    if slug.contains('/') || slug.contains("..") {
+        return Err("that is not a demonstration".into());
+    }
+    let dir = workspace(&app, &bot_id)?.join("teach").join(&slug);
+    fs::remove_dir_all(&dir).map_err(|e| e.to_string())
+}
+
 /// The name a bot chose for an unnamed demonstration, if it wrote one.
 #[tauri::command]
 fn teach_name(app: AppHandle, bot_id: String, slug: String) -> Option<String> {
@@ -1932,6 +1999,8 @@ pub fn run() {
             set_login_launch,
             desk_shot,
             desk_shot_data,
+            teach_list,
+            teach_forget,
             teach_capture,
             teach_save,
             teach_name,
