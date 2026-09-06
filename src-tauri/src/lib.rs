@@ -44,6 +44,25 @@ mod voice;
 /// Entry point for `botcage --mcp` (see main.rs). Identity arrives in the
 /// environment, set by the app when it registers this server.
 pub fn serve_mcp() {
+    // The engine botcage installed, told to us the same way our identity is.
+    //
+    // This process is not the app: `use_managed_engine` runs in the app's
+    // setup and sets a static in the app's memory, which this has no share of.
+    // So a bot asking for its own desktop went looking on PATH, found whatever
+    // was installed there — Docker Desktop's client, with nothing behind it —
+    // and reported that there was no machine to work on. The app could drive
+    // the same desktop perfectly, because the app knew where its engine was.
+    // Only the bots could not.
+    sandbox::use_managed_engine(
+        std::env::var("BOTCAGE_ENGINE")
+            .ok()
+            .filter(|p| !p.is_empty())
+            .map(Into::into),
+        std::env::var("BOTCAGE_DOCKER_HOST")
+            .ok()
+            .filter(|h| !h.is_empty()),
+    );
+
     let brand = std::env::var("BOTCAGE_BRAND")
         .ok()
         .and_then(|raw| serde_json::from_str(&raw).ok())
@@ -693,6 +712,13 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
                     "BOTCAGE_BRAND": serde_json::to_string(&req.brand).unwrap_or_default(),
                     // Only where the engine brings none of its own.
                     "BOTCAGE_FILES": if builtins.is_empty() { "1" } else { "" },
+                    // Where our own engine is, and where it listens. Without
+                    // these the server picks one off PATH, which is not the
+                    // one the app is using.
+                    "BOTCAGE_ENGINE": engine::managed_client(&app)
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_default(),
+                    "BOTCAGE_DOCKER_HOST": engine::docker_host(&app).unwrap_or_default(),
                     // Somewhere to look, or nothing — which is how the tool is
                     // withheld rather than offered and then refused.
                     "BOTCAGE_ROOMS": if req.aware {
