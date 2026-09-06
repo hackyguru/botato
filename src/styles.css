@@ -5148,6 +5148,73 @@ select:focus-visible {
   gap: 2px;
 }
 
+/* What a bot did on its own computer, under what it said about it.
+ *
+ * A card rather than an inline image: the picture is evidence for a claim in
+ * the sentence above it, and evidence wants a frame and a label saying what it
+ * is evidence of. Inline, it would read as decoration on the message.
+ *
+ * The screen inside keeps its own proportions and is capped, so a thread of
+ * these scrolls at a readable rhythm rather than turning into a slideshow. */
+.desk-shot {
+  margin-top: 8px;
+  max-width: 620px;
+  padding: 12px;
+  background: var(--fill-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-surface);
+}
+
+.desk-shot__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.desk-shot__what {
+  font-size: var(--type-small);
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* Quiet. It is the ordinary outcome, and a badge shouting it every time is a
+   badge nobody reads by the third one. */
+.desk-shot__done {
+  font-size: var(--type-caption);
+  color: var(--text-2);
+}
+
+.desk-shot__note {
+  margin: 2px 0 10px;
+  font-size: var(--type-hint);
+  color: var(--text-2);
+}
+
+/* Dark behind the picture, because a screenshot of a white page on a white
+   card has no edge and reads as part of the app rather than a picture of
+   something else. */
+.desk-shot__frame {
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  min-height: 60px;
+}
+
+.desk-shot__frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* The bytes went somewhere: the bot's folder was cleared, or the picture was
+   never written. The card still says what happened, which is more than the
+   thread said before any of this existed. */
+.desk-shot--gone .desk-shot__frame {
+  display: none;
+}
+
 .model-row {
   display: flex;
   gap: 10px;

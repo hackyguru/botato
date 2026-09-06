@@ -48,6 +48,13 @@ interface Message {
    *  say what the question was and what you said to it. */
   ask?: { question?: string; options: string[]; answered?: string };
   meta?: { steps: number; frames: number; slug: string; name?: string };
+  /** What its computer looked like when it finished, for a turn that used one.
+   *
+   *  The path only. The bytes stay in the bot's folder and are read when
+   *  something wants to look — a thread lives in the browser's storage, and a
+   *  few hundred kilobytes of base64 per picture would fill it in an
+   *  afternoon. */
+  desk?: { shot: string; acts: number };
   /** In a channel, which bot said it. A private chat has two voices and needs
    *  no attribution; a room has as many as it has members. */
   by?: string;
@@ -779,7 +786,16 @@ const controlLabel = $<HTMLSpanElement>("#btn-control-label");
  *  one voice at a time instead of everybody talking over each other. */
 const inflight = new Map<
   string,
-  { message: Message; sawText: boolean; note: string; channelId?: string; settle?: () => void }
+  {
+    message: Message;
+    sawText: boolean;
+    note: string;
+    channelId?: string;
+    settle?: () => void;
+    /** How many things this turn did on the bot's own desktop, so a turn that
+     *  worked on one can be told from a turn that only talked about it. */
+    acts?: number;
+  }
 >();
 
 /** What this session has spent, and where the usage window stands. */
@@ -2898,11 +2914,73 @@ function turnEl(msg: Message, ch?: Channel, prev?: Message): HTMLElement {
         `</div>`
       : "") +
     bubbleHtml(msg, ch) +
+    deskHtml(msg, ch) +
     askHtml(msg) +
     (hanging ? threadStrip(hanging, msg) : "") +
     `</div>` +
     actsHtml(msg);
   return wrap;
+}
+
+/** What a bot did on its own computer, as a card under what it said.
+ *
+ *  The reply says a thing was done; this is the thing. For work you were not
+ *  watching — which is most of it, because that is the point of giving a bot a
+ *  computer — a sentence is a claim and the screen is the evidence.
+ *
+ *  The picture is fetched rather than stored in the message: a thread lives in
+ *  the browser's storage and a few hundred kilobytes of base64 per turn would
+ *  fill it. So the card is drawn empty and the image arrives into it, which
+ *  also means a long thread does not read a hundred files to scroll. */
+function deskHtml(msg: Message, ch?: Channel): string {
+  if (!msg.desk) return "";
+  // Whose folder the picture is in. A room has several bots in it, so the card
+  // has to name its own rather than leave the reader to try each in turn.
+  const whose = ch ? msg.by : state.activeId;
+  if (!whose) return "";
+  const acts = msg.desk.acts;
+  return (
+    `<div class="desk-shot" data-shot="${escapeHtml(msg.desk.shot)}" data-bot="${escapeHtml(whose)}">` +
+    `<div class="desk-shot__head">` +
+    `<span class="desk-shot__what">Computer</span>` +
+    `<span class="desk-shot__done">Done</span>` +
+    `</div>` +
+    `<p class="desk-shot__note">${acts} step${acts === 1 ? "" : "s"} on its desktop.</p>` +
+    `<div class="desk-shot__frame"></div>` +
+    `</div>`
+  );
+}
+
+/** Put the pictures into the cards that are on screen.
+ *
+ *  Called after a render rather than during it, so drawing a thread never
+ *  waits on a file. Each one is asked for once — the same card repainted, or
+ *  scrolled past twice, does not read the disk again. */
+const shotCache = new Map<string, string>();
+
+function paintDeskShots(root: ParentNode): void {
+  for (const card of root.querySelectorAll<HTMLElement>(".desk-shot")) {
+    const path = card.dataset.shot;
+    const botId = card.dataset.bot;
+    if (!botId) continue;
+    const frame = card.querySelector<HTMLElement>(".desk-shot__frame");
+    if (!path || !frame || frame.firstChild) continue;
+    const held = shotCache.get(path);
+    if (held) {
+      frame.innerHTML = `<img src="${held}" alt="Its screen when it finished" />`;
+      continue;
+    }
+    void invoke<string>("desk_shot_data", { botId, path })
+      .then((url) => {
+        shotCache.set(path, url);
+        if (frame.isConnected) {
+          frame.innerHTML = `<img src="${url}" alt="Its screen when it finished" />`;
+        }
+      })
+      // A card with no picture in it still says what happened, which is more
+      // than the thread said before any of this.
+      .catch(() => card.classList.add("desk-shot--gone"));
+  }
 }
 
 /** A question with its answers ready to press.
@@ -3190,6 +3268,8 @@ function renderThread(): void {
     thread.insertAdjacentHTML("afterbegin", lessonsHtml(true));
   }
   if (bot.guide && !bot.messages.length) scroller.scrollTop = 0;
+
+  paintDeskShots(thread);
 
   // Re-attach the waiting indicator if this bot is mid-turn.
   const pending = inflight.get(bot.id);
@@ -3760,6 +3840,26 @@ function finish(botId: string, event: BotEvent): void {
 
   pending.message.at = Date.now();
 
+  // A turn that worked on a computer gets a picture of it. Taken here, at the
+  // end, because that is the only moment the desktop shows the finished thing
+  // rather than a step on the way to it — and a sentence claiming a form was
+  // filled in is a claim, while the filled-in form is the thing itself.
+  if (event.kind === "done" && pending.acts) {
+    const shot = pending.message;
+    const acts = pending.acts;
+    void invoke<string>("desk_shot", { botId, messageId: shot.id })
+      .then((path) => {
+        shot.desk = { shot: path, acts };
+        save();
+        if (pending.channelId ? pending.channelId === state.activeChannel : botId === state.activeId) {
+          renderThreadOrChannel(pending.channelId);
+        }
+      })
+      // A missing picture is not worth a word: the turn happened, the reply is
+      // there, and the desktop may simply have been switched off on the way.
+      .catch(() => {});
+  }
+
   // A heartbeat that found nothing leaves nothing. Not an empty bubble, not a
   // "nothing to report" — no row at all, and no unread mark, because the whole
   // bargain is that a bot which checks hourly is invisible on the hours where
@@ -3804,6 +3904,12 @@ function finish(botId: string, event: BotEvent): void {
       })
       .catch(() => {});
   }
+}
+
+/** Repaint whichever of the two views this turn belongs to. */
+function renderThreadOrChannel(channelId?: string): void {
+  if (channelId) renderChannel();
+  else renderThread();
 }
 
 function handleBotEvent(event: BotEvent): void {
@@ -4033,6 +4139,7 @@ function handleBotEvent(event: BotEvent): void {
       if (event.botId === screen.botId) window.setTimeout(() => void openScreen(), 4000);
     } else {
       pending.note = desktopTool ? `On its computer — ${tool}…` : `Using ${tool}…`;
+      if (desktopTool) pending.acts = (pending.acts ?? 0) + 1;
     }
     if (live && !pending.sawText) waitingHtml(pending.message.id, pending.note);
     return;
@@ -7201,6 +7308,7 @@ function renderChannel(): void {
   } else {
     thread.innerHTML = "";
     ch.messages.forEach((msg, n) => appendTurn(thread, msg, ch, ch.messages[n - 1]));
+    paintDeskShots(thread);
   }
 
   // Re-attach the waiting indicator for anyone mid-turn in this room.

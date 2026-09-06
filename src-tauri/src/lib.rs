@@ -1763,6 +1763,59 @@ fn teach_capture(
     Ok(format!("teach/{slug}/{name}"))
 }
 
+/// A picture of what a bot's desktop looked like when it finished.
+///
+/// The chat says a bot worked on its computer; this is what makes that
+/// checkable. A sentence claiming a form was filled in is a claim, and a
+/// picture of the filled-in form is the thing itself — which matters most for
+/// exactly the work you were not watching.
+///
+/// Saved to the bot's own folder and named by the message it belongs to, so it
+/// goes when the bot goes and there is no orphan to collect. Nine hundred
+/// pixels wide: enough to see what happened, small enough that a long thread of
+/// them is not a problem.
+#[tauri::command(async)]
+fn desk_shot(app: AppHandle, bot_id: String, message_id: String) -> Result<String, String> {
+    let port = sandbox::control_port_for(&bot_id).ok_or("this bot's desktop isn't running")?;
+    let (status, body) = mcp::request(port, "GET", "/screenshot?width=900", None)?;
+    if status != 200 {
+        return Err(format!("the desktop returned {status} for a screenshot"));
+    }
+    let dir = workspace(&app, &bot_id)?.join("shots");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    // The id is ours and has no separators in it, but this is a path being
+    // built from a string that arrived over the boundary, so it is checked
+    // rather than trusted.
+    if !message_id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err("that is not a message id".into());
+    }
+    let name = format!("{message_id}.png");
+    fs::write(dir.join(&name), body).map_err(|e| e.to_string())?;
+    Ok(format!("shots/{name}"))
+}
+
+/// One back, as a data URL the window can put in an `img`.
+///
+/// Read on demand rather than kept in the message: a thread is saved to the
+/// browser's storage, and a few hundred kilobytes of base64 per picture would
+/// fill it in an afternoon. The path is what is saved; the bytes are fetched
+/// when something actually wants to look.
+#[tauri::command(async)]
+fn desk_shot_data(app: AppHandle, bot_id: String, path: String) -> Result<String, String> {
+    if path.contains("..") || path.starts_with('/') {
+        return Err("that is not a path in this bot's folder".into());
+    }
+    let file = workspace(&app, &bot_id)?.join(&path);
+    let bytes = fs::read(&file).map_err(|e| e.to_string())?;
+    Ok(format!(
+        "data:image/png;base64,{}",
+        mcp::base64(&bytes)
+    ))
+}
+
 /// Write the input log that accompanies the frames.
 #[tauri::command]
 fn teach_save(
@@ -1877,6 +1930,8 @@ pub fn run() {
             set_lid_awake,
             login_launch,
             set_login_launch,
+            desk_shot,
+            desk_shot_data,
             teach_capture,
             teach_save,
             teach_name,
