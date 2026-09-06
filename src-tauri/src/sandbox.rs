@@ -139,11 +139,46 @@ pub fn use_managed_engine(client: Option<PathBuf>, host: Option<String>) {
 /// exists" picks a dead one — and then the only thing left to tell somebody is
 /// to go and start Docker, which is the one thing this app exists not to ask.
 fn answers(bin: &Path) -> bool {
-    let mut cmd = Command::new(bin);
-    cmd.args(["version", "--format", "{{.Server.Version}}"]);
-    with_socket(&mut cmd);
-    quiet(&mut cmd);
-    matches!(cmd.output(), Ok(out) if out.status.success())
+    served_by(bin).is_some()
+}
+
+/// Ask an engine what version it is serving, in the two shapes engines answer.
+///
+/// `{{.Server.Version}}` is Docker's, and it is the right first question — but
+/// it is Docker's alone. The engine botcage installs on Linux is rootless
+/// podman, which has no daemon at all and fills `.Server` only when it is
+/// talking to a service, so the same call against a perfectly healthy podman
+/// can come back empty or fail. Asked only that way, Linux would report its own
+/// working engine as one that had stopped answering, and go on reporting it for
+/// ever.
+///
+/// So: Docker's question, then podman's, then the plain one. `Some("")` means
+/// it answered without naming a version, which is still an engine that is
+/// there — the caller wants to know whether to talk to it, not what to print.
+fn served_by(bin: &Path) -> Option<String> {
+    let ask = |args: &[&str]| -> Option<String> {
+        let mut cmd = Command::new(bin);
+        cmd.args(args);
+        with_socket(&mut cmd);
+        quiet(&mut cmd);
+        let out = cmd.output().ok()?;
+        out.status.success().then(|| stdout_of(&out))
+    };
+
+    for args in [
+        &["version", "--format", "{{.Server.Version}}"][..],
+        &["info", "--format", "{{.Version.Version}}"][..],
+        &["info", "--format", "{{.ServerVersion}}"][..],
+    ] {
+        if let Some(said) = ask(args) {
+            if !said.is_empty() {
+                return Some(said);
+            }
+        }
+    }
+    // Answered, but would not name itself. Rare, and not a reason to call a
+    // running engine dead.
+    ask(&["info"]).map(|_| String::new())
 }
 
 /// The engine chosen for this run, so the probe above is paid for once rather
@@ -376,15 +411,22 @@ fn docker_look() -> DockerInfo {
         };
     };
 
+    // Ours, or something that happened to be on the machine. The difference
+    // decides what there is to say when it does not answer.
+    let ours = MANAGED
+        .lock()
+        .unwrap()
+        .as_ref()
+        .is_some_and(|(managed, _)| *managed == bin);
     let engine = bin
         .file_stem()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| "engine".into());
 
-    match docker(&["version", "--format", "{{.Server.Version}}"]) {
-        Ok(out) if out.status.success() => DockerInfo {
+    match served_by(&bin) {
+        Some(version) => DockerInfo {
             path: Some(bin.display().to_string()),
-            version: Some(format!("{engine} {}", stdout_of(&out))),
+            version: Some(format!("{engine} {version}").trim_end().to_string()),
             error: None,
         },
         // Chosen because it answered, and it has since stopped — a laptop that
@@ -392,22 +434,25 @@ fn docker_look() -> DockerInfo {
         // still does not ask anybody to go and start anything: the engine is
         // forgotten so the next attempt picks again, and picking again with
         // nothing running is what offers botcage's own.
-        Ok(_) => {
+        None => {
             *CHOSEN.lock().unwrap() = None;
             DockerInfo {
                 path: Some(bin.display().to_string()),
                 version: None,
-                error: Some(format!(
-                    "{engine} stopped answering. botcage can set up a machine of its own — \
-                     it needs nothing else installed."
-                )),
+                // Which engine this is decides what to offer. botcage's own is
+                // installed and asleep, and the answer is to wake it; anybody
+                // else's is theirs to start, and offering to install ours is
+                // the useful thing left to say.
+                error: Some(if ours {
+                    "botcage's engine is asleep. Starting it…".to_string()
+                } else {
+                    format!(
+                        "{engine} is not answering. botcage can set up a machine of its own — \
+                         it needs nothing else installed."
+                    )
+                }),
             }
         }
-        Err(err) => DockerInfo {
-            path: Some(bin.display().to_string()),
-            version: None,
-            error: Some(err),
-        },
     }
 }
 
