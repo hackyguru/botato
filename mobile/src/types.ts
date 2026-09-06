@@ -92,6 +92,10 @@ export interface Bot {
   model: string;
   computer: boolean;
   network: "full" | "no-lan" | "offline";
+  /** May it read what was said in its channels while nobody was asking? */
+  aware?: boolean;
+  /** Minutes between its own check-ins, or absent for never. */
+  heartbeat?: number;
   plugins: string[];
   routines: Routine[];
   /** How it writes. Absent means the one its id chose. */

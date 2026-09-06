@@ -29,6 +29,16 @@ const FALLBACK_MODELS = [
   { key: "opus", name: "Opus", hint: "" },
   { key: "sonnet", name: "Sonnet", hint: "" },
 ];
+/** How often a bot looks by itself. The same rungs the desktop offers, minus
+ *  the ones nobody reaches for on a phone. */
+const BEATS: { every: number; says: string }[] = [
+  { every: 0, says: "Never" },
+  { every: 30, says: "30m" },
+  { every: 60, says: "1h" },
+  { every: 180, says: "3h" },
+  { every: 480, says: "8h" },
+];
+
 const NETWORKS: Bot["network"][] = ["full", "no-lan", "offline"];
 const NETWORK_LABEL: Record<Bot["network"], string> = {
   full: "Everything",
@@ -274,6 +284,52 @@ export default function BotSettings({
             </View>
           </>
         ) : null}
+
+        <Text style={s.group}>Keeping up</Text>
+        <View style={s.card}>
+          <View style={s.row}>
+            <View style={s.rowBody}>
+              <Text style={s.rowLabel}>Keeps up</Text>
+              <Text style={s.rowHint}>Reads its own channels while nobody is asking.</Text>
+            </View>
+            <Switch
+              value={Boolean(bot.aware)}
+              onValueChange={(on) => onUpdate({ aware: on })}
+              trackColor={{ true: T.blue, false: "#39393d" }}
+            />
+          </View>
+
+          {/* Only once it may look. Choosing how often something happens that
+              cannot happen is a control that does nothing. */}
+          {bot.aware ? (
+            <>
+              <View style={s.row}>
+                <View style={s.rowBody}>
+                  <Text style={s.rowLabel}>Checks in</Text>
+                  <Text style={s.rowHint}>Costs nothing when nothing has been said.</Text>
+                </View>
+              </View>
+              <View style={s.segment}>
+                {BEATS.map((beat) => (
+                  <Pressable
+                    key={beat.every}
+                    onPress={() => onUpdate({ heartbeat: beat.every || undefined })}
+                    style={[s.choice, (bot.heartbeat ?? 0) === beat.every && s.choiceOn]}
+                  >
+                    <Text
+                      style={[
+                        s.choiceText,
+                        (bot.heartbeat ?? 0) === beat.every && s.choiceTextOn,
+                      ]}
+                    >
+                      {beat.says}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          ) : null}
+        </View>
 
         <Text style={s.group}>Computer</Text>
         <View style={s.card}>
