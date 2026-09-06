@@ -33,6 +33,7 @@ mod p2p;
 mod plugins;
 mod push;
 mod remote;
+mod rooms;
 mod sandbox;
 mod setup;
 mod speech;
@@ -62,6 +63,13 @@ pub fn serve_mcp() {
         // bot silently given the wrong tools is not a thing that announces
         // itself.
         files: std::env::var("BOTCAGE_FILES").is_ok_and(|on| !on.is_empty()),
+        // Where the window keeps its digest of the rooms. Absent unless this
+        // bot was given it, which is what makes looking around opt-in rather
+        // than a thing every bot can quietly do.
+        rooms: std::env::var("BOTCAGE_ROOMS")
+            .ok()
+            .filter(|path| !path.is_empty())
+            .map(Into::into),
         id: std::env::var("BOTCAGE_BOT").unwrap_or_default(),
         workspace: std::env::var("BOTCAGE_WORKSPACE")
             .unwrap_or_default()
@@ -293,6 +301,14 @@ struct AskRequest {
     /// Whether the user has granted this bot a desktop at all.
     #[serde(default)]
     computer: bool,
+    /// Whether this bot may look at what has been said in its channels.
+    ///
+    /// Off unless somebody turned it on. Not because reading is dangerous —
+    /// the tool only reaches rooms the bot is already a member of — but
+    /// because every tool offered costs a little of every prompt, and a bot
+    /// that only ever answers what it is asked has no use for this one.
+    #[serde(default)]
+    aware: bool,
     /// Passed through to the container if the bot starts its own desktop.
     #[serde(default)]
     brand: sandbox::BotBrand,
@@ -676,6 +692,13 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
                     "BOTCAGE_BRAND": serde_json::to_string(&req.brand).unwrap_or_default(),
                     // Only where the engine brings none of its own.
                     "BOTCAGE_FILES": if builtins.is_empty() { "1" } else { "" },
+                    // Somewhere to look, or nothing — which is how the tool is
+                    // withheld rather than offered and then refused.
+                    "BOTCAGE_ROOMS": if req.aware {
+                        rooms::mirror_path(&app).map(|p| p.display().to_string()).unwrap_or_default()
+                    } else {
+                        String::new()
+                    },
                 }
             }),
         );
@@ -1756,6 +1779,7 @@ pub fn run() {
             speech_ready,
             speech_install,
             speech_forget,
+            rooms::rooms_mirror,
             hearing_ready,
             hearing_install,
             transcribe,

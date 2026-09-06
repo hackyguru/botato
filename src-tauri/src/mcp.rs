@@ -27,6 +27,10 @@ pub struct Bot {
     /// colleague's calendar without knowing the colleague exists, and names
     /// are what one bot calls another — ids are botcage's business.
     pub colleagues: Vec<String>,
+    /// Where the window keeps its digest of the rooms, if this bot is allowed
+    /// to look at all. Absent means the tool is not offered — which is the
+    /// switch, and it is off unless somebody turned it on.
+    pub rooms: Option<PathBuf>,
     /// Whether this bot needs somewhere to read and write files.
     ///
     /// Only for an engine that has no file tools of its own. Claude Code and
@@ -657,8 +661,69 @@ fn set_commands(bot: &Bot, args: &Value) -> Value {
     }
 }
 
+/// What has been said in this bot's rooms since it last looked.
+///
+/// Pull rather than push. A bot asks when it has a reason to, so the cost lands
+/// on the turn that needed the answer instead of on a timer that mostly finds
+/// nothing — and what comes back is current rather than up to an hour stale.
+///
+/// Only rooms this bot is a member of. That is the whole access rule and it is
+/// enforced here rather than trusted to the caller: "what have I missed" must
+/// never become a way to read a room nobody invited you to.
+///
+/// Asking marks it read. A bot that asks twice in a turn should get the news
+/// once — repeating it invites the bot to act on the same message twice, which
+/// in a room full of bots is how one message becomes an argument.
+fn catch_up(bot: &Bot) -> Value {
+    let Some(path) = bot.rooms.as_ref() else {
+        return text_result(
+            "this bot has not been given the rooms to look at".to_string(),
+            true,
+        );
+    };
+    let mirror = crate::rooms::read(path);
+    let news = crate::rooms::unseen_in(&mirror, &bot.id, &bot.workspace);
+    crate::rooms::mark_in(&mirror, &bot.id, &bot.workspace);
+
+    if news.is_empty() {
+        // Said plainly, because the useful thing for a bot to do with this is
+        // stop. A vaguer answer invites it to go looking somewhere else.
+        return text_result(
+            "Nothing new in your rooms since you last looked.".to_string(),
+            false,
+        );
+    }
+
+    let mut out = String::new();
+    for room in news {
+        out.push_str(&format!("#{} — {} new\n", room.room, room.said.len()));
+        for said in room.said {
+            out.push_str(&format!("  {}: {}\n", said.who, said.text));
+        }
+        out.push('\n');
+    }
+    text_result(out.trim_end().to_string(), false)
+}
+
 fn tool_specs(bot: &Bot) -> Value {
     let mut specs = base_specs(bot);
+    if bot.rooms.is_some() {
+        if let Some(list) = specs.as_array_mut() {
+            list.push(json!({
+                "name": "catch_up",
+                "description":
+                    "What has been said in your channels since you last looked. Returns who \
+                     said what, per channel, and marks it read — so asking twice in a turn \
+                     gives you the news once.\n\n\
+                     Use it when a question might depend on something discussed elsewhere, or \
+                     when you are asked what is going on. It only covers channels you are a \
+                     member of. If nothing has happened it says so, and that is a complete \
+                     answer — you do not need to go looking anywhere else.",
+                "inputSchema": { "type": "object", "properties": {} }
+            }));
+        }
+    }
+
     // Added rather than built in, because most bots already have better ones.
     if bot.files {
         if let Some(list) = specs.as_array_mut() {
@@ -1052,6 +1117,9 @@ fn call_tool(bot: &Bot, params: &Value) -> Value {
     if name == "set_commands" {
         return set_commands(bot, &params["arguments"]);
     }
+    if name == "catch_up" {
+        return catch_up(bot);
+    }
 
     // A bot's own folder, for an engine that cannot open a file itself. Before
     // the desktop too: these are the same directory the desktop mounts as
@@ -1209,6 +1277,7 @@ mod tests {
             brand: Default::default(),
             colleagues: vec!["Ops".into(), "Research".into()],
             files: false,
+            rooms: None,
         }
     }
 
@@ -1495,6 +1564,7 @@ mod drawing_tests {
                 brand: Default::default(),
                 colleagues: vec!["Ops".into()],
                 files: false,
+            rooms: None,
             }
         };
 
@@ -1584,6 +1654,7 @@ mod schedule_tests {
             brand: Default::default(),
             colleagues: vec!["Ops".into(), "Research & Writing".into()],
             files: false,
+            rooms: None,
         }
     }
 

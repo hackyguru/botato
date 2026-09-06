@@ -190,6 +190,13 @@ interface Bot {
   started: boolean;
   /** May this bot have a desktop at all? Off means it is never told it has one. */
   computer: boolean;
+  /** May it look at what has been said in its channels since it last did?
+   *
+   *  Off unless asked for. The tool only reaches rooms the bot is already in,
+   *  so this is not about what it may see — it is that every tool offered
+   *  costs a little of every prompt, and a bot that only answers what it is
+   *  asked has no use for this one. */
+  aware?: boolean;
   /** What that desktop may reach. */
   network: "full" | "no-lan" | "offline";
   /** Which tool answers for this bot: a key from `engines`. Absent on every
@@ -524,6 +531,7 @@ const sheetSteps = $<HTMLElement>("#sheet-steps");
 const sheetDelete = $<HTMLButtonElement>("#sheet-delete");
 
 const sheetComputer = $<HTMLInputElement>("#sheet-computer");
+const sheetAware = $<HTMLInputElement>("#sheet-aware");
 const sheetNetwork = $<HTMLSelectElement>("#sheet-network");
 const sheetEngine = $<HTMLSelectElement>("#sheet-engine");
 const sheetModel = $<HTMLSelectElement>("#sheet-model");
@@ -1380,6 +1388,60 @@ function save(): void {
     lastShape = now;
     void invoke("remote_stale").catch(() => {});
   }
+
+  mirrorRooms();
+}
+
+/* ------------------------------------------------------- the rooms, mirrored */
+
+/** Rooms live in here, and a bot cannot reach in here.
+ *
+ *  A bot's transcript is only what it took part in, so a room it sits in
+ *  quietly leaves no trace it can read — which is why "what have I missed" has
+ *  never been answerable. This hands a small digest to the Rust side, where the
+ *  `catch_up` tool can read it.
+ *
+ *  Whole rooms rather than a stream of additions: rooms get renamed, messages
+ *  get deleted and members come and go, and a mirror built from additions
+ *  drifts from the thing it mirrors with no moment anybody would notice.
+ *
+ *  Costing nothing is the point. No model is involved in keeping this current,
+ *  so a bot can be asked "is there anything new" for free — and anything put on
+ *  a schedule can therefore stay silent through a quiet night instead of
+ *  spending a turn to discover it was quiet. */
+const MIRRORED = 40;
+let mirrorTimer = 0;
+let mirroredAs = "";
+
+function mirrorRooms(): void {
+  window.clearTimeout(mirrorTimer);
+  // Saving happens on every keystroke that changes anything; the rooms change
+  // far less often than that.
+  mirrorTimer = window.setTimeout(() => {
+    const rooms = channels().map((room) => ({
+      id: room.id,
+      name: room.name,
+      members: room.members,
+      said: room.messages.slice(-MIRRORED).map((msg) => ({
+        at: Math.floor(msg.at / 1000),
+        // Named, because "who said this" is most of what catching up is. A bot
+        // reading "guru: ship it" knows what to do with it; a bot reading
+        // "someone: ship it" does not.
+        who:
+          msg.from === "me"
+            ? userName().trim() || "you"
+            : (state.bots.find((b) => b.id === msg.by)?.name ?? "a bot"),
+        text: msg.text,
+      })),
+    }));
+    // Nothing said since last time means nothing to write. Rooms are saved
+    // whenever anything else is, and rewriting an identical file wakes every
+    // watcher for no reason.
+    const signature = JSON.stringify(rooms);
+    if (signature === mirroredAs) return;
+    mirroredAs = signature;
+    void invoke("rooms_mirror", { mirror: { rooms } }).catch(() => {});
+  }, 400);
 }
 
 function seed(): void {
@@ -3499,6 +3561,7 @@ async function respond(bot: Bot, prompt: string, style?: string): Promise<void> 
         // act on it anyway.
         colleagues: state.bots.filter((b) => b.id !== bot.id).map((b) => b.name),
         computer: bot.computer,
+        aware: bot.aware ?? false,
         brand: {
           name: bot.name,
           color: bot.color,
@@ -5215,6 +5278,7 @@ function openSheet(bot: Bot | null = null): void {
     )
     .join("");
   sheetComputer.checked = bot?.computer ?? false;
+  sheetAware.checked = bot?.aware ?? false;
   sheetNetwork.value = bot?.network ?? "full";
   draftModel = {
     provider: bot?.provider ?? (bot ? undefined : appSettings().provider),
@@ -6164,6 +6228,7 @@ function saveSheet(): void {
       role: sheetRole.value.trim(),
       color: draftColor,
       computer: sheetComputer.checked,
+      aware: sheetAware.checked,
       network: sheetNetwork.value as Bot["network"],
       engine: sheetEngine.value,
       provider: picked.provider,
@@ -6227,6 +6292,7 @@ function createBot(): void {
     sessionId: newSessionId(),
     started: false,
     computer: sheetComputer.checked,
+    aware: sheetAware.checked,
     network: sheetNetwork.value as Bot["network"],
     engine: sheetEngine.value || DEFAULT_ENGINE,
     provider: picked.provider,
@@ -6667,6 +6733,7 @@ async function channelTurn(
         botRole: bot.role,
         colleagues: state.bots.filter((b) => b.id !== bot.id).map((b) => b.name),
         computer: bot.computer,
+        aware: bot.aware ?? false,
         brand: {
           name: bot.name,
           color: bot.color,
