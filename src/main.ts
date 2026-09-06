@@ -4405,8 +4405,12 @@ function tidyClock(typed: string): string {
  *  recolours the page under your hand. Which is the point: you are choosing
  *  what this bot looks like, and the page is the largest sample of it. */
 function paintSheetAccent(): void {
-  sheet.style.setProperty("--accent", draftColor);
-  sheet.style.setProperty("--accent-ink", inkOn(draftColor));
+  // On the wrapper rather than the form. Editing a bot, the form is
+  // `display: contents` — it draws no box at all, its children being the rows
+  // of the pane's grid — so a background set on it paints nothing, and a
+  // variable set on it never reaches the pane that does the painting.
+  sheetWrap.style.setProperty("--accent", draftColor);
+  sheetWrap.style.setProperty("--accent-ink", inkOn(draftColor));
 }
 
 /** Which ink stays readable on a colour.

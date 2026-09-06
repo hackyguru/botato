@@ -281,6 +281,20 @@ select:focus-visible {
      the chat it is one of the columns, and a lighter slab down the side says
      "still a dialog, just moved". */
   background: var(--bg-main);
+  /* Whose page this is, as a wash off the top corner. The same gradient and
+     the same angle the rooms column uses for a server: two ways of saying
+     "this belongs to that one" is one way too many.
+
+     Here rather than on the form inside, which is `display: contents` while
+     editing and so has no box to paint. Weak, and gone by two-thirds down —
+     a settings page is mostly labels and fields, and a tint strong enough to
+     be admired is one you have to read through. */
+  background-image: linear-gradient(
+    168deg,
+    color-mix(in srgb, var(--accent, transparent) 28%, transparent),
+    color-mix(in srgb, var(--accent, transparent) 9%, transparent) 32%,
+    transparent 70%
+  );
   border-left: 1px solid var(--line);
 }
 
@@ -5364,6 +5378,16 @@ select:focus-visible {
   height: min(720px, 88vh);
   min-height: 0;
   background: var(--bg-main);
+  /* The same wash as the settings column, on the card instead — hiring, the
+     pane is the dim behind and the sheet is the thing you are looking at. It
+     is the one moment the colour is genuinely being chosen, so the page ought
+     to answer while the pointer is still on the swatch. */
+  background-image: linear-gradient(
+    168deg,
+    color-mix(in srgb, var(--accent, transparent) 28%, transparent),
+    color-mix(in srgb, var(--accent, transparent) 9%, transparent) 32%,
+    transparent 70%
+  );
   border: 1px solid var(--line);
   border-radius: var(--radius-sheet);
   overflow: hidden;
