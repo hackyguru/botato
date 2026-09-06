@@ -121,6 +121,27 @@ pub struct Provider {
     pub local: bool,
 }
 
+/// Base URLs for providers whose catalogue entry has none.
+///
+/// models.dev does not publish an `api` for every provider, and botcage drops
+/// any provider without one — there is nothing to talk to. That quietly cost
+/// twenty-six of them, including OpenAI, so a person holding an OpenAI key
+/// could not find anywhere to put it.
+///
+/// Only providers that are OpenAI-shaped and answer at one fixed address are
+/// listed here. The rest of the twenty-six are missing an address because they
+/// genuinely do not have one to publish: Azure and Bedrock are per-resource and
+/// per-region, Vercel and the Cloudflare gateway are per-account, and Bedrock
+/// is not OpenAI-shaped at all. Guessing a URL for those would put a row in the
+/// picker that cannot work, which is worse than a row that is not there.
+const KNOWN_API: &[(&str, &str)] = &[
+    ("openai", "https://api.openai.com/v1"),
+    // Gemini's OpenAI-compatible endpoint, which is what this client speaks.
+    ("google", "https://generativelanguage.googleapis.com/v1beta/openai"),
+    ("deepinfra", "https://api.deepinfra.com/v1/openai"),
+    ("venice", "https://api.venice.ai/api/v1"),
+];
+
 /// Providers reachable over an OpenAI-shaped API, plus anything local.
 pub fn providers(app: &AppHandle) -> Vec<Provider> {
     let mut out: Vec<Provider> = catalogue(app)
@@ -129,8 +150,18 @@ pub fn providers(app: &AppHandle) -> Vec<Provider> {
             entries
                 .values()
                 .filter_map(|entry| {
-                    let api = entry["api"].as_str()?.trim_end_matches('/').to_string();
                     let id = entry["id"].as_str()?.to_string();
+                    // The catalogue's address, or the one we know for it.
+                    let api = entry["api"]
+                        .as_str()
+                        .or_else(|| {
+                            KNOWN_API
+                                .iter()
+                                .find(|(known, _)| *known == id)
+                                .map(|(_, url)| *url)
+                        })?
+                        .trim_end_matches('/')
+                        .to_string();
                     let has_key = key_for(&id).is_some();
                     Some(Provider {
                         name: entry["name"].as_str().unwrap_or(&id).to_string(),
@@ -537,6 +568,25 @@ mod tests {
             !reachable.contains(&"vercel"),
             "a provider reachable only through someone else's SDK is not a model this app can offer"
         );
+    }
+
+    /// The other half of the rule above, and the reason a person holding an
+    /// OpenAI key had nowhere to put it: the catalogue publishes no address for
+    /// OpenAI, so it was dropped along with the ones that genuinely have none.
+    #[test]
+    fn a_provider_we_know_the_address_of_is_offered() {
+        let known = |id: &str| KNOWN_API.iter().find(|(name, _)| *name == id).map(|(_, u)| *u);
+        assert_eq!(known("openai"), Some("https://api.openai.com/v1"));
+
+        // And the ones deliberately left out, because there is no single
+        // address to give them. A guessed URL is a row in the picker that
+        // cannot work, which is worse than no row.
+        for peculiar in ["azure", "amazon-bedrock", "vercel", "cloudflare-ai-gateway"] {
+            assert!(
+                known(peculiar).is_none(),
+                "{peculiar} has no one address, so botcage should not pretend it does"
+            );
+        }
     }
 
     #[test]
