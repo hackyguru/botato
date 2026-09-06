@@ -5002,15 +5002,6 @@ async function paintModels(): Promise<void> {
   }).catch(() => []);
 
   if (!shown.length) {
-    // botcage's own row has nothing to list until it has been signed into —
-    // the menu comes from the gateway, and the gateway wants a key to show
-    // it. So the empty state is the way in rather than a dead end, which is
-    // what "no models" would be for the one provider you cannot paste a key
-    // into.
-    if (from?.id === GATEWAY && !from.hasKey) {
-      paintSignIn();
-      return;
-    }
     const state = await invoke<{ models: number }>("catalogue_state").catch(() => ({ models: 0 }));
     modelsList.innerHTML = !state.models
       ? `<p class="models__note">The catalogue hasn't been fetched yet.</p>`
@@ -5074,108 +5065,6 @@ function askForKey(model: Listing): void {
   modelsKeyInput.focus();
 }
 
-/* ------------------------------------------------- signing into the gateway */
-
-/** The provider botcage hosts itself. A constant because three places test
- *  for it and a typo in one of them is a feature that quietly does nothing. */
-const GATEWAY = "botcage";
-
-/** The wait, while it is happening. Held so a second click cannot start a
- *  second one, and so closing the sheet can stop the polling. */
-let signingIn: { timer: number; until: number } | null = null;
-
-function stopSigningIn(): void {
-  if (!signingIn) return;
-  window.clearTimeout(signingIn.timer);
-  signingIn = null;
-}
-
-/** Offer it. Nothing has happened yet — this is the button, not the flow. */
-function paintSignIn(): void {
-  stopSigningIn();
-  modelsList.innerHTML =
-    `<div class="signin">` +
-    `<p class="models__note">botcage can answer your bots itself, so you do not ` +
-    `have to collect a key from every company on this list first. Sign in and ` +
-    `the models it is hosting show up here like any other provider's.</p>` +
-    `<button type="button" class="btn-primary" id="gateway-signin">Sign in</button>` +
-    `</div>`;
-  $<HTMLButtonElement>("#gateway-signin").addEventListener("click", () => void joinGateway());
-}
-
-/** Ask for a code, show it, and wait.
- *
- *  The code goes on screen rather than into the clipboard, and the page it is
- *  typed into is opened for you. Which is the whole argument for a device flow
- *  over a paste: at no point is the secret in a buffer, and the thing being
- *  approved is legible while it is being approved. */
-async function joinGateway(): Promise<void> {
-  modelsList.innerHTML = `<p class="models__note">Asking botcage for a code…</p>`;
-  let began: { code: string; verifyUrl: string; token: string; expiresIn: number; interval: number };
-  try {
-    began = await invoke("gateway_sign_in");
-  } catch (err) {
-    modelsList.innerHTML =
-      `<p class="models__note">Could not reach botcage: ${escapeHtml(String(err))}</p>`;
-    return;
-  }
-
-  modelsList.innerHTML =
-    `<div class="signin">` +
-    `<p class="models__note">In the page that just opened, type this code.</p>` +
-    `<p class="signin__code">${escapeHtml(began.code)}</p>` +
-    `<p class="models__note" id="signin-state">Waiting for you to confirm…</p>` +
-    `<p class="models__note"><a href="${escapeHtml(began.verifyUrl)}" target="_blank" ` +
-    `rel="noreferrer">${escapeHtml(began.verifyUrl)}</a></p>` +
-    `</div>`;
-  void openUrl(began.verifyUrl).catch(() => {});
-
-  const said = (note: string) => {
-    const el = document.getElementById("signin-state");
-    if (el) el.textContent = note;
-  };
-  const until = Date.now() + began.expiresIn * 1000;
-
-  const askAgain = async (): Promise<void> => {
-    if (!signingIn) return;
-    if (Date.now() > until) {
-      stopSigningIn();
-      said("That code ran out. Start again when you are ready.");
-      return;
-    }
-    let waiting: { status: string };
-    try {
-      waiting = await invoke("gateway_sign_in_poll", { token: began.token });
-    } catch {
-      // A dropped request is not an answer. Keep asking: the usual reason is
-      // a laptop that slept, and the code is good for a quarter of an hour.
-      signingIn.timer = window.setTimeout(() => void askAgain(), began.interval * 1000);
-      return;
-    }
-    if (waiting.status === "ready") {
-      stopSigningIn();
-      providerList = await invoke<ProviderInfo[]>("catalogue_providers").catch(() => []);
-      toast("Signed in to botcage");
-      await paintModels();
-      return;
-    }
-    if (waiting.status === "denied") {
-      stopSigningIn();
-      said("Turned down in the browser. Nothing was issued.");
-      return;
-    }
-    if (waiting.status === "expired") {
-      stopSigningIn();
-      said("That code ran out. Start again when you are ready.");
-      return;
-    }
-    signingIn.timer = window.setTimeout(() => void askAgain(), began.interval * 1000);
-  };
-
-  signingIn = { timer: 0, until };
-  signingIn.timer = window.setTimeout(() => void askAgain(), began.interval * 1000);
-}
-
 /** What to do with the model that gets picked. The bot sheet is one caller;
  *  setup is another, and it is choosing a default rather than editing a bot. */
 let onPick: (model: Listing) => void = (model) => {
@@ -5225,7 +5114,6 @@ modelsSearch.addEventListener("input", () => {
 modelsTools.addEventListener("change", () => void paintModels());
 $<HTMLButtonElement>("#models-close").addEventListener("click", () => {
   modelsWrap.hidden = true;
-  stopSigningIn();
 });
 modelsWrap.addEventListener("mousedown", (e) => {
   if (e.target === modelsWrap) modelsWrap.hidden = true;

@@ -156,29 +156,19 @@ pub fn providers(app: &AppHandle) -> Vec<Provider> {
         .unwrap_or_default();
 
     out.push(ollama());
-    out.push(crate::gateway::provider());
 
-    // Ordered the way someone chooses: the two botcage supplies itself, then
-    // what you can use now, then the ones with the most to offer. Alphabetical
-    // would put a provider you have never heard of above the one running on
-    // your own machine.
-    //
-    // The first rank is why this is not simply "usable first". Ollama and the
-    // gateway are the two rows that need nothing from anywhere else — one is
-    // already on this machine, the other is two clicks — and both would
-    // otherwise sink. The gateway sinks worst of all: signed out it reports no
-    // models, so ranking by size buries the one provider that can fix that
-    // itself under a hundred and sixty that cannot.
-    let ours = |p: &Provider| !(p.local || p.id == crate::gateway::ID);
+    // Ordered the way someone chooses: what you can use now, then the ones with
+    // the most to offer. Alphabetical would put a provider you have never heard
+    // of above the one running on your own machine.
     out.sort_by(|a, b| {
         (
-            ours(a),
+            !a.local,
             !a.has_key,
             std::cmp::Reverse(a.models),
             a.name.to_lowercase(),
         )
             .cmp(&(
-                ours(b),
+                !b.local,
                 !b.has_key,
                 std::cmp::Reverse(b.models),
                 b.name.to_lowercase(),
@@ -292,9 +282,8 @@ pub fn search(
     only: Option<&str>,
     limit: usize,
 ) -> Vec<Listing> {
-    // The two providers that are not in the catalogue: one offers what is on
-    // this disk, the other offers what we are hosting today. Neither is on
-    // anybody's published price list, so both answer for themselves.
+    // The one provider that is not in the catalogue, because what it offers is
+    // on this disk rather than on a price list.
     if only == Some("ollama") {
         let mut local = ollama_models(query);
         if tools_only {
@@ -302,14 +291,6 @@ pub fn search(
         }
         local.truncate(limit);
         return local;
-    }
-    if only == Some(crate::gateway::ID) {
-        let mut hosted = crate::gateway::models(query);
-        if tools_only {
-            hosted.retain(|model| model.tools);
-        }
-        hosted.truncate(limit);
-        return hosted;
     }
 
     let Some(catalogue) = catalogue(app) else {

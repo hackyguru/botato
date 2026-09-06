@@ -5176,35 +5176,6 @@ select:focus-visible {
   gap: 2px;
 }
 
-/* Signing into the gateway. Not a form — a code to read and a wait — so it is
-   centred and given room, which is what makes it read as a moment rather than
-   as another row in a list. */
-.signin {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  padding: 40px 24px;
-  text-align: center;
-}
-
-.signin .models__note {
-  max-width: 42ch;
-}
-
-/* The code itself. Monospace and widely tracked because it is about to be
-   copied by eye onto a keyboard, and the whole job of this element is to be
-   read wrong less often than it is read. */
-.signin__code {
-  padding: 12px 20px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: var(--type-title);
-  letter-spacing: 0.22em;
-  color: var(--text);
-  background: var(--fill-2);
-  border-radius: var(--radius-control);
-}
-
 .model-row {
   display: flex;
   gap: 10px;
