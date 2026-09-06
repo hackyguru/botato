@@ -58,6 +58,11 @@
   --space-loose: 24px;
 
   --radius-pill: 999px;
+  /* The narrowest a conversation may be shown at. The same number the script
+     uses to decide the pane has to go; here so the squeeze never appears
+     while it is deciding. */
+  --chat-min: 560px;
+
   --radius-chip: 8px;
   --radius-control: 10px;
   --radius-card: 12px;
@@ -244,7 +249,17 @@ button:disabled:hover {
 
 /* Wide enough for three columns: chat left, desktop right. */
 .app.has-screen {
-  grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--screen-w, 460px);
+  /* The conversation has a floor and the pane beside it does not.
+     Both were minmax(0, …) and a fixed width, so narrowing the window took
+     the width out of the thread until it was a column of three-word lines —
+     the pane held its size and the thing you were reading paid for it. The
+     script closes the pane when it gets that tight, but on a debounce, so the
+     squeeze was visible on the way down. Stated in the grid, it never
+     happens: the thread keeps its width and the pane gives way first. */
+  grid-template-columns:
+    var(--sidebar-w)
+    minmax(var(--chat-min), 1fr)
+    minmax(0, var(--screen-w, 460px));
   grid-template-areas:
     "side head head"
     "side main screen";
@@ -310,7 +325,17 @@ button:disabled:hover {
  * engines that do not support it. */
 .app.has-sheet,
 .app:has(> .pane:not([hidden])) {
-  grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--screen-w, 460px);
+  /* The conversation has a floor and the pane beside it does not.
+     Both were minmax(0, …) and a fixed width, so narrowing the window took
+     the width out of the thread until it was a column of three-word lines —
+     the pane held its size and the thing you were reading paid for it. The
+     script closes the pane when it gets that tight, but on a debounce, so the
+     squeeze was visible on the way down. Stated in the grid, it never
+     happens: the thread keeps its width and the pane gives way first. */
+  grid-template-columns:
+    var(--sidebar-w)
+    minmax(var(--chat-min), 1fr)
+    minmax(0, var(--screen-w, 460px));
   grid-template-areas:
     "side head head"
     "side main pane";
