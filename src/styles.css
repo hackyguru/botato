@@ -6891,7 +6891,14 @@ label.setting {
   grid-area: routines;
 }
 
-@container (max-width: 430px) {
+/* Labels off well before the row runs out.
+ *
+ * 430 was measured against the shorter states. "You have control" is half as
+ * wide again as "View only", so with both chips lettered the row wanted more
+ * than a 500-pixel column has, and the buttons at the end went over the edge —
+ * the expand first, then the power and the close. Icons alone are legible;
+ * a button half off the pane is not. */
+@container (max-width: 620px) {
   .chip span {
     display: none;
   }
@@ -7027,16 +7034,31 @@ label.setting {
   border-bottom: 1px solid var(--line);
 }
 
+/* The title gives way; the buttons never do.
+ *
+ * It had no min-width, so it took its natural width and pushed the controls
+ * past the edge of the column — the expand button went first, half off the
+ * pane. A name is the one thing here you can still read three quarters of; a
+ * button you can only see half of is a button you cannot press. */
 .screen__id {
   display: flex;
+  flex: 1;
+  min-width: 0;
   align-items: center;
   gap: 9px;
   font-size: var(--type-body);
   font-weight: 600;
 }
 
+.screen__id span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .screen__actions {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 6px;
   margin-left: auto;

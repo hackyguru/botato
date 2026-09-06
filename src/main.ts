@@ -462,7 +462,7 @@ const appSettings = () => state.app ?? DEFAULT_APP;
  *  the header starts losing them altogether. A column you can drag until its
  *  own buttons disappear is a column that can be dragged into being useless,
  *  and nothing on the way down tells you that is what you are doing. */
-const SCREEN_PANE = { min: 440, max: 900, initial: 460 };
+const SCREEN_PANE = { min: 500, max: 900, initial: 520 };
 /* Taller than it was. Stacked under the conversation, this row holds a whole
    settings page — a head, a tab strip, the settings themselves and a footer of
    buttons — and at 320 the chrome took all of it: the name field and the
