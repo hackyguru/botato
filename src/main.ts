@@ -455,7 +455,14 @@ const state: Persisted = {
 
 const appSettings = () => state.app ?? DEFAULT_APP;
 
-const SCREEN_PANE = { min: 300, max: 900, initial: 460 };
+/** How narrow the computer column may get.
+ *
+ *  The floor is 440 rather than 300 because of what is in its header: the
+ *  teach, view-only and expand controls drop their labels below 430 and then
+ *  the header starts losing them altogether. A column you can drag until its
+ *  own buttons disappear is a column that can be dragged into being useless,
+ *  and nothing on the way down tells you that is what you are doing. */
+const SCREEN_PANE = { min: 440, max: 900, initial: 460 };
 /* Taller than it was. Stacked under the conversation, this row holds a whole
    settings page — a head, a tab strip, the settings themselves and a footer of
    buttons — and at 320 the chrome took all of it: the name field and the
