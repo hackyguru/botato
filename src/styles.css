@@ -6733,12 +6733,7 @@ label.setting {
      above routines when docked to the side, screen beside them when docked
      along the bottom. */
   display: grid;
-  /* The screen takes what is left, and the caption is as tall as its line.
-     It used to be the other way round — a fixed-size preview with a stretchy
-     row under it — because that row was shared with the routines list. The
-     routines moved to their own view and the row stayed, so a bot's computer
-     was a small card at the top of a column of nothing. */
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr);
   grid-template-areas:
     "head"
     "body"
@@ -6768,9 +6763,9 @@ label.setting {
 
 .screen__body {
   grid-area: body;
-  /* No fixed shape any more: it fills the column, and what is inside keeps its
-     own proportions. A 16:10 box in a tall narrow pane was mostly margin. */
-  min-height: 0;
+  /* A preview card rather than a full-height view, so routines get the room.
+     The expand button trades back. */
+  aspect-ratio: 16 / 10;
   margin: 12px 12px 0;
   border-radius: var(--radius-control);
 }
