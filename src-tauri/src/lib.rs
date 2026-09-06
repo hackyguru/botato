@@ -1319,6 +1319,68 @@ fn handed_a_bot(app: &tauri::App) {
     });
 }
 
+/// Widen the window so a side pane fits beside the conversation.
+///
+/// The panes used to fall under the chat when the window got narrow, which is
+/// a different layout arriving unannounced: the thing you opened is not where
+/// you last saw it, and the conversation you were reading is now a letterbox.
+/// A pane belongs on the right. If there is not room on the right, the honest
+/// move is to make room.
+///
+/// Clamped to the monitor this window is actually on, and it will slide the
+/// window left rather than grow off the edge of the screen — a window whose
+/// right half is past the bezel has not been widened, it has been lost.
+///
+/// Returns whether it managed it, because the caller has to know: if the
+/// screen is too small to hold both, the pane should not open at all.
+#[tauri::command(async)]
+fn make_room(app: AppHandle, need: f64) -> Result<bool, String> {
+    use tauri::{LogicalPosition, LogicalSize};
+
+    let Some(window) = app.get_webview_window("main") else {
+        return Ok(false);
+    };
+    if need <= 0.0 {
+        return Ok(true);
+    }
+    let scale = window.scale_factor().map_err(|e| e.to_string())?;
+    let size = window.outer_size().map_err(|e| e.to_string())?.to_logical::<f64>(scale);
+    let at = window.outer_position().map_err(|e| e.to_string())?.to_logical::<f64>(scale);
+
+    // The screen this window is on, not the primary one — a laptop beside an
+    // external display is the ordinary case, and they are different sizes.
+    let monitor = window
+        .current_monitor()
+        .map_err(|e| e.to_string())?
+        .ok_or("no monitor")?;
+    let screen = monitor.size().to_logical::<f64>(scale);
+    let origin = monitor.position().to_logical::<f64>(scale);
+
+    // A margin, so a widened window does not sit flush against both bezels
+    // looking like it failed to be maximised.
+    const EDGE: f64 = 12.0;
+    let widest = screen.width - EDGE * 2.0;
+    let wanted = (size.width + need).min(widest);
+    if wanted <= size.width {
+        // Already as wide as the screen allows.
+        return Ok(false);
+    }
+
+    window
+        .set_size(LogicalSize::new(wanted, size.height))
+        .map_err(|e| e.to_string())?;
+
+    // And pull it back on screen if the new right edge has run off. Done after
+    // the resize because the overhang cannot be known until the width is.
+    let right = at.x + wanted;
+    let limit = origin.x + screen.width - EDGE;
+    if right > limit {
+        let x = (limit - wanted).max(origin.x + EDGE);
+        let _ = window.set_position(LogicalPosition::new(x, at.y));
+    }
+    Ok(true)
+}
+
 /// Whether botcage's own speech engine is installed.
 #[tauri::command]
 fn speech_ready(app: AppHandle) -> bool {
@@ -1779,6 +1841,7 @@ pub fn run() {
             speech_ready,
             speech_install,
             speech_forget,
+            make_room,
             connectors::credentials_protected,
             rooms::rooms_mirror,
             rooms::rooms_unseen,

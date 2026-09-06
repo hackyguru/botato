@@ -320,59 +320,17 @@ select:focus-visible {
     "side main pane";
 }
 
-/* Too narrow to split, so it goes under the conversation instead — the same
-   answer the desktop pane gives, and the same threshold decides both. */
-.app.has-sheet.is-stacked,
-.app.is-stacked:has(> .pane:not([hidden])) {
-  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
-  grid-template-rows: var(--head-h) minmax(0, 1fr) var(--screen-h, 320px);
-  grid-template-areas:
-    "side head"
-    "side main"
-    "side pane";
-}
-
-.is-stacked .pane {
-  border-left: 0;
-  border-top: 1px solid var(--line);
-}
-
-/* Too narrow to split horizontally, so the desktop goes under the chat and the
-   grip becomes a horizontal one. */
-.app.has-screen.is-stacked {
-  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
-  grid-template-rows: var(--head-h) minmax(0, 1fr) var(--screen-h, 320px);
-  grid-template-areas:
-    "side head"
-    "side main"
-    "side screen";
-}
-
-.is-stacked .screen-pane {
-  border-left: 0;
-  border-top: 1px solid var(--line);
-}
-
-.is-stacked .screen-pane__grip,
-.is-stacked .pane__grip {
-  top: -3px;
-  bottom: auto;
-  left: 0;
-  right: 0;
-  width: auto;
-  height: 7px;
-  cursor: row-resize;
-}
-
-.is-stacked .screen-pane__grip:hover,
-.is-stacked .pane__grip:hover {
-  background: linear-gradient(180deg, transparent 2px, rgba(255, 255, 255, 0.18) 3px, transparent 5px);
-}
-
-.is-stacked .screen__head {
-  padding-top: 10px;
-}
-
+/* There is deliberately no narrow layout here any more.
+ *
+ * Both panes used to drop under the conversation once the window got tight.
+ * It was a second layout arriving unannounced: the thing you had just opened
+ * was no longer where you left it, and the thread you were reading became a
+ * letterbox above it. A pane belongs on the right.
+ *
+ * So the width is made rather than worked around — see `makeRoom`, which
+ * widens the window, then puts the room list away, and only then gives up. A
+ * window dragged too narrow closes the pane instead of rearranging around it.
+ */
 /* Collapsed sidebar: a rail of faces and icons.
  *
  * Wide enough to hold the window's own buttons. macOS puts them at fourteen
@@ -6770,40 +6728,8 @@ label.setting {
     "side main";
 }
 
-.app.has-screen.is-stacked.has-screen-modal {
-  grid-template-rows: var(--head-h) minmax(0, 1fr);
-  grid-template-areas:
-    "side head"
-    "side main";
-}
-
 .routines {
   grid-area: routines;
-}
-
-/* Docked along the bottom: the screen keeps the height, routines take a column
-   beside it rather than stealing vertical space from an already short pane. */
-.is-stacked .screen-pane {
-  grid-template-rows: auto minmax(0, 1fr);
-  grid-template-areas:
-    "head"
-    "body";
-}
-
-/* Along the bottom the pane is already short: the screen keeps its height. */
-.is-stacked .screen__body {
-  aspect-ratio: auto;
-  margin: 0;
-  border-radius: 0;
-}
-
-.is-stacked .screen__caption {
-  display: none;
-}
-
-.is-stacked .routines {
-  border-top: 0;
-  border-left: 1px solid var(--line);
 }
 
 @container (max-width: 430px) {

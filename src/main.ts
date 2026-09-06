@@ -377,7 +377,6 @@ interface Persisted {
   /** Whether the desktop pane is docked open, and how big. */
   screenOpen?: boolean;
   screenWidth?: number;
-  screenHeight?: number;
   /** Sidebar collapsed to a rail by choice (it also collapses when cramped). */
   /** Whether the room list beside the rail is open. Named for what it is
    *  rather than for the sidebar state it replaced. */
@@ -453,7 +452,6 @@ const SCREEN_PANE = { min: 300, max: 900, initial: 460 };
    settings page — a head, a tab strip, the settings themselves and a footer of
    buttons — and at 320 the chrome took all of it: the name field and the
    colour swatches were the only two things you could see without scrolling. */
-const SCREEN_ROW = { min: 200, max: 700, initial: 440 };
 
 /** The chat needs at least this much width; below it, the desktop stacks under. */
 const MIN_CHAT_WIDTH = 480;
@@ -518,6 +516,7 @@ function showSheet(open: boolean): void {
   sheetWrap.hidden = !open;
   appEl.classList.toggle("has-sheet", open);
   relayout();
+  if (open) void makeRoom();
 }
 const sheet = $<HTMLFormElement>("#sheet");
 const sheetName = $<HTMLInputElement>("#sheet-name");
@@ -1561,11 +1560,6 @@ function load(): void {
     for (const bot of state.bots) freshenGuide(bot);
     state.screenOpen = Boolean(data.screenOpen);
     state.screenWidth = data.screenWidth;
-    // The old default, treated as never having been chosen. A height saved at
-    // exactly 320 is one nobody dragged to — the app wrote it on first run —
-    // and leaving it would mean the taller default only ever reached people
-    // installing for the first time.
-    state.screenHeight = data.screenHeight === 320 ? undefined : data.screenHeight;
     state.rooms = Boolean(data.rooms);
     state.app = { ...DEFAULT_APP, ...(data.app ?? {}) };
   } catch {
@@ -3187,6 +3181,7 @@ function showAside(open: boolean): void {
   }
   found.hidden = !open;
   relayout();
+  if (open) void makeRoom();
 }
 
 function closeFind(): void {
@@ -9363,6 +9358,7 @@ async function openScreen(): Promise<void> {
   if (!sheetWrap.hidden) showSheet(false);
   screenPane.hidden = false;
   appEl.classList.add("has-screen");
+  void makeRoom();
   state.screenOpen = true;
   relayout();
   save();
@@ -9432,13 +9428,6 @@ function setPaneWidth(px: number): void {
   state.screenWidth = width;
 }
 
-function setPaneHeight(px: number): void {
-  const height = Math.min(SCREEN_ROW.max, Math.max(SCREEN_ROW.min, Math.round(px)));
-  appEl.style.setProperty("--screen-h", `${height}px`);
-  state.screenHeight = height;
-}
-
-const isStacked = () => appEl.classList.contains("is-stacked");
 
 /** Rail and stacking follow the room available, not a fixed window size — a
     collapsed sidebar can buy back enough width to stay side by side. */
@@ -9461,8 +9450,65 @@ function relayout(): void {
     !found.hidden;
   const pane = anyPane ? (state.screenWidth ?? SCREEN_PANE.initial) : 0;
   const chatWidth = appEl.clientWidth - sidebar - pane;
-  appEl.classList.toggle("is-stacked", anyPane && chatWidth < MIN_CHAT_WIDTH);
 
+  // Squeezed past the point where both fit, so the pane goes away rather than
+  // going underneath. Landing under the conversation was a second layout
+  // arriving unannounced: what you opened was no longer where you left it, and
+  // the thread you were reading became a letterbox. A pane belongs on the
+  // right or nowhere.
+  if (anyPane && chatWidth < MIN_CHAT_WIDTH && !widening) squeezeOut();
+}
+
+/** True while the window is being made wider, so the measurement above does
+ *  not put away the very thing the widening is for. */
+let widening = false;
+
+/** Open something on the right, making room for it first.
+ *
+ *  Three ways out, in order of how much they cost you. Widen the window, which
+ *  costs nothing. Failing that, put the room list away — it is the least of
+ *  the three columns and it comes back with one key. Failing that, say so and
+ *  close the pane, because a screen that cannot hold a conversation and a pane
+ *  side by side should not pretend otherwise. */
+async function makeRoom(): Promise<void> {
+  widening = true;
+  try {
+    if (await roomFor()) return;
+    if (roomsOpen) {
+      showRooms(false);
+      if (await roomFor()) return;
+    }
+    squeezeOut();
+    toast("Not enough width to show that beside the conversation");
+  } finally {
+    widening = false;
+    relayout();
+  }
+}
+
+/** Put away whatever is on the right, because there is no longer room for it.
+ *
+ *  Only ever called by a window getting narrower. Opening something goes the
+ *  other way — see `roomFor`, which widens the window instead — so this is not
+ *  a thing you can trip by clicking. */
+function squeezeOut(): void {
+  if (!screenPane.hidden && !screenModal()) closeScreen();
+  if (!found.hidden) closeFind();
+  if (!sheetWrap.hidden && !sheetWrap.classList.contains("is-wizard")) showSheet(false);
+}
+
+/** Make sure there is room on the right before something opens there.
+ *
+ *  Widens the window by whatever is missing rather than letting the layout
+ *  reflow around the shortage. Answers false only when the screen itself is
+ *  too small to hold a conversation and a pane side by side, which is the one
+ *  case where opening would have to cost you the thread you were reading. */
+async function roomFor(): Promise<boolean> {
+  const sidebar = 92 + (roomsOpen ? 231 : 0);
+  const pane = state.screenWidth ?? SCREEN_PANE.initial;
+  const short = sidebar + pane + MIN_CHAT_WIDTH - appEl.clientWidth;
+  if (short <= 0) return true;
+  return await invoke<boolean>("make_room", { need: short + 2 }).catch(() => false);
 }
 
 /** Show it or put it away.
@@ -9501,10 +9547,9 @@ function wireGrip(grip: HTMLElement): void {
   grip.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     grip.setPointerCapture(event.pointerId);
-    const drag = (move: PointerEvent) =>
-      isStacked()
-        ? setPaneHeight(window.innerHeight - move.clientY)
-        : setPaneWidth(window.innerWidth - move.clientX);
+    // Always the width. The panes no longer stack under the conversation, so
+    // there is no longer a direction to choose between.
+    const drag = (move: PointerEvent) => setPaneWidth(window.innerWidth - move.clientX);
     const drop = () => {
       grip.removeEventListener("pointermove", drag);
       grip.removeEventListener("pointerup", drop);
@@ -11961,6 +12006,23 @@ window.addEventListener("resize", () => {
   if (!tourWrap().hidden) paintTour();
 });
 
+/* A window that changed size has to be measured again.
+ *
+ * Nothing was telling the layout that. The room a pane has is a function of
+ * the window's width, and that was only ever recomputed when something opened
+ * or closed — so dragging the window narrow left the old answer standing until
+ * the next click. Which is why the panes appeared to survive widths they had
+ * no business surviving, and why "too narrow" only ever took effect one action
+ * late.
+ *
+ * Trailing, because a drag is a hundred resize events and only the last one is
+ * the size somebody chose. */
+let measuring = 0;
+window.addEventListener("resize", () => {
+  window.clearTimeout(measuring);
+  measuring = window.setTimeout(relayout, 140);
+});
+
 async function refreshClaude(): Promise<void> {
   claudeState = await invoke<ClaudeState>("claude_state").catch(() => null);
   claudeReady = Boolean(claudeState?.path && claudeState.signedIn);
@@ -13216,7 +13278,6 @@ function paintMark(): void {
 
 paintMark();
 setPaneWidth(state.screenWidth ?? SCREEN_PANE.initial);
-setPaneHeight(state.screenHeight ?? SCREEN_ROW.initial);
 // However you left it. showRooms paints the roster itself, so this is also the
 // first render of both lists.
 showRooms(Boolean(state.rooms));
