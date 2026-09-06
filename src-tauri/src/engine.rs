@@ -404,18 +404,35 @@ pub fn start_engine(app: AppHandle) -> Result<(), String> {
         "Starting the Linux machine (first run downloads it)…",
     );
 
-    // vz is Apple's own hypervisor, so no QEMU is needed. virtiofs is what makes
-    // a bot's workspace visible inside the VM at the same path.
-    let mut child = Command::new(&bin)
-        .args(["start", "--name", VM_NAME, "--tty=false"])
-        .args([
+
+    // Creating a machine and starting one that exists are the same subcommand
+    // with different arguments, and passing the creating ones at an instance
+    // that is already there is fatal: "instance `botcage` already exists".
+    //
+    // Which meant this worked exactly once. The first install created the VM
+    // and every later start failed — so a laptop that slept, or an app that
+    // had been quit, left botcage unable to bring up its own engine, reporting
+    // "docker stopped answering" and offering to download six hundred
+    // megabytes of something already on the disk.
+    let exists = home.join(VM_NAME).is_dir();
+
+    let mut cmd = Command::new(&bin);
+    cmd.args(["start", "--name", VM_NAME, "--tty=false"]);
+    if !exists {
+        // vz is Apple's own hypervisor, so no QEMU is needed. virtiofs is what
+        // makes a bot's workspace visible inside the VM at the same path. Only
+        // on the run that creates it: afterwards these live in its config, and
+        // repeating them is what lima refuses.
+        cmd.args([
             "--vm-type",
             "vz",
             "--mount-type",
             "virtiofs",
             "--mount-writable",
         ])
-        .arg("template:docker")
+        .arg("template:docker");
+    }
+    let mut child = cmd
         .env("LIMA_HOME", &home)
         .stdout(Stdio::null())
         .stderr(Stdio::piped())

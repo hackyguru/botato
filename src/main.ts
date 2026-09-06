@@ -9378,7 +9378,12 @@ type EngineSaid = { path: string | null; version: string | null; error: string |
  *  to starting a container, so a retry could never fix the thing that had gone
  *  wrong — it re-ran the step after it.
  */
+/** Why the last attempt to wake the engine failed, if it did. Shown where the
+ *  pane would otherwise offer to install one botcage already has. */
+let wokeBadly = "";
+
 async function wakeEngine(): Promise<EngineSaid> {
+  wokeBadly = "";
   let said = await invoke<EngineSaid>("docker_info");
   if (said.version) return said;
 
@@ -9391,10 +9396,13 @@ async function wakeEngine(): Promise<EngineSaid> {
     await invoke("start_engine");
     engine = await invoke<EngineStatus>("engine_status").catch(() => engine);
     said = await invoke<EngineSaid>("docker_info");
-  } catch {
-    // Left to the caller, which offers to set one up. A start that fails is
-    // not worth its own screen when the next thing to try is what that screen
-    // already does.
+  } catch (err) {
+    // Kept, rather than dropped. The next screen offers to set an engine up,
+    // which is the right thing to try when there isn't one — but when there
+    // is one and starting it failed, that offer is wrong and the reason it is
+    // wrong was being thrown away here. A start that fails for its own reason
+    // has to be able to say so.
+    wokeBadly = String(err);
   } finally {
     engineStep = "";
   }
@@ -9440,6 +9448,9 @@ async function openScreen(): Promise<void> {
     // the engine's own words underneath them say the same thing a third time,
     // in the vocabulary this pane is trying not to use.
     screen.log = !engine?.supported && docker.error ? [docker.error] : [];
+    // An engine that is installed and would not start is a different problem
+    // from not having one, and the button below only solves the second.
+    if (wokeBadly) screen.log = [wokeBadly];
     paintScreen();
     return;
   }
