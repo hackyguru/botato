@@ -530,6 +530,24 @@
               <input type="checkbox" id="sheet-aware" class="switch" />
             </label>
 
+            <!-- Only useful to a bot that can look, so it hangs off the switch
+                 above rather than standing on its own. -->
+            <label class="setting" id="sheet-beat-row" hidden>
+              <span class="setting__label">Checks in
+                <span class="setting__hint">How often it looks by itself. A check where nothing
+                  has been said costs nothing — no model is asked — so this is only spent on the
+                  times something actually happened.</span>
+              </span>
+              <select id="sheet-beat" class="picker">
+                <option value="0">Never</option>
+                <option value="15">Every 15 minutes</option>
+                <option value="30">Every 30 minutes</option>
+                <option value="60">Every hour</option>
+                <option value="180">Every 3 hours</option>
+                <option value="480">Every 8 hours</option>
+              </select>
+            </label>
+
             <label class="setting">
               <span class="setting__label">Manner
                 <span class="setting__hint">How it writes, not what it says. Its own is chosen by

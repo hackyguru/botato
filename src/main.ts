@@ -197,6 +197,14 @@ interface Bot {
    *  costs a little of every prompt, and a bot that only answers what it is
    *  asked has no use for this one. */
   aware?: boolean;
+  /** Minutes between heartbeats, or absent for never — which is what every bot
+   *  has unless somebody chose otherwise.
+   *
+   *  A heartbeat is not a routine you wrote; it is the bot noticing that its
+   *  rooms have moved. It costs nothing on a tick where nothing has happened,
+   *  because the question "is there anything?" is answered off a file rather
+   *  than by a model. The expensive part only happens when the answer is yes. */
+  heartbeat?: number;
   /** What that desktop may reach. */
   network: "full" | "no-lan" | "offline";
   /** Which tool answers for this bot: a key from `engines`. Absent on every
@@ -532,6 +540,14 @@ const sheetDelete = $<HTMLButtonElement>("#sheet-delete");
 
 const sheetComputer = $<HTMLInputElement>("#sheet-computer");
 const sheetAware = $<HTMLInputElement>("#sheet-aware");
+const sheetBeat = $<HTMLSelectElement>("#sheet-beat");
+const sheetBeatRow = $<HTMLElement>("#sheet-beat-row");
+
+/** Checking in is only meaningful for a bot that may look, so the choice
+ *  appears with the switch it depends on rather than sitting there greyed. */
+function paintBeatRow(): void {
+  sheetBeatRow.hidden = !sheetAware.checked;
+}
 const sheetNetwork = $<HTMLSelectElement>("#sheet-network");
 const sheetEngine = $<HTMLSelectElement>("#sheet-engine");
 const sheetModel = $<HTMLSelectElement>("#sheet-model");
@@ -3689,6 +3705,25 @@ function finish(botId: string, event: BotEvent): void {
   }
 
   pending.message.at = Date.now();
+
+  // A heartbeat that found nothing leaves nothing. Not an empty bubble, not a
+  // "nothing to report" — no row at all, and no unread mark, because the whole
+  // bargain is that a bot which checks hourly is invisible on the hours where
+  // there was nothing to check.
+  if (beating.delete(botId)) {
+    const said = pending.message.text.trim();
+    if (!said || said === QUIET || said.startsWith(QUIET)) {
+      bot.messages = bot.messages.filter((m) => m.id !== pending.message.id);
+      fromRoutine.delete(botId);
+      save();
+      renderRoster();
+      if (botId === state.activeId) renderThread();
+      else syncSend();
+      pending.settle?.();
+      return;
+    }
+  }
+
   save();
   renderRoster();
   if (pending.channelId) {
@@ -5279,6 +5314,8 @@ function openSheet(bot: Bot | null = null): void {
     .join("");
   sheetComputer.checked = bot?.computer ?? false;
   sheetAware.checked = bot?.aware ?? false;
+  sheetBeat.value = String(bot?.heartbeat ?? 0);
+  paintBeatRow();
   sheetNetwork.value = bot?.network ?? "full";
   draftModel = {
     provider: bot?.provider ?? (bot ? undefined : appSettings().provider),
@@ -6229,6 +6266,7 @@ function saveSheet(): void {
       color: draftColor,
       computer: sheetComputer.checked,
       aware: sheetAware.checked,
+      heartbeat: Number(sheetBeat.value) || undefined,
       network: sheetNetwork.value as Bot["network"],
       engine: sheetEngine.value,
       provider: picked.provider,
@@ -6293,6 +6331,7 @@ function createBot(): void {
     started: false,
     computer: sheetComputer.checked,
     aware: sheetAware.checked,
+    heartbeat: Number(sheetBeat.value) || undefined,
     network: sheetNetwork.value as Bot["network"],
     engine: sheetEngine.value || DEFAULT_ENGINE,
     provider: picked.provider,
@@ -8901,7 +8940,93 @@ function tickRoutines(): void {
       break; // at most one routine per bot per tick
     }
   }
+
+  void tickHeartbeats(now);
 }
+
+/* --------------------------------------------------------------- heartbeats */
+
+/** When each bot last had one, so a restart does not fire every bot at once. */
+const beatAt = new Map<string, number>();
+
+/** A bot noticing its rooms have moved.
+ *
+ *  Deliberately not a routine you can see on the calendar. A routine is work
+ *  you asked for and its output is the point; this is a bot catching up, and
+ *  the output is that it *has* caught up — which is why it says nothing unless
+ *  it decides it has something to say.
+ *
+ *  It rides the routine tick rather than owning a timer, so it inherits the
+ *  two things that already work: nothing fires while a bot is mid-turn, and
+ *  nothing fires off the clock. A bot with working hours set is asleep, and a
+ *  heartbeat is exactly the kind of thing that should respect that.
+ *
+ *  The gate is the whole design. `rooms_unseen` is a file read and an integer
+ *  compare — no model, nothing billed — so this can be asked every tick of
+ *  every bot forever. A quiet night costs nothing. The turn only happens on
+ *  the ticks where something has actually been said. */
+async function tickHeartbeats(now: number): Promise<void> {
+  for (const bot of state.bots) {
+    const every = bot.heartbeat ?? 0;
+    if (!every) continue;
+    if (inflight.has(bot.id)) continue;
+    if (!onTheClock(bot)) continue;
+
+    // A bot that has just been switched on waits a full interval rather than
+    // beating on sight: switching it on should not cost a turn immediately.
+    const last = beatAt.get(bot.id);
+    if (last === undefined) {
+      beatAt.set(bot.id, now);
+      continue;
+    }
+    if (now - last < every * 60_000) continue;
+
+    // The free question, asked before anything is spent. Marking the beat
+    // whatever the answer: a quiet interval has still been served.
+    beatAt.set(bot.id, now);
+    if (!(await invoke<boolean>("rooms_unseen", { botId: bot.id }).catch(() => false))) continue;
+
+    heartbeat(bot);
+  }
+}
+
+/** The turn a heartbeat costs, on the ticks where it costs one.
+ *
+ *  Told to catch up and then to be quiet unless it matters. Which is the rule
+ *  the whole feature stands on: a bot that reports in every hour is noise, and
+ *  multiplied by a roster it is an app nobody can read. Worse, in a room full
+ *  of bots one heartbeat's output is the next heartbeat's news, and that runs
+ *  all night. So the instruction is explicit that saying nothing is the
+ *  ordinary outcome. */
+function heartbeat(bot: Bot): void {
+  if (inflight.has(bot.id)) return;
+  beating.add(bot.id);
+  fromRoutine.set(bot.id, "Caught up");
+  void respond(
+    bot,
+    "Use catch_up to see what has been said in your channels since you last looked, " +
+      "and bring yourself up to date.\n\n" +
+      "Then stop. Say nothing unless there is something that genuinely needs you — " +
+      "something addressed to you, something you were waiting on, or something going " +
+      "wrong that you can help with. Saying nothing is the ordinary outcome and is " +
+      "not a failure. Do not summarise what you read, do not report that you have " +
+      "caught up, and do not greet anybody: everyone here can already see what was " +
+      "said, and a bot that comments every hour is a bot people switch off.\n\n" +
+      `If there is nothing worth saying, reply with exactly ${QUIET} and nothing else.`,
+  );
+}
+
+/** What a bot says when a heartbeat found nothing worth mentioning.
+ *
+ *  A sentinel rather than a guess at emptiness. Models almost never return an
+ *  empty string — asked to be quiet they write "Nothing needs you right now",
+ *  which is itself the hourly message this whole design exists to avoid — so
+ *  there has to be one exact thing to say instead, and it has to be something
+ *  no answer would ever begin with by accident. */
+const QUIET = "NOTHING-TO-SAY";
+
+/** Bots whose current turn is a heartbeat, so its reply can be dropped. */
+const beating = new Set<string>();
 
 /* -------------------------------------------------------- the bot's desktop */
 
@@ -11129,6 +11254,8 @@ void listen<string>("deep-link", (event) => {
   if (handover) offerBot(handover);
   else toast("That botcage link could not be read");
 });
+
+sheetAware.addEventListener("change", paintBeatRow);
 
 swatches.addEventListener("click", (e) => {
   const swatch = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-color]");

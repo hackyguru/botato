@@ -1780,6 +1780,7 @@ pub fn run() {
             speech_install,
             speech_forget,
             rooms::rooms_mirror,
+            rooms::rooms_unseen,
             hearing_ready,
             hearing_install,
             transcribe,

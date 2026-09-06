@@ -204,6 +204,24 @@ pub fn rooms_mirror(app: AppHandle, mirror: Mirror) -> Result<(), String> {
     put(&app, mirror)
 }
 
+/// Is there anything this bot has not seen?
+///
+/// The question a heartbeat asks before it spends anything. A file read and
+/// some integer comparisons — no engine started, no prompt built, nothing
+/// billed — so a bot can be asked this every few minutes forever and a quiet
+/// night costs nothing at all.
+///
+/// It deliberately does not say *what* is new. Answering that is the turn, and
+/// the turn is the expensive part; this is only the part that decides whether
+/// to have one.
+#[tauri::command(async)]
+pub fn rooms_unseen(app: AppHandle, bot_id: String) -> bool {
+    let Ok(workspace) = crate::workspace(&app, &bot_id) else {
+        return false;
+    };
+    !unseen_in(&read(&mirror_path(&app).unwrap_or_default()), &bot_id, &workspace).is_empty()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
