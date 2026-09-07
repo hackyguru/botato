@@ -9932,7 +9932,28 @@ async function openScreen(): Promise<void> {
     return;
   }
 
-  const docker = await wakeEngine();
+  let docker = await wakeEngine();
+
+  // No engine, and botcage carries one: fetch it and carry on. Switching a
+  // bot's computer on is the request — stopping here to offer a button called
+  // "Set up botcage's engine" asks somebody to agree to a thing they have
+  // already asked for, in words about an engine they should never need to
+  // meet. It narrates the download either way, so nothing happens silently.
+  if (!docker.version && !installing) {
+    engine = await invoke<EngineStatus>("engine_status").catch(() => null);
+    if (engine?.supported && !engine.installed) {
+      try {
+        await installEngine();
+        docker = await wakeEngine();
+      } catch (err) {
+        screen.state = "error";
+        screen.log = [String(err)];
+        paintScreen();
+        return;
+      }
+    }
+  }
+
   if (!docker.version) {
     // Ask whether botcage could supply one itself, so the pane can offer that
     // rather than only naming things to go and install.
@@ -9956,7 +9977,18 @@ async function openScreen(): Promise<void> {
   );
   screen.state = status.state;
   paintScreen();
-  if (status.state === "running" && status.vncPort) connectScreen(status.vncPort);
+  if (status.state === "running" && status.vncPort) {
+    connectScreen(status.vncPort);
+    return;
+  }
+
+  // And bring it up, rather than showing a stopped screen and a button. The
+  // desktop is what was asked for; the image build behind the first one is a
+  // wait, not a decision. Left alone only where the person switched this
+  // desktop off themselves — then looking at it should not restart it.
+  if (status.state === "stopped" && !stoppedByHand.has(bot.id)) {
+    await startDesktop(bot.id);
+  }
 }
 
 function closeScreen(): void {
@@ -10395,46 +10427,62 @@ teachName.addEventListener("keydown", (event) => {
 
 $<HTMLButtonElement>("#btn-screen-close").addEventListener("click", closeScreen);
 
+/** Desktops the user switched off by hand, so opening the pane to look at one
+ *  does not start it again behind them. Cleared when they start it. */
+const stoppedByHand = new Set<string>();
+
+/** Bring a bot's desktop up. The one path, whether it was asked for by the
+ *  button or by opening the pane at all. */
+async function startDesktop(botId: string): Promise<void> {
+  const bot = state.bots.find((b) => b.id === botId);
+  stoppedByHand.delete(botId);
+  screen.log = [];
+  screen.state = "starting";
+  paintScreen();
+  try {
+    // Before anything else: the reason the last attempt failed may be that the
+    // engine went to sleep, and starting a container in an engine that is not
+    // running fails the same way for ever. "Try again" has to be able to fix
+    // the step that broke, not repeat the one after it.
+    await wakeEngine();
+    await invoke("sandbox_start", {
+      botId,
+      brand: {
+        name: bot?.name ?? "",
+        color: bot?.color ?? "",
+        // Read from this machine rather than hardcoded, so a desktop matches
+        // whatever host it is running on.
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? "",
+        locale: navigator.language ?? "",
+        network: bot?.network ?? "full",
+        github: (bot?.plugins ?? []).includes("github"),
+        ...machineBrand(bot),
+      },
+    });
+  } catch (err) {
+    screen.state = "error";
+    pushLog(String(err));
+    paintScreen();
+  }
+}
+
 startBtn.addEventListener("click", () => {
-  // No engine means the desktop cannot start at all, so this button installs one
-  // first rather than failing the same way twice.
+  // Still here for the case where the automatic attempt failed and this is
+  // "Try again", and for an engine that could not be supplied the first time.
   if (screen.state === "no-docker" && engine?.supported && !engine.installed) {
     void setUpEngine();
     return;
   }
-
   const botId = screen.botId;
-  if (!botId) return;
-  const bot = state.bots.find((b) => b.id === botId);
-  screen.log = [];
-  screen.state = "starting";
-  paintScreen();
-  // Before anything else: the reason the last attempt failed may be that the
-  // engine went to sleep, and starting a container in an engine that is not
-  // running fails the same way for ever. "Try again" has to be able to fix the
-  // step that broke, not repeat the one after it.
-  void wakeEngine().then(() => invoke("sandbox_start", {
-    botId,
-    brand: {
-      name: bot?.name ?? "",
-      color: bot?.color ?? "",
-      // Read from this machine rather than hardcoded, so a desktop matches
-      // whatever host it is running on.
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? "",
-      locale: navigator.language ?? "",
-      network: bot?.network ?? "full",
-      github: (bot?.plugins ?? []).includes("github"),
-      ...machineBrand(bot),
-    },
-  })).catch((err) => {
-    screen.state = "error";
-    pushLog(String(err));
-  });
+  if (botId) void startDesktop(botId);
 });
 
 $<HTMLButtonElement>("#btn-screen-power").addEventListener("click", () => {
   const botId = screen.botId;
   if (!botId) return;
+  // Switched off on purpose. Opening the pane afterwards shows it stopped
+  // rather than starting it again under the person who just stopped it.
+  stoppedByHand.add(botId);
   disconnectScreen();
   screen.state = "stopped";
   paintScreen();
