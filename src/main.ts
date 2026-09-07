@@ -20,6 +20,7 @@ import { Music } from "./music";
 import { BODIES, body as drawBody, bodyOf as silhouetteOf, gazeOf, markHtml } from "./blob";
 import { blip } from "./blip";
 import { installAccessibility } from "./accessibility";
+import { clearFormErrors, requireText } from "./forms";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import RFB from "@novnc/novnc";
 
@@ -4550,10 +4551,7 @@ function focusHiring(): void {
  *  back two is a wizard that wasted the pages in between. */
 function nextHiring(): void {
   const step = HIRING[hiringAt];
-  if (step.wiz === "who" && !sheetName.value.trim()) {
-    sheetName.focus();
-    return;
-  }
+  if (step.wiz === "who" && !requireText(sheetName, "Give this bot a name to continue.")) return;
   if (hiringAt === HIRING.length - 1) {
     saveSheet();
     return;
@@ -5639,6 +5637,7 @@ $<HTMLDivElement>("#setup-picks").addEventListener("change", (e) => {
 
 
 function openSheet(bot: Bot | null = null): void {
+  clearFormErrors(sheet);
   editing = bot;
   draftColor = bot?.color ?? COLORS[state.bots.length % COLORS.length];
   sheetTitle.textContent = bot ? `${bot.name} settings` : "New bot";
@@ -6600,10 +6599,7 @@ function modelFromSheet(): { provider?: string; model: string } | null {
 
 function saveSheet(): void {
   const name = sheetName.value.trim();
-  if (!name) {
-    sheetName.focus();
-    return;
-  }
+  if (!requireText(sheetName, "Give this bot a name to continue.")) return;
   const picked = modelFromSheet();
   if (!picked) return;
 
@@ -7480,6 +7476,7 @@ const channelMute = $<HTMLInputElement>("#channel-mute");
 const channelMuteRow = $<HTMLElement>("#channel-mute-row");
 
 function openChannelSheet(ch: Channel | null): void {
+  clearFormErrors(channelWrap);
   editingChannel = ch?.id ?? null;
   channelName.value = ch?.name ?? "";
   channelPurpose.value = ch?.purpose ?? "";
@@ -7530,10 +7527,7 @@ function handle(raw: string): string {
 $<HTMLFormElement>("#channel-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const name = handle(channelName.value);
-  if (!name) {
-    channelName.focus();
-    return;
-  }
+  if (!requireText(channelName, "Use letters or numbers for the channel name.", Boolean(name))) return;
   const picked = [...channelMembers.querySelectorAll<HTMLInputElement>("input:checked")].map(
     (box) => box.value,
   );
@@ -11362,6 +11356,7 @@ function paintRoutineForm(): void {
 /** Open the editor: on an existing routine, or empty on a slot that was
  *  clicked, which carries the day and hour that were pointed at. */
 function openRoutine(routine: Routine | null, seed?: { day: number; hour: number; date: string }): void {
+  clearFormErrors(routineForm);
   editingRoutine = routine?.id ?? null;
 
   // Whose calendar this lands on. On one bot's own that is never in question;
@@ -11560,13 +11555,8 @@ routineForm.addEventListener("submit", (e) => {
   // need a name and nothing else. Asking for an instruction there was asking
   // for something the format then ignored.
   const writesItsOwn = draft.format === "standup" || draft.format === "review";
-  if (!draft.name || (!draft.instruction && !writesItsOwn)) {
-    toast(
-      writesItsOwn ? "A routine needs a name" : "A routine needs a name and an instruction",
-    );
-    (draft.name ? routineInstruction : routineName).focus();
-    return;
-  }
+  if (!requireText(routineName, "Give this routine a name.")) return;
+  if (!writesItsOwn && !requireText(routineInstruction, "Describe what this routine should do.")) return;
 
   const was = editingRoutine ? ownerOf(editingRoutine) : null;
   // Where it is going: what the picker says on the shared calendar, and the bot

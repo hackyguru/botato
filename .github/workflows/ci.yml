@@ -62,6 +62,12 @@ jobs:
       - name: Typecheck and bundle the frontend
         run: pnpm build
 
+      - name: Desktop interaction tests
+        run: pnpm test
+
+      - name: Shared design tokens
+        run: python3 scripts/tokens.py --check
+
       - name: Rust format
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
 

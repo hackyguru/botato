@@ -2,7 +2,7 @@
 export function installAccessibility(): void {
   const focusable = 'button, [href], input, select, textarea, [tabindex]';
   const visible = (element: HTMLElement) =>
-    !element.closest('[hidden], [inert]') && element.getClientRects().length > 0;
+    !element.closest('[hidden], [inert], [aria-hidden="true"]') && element.getClientRects().length > 0;
   const controls = (root: HTMLElement) =>
     Array.from(root.querySelectorAll<HTMLElement>(focusable)).filter(
       (element) => visible(element) && element.tabIndex >= 0 && !element.matches(':disabled'),
@@ -57,7 +57,7 @@ export function installAccessibility(): void {
   }
   const opened: HTMLElement[] = [];
   const returnTo = new Map<HTMLElement, HTMLElement | null>();
-  const inert = new Map<HTMLElement, boolean>();
+  const concealed = new Map<HTMLElement, string | null>();
   let origin: HTMLElement | null = null;
   let menuOrigin: HTMLElement | null = null;
   let top: HTMLElement | undefined;
@@ -92,8 +92,11 @@ export function installAccessibility(): void {
     top = opened.reduce<HTMLElement | undefined>((highest, root) =>
       !highest || Number(getComputedStyle(root).zIndex) >= Number(getComputedStyle(highest).zIndex)
         ? root : highest, undefined);
-    for (const [element, wasInert] of inert) element.inert = wasInert;
-    inert.clear();
+    for (const [element, previousValue] of concealed) {
+      if (previousValue === null) element.removeAttribute('aria-hidden');
+      else element.setAttribute('aria-hidden', previousValue);
+    }
+    concealed.clear();
     for (const root of roots) {
       const dialog = root.querySelector<HTMLElement>('.sheet');
       if (!dialog) continue;
@@ -108,15 +111,16 @@ export function installAccessibility(): void {
       }
     }
     if (top) {
-      // The hiring dialog lives inside .app. Inert its siblings at each level
-      // without making its ancestor (and therefore the dialog itself) inert.
+      // Conceal the background from assistive technology. The overlay blocks
+      // pointer input; the focus guard below keeps keyboard input in the dialog.
+      // Walk ancestors because the hiring dialog lives inside .app.
       let branch: HTMLElement = top;
       while (branch.parentElement) {
         for (const sibling of branch.parentElement.children) {
           if (!(sibling instanceof HTMLElement) || sibling === branch ||
-              sibling.matches('script, style, #toast')) continue;
-          inert.set(sibling, sibling.inert);
-          sibling.inert = true;
+              sibling.hidden || sibling.matches('script, style, #toast')) continue;
+          concealed.set(sibling, sibling.getAttribute('aria-hidden'));
+          sibling.setAttribute('aria-hidden', 'true');
         }
         if (branch.parentElement === document.body) break;
         branch = branch.parentElement;
@@ -135,6 +139,10 @@ export function installAccessibility(): void {
   };
   const observer = new MutationObserver(syncDialogs);
   for (const root of roots) observer.observe(root, { attributes: true, attributeFilter: ['hidden', 'class'] });
+
+  document.addEventListener('focusin', (event) => {
+    if (top && event.target instanceof Node && !top.contains(event.target)) focusFirst(top);
+  });
 
   document.addEventListener('keydown', (event) => {
     if (!top) return;
