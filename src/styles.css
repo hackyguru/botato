@@ -3820,8 +3820,8 @@ button:disabled:hover {
 }
 
 .mic {
-  color: var(--bg);
-  background: var(--text);
+  color: var(--on-bright);
+  background: var(--bright);
 }
 
 .mic svg {
@@ -6988,7 +6988,7 @@ label.setting {
      bot can be is light enough to carry it — the darkest, the red, still comes
      out near five to one — so the button reads the same on every bot instead
      of flipping between white and black as you move down the rail. */
-  color: var(--bg);
+  color: var(--on-bright);
   background: var(--accent, var(--blue));
 }
 
@@ -7139,12 +7139,12 @@ label.setting {
 }
 
 .state-pill.is-live {
-  color: var(--bg);
+  color: var(--on-bright);
   background: var(--green);
 }
 
 .state-pill.is-busy {
-  color: var(--bg);
+  color: var(--on-bright);
   background: var(--amber);
 }
 

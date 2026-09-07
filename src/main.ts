@@ -4701,7 +4701,7 @@ function inkOn(colour: string): string {
   };
   const luminance = 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
   const whiteOnIt = 1.05 / (luminance + 0.05);
-  return whiteOnIt < 3 ? "var(--bg)" : "var(--on-accent)";
+  return whiteOnIt < 3 ? "var(--on-bright)" : "var(--on-accent)";
 }
 
 function renderSheetPreview(bot?: Bot | null): void {
@@ -10415,7 +10415,7 @@ async function dictate(): Promise<void> {
   // in the call; here the only place to say it is the composer's placeholder.
   if (!(await invoke<boolean>("hearing_ready").catch(() => false))) {
     const was = input.placeholder;
-    input.placeholder = "Preparing voice input…";
+    input.placeholder = "Fetching the ears — a few hundred megabytes, once…";
     try {
       await invoke("hearing_install");
     } catch (err) {
@@ -12048,22 +12048,22 @@ const TOUR: Stop[] = [
   {
     target: "#btn-plugins",
     title: "Its connections",
-    body: "Connect an account, then choose which bots can access it.",
+    body: "Connect an account once and choose which bots may reach it. The credential stays in your keychain, never in a bot.",
   },
   {
     target: "#btn-settings",
     title: "Bot settings",
-    body: "Edit this bot’s name, instructions and model.",
+    body: "Edit this bot's name, instructions, and which model answers for it — Claude Code, the Gemini CLI, or any on models.dev.",
   },
   {
     target: "#btn-monitor",
     title: "Its own computer",
-    body: "Watch the bot’s desktop or take control of its mouse and keyboard.",
+    body: "A private Linux desktop in a container. Watch it work, or take the mouse back.",
   },
   {
     target: "#btn-account",
     title: "Everything else",
-    body: "Open app settings, or pair your phone to access your bots remotely.",
+    body: "Settings for this machine, and pairing a phone — reach these bots from anywhere without opening a port.",
   },
 ];
 
