@@ -750,7 +750,7 @@
          drawn inside it would be trapped in it. -->
     <div class="screen-scrim" id="screen-scrim" hidden></div>
 
-    <div class="menu" id="menu" hidden></div>
+    <div class="menu" id="menu" tabindex="-1" hidden></div>
 
     <!-- The tour: four panes that blur everything except the thing being
          talked about, a ring around it, and a card saying what it is for. -->
@@ -1394,6 +1394,123 @@
                      autocomplete="name" aria-label="What your bots should call you" />
             </label>
             <p class="setup__blurb setup__blurb--dim">Let’s set up your bots.</p>
+          </section>
+
+          <!-- Before anything is configured, because acceptance that arrives
+               after the software has already been set up and used is worth
+               less than one that gates it. The summary is short and the full
+               terms scroll: a wall nobody reads is not consent, and a
+               scrollbox somebody can read is. -->
+          <section class="setup__step" data-step="terms" hidden>
+            <h2 class="setup__title">Before you start</h2>
+            <p class="setup__blurb">
+              botcage runs bots that act on your behalf. It comes with no warranty,
+              and what your bots do is your responsibility.
+            </p>
+
+            <div class="terms" id="setup-terms" tabindex="0" role="region"
+                 aria-label="Terms and conditions">
+              <h3>1. No warranty</h3>
+              <p>
+                botcage is provided <b>“as is”</b> and <b>“as available”</b>, without
+                warranty of any kind, express or implied, including but not limited to
+                the implied warranties of merchantability, fitness for a particular
+                purpose, title and non-infringement. No advice or information obtained
+                from botcage creates any warranty not stated here.
+              </p>
+
+              <h3>2. You accept the risk</h3>
+              <p>
+                You use botcage entirely at your own risk, and you are solely
+                responsible for the instructions you give your bots and for everything
+                those bots do.
+              </p>
+
+              <h3>3. What a bot can do</h3>
+              <p>
+                A bot can run commands, control a sandboxed desktop, read and write
+                files in its workspace, use accounts you connect to it, and act on a
+                schedule while nobody is watching. Language models are unpredictable
+                and can be manipulated by content they read. Do not give a bot access
+                to anything you cannot afford to lose, break or expose.
+              </p>
+
+              <h3>4. Loss of data</h3>
+              <p>
+                No guarantee is made about the integrity, availability or retention of
+                anything botcage holds. Conversations, memory, workspaces, credentials,
+                routines and backups may be lost, corrupted, overwritten or deleted, by
+                botcage, by a bot, or by a service it depends on. Keep your own backups
+                of anything that matters.
+              </p>
+
+              <h3>5. Third-party services, and your account with them</h3>
+              <p>
+                botcage drives software and services it does not own or control,
+                including the Claude Code CLI, Anthropic, Google, OpenAI, Ollama,
+                GitHub and any provider or plugin you connect. Your use of those is
+                governed by <b>their</b> terms, and complying with them is your
+                responsibility.
+              </p>
+              <p>
+                Automated and agentic use may breach some providers’ terms, and may
+                result in throttling, suspension, loss of credit or the
+                <b>permanent termination of your account</b>. botcage does not control
+                and is not responsible for any action a provider takes against you.
+              </p>
+
+              <h3>6. Money</h3>
+              <p>
+                Bots can make paid API calls, repeatedly and on a schedule, without
+                asking again. <b>You are responsible for every charge incurred</b>,
+                including charges from a routine, a loop or a mistake. Set spending
+                limits with your providers; botcage is not a billing control.
+              </p>
+
+              <h3>7. Limitation of liability</h3>
+              <p>
+                To the maximum extent permitted by law, in no event shall the authors,
+                copyright holders or contributors be liable for any claim, damages or
+                other liability, whether in contract, tort (including negligence) or
+                otherwise, arising from or in connection with botcage or its use —
+                including without limitation <b>loss of data, loss of profit, loss of
+                revenue, business interruption, loss of goodwill, suspension or
+                termination of any account, and any direct, indirect, incidental,
+                special, exemplary, consequential or punitive damages</b> — even if
+                advised of the possibility of such damage.
+              </p>
+
+              <h3>8. You indemnify us</h3>
+              <p>
+                You agree to indemnify and hold harmless the authors, copyright holders
+                and contributors against any claim, demand, loss or expense arising out
+                of your use of botcage, the actions of your bots, or your breach of
+                these terms or of any third party’s terms.
+              </p>
+
+              <h3>9. Not advice</h3>
+              <p>
+                Output is generated by language models and may be confidently wrong. Do
+                not rely on it for legal, financial, medical, or safety-critical
+                decisions without independent verification.
+              </p>
+
+              <h3>10. The rest</h3>
+              <p>
+                botcage is licensed under the Apache License 2.0, which governs the
+                software itself; nothing here grants any right in the botcage name. If
+                any part of these terms is held unenforceable, the remainder continues
+                to apply. Some jurisdictions do not allow the exclusion of certain
+                warranties or the limitation of certain liabilities, so parts of
+                sections 1 and 7 may not apply to you.
+              </p>
+            </div>
+
+            <label class="terms__accept">
+              <input type="checkbox" id="setup-terms-ok" class="switch" />
+              <span>I have read and accept these terms, and I take full responsibility
+                for what my bots do.</span>
+            </label>
           </section>
 
           <section class="setup__step" data-step="answers" hidden>

@@ -2676,6 +2676,51 @@ button:disabled:hover {
   filter: brightness(1.12);
 }
 
+/* The rest of a crowded hour. Deliberately not a block in a bot's colour: it
+   is not a routine, it is a count, and dressing it as one more tile would make
+   an hour holding four look like an hour holding three. The dots keep the one
+   thing the count loses — whose routines they are. */
+.cal__stack {
+  position: absolute;
+  left: 3px;
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  overflow: hidden;
+  padding: 0 6px;
+  font-size: var(--type-micro);
+  line-height: 1;
+  text-align: left;
+  background: var(--fill-3);
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.cal__stack i {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  background: var(--tint, var(--blue));
+  border-radius: 50%;
+}
+
+.cal__stack span {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal__stack:hover {
+  background: var(--hover);
+}
+
+.cal__stack:hover span {
+  color: var(--text);
+}
+
 /* A routine with no place in the grid: named, timed, and out of the way. */
 .cal__chip {
   display: flex;
@@ -4066,6 +4111,12 @@ button.learn-badge--open:hover {
   font-size: var(--type-small);
   text-align: left;
   border-radius: var(--radius-chip);
+}
+
+/* The box itself takes focus when the menu is opened by mouse, so the arrow
+   keys have a place to start. It is holding focus, not showing it. */
+.menu:focus-visible {
+  outline: none;
 }
 
 .menu-item:hover {
@@ -7697,6 +7748,71 @@ label.setting {
   font-size: var(--type-small);
   line-height: 1.55;
   color: var(--text-2);
+}
+
+/* The terms themselves. Its own scroll rather than the step's, so the tick
+   underneath stays on screen the whole way down — a checkbox you have to
+   scroll past the small print to find is a checkbox people tick from the top.
+ *
+   Set on a surface a step above the sheet so it reads as a document handed to
+   you rather than as more of the page. */
+.terms {
+  width: 100%;
+  max-height: 40vh;
+  margin-top: 16px;
+  padding: 4px 18px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: var(--type-hint);
+  line-height: 1.6;
+  color: var(--text-2);
+  text-align: left;
+  background: var(--fill-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+}
+
+.terms h3 {
+  margin: 16px 0 4px;
+  font-size: var(--type-hint);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.terms h3:first-child {
+  margin-top: 12px;
+}
+
+.terms p {
+  margin: 0 0 8px;
+}
+
+.terms b {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* The tick, and the sentence it applies to. A row rather than a settings line:
+   this is a thing you agree to, not a preference you set. */
+.terms__accept {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px 14px;
+  font-size: var(--type-small);
+  line-height: 1.5;
+  color: var(--text);
+  text-align: left;
+  background: var(--fill-1);
+  border-radius: var(--radius-card);
+  cursor: pointer;
+}
+
+.terms__accept .switch {
+  flex: none;
+  margin-top: 1px;
 }
 
 .setup__blurb--dim {

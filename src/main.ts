@@ -413,6 +413,9 @@ interface AppSettings {
   name?: string;
   /** Setup has been walked through once. Reopenable from the account menu. */
   onboarded: boolean;
+  /** Which revision of the terms was accepted, and when. Absent means never. */
+  termsVersion?: number;
+  termsAt?: number;
   /** The tour has been given once. Also reopenable from the account menu. */
   toured?: boolean;
   /** Phone access was switched on. Restored at launch: a paired phone away from
@@ -4322,6 +4325,16 @@ function autoGrow(): void {
 
 let menuAnchor: HTMLElement | null = null;
 
+/** Whether the last thing the user did was with a pointer.
+ *
+ *  Menus put focus on their first item so the arrow keys have somewhere to
+ *  start from. Opened with the mouse that put a blue ring around "Calendar" —
+ *  a keyboard marker on a menu nobody reached by keyboard, and the one place
+ *  in this app where the ring is not answering the question it exists for. */
+let viaPointer = false;
+document.addEventListener("pointerdown", () => (viaPointer = true), true);
+document.addEventListener("keydown", () => (viaPointer = false), true);
+
 function openMenu(anchor: HTMLElement | null, html: string, extraClass = ""): void {
   if (!anchor) throw new Error("botcage: openMenu called without an anchor");
   menu.className = `menu ${extraClass}`.trim();
@@ -4341,7 +4354,11 @@ function openMenu(anchor: HTMLElement | null, html: string, extraClass = ""): vo
   const top = a.bottom + 6 + box.height < window.innerHeight ? a.bottom + 6 : a.top - box.height - 6;
   menu.style.top = `${Math.max(8, top)}px`;
   menu.style.left = `${Math.min(Math.max(8, a.left), window.innerWidth - box.width - 8)}px`;
-  menu.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+  // Clicked, focus goes to the menu itself: no ring, and the arrow keys still
+  // work — the key handler finds no item focused and starts at the first from
+  // Down or the last from Up, which is what those keys mean on a fresh menu.
+  if (viaPointer) menu.focus({ preventScroll: true });
+  else menu.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
 }
 
 const closeMenu = () => {
@@ -4870,12 +4887,18 @@ function setCalSpan(span: CalSpan): void {
   paintCalScroll();
 }
 
+/** An hour to open at, set by whatever asked for this view — a crowded hour
+ *  handing its contents to the day. Cleared by the scroll it causes, so it is
+ *  the answer to one question rather than a setting. */
+let calScrollTo: number | null = null;
+
 /** Start where the day is rather than at midnight, with enough above it to see
  *  what has just been and gone. A month has no hours to scroll to. */
 function paintCalScroll(): void {
   const body = $<HTMLDivElement>("#cal-body");
-  body.scrollTop =
-    calSpan === "month" ? 0 : Math.max(0, (new Date().getHours() - 2) * HOUR_PX);
+  const hour = calScrollTo ?? new Date().getHours();
+  calScrollTo = null;
+  body.scrollTop = calSpan === "month" ? 0 : Math.max(0, (hour - 2) * HOUR_PX);
 }
 
 /** Does this routine land on that day? False for the kinds that repeat faster
@@ -4989,10 +5012,22 @@ function renderRoutines(): void {
     .map((day) =>
       month
         ? monthCell(day, dueOn(day), today)
-        : hourColumn(day, dueOn(day), now, today, drawn.length === 1 ? drawn[0] : undefined),
+        : hourColumn(
+            day,
+            dueOn(day),
+            now,
+            today,
+            drawn.length === 1 ? drawn[0] : undefined,
+            calSpan === "day",
+          ),
     )
     .join("");
 }
+
+/** How many routines one hour of a week's column can show and still be read.
+ *  Two names in 44px is the limit; a third slice is a stripe with a word
+ *  clipped inside it, which says less than "2 more" does. */
+const HOUR_FITS = 2;
 
 /** One day as hours: the grid a day and a week are both made of. */
 function hourColumn(
@@ -5004,6 +5039,9 @@ function hourColumn(
    *  nobody's: five shifts laid over each other is a grid with no clear hours
    *  at all, which is worse than not saying. */
   shift?: Bot,
+  /** A day on its own has the width to stand an hour's routines side by side,
+   *  where a week's column has room for two stacked and a count. */
+  wide = false,
 ): string {
   const iso = isoDate(day);
   const slots = Array.from({ length: 24 }, (_, hour) => {
@@ -5019,50 +5057,25 @@ function hourColumn(
   }).join("");
 
   // Two routines in the same hour would sit exactly on top of each other, and
-  // the one underneath would be a routine nobody could see was there. They
-  // share the width of the hour instead.
+  // the one underneath would be a routine nobody could see was there. An hour
+  // is laid out once, knowing everything in it, rather than each block being
+  // placed as though it were the only one.
   //
-  // And they never take all of it: an event that filled its hour would be the
-  // only thing there to click, so that hour could never be given a second
-  // routine — clicking it would open the first one, and saving would edit it
-  // rather than add to it. The strip down the right stays empty and clickable,
-  // which is what makes an hour able to hold two.
-  const crowd = new Map<number, number>();
-  for (const { routine } of due) {
-    const hour = Number(routine.at.split(":")[0]) || 0;
-    crowd.set(hour, (crowd.get(hour) ?? 0) + 1);
+  // And a shared hour never takes all of it: an hour filled edge to edge would
+  // have nothing left to click, so it could never be given a third routine —
+  // clicking it would open one of the two already there, and saving would edit
+  // that rather than add. The strip down the right stays empty and clickable,
+  // which is what makes an hour able to hold more.
+  const hours = new Map<number, { bot: Bot; routine: Routine }[]>();
+  for (const item of due) {
+    const hour = Number(item.routine.at.split(":")[0]) || 0;
+    const held = hours.get(hour);
+    if (held) held.push(item);
+    else hours.set(hour, [item]);
   }
-  const placed = new Map<number, number>();
 
-  const events = due
-    .map(({ bot, routine }) => {
-      const [hh, mm] = routine.at.split(":").map(Number);
-      const hour = hh || 0;
-      const of = crowd.get(hour) ?? 1;
-      const lane = placed.get(hour) ?? 0;
-      placed.set(hour, lane + 1);
-      const top = (hour + (mm || 0) / 60) * HOUR_PX;
-      // Stacked within the hour rather than side by side. A calendar splits the
-      // width when two things overlap because both last an hour; a routine is a
-      // moment, not a span, so splitting only makes two unreadable slivers
-      // where the names should be.
-      const slice = (HOUR_PX - 6) / of;
-      const solo = of === 1;
-      return (
-        `<button type="button" class="cal__event${solo ? "" : " cal__event--tight"}` +
-        `${routine.active ? "" : " is-off"}" data-edit="${routine.id}" ` +
-        `style="top:${top + lane * slice}px;height:${slice - (solo ? 0 : 2)}px;` +
-        `right:${FREE_PX}px;--tint:${bot.color}">` +
-        // On everybody's calendar, whose it is comes first: the same face as in
-        // the sidebar, on a block already in that bot's colour.
-        (calEveryone ? faceHtml(bot, "xs") : "") +
-        `<b>${escapeHtml(routine.name)}</b>` +
-        // Who put it there beats when it runs: the hour is already legible from
-        // where the block sits, and a tile this narrow fits one line.
-        (solo ? `<span>${routine.by ? `by ${escapeHtml(routine.by)}` : routine.at}</span>` : "") +
-        `</button>`
-      );
-    })
+  const events = [...hours]
+    .map(([hour, items]) => (wide ? acrossHour(hour, items) : downHour(hour, items, iso)))
     .join("");
 
   const isToday = iso === today;
@@ -5071,6 +5084,115 @@ function hourColumn(
     : "";
 
   return `<div class="cal__col${isToday ? " is-today" : ""}">${slots}${events}${line}</div>`;
+}
+
+/** One routine as a block on the grid. Where it sits and how big it is are the
+ *  caller's business — only it knows whether the hour is being shared. */
+function eventTile(
+  bot: Bot,
+  routine: Routine,
+  place: string,
+  /** The second line, where there is room for one. */
+  note: string | null,
+): string {
+  return (
+    `<button type="button" class="cal__event${note ? "" : " cal__event--tight"}` +
+    `${routine.active ? "" : " is-off"}" data-edit="${routine.id}" ` +
+    // The exact minute, always reachable. A shared hour anchors its blocks to
+    // the hour line rather than to their own minute, so 09:00 and 09:45 sit
+    // level — the tooltip is where that difference stays readable.
+    `title="${escapeHtml(routine.name)} — ${routine.at}" ` +
+    `style="${place}--tint:${bot.color}">` +
+    // On everybody's calendar, whose it is comes first: the same face as in
+    // the sidebar, on a block already in that bot's colour.
+    (calEveryone ? faceHtml(bot, "xs") : "") +
+    `<b>${escapeHtml(routine.name)}</b>` +
+    (note ? `<span>${note}</span>` : "") +
+    `</button>`
+  );
+}
+
+/** An hour with one thing in it, in either view: the whole width, and sitting
+ *  at its own minute rather than on the hour line, which is the one time the
+ *  grid can afford to be that precise. */
+function soloHour({ bot, routine }: { bot: Bot; routine: Routine }): string {
+  const [hh, mm] = routine.at.split(":").map(Number);
+  const top = ((hh || 0) + (mm || 0) / 60) * HOUR_PX;
+  // Who put it there beats when it runs: the hour is already legible from
+  // where the block sits, and a tile this narrow fits one line.
+  return eventTile(
+    bot,
+    routine,
+    `top:${top}px;height:${HOUR_PX - 6}px;right:${FREE_PX}px;`,
+    routine.by ? `by ${escapeHtml(routine.by)}` : routine.at,
+  );
+}
+
+/** An hour of a week's column: stacked, because the column is too narrow to
+ *  divide. Past what fits, the hour says how many it is holding and hands the
+ *  question to the day view, which has the room to answer it. */
+function downHour(hour: number, items: { bot: Bot; routine: Routine }[], iso: string): string {
+  const of = items.length;
+  const room = HOUR_PX - 6;
+  if (of === 1) return soloHour(items[0]);
+
+  // Stacked within the hour rather than side by side. A calendar splits the
+  // width when two things overlap because both last an hour; a routine is a
+  // moment, not a span, so splitting only makes two unreadable slivers where
+  // the names should be.
+  const slice = room / HOUR_FITS;
+  const shown = of > HOUR_FITS ? HOUR_FITS - 1 : of;
+  const lane = (index: number) =>
+    `top:${hour * HOUR_PX + index * slice}px;height:${slice - 2}px;right:${FREE_PX}px;`;
+
+  const tiles = items
+    .slice(0, shown)
+    .map(({ bot, routine }, index) => eventTile(bot, routine, lane(index), null))
+    .join("");
+
+  if (of <= HOUR_FITS) return tiles;
+
+  // What did not fit, in the colours of the bots it belongs to — enough to see
+  // that the hour is one bot three times over, or three bots once each.
+  const rest = items.slice(shown);
+  return (
+    tiles +
+    `<button type="button" class="cal__stack" data-open="${iso}" data-hour="${hour}" ` +
+    `style="${lane(shown)}" title="${escapeHtml(
+      rest.map(({ routine }) => `${routine.name} — ${routine.at}`).join(", "),
+    )}">` +
+    rest
+      .slice(0, 4)
+      .map(({ bot }) => `<i style="--tint:${bot.color}"></i>`)
+      .join("") +
+    `<span>${rest.length} more</span></button>`
+  );
+}
+
+/** An hour of a day's own column: side by side, which is what the width is
+ *  for. Nothing is hidden here — this is the view a crowded hour is sent to,
+ *  so it has to be the one that shows everything in it. */
+function acrossHour(hour: number, items: { bot: Bot; routine: Routine }[]): string {
+  const of = items.length;
+  if (of === 1) return soloHour(items[0]);
+
+  // The lanes divide what is left after the clickable strip, so adding a
+  // routine to an hour that already has four narrows the four rather than
+  // taking the strip that lets you add a fifth.
+  const span = `(100% - ${FREE_PX}px) / ${of}`;
+  return items
+    .map(({ bot, routine }, index) =>
+      eventTile(
+        bot,
+        routine,
+        `top:${hour * HOUR_PX}px;height:${HOUR_PX - 6}px;` +
+          `left:calc(${span} * ${index} + 3px);width:calc(${span} - 6px);right:auto;`,
+        // Four across is about where a second line stops being a line and
+        // starts being a syllable.
+        of > 4 ? null : routine.at,
+      ),
+    )
+    .join("");
 }
 
 /** How many routines a month's cell shows before it gives up and counts. */
@@ -5631,6 +5753,8 @@ $<HTMLButtonElement>("#models-key-forget").addEventListener("click", () => {
 });
 
 $<HTMLButtonElement>("#sheet-model-open").addEventListener("click", () => void openModels());
+
+$<HTMLInputElement>("#setup-terms-ok").addEventListener("change", paintSetup);
 
 $<HTMLDivElement>("#setup-picks").addEventListener("change", (e) => {
   const chosen = (e.target as HTMLInputElement).value;
@@ -11569,11 +11693,15 @@ $<HTMLElement>("#routines").addEventListener("click", (e) => {
     return;
   }
 
-  // A day with more on it than its cell can hold. Opening that day is the
-  // answer, since that is the view able to show them all.
+  // A day with more on it than its cell can hold, or an hour with more than a
+  // week's column can stack. Opening that day is the answer, since that is the
+  // view able to show them all — and it opens at the hour that was crowded
+  // rather than wherever the clock happens to be.
   const open = target.closest<HTMLElement>("[data-open]");
   if (open) {
     calAt = spanStart(fromIso(open.dataset.open ?? ""), "day");
+    const hour = Number(open.dataset.hour);
+    calScrollTo = Number.isFinite(hour) && open.dataset.hour !== undefined ? hour : null;
     setCalSpan("day");
     return;
   }
@@ -11907,7 +12035,10 @@ document.addEventListener("keydown", (e) => {
     else if (!pluginsWrap.hidden) pluginsWrap.hidden = true;
     else if (!channelWrap.hidden) channelWrap.hidden = true;
     else if (!routineWrap.hidden) routineWrap.hidden = true;
-    else if (!setupWrap.hidden) closeSetup();
+    // Setup closes on Escape, except while the terms are still unanswered.
+    // Escape is how you leave a dialog; this one is a gate, and a gate with a
+    // keystroke that opens it is a formality. The tick is the only way past.
+    else if (!setupWrap.hidden && termsAccepted()) closeSetup();
     else if (!aboutWrap.hidden) aboutWrap.hidden = true;
     else if (!appWrap.hidden) appWrap.hidden = true;
     else if (teach.arming) cancelArming();
@@ -11939,7 +12070,14 @@ interface ClaudeState {
   trouble: string | null;
 }
 
-const SETUP_STEPS = ["welcome", "answers", "engine", "voice", "care", "done"] as const;
+/** Bumped when the terms change. Acceptance records which version was agreed
+ *  to, so a later revision asks again instead of resting on consent to text
+ *  nobody saw. */
+const TERMS_VERSION = 1;
+
+const termsAccepted = () => (appSettings().termsVersion ?? 0) >= TERMS_VERSION;
+
+const SETUP_STEPS = ["welcome", "terms", "answers", "engine", "voice", "care", "done"] as const;
 type SetupStep = (typeof SETUP_STEPS)[number];
 
 const setupWrap = $<HTMLDivElement>("#setup");
@@ -11949,6 +12087,10 @@ const setupBack = $<HTMLButtonElement>("#setup-back");
 const setupSkip = $<HTMLButtonElement>("#setup-skip");
 
 let setupAt: SetupStep = "welcome";
+
+/** True when the overlay was opened only to collect acceptance — an install
+ *  that was already set up before there were terms to accept. */
+let termsOnly = false;
 let claudeState: ClaudeState | null = null;
 let claudeBusy = "";
 let setupLog: string[] = [];
@@ -12040,7 +12182,8 @@ function closeSetup(): void {
   }
   // Setup arranges what botcage needs; the tour says what the app is. They are
   // different jobs, so they are different screens, one after the other.
-  if (first && !appSettings().toured) window.setTimeout(startTour, 260);
+  if (first && !termsOnly && !appSettings().toured) window.setTimeout(startTour, 260);
+  termsOnly = false;
 }
 
 /* --------------------------------------------------------------------- tour */
@@ -12626,6 +12769,15 @@ function paintSetup(): void {
   setupNext.textContent = "Continue";
 
   if (setupAt === "welcome") setupNext.textContent = "Get started";
+  if (setupAt === "terms") {
+    const ok = $<HTMLInputElement>("#setup-terms-ok");
+    ok.checked = ok.checked || termsAccepted();
+    setupNext.disabled = !ok.checked;
+    setupNext.textContent = termsOnly ? "Accept" : "Accept and continue";
+    // Nowhere to go but forward: back would be the name field, and the terms
+    // are the price of the rest of the screen.
+    setupBack.hidden = termsOnly || setupBack.hidden;
+  }
   if (setupAt === "answers") paintAnswersStep();
   if (setupAt === "engine") paintEngineStep();
   if (setupAt === "voice") void paintVoiceStep();
@@ -12911,8 +13063,20 @@ async function setupAdvance(): Promise<void> {
       save();
       paintAccount();
     }
-    return goTo("answers");
+    return goTo("terms");
   }
+
+  // The gate. The button is disabled without the tick, so this is the second
+  // lock rather than the only one — a step that can be advanced by keyboard,
+  // by a stray Enter or by anything else added later still cannot pass.
+  if (setupAt === "terms") {
+    if (!$<HTMLInputElement>("#setup-terms-ok").checked) return;
+    state.app = { ...appSettings(), termsVersion: TERMS_VERSION, termsAt: Date.now() };
+    save();
+    // Someone who was sent here only to accept has nothing else to do.
+    return termsOnly ? closeSetup() : goTo("answers");
+  }
+
   if (setupAt === "done") return closeSetup();
 
   if (setupAt === "answers") {
@@ -13837,5 +14001,9 @@ void refreshClaude().then(() => {
   // Ollama or a hosted key should not be dragged back through a Claude Code
   // step they deliberately walked past.
   if (!appSettings().onboarded) void openSetup("welcome");
+  else if (!termsAccepted()) {
+    termsOnly = true;
+    void openSetup("terms");
+  }
   else if (!somethingCanAnswer()) void openSetup("answers");
 });
