@@ -31,7 +31,15 @@ CLOSE = "/* --- end palette --- */"
 
 def css_block(t: dict) -> str:
     """The `:root` rule, in the order the source lists things."""
-    out = [OPEN, ":root {", f"  --sidebar-w: {t['layout']['sidebar-w']};", ""]
+    out = [OPEN, ":root {"]
+
+    for name, spec in t["layout"].items():
+        if name == "_":
+            continue
+        if spec.get("note"):
+            out.append(f"  /* {spec['note']} */")
+        out.append(f"  --{name}: {spec['value']};")
+    out.append("")
 
     for name, spec in t["colour"].items():
         if spec.get("note"):

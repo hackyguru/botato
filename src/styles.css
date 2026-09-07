@@ -1,7 +1,10 @@
 /* ------------------------------------------------------------------ tokens */
 /* --- palette: written by scripts/tokens.py from design/tokens.json --- */
 :root {
+  /* The rail of bots down the left. */
   --sidebar-w: 92px;
+  /* The narrowest a conversation may be shown at. MIN_CHAT_WIDTH in main.ts is the same number, so the script and the grid agree about when a pane has to go. */
+  --chat-min: 560px;
 
   /* The floor: the sidebar, the rail, the app behind everything. */
   --bg: #000000;
@@ -58,11 +61,6 @@
   --space-loose: 24px;
 
   --radius-pill: 999px;
-  /* The narrowest a conversation may be shown at. The same number the script
-     uses to decide the pane has to go; here so the squeeze never appears
-     while it is deciding. */
-  --chat-min: 560px;
-
   --radius-chip: 8px;
   --radius-control: 10px;
   --radius-card: 12px;
