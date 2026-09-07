@@ -357,9 +357,40 @@ fn docker_stdin(args: &[&str], input: &str) -> Result<Output, String> {
 
 /// On macOS the engine lives in a VM, so the client needs telling where its
 /// socket is; on Linux podman talks to nothing and this does nothing.
+/// A docker config of our own, beside the engine we installed.
+///
+/// The CLI reads `~/.docker/config.json` whoever starts it. On any machine
+/// that has met Docker Desktop that file says `credsStore: desktop`, so every
+/// build shells out to `docker-credential-desktop` — for a public base image
+/// that needs no credentials at all. An app bundle launched by LaunchServices
+/// gets PATH=/usr/bin:/bin:/usr/sbin:/sbin, which is not where that helper
+/// lives, so the build dies on the first pull with an error about credentials.
+///
+/// It also carries `currentContext: desktop-linux`, pointing at a daemon that
+/// is not ours.
+///
+/// botcage installed its own engine; it keeps its own config next to it, and
+/// then none of the above is our business. Written once and left alone: an
+/// empty object is the whole file.
+fn managed_config(client: &Path) -> Option<PathBuf> {
+    let dir = client.parent()?.parent()?.join("docker-config");
+    if !dir.join("config.json").is_file() {
+        std::fs::create_dir_all(&dir).ok()?;
+        std::fs::write(dir.join("config.json"), "{}\n").ok()?;
+    }
+    Some(dir)
+}
+
 fn with_socket(cmd: &mut Command) {
-    if let Some((_, Some(host))) = MANAGED.lock().unwrap().clone() {
+    let managed = MANAGED.lock().unwrap().clone();
+    let Some((client, host)) = managed else {
+        return;
+    };
+    if let Some(host) = host {
         cmd.env("DOCKER_HOST", host);
+    }
+    if let Some(dir) = managed_config(&client) {
+        cmd.env("DOCKER_CONFIG", dir);
     }
 }
 
