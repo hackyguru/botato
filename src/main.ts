@@ -12209,7 +12209,7 @@ const LESSONS: Lesson[] = [
       },
       {
         target: '#app-settings [data-tab="phone"]',
-        title: "The Phone tab",
+        title: "The Mobile tab",
         body: "Everything about reaching this machine from a phone is on this one panel.",
         open: () => {
           void openAppSettings();
@@ -13217,7 +13217,7 @@ async function ensurePairingCode(): Promise<void> {
   await refreshRemote();
 }
 
-// Opening the Phone tab is the moment someone means to pair. Opening settings
+// Opening the Mobile tab is the moment someone means to pair. Opening settings
 // on General is not, so nothing is minted until the panel is actually shown.
 $<HTMLElement>("#app-settings")
   .querySelectorAll<HTMLButtonElement>('.tab[data-tab="phone"]')
