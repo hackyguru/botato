@@ -38,6 +38,10 @@
   --text-3: #85858b;
   /* Type on blue, red or green. */
   --on-accent: #ffffff;
+  /* A surface that stays light whatever sits behind it: the send button, a live pill. */
+  --bright: #f2f2f2;
+  /* Ink on that surface. inkOn() picks between this and on-accent. */
+  --on-bright: #0a0a0a;
   /* The one accent: what is chosen, what is yours to press. */
   --blue: #0a84ff;
   /* Blue that has to stay legible in a paragraph. */
@@ -171,17 +175,29 @@ textarea {
  * something into one. `:focus-visible` rather than `:focus`, so this appears
  * for the keyboard and not for every click. */
 :focus-visible {
-  outline: 2px solid var(--link);
+  outline: 2px solid var(--accent, var(--blue));
   outline-offset: 2px;
 }
 
-/* Fields need the same visible focus as buttons, including switches and
-   selects where a caret cannot identify the active control. */
+/* No ring on anything you type into.
+ *
+ * There was a quiet one, on the argument that a caret cannot identify focus on
+ * a select or a switch and that tabbing a sheet of six fields showed nothing
+ * at all. True, and it still drew a box round a field every time somebody
+ * clicked to type — text inputs match :focus-visible on a click as well as a
+ * tab — which is a ring at the one moment it tells you nothing.
+ *
+ * Buttons and the rest keep theirs above. This is fields only, and it is worth
+ * knowing what it costs: tabbing between the settings fields no longer shows
+ * where you are, except by the caret.
+ *
+ * This has now been reversed once by a change arguing the a11y case the
+ * comment above already grants. It is a decision, not an oversight: if it is
+ * to change, it changes because somebody asked for it, not in passing. */
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 2px solid var(--link);
-  outline-offset: 2px;
+  outline: none;
 }
 
 button:disabled {
