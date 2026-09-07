@@ -5,10 +5,17 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # The bundle below is the only thing that needs a slow run, and it needs one
+  # rarely. Once a week catches the kind of rot that arrives from outside — a
+  # Tauri release, a runner image, a system webview — rather than from a commit.
+  schedule:
+    - cron: "0 6 * * 1"
 
-# A second push to the same branch makes the first run pointless.
+# A second push to the same branch makes the first run pointless. The event is
+# in the key so a Monday bundle and a Monday push do not cancel each other:
+# they are the same ref and are not the same question.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
@@ -94,5 +101,16 @@ jobs:
       # Proves the thing a release actually produces, without publishing it —
       # which is a different artefact on each platform, so each leg builds its
       # own. A .deb on macOS is not a slower build, it is a failed one.
+      #
+      # Not on every push. This is a full Rust compile and a platform bundle,
+      # and it runs after every other gate in this job has already answered —
+      # so a one-line change waited on it to learn nothing new. Bundling breaks
+      # when something outside the commit changes, and release.yml builds it
+      # for real before anything ships. Weekly, or on request before a tag.
+      #
+      # The cost of that: a commit can now break bundling and stay green until
+      # Monday. That is the trade, and it is the right way round — CI that
+      # answers while you are still at the keyboard is CI somebody reads.
       - name: Bundle
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: pnpm tauri build --bundles ${{ startsWith(matrix.os, 'ubuntu') && 'deb' || 'app' }}
