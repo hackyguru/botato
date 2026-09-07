@@ -54,3 +54,6 @@ website/
 # root, which it does because the lockfile it finds first is ours. It is the
 # site's build output, not botcage's.
 .next/
+
+# pnpm content-addressable store, created by a local --store-dir run.
+.pnpm-store

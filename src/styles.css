@@ -1,7 +1,10 @@
 /* ------------------------------------------------------------------ tokens */
 /* --- palette: written by scripts/tokens.py from design/tokens.json --- */
 :root {
+  /* The rail of bots down the left. */
   --sidebar-w: 92px;
+  /* The narrowest a conversation may be shown at. MIN_CHAT_WIDTH in main.ts is the same number, so the script and the grid agree about when a pane has to go. */
+  --chat-min: 560px;
 
   /* The floor: the sidebar, the rail, the app behind everything. */
   --bg: #000000;
@@ -58,11 +61,6 @@
   --space-loose: 24px;
 
   --radius-pill: 999px;
-  /* The narrowest a conversation may be shown at. The same number the script
-     uses to decide the pane has to go; here so the squeeze never appears
-     while it is deciding. */
-  --chat-min: 560px;
-
   --radius-chip: 8px;
   --radius-control: 10px;
   --radius-card: 12px;
@@ -275,7 +273,7 @@ button:disabled:hover {
   grid-template-columns:
     var(--sidebar-w)
     minmax(var(--chat-min), 1fr)
-    minmax(0, var(--screen-w, 460px));
+    minmax(0, var(--screen-w, 500px));
   grid-template-areas:
     "side head head"
     "side main screen";
@@ -351,7 +349,7 @@ button:disabled:hover {
   grid-template-columns:
     var(--sidebar-w)
     minmax(var(--chat-min), 1fr)
-    minmax(0, var(--screen-w, 460px));
+    minmax(0, var(--screen-w, 500px));
   grid-template-areas:
     "side head head"
     "side main pane";
@@ -1907,7 +1905,6 @@ button:disabled:hover {
   background: var(--field);
   background: color-mix(in srgb, var(--ink) 26%, transparent);
   border-radius: var(--radius-control);
-  transition: width 0.16s ease;
 }
 
 /* No widening on focus any more: it is a column of the bar's grid now, and a
@@ -3893,7 +3890,6 @@ button:disabled:hover {
 
 @keyframes pop {
   from {
-    opacity: 0;
     transform: translateY(4px);
   }
 }
@@ -5435,7 +5431,7 @@ button:disabled:hover {
    this selector weighs two classes and `.sheet--settings` weighs one. It beat
    a wider rule written after it, and the window stayed 460 however large that
    rule asked for. */
-.sheet:has(.tabs):not(.sheet--settings):not(.sheet--wide) {
+.sheet:has(.tabs:not([hidden])):not(.sheet--settings):not(.sheet--wide) {
   width: min(460px, 92vw);
   height: min(620px, 88vh);
 }
@@ -5504,9 +5500,15 @@ button:disabled:hover {
   /* Room to think in. At 480 with a 22px gutter every step read as a form
      squeezed into a phone; at 600 with 28 it still had nothing spare around
      the edges. This is a dialog you fill a form in, not a dialog that asks one
-     question, so it is sized like a window: wide enough for three preset tiles
-     to be tiles rather than slivers, and with a gutter you can see. */
-  width: min(720px, 92vw);
+     question, so it is sized like a window rather than like a prompt.
+   *
+     The same footprint as the app's settings, which is the other dialog in
+     here you sit in rather than answer. 720 was enough for three preset tiles
+     and not much else; the presets are the first thing you are shown and
+     three of them is a short shelf. What the extra width must not do is
+     stretch the writing — a name field the width of the card is a worse form
+     than a narrow one — so the fields below keep a measure of their own. */
+  width: min(1040px, 94vw);
   /* One height for all three steps. Sized to each, the card would grow and
      shrink under the pointer as you moved through it, and the buttons would
      never be twice in the same place. */
@@ -5543,6 +5545,89 @@ button:disabled:hover {
 
 .pane.is-wizard .sheet__foot {
   padding: 22px 36px 32px;
+}
+
+/* What the width is not for. Everything you write into keeps a measure it is
+   comfortable to read back: the card grew so the shelf and the settings rows
+   could, not so the name field could span it. */
+.pane.is-wizard .prose > input,
+.pane.is-wizard .prose > textarea,
+.pane.is-wizard .prose__note,
+.pane.is-wizard .hires__open {
+  max-width: 62ch;
+}
+
+/* And the step keeps one column. The face and the swatches are centred on the
+   panel, which was the same thing as centred on the card while the card was
+   narrow; at this width it put the swatches a hand's width to the right of the
+   name field whose colour they set. So they centre over the measure instead,
+   which is where the eye already is. */
+.pane.is-wizard .settings-panel > .sheet__preview {
+  align-self: start;
+  width: 62ch;
+  max-width: 100%;
+  text-align: center;
+}
+
+.pane.is-wizard .settings-panel > .sheet__preview > * {
+  margin-inline: auto;
+}
+
+.pane.is-wizard .settings-panel > .swatches {
+  align-self: start;
+}
+
+/* Back and Next share one row, but not equally.
+ *
+   The docked editor's footer is two columns because it has two things to say
+   about a bot that exists. A wizard's footer has one action and one way out of
+   it, and splitting the row down the middle made those look like a choice
+   between equals — then the card got wider and "Back" became a 480px slab with
+   one word in the middle of it.
+ *
+   So: Back takes the width of its own label and holds the left edge, the
+   primary holds the right, and `margin-right: auto` on the first is what puts
+   the gap between them. When there is no Back — the first step — the primary
+   is simply the only item and stays where it was, which is why nothing here
+   needs a `:has()` to undo itself. */
+.pane.is-wizard .sheet__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.pane.is-wizard #sheet-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  margin-right: auto;
+  padding: 0 16px 0 11px;
+  color: var(--text-2);
+  background: transparent;
+  border-color: transparent;
+}
+
+.pane.is-wizard #sheet-back:hover {
+  color: var(--text);
+  background: var(--fill-1);
+  border-color: var(--line);
+}
+
+/* The shared symbol points down; a step backwards is the same shape a quarter
+   turn clockwise. */
+.pane.is-wizard #sheet-back svg {
+  width: 15px;
+  height: 15px;
+  transform: rotate(90deg);
+}
+
+/* Wide enough that "Create bot" and "Next" are the same button in the same
+   place — a primary that resizes under the pointer as you step through is a
+   target that moves while you are aiming at it. */
+.pane.is-wizard .sheet__foot .btn-primary {
+  width: auto;
+  min-width: 180px;
 }
 
 /* The three of them across the top: a number, a name, and a rule between one
@@ -6678,10 +6763,14 @@ label.setting {
 /* In the dialog they wrap instead of scrolling. Five 92px tiles need 492 and
    the card is 480, so the fifth sat half off the edge with the scrollbar
    hidden — which reads as a clipped row rather than as a row you can push.
-   A step of a wizard has vertical room to spare, so it spends it. */
+   A step of a wizard has vertical room to spare, so it spends it.
+ *
+   Filled rather than divided into three: the card is a width now, and three
+   columns of it would be three stretched tiles instead of a shelf you can see
+   the end of. */
 .is-wizard .hires__row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   overflow: visible;
 }
 
@@ -9056,4 +9145,22 @@ body.is-dragging {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+
+.sheet--routine {
+  width: min(460px, 92vw);
+}
+
+.field-error {
+  width: 100%;
+  margin: 0;
+  color: var(--red);
+  font-size: var(--type-hint);
+  line-height: 1.45;
+}
+
+[aria-invalid="true"] {
+  outline: 2px solid var(--red);
+  outline-offset: -2px;
 }

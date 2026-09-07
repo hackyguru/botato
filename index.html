@@ -170,7 +170,7 @@
 
     <div class="app">
       <div class="nav">
-      <aside class="sidebar" data-tauri-drag-region>
+      <aside class="sidebar" data-tauri-drag-region="deep">
         <div class="sidebar__head" data-tauri-drag-region="deep">
           <!-- The app's own mark, drawn by the same generator its bots are.
                It was a hand-drawn robot head living outside the face system,
@@ -740,7 +740,7 @@
         <div class="sheet__foot">
           <!-- Only while hiring. Editing a bot is one page and has nothing to
                step through. -->
-          <button type="button" class="btn-quiet" id="sheet-back" hidden>Back</button>
+          <button type="button" class="btn-quiet" id="sheet-back" hidden><svg aria-hidden="true"><use href="#i-chev" /></svg>Back</button>
           <button type="button" class="danger" id="sheet-delete" hidden>Delete bot</button>
           <!-- Hidden until the bot exists: there is nothing to hand over until
                there is something to hand over. -->

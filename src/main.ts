@@ -6763,6 +6763,15 @@ function openBot(id: string): void {
     calEveryone = false;
     showRoutines(false);
   }
+  // The room column is a server's, so it leaves with the server. A private
+  // conversation has no channels in it, and a list of somebody else's sitting
+  // beside one is a column of things that do not apply to what you are reading
+  // — and 231 points the conversation could have had.
+  //
+  // This is also what makes the restored `state.rooms` mean the right thing on
+  // the next launch: it is written by every door in and out of a server, so
+  // "however you left it" is now "in a server, or not".
+  if (roomsOpen) showRooms(false);
   state.activeChannel = null;
   paintTopbarFor(opening ?? null);
   state.activeId = id;
