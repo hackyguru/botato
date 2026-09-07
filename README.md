@@ -274,3 +274,12 @@ The Gemini CLI is wired up and its flags have been checked against a real
 install, but Google has since retired the free personal login for that client,
 so it now needs an API key like any other provider. Its stream mapping is
 written from documentation rather than from output anyone has watched.
+
+## Licence
+
+Apache-2.0. Use it, fork it, build on it, ship it in something you sell — the
+licence asks only that you keep the notice and say what you changed.
+
+The name is not part of that grant: `LICENSE` covers the code, and the Apache
+licence explicitly does not hand over trademarks. Fork it and call it something
+of your own.

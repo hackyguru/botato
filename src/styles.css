@@ -8094,12 +8094,15 @@ label.setting {
 }
 
 /* Where a routine came from, when it was not you. Tinted rather than plain
-   text: it is the one line in this sheet that is not a field you filled in. */
+   text: it is the one line in this sheet that is not a field you filled in.
+   In the colour of the bot whose week it lands on rather than the app's blue —
+   the line is about that bot, and everywhere else a bot is named it is drawn
+   in its own colour. Blue anywhere the accent has not been set. */
 .routine__by {
   margin: 0 0 12px;
   padding: 9px 11px;
   border-radius: var(--radius-control);
-  background: rgba(10, 132, 255, 0.13);
+  background: color-mix(in srgb, var(--accent, var(--blue)) 13%, transparent);
   color: var(--text-2);
   font-size: var(--type-hint);
   line-height: 1.45;

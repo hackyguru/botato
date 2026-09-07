@@ -11384,6 +11384,18 @@ function paintRoutineForm(): void {
   $<HTMLParagraphElement>("#routine-next").textContent = next ? `Next run ${next}` : "";
 }
 
+/** Tint the "added by" line in the colour of the bot whose week it lands on.
+ *
+ *  Set on the line itself rather than on the sheet: the rest of the form is
+ *  fields you fill in, and those stay the app's blue. Follows the bot picker,
+ *  so moving the routine to somebody else recolours it under your hand. */
+function paintRoutineBy(botId: string): void {
+  const by = $<HTMLParagraphElement>("#routine-by");
+  const colour = state.bots.find((b) => b.id === botId)?.color;
+  if (colour) by.style.setProperty("--accent", colour);
+  else by.style.removeProperty("--accent");
+}
+
 /** Open the editor: on an existing routine, or empty on a slot that was
  *  clicked, which carries the day and hour that were pointed at. */
 function openRoutine(routine: Routine | null, seed?: { day: number; hour: number; date: string }): void {
@@ -11418,6 +11430,7 @@ function openRoutine(routine: Routine | null, seed?: { day: number; hour: number
   const by = $<HTMLParagraphElement>("#routine-by");
   by.hidden = !routine?.by;
   by.textContent = routine?.by ? `Added by ${routine.by}. Yours to keep, pause or delete.` : "";
+  paintRoutineBy(picker.value);
 
   paintRoutineWhere(picker.value, routine?.channel);
   $<HTMLSelectElement>("#routine-format").value = routine?.format ?? "";
@@ -11490,6 +11503,7 @@ function paintRoutineWhere(botId: string, chosen?: string): void {
 // is repainted: reopening the sheet would throw away everything else typed.
 $<HTMLSelectElement>("#routine-bot").addEventListener("change", (e) => {
   paintRoutineWhere((e.target as HTMLSelectElement).value);
+  paintRoutineBy((e.target as HTMLSelectElement).value);
 });
 
 routineEvery.addEventListener("change", paintRoutineForm);
