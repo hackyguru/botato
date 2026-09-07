@@ -870,74 +870,95 @@
                       placeholder="What should it do each time it runs?"></textarea>
           </label>
 
-          <div class="settings">
-            <label class="setting" id="routine-bot-row" hidden>
-              <span class="setting__label">Bot</span>
-              <select id="routine-bot" class="picker"></select>
-            </label>
+          <!-- Three questions, asked as three. One flat list of nine rows made
+               "every weekday" and "which bot" look like the same kind of
+               decision, and five of the nine come and go with the repeat — so
+               the list changed shape under you as you filled it in.
 
-            <label class="setting" id="routine-where-row" hidden>
-              <span class="setting__label">Reports to</span>
-              <select id="routine-where" class="picker"></select>
-            </label>
+               A group with nothing showing hides itself, caption and all, in
+               the stylesheet rather than here: which rows apply is already
+               worked out in paintRoutineForm, and a second copy of that in
+               JavaScript is a second copy to keep in step. -->
+          <div class="settings-group">
+            <p class="settings__cap">Who runs it</p>
+            <div class="settings">
+              <label class="setting" id="routine-bot-row" hidden>
+                <span class="setting__label">Bot</span>
+                <select id="routine-bot" class="picker"></select>
+              </label>
 
-            <label class="setting" id="routine-format-row" hidden>
-              <span class="setting__label">Format
-                <span class="setting__hint" id="routine-format-hint">One bot runs the instruction.</span>
-              </span>
-              <select id="routine-format" class="picker">
-                <option value="">An instruction</option>
-                <option value="standup">A stand-up</option>
-                <option value="review">A review</option>
-              </select>
-            </label>
+              <label class="setting" id="routine-where-row" hidden>
+                <span class="setting__label">Reports to</span>
+                <select id="routine-where" class="picker"></select>
+              </label>
 
-            <label class="setting">
-              <span class="setting__label">Repeats</span>
-              <select id="routine-every" class="picker">
-                <option value="once">Once</option>
-                <option value="week">Every week</option>
-                <option value="day">Every day</option>
-                <option value="weekday">Every weekday</option>
-                <option value="hour">Every hour</option>
-                <option value="minutes">Every few minutes</option>
-              </select>
-            </label>
+              <label class="setting" id="routine-format-row" hidden>
+                <span class="setting__label">Format
+                  <span class="setting__hint" id="routine-format-hint">One bot runs the instruction.</span>
+                </span>
+                <select id="routine-format" class="picker">
+                  <option value="">An instruction</option>
+                  <option value="standup">A stand-up</option>
+                  <option value="review">A review</option>
+                </select>
+              </label>
+            </div>
+          </div>
 
-            <label class="setting" id="routine-day-row">
-              <span class="setting__label">On</span>
-              <select id="routine-day" class="picker">
-                <option value="1">Monday</option>
-                <option value="2">Tuesday</option>
-                <option value="3">Wednesday</option>
-                <option value="4">Thursday</option>
-                <option value="5">Friday</option>
-                <option value="6">Saturday</option>
-                <option value="0">Sunday</option>
-              </select>
-            </label>
+          <div class="settings-group">
+            <p class="settings__cap">When</p>
+            <div class="settings">
+              <label class="setting">
+                <span class="setting__label">Repeats</span>
+                <select id="routine-every" class="picker">
+                  <option value="once">Once</option>
+                  <option value="week">Every week</option>
+                  <option value="day">Every day</option>
+                  <option value="weekday">Every weekday</option>
+                  <option value="hour">Every hour</option>
+                  <option value="minutes">Every few minutes</option>
+                </select>
+              </label>
 
-            <label class="setting" id="routine-date-row">
-              <span class="setting__label">Date</span>
-              <input type="date" id="routine-date" class="picker" />
-            </label>
+              <label class="setting" id="routine-day-row">
+                <span class="setting__label">On</span>
+                <select id="routine-day" class="picker">
+                  <option value="1">Monday</option>
+                  <option value="2">Tuesday</option>
+                  <option value="3">Wednesday</option>
+                  <option value="4">Thursday</option>
+                  <option value="5">Friday</option>
+                  <option value="6">Saturday</option>
+                  <option value="0">Sunday</option>
+                </select>
+              </label>
 
-            <label class="setting" id="routine-at-row">
-              <span class="setting__label">At</span>
-              <input type="time" id="routine-at" class="picker" value="09:00" />
-            </label>
+              <label class="setting" id="routine-date-row">
+                <span class="setting__label">Date</span>
+                <input type="date" id="routine-date" class="picker" />
+              </label>
 
-            <label class="setting" id="routine-interval-row" hidden>
-              <span class="setting__label">Interval (minutes)</span>
-              <input type="number" id="routine-interval" class="picker" value="15" min="1" max="720" />
-            </label>
+              <label class="setting" id="routine-at-row">
+                <span class="setting__label">At</span>
+                <input type="time" id="routine-at" class="picker" value="09:00" />
+              </label>
 
-            <label class="setting" id="routine-active-row" hidden>
-              <span class="setting__label">Active
-                <span class="setting__hint">Pause without deleting.</span>
-              </span>
-              <input type="checkbox" id="routine-active" class="switch" />
-            </label>
+              <label class="setting" id="routine-interval-row" hidden>
+                <span class="setting__label">Interval (minutes)</span>
+                <input type="number" id="routine-interval" class="picker" value="15" min="1" max="720" />
+              </label>
+            </div>
+          </div>
+
+          <div class="settings-group" id="routine-state-group">
+            <div class="settings">
+              <label class="setting" id="routine-active-row" hidden>
+                <span class="setting__label">Active
+                  <span class="setting__hint">Pause without deleting.</span>
+                </span>
+                <input type="checkbox" id="routine-active" class="switch" />
+              </label>
+            </div>
           </div>
 
           <p class="routine__next" id="routine-next"></p>

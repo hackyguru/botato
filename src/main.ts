@@ -2888,9 +2888,15 @@ function turnEl(msg: Message, ch?: Channel, prev?: Message): HTMLElement {
 
   if (msg.kind === "routine") {
     wrap.className = "turn turn--note";
-    wrap.innerHTML =
-      `<span class="learn-badge"${tintOf(msg, ch)}>${icon("clock")}` +
-      `Routine · ${escapeHtml(msg.meta?.name ?? "")}</span>`;
+    const slug = msg.meta?.slug;
+    const label = `${icon("clock")}Routine · ${escapeHtml(msg.meta?.name ?? "")}`;
+    // A button only where it leads somewhere. A routine deleted since it ran
+    // leaves its marker behind, and a marker that opens nothing should not look
+    // like it would.
+    wrap.innerHTML = slug
+      ? `<button type="button" class="learn-badge learn-badge--open" ` +
+        `data-routine="${escapeHtml(slug)}" title="Open this routine"${tintOf(msg, ch)}>${label}</button>`
+      : `<span class="learn-badge"${tintOf(msg, ch)}>${label}</span>`;
     return wrap;
   }
 
@@ -9157,7 +9163,7 @@ function calBots(): Bot[] {
 }
 
 function ownerOf(routineId: string): { bot: Bot; routine: Routine } | null {
-  for (const bot of calBots()) {
+  for (const bot of state.bots) {
     const routine = bot.routines?.find((r) => r.id === routineId);
     if (routine) return { bot, routine };
   }
@@ -10898,6 +10904,22 @@ navEl.addEventListener("contextmenu", (e) => {
 // The guide's lessons, which sit in the thread. This was briefly wired to the
 // account menu's listener, where it was a handler for a click that could never
 // arrive there.
+/** The marker a routine leaves in a thread is the way back to the routine.
+ *
+ *  Reading "Routine · Morning summary" and wanting to know what it actually
+ *  says was a trip through the clock in the header, the right bot's calendar
+ *  and the right slot — for a thing already named on screen. */
+thread.addEventListener("click", (e) => {
+  const badge = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-routine]");
+  if (!badge) return;
+  const found = ownerOf(badge.dataset.routine ?? "");
+  if (!found) {
+    toast("That routine has been deleted");
+    return;
+  }
+  openRoutine(found.routine);
+});
+
 thread.addEventListener("click", (e) => {
   const lesson = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-lesson]");
   if (!lesson) return;
@@ -11373,7 +11395,8 @@ function openRoutine(routine: Routine | null, seed?: { day: number; hour: number
   // first row rather than something to discover after saving to the wrong bot.
   const owner = routine ? ownerOf(routine.id)?.bot : null;
   const picker = $<HTMLSelectElement>("#routine-bot");
-  $<HTMLLabelElement>("#routine-bot-row").hidden = !calEveryone;
+  $<HTMLLabelElement>("#routine-bot-row").hidden =
+    !calEveryone && (!owner || owner.id === activeBot()?.id);
   picker.innerHTML = state.bots
     .map((b) => `<option value="${b.id}">${escapeHtml(b.name)}</option>`)
     .join("");
@@ -11570,7 +11593,9 @@ routineForm.addEventListener("submit", (e) => {
   const was = editingRoutine ? ownerOf(editingRoutine) : null;
   // Where it is going: what the picker says on the shared calendar, and the bot
   // whose calendar you are looking at everywhere else.
-  const picked = calEveryone ? $<HTMLSelectElement>("#routine-bot").value : "";
+  const picked = $<HTMLLabelElement>("#routine-bot-row").hidden
+    ? ""
+    : $<HTMLSelectElement>("#routine-bot").value;
   const bot = state.bots.find((b) => b.id === picked) ?? was?.bot ?? activeBot();
   if (!bot) return;
 

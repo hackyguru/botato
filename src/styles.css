@@ -3002,6 +3002,23 @@ button:disabled:hover {
   opacity: 0.8;
 }
 
+/* Where it opens the routine it names. A button carries its own font and
+   border; this wants the badge's. The lift on hover is the only thing that
+   says it is a door — a marker in a thread should not look like a control
+   until you are on it. */
+button.learn-badge--open {
+  font: inherit;
+  font-size: var(--type-small);
+  font-weight: 500;
+  border: 0;
+  cursor: pointer;
+  transition: background 0.13s;
+}
+
+button.learn-badge--open:hover {
+  background: color-mix(in srgb, var(--tint, var(--text)) 26%, transparent);
+}
+
 .learn-meta {
   align-self: center;
   font-size: var(--type-hint);
@@ -6562,6 +6579,36 @@ a.detail__source:hover {
 
 .settings + .settings {
   margin-top: 14px;
+}
+
+/* A caption and the rows it names, as one thing.
+ *
+ * Which rows apply is decided in script — a weekly routine has no date, a
+ * one-off has no weekday — and a group can end up with every row hidden. Left
+ * alone that draws an empty card under a heading for nothing, which is worse
+ * than the flat list it replaced. `:has` asks the question the rows have
+ * already answered, so there is no second copy of the rule to keep in step.
+ *
+ * `:not([hidden])` rather than `:visible`: the rows are hidden by the
+ * attribute, which is what the script sets. */
+/* The body centres what it holds, and `.settings` carried its own full width.
+   Wrapping it lost that: the groups shrank to their content and sat inset from
+   the fields above them. */
+.settings-group {
+  width: 100%;
+}
+
+.settings-group + .settings-group {
+  margin-top: 14px;
+}
+
+.settings-group:not(:has(.setting:not([hidden]))) {
+  display: none;
+}
+
+/* The caption sits on the group, so it goes when the group goes. */
+.settings-group .settings__cap {
+  margin: 0 4px 6px;
 }
 
 /* Every child after the first, so a wrapper around some rows — the backup
