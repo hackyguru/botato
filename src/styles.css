@@ -6723,9 +6723,17 @@ label.setting {
      with a long name — would squeeze the label beside it into a column of
      single words. Half the row, and the option can ellipsise. */
   max-width: 46%;
-  padding: 0 8px;
+  /* Ten rather than eight, and the arrow the platform draws sits inside the
+     right one — so a value ending in a wide letter had a hair between it and
+     the chevron. */
+  padding: 0 10px;
   font: inherit;
-  font-size: var(--type-hint);
+  /* The same step as the label beside it. This was --type-hint, which is the
+     size the grey sentence under a label is set in: a control's own value read
+     a step smaller than the thing naming it, which is what made a row of these
+     look shrunken rather than small. The box follows, because `.setting >
+     .picker` is height:auto over a 30px floor. */
+  font-size: var(--type-small);
   color: var(--text);
   background: var(--field);
   border: 0;
