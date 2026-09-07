@@ -707,10 +707,17 @@ fn build_image(bot_id: &str, dir: &Path, log: &dyn Fn(&str, &str)) -> Result<(),
         if line.is_empty() {
             continue;
         }
-        let worth_showing = (line.starts_with('#') && line.contains("DONE"))
-            || line.starts_with("Step ")
-            || line.contains("ERROR")
-            || line.contains("error");
+        // Strictly: the step headings, and something that is actually an
+        // error rather than a line that happens to contain the letters.
+        // `contains("error")` matched liberror-perl, and so a build turned
+        // into a wall of apt package names with the steps lost inside it.
+        let shouts = line.starts_with("ERROR")
+            || line.starts_with("error:")
+            || line.contains("ERROR:")
+            || line.contains("failed to");
+        let worth_showing = line.starts_with("Step ")
+            || (line.starts_with('#') && (line.contains(" DONE") || line.contains(" ERROR")))
+            || shouts;
         if worth_showing {
             log("building", &line);
         }

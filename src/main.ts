@@ -9820,6 +9820,27 @@ function disconnectScreen(): void {
   screenCanvas.replaceChildren();
 }
 
+/** Come back to a desktop whose connection dropped.
+ *
+ *  The port is looked up again rather than remembered: `docker run` publishes
+ *  a fresh one every time, so a container recreated underneath a live view is
+ *  reachable at a number the old view has never heard of. */
+async function reconnectScreen(): Promise<void> {
+  const botId = screen.botId;
+  if (!botId) return;
+  const status = await invoke<{ state: SandboxState; vncPort: number | null }>("sandbox_status", {
+    botId,
+  }).catch(() => null);
+  if (status?.state === "running" && status.vncPort) {
+    connectScreen(status.vncPort);
+    return;
+  }
+  // Gone rather than blinking: say what it is now and stop.
+  screen.state = status?.state ?? "error";
+  if (screen.state !== "running") pushLog("The desktop is no longer running.");
+  paintScreen();
+}
+
 function connectScreen(port: number, attempt = 0): void {
   disconnectScreen();
   screen.vncPort = port;
@@ -9841,7 +9862,15 @@ function connectScreen(port: number, attempt = 0): void {
     screen.rfb = null;
 
     if (wasConnected) {
-      pushLog("The desktop connection dropped.");
+      // Usually the desktop is still there: a container that was just
+      // recreated, or a websockify that restarted. Giving up here left a dead
+      // panel, a sentence, and a running desktop three inches behind it.
+      //
+      // Asked again rather than reusing the port, because a recreated
+      // container publishes a new one — reconnecting to the old number is how
+      // this looks broken while everything works.
+      pushLog("The desktop connection dropped — reconnecting…");
+      screen.retry = window.setTimeout(() => void reconnectScreen(), 1200);
     } else if (attempt + 1 < CONNECT_ATTEMPTS) {
       // websockify may not be listening yet even though its port answers.
       if (attempt === 0) pushLog("Waiting for the desktop…");
