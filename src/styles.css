@@ -82,7 +82,7 @@
   --type-display: 26px;
 
   --row-min-height: 52px;
-  --row-control-height: 30px;
+  --row-control-height: 34px;
 
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
@@ -6718,15 +6718,19 @@ label.setting {
 
 .picker {
   flex: none;
-  height: 30px;
+  /* The token, so a picker outside a settings row is the same height as one
+     in it. Thirty was a box the text filled edge to edge: with the value now
+     set at the same step as its label, the glyphs reached the top and bottom
+     of it and the control read as cramped inside a 52px row. */
+  height: var(--row-control-height);
   /* A select is as wide as its widest option, so one long entry — an engine
      with a long name — would squeeze the label beside it into a column of
      single words. Half the row, and the option can ellipsise. */
   max-width: 46%;
-  /* Ten rather than eight, and the arrow the platform draws sits inside the
+  /* Twelve rather than eight, and the arrow the platform draws sits inside the
      right one — so a value ending in a wide letter had a hair between it and
      the chevron. */
-  padding: 0 10px;
+  padding: 0 12px;
   font: inherit;
   /* The same step as the label beside it. This was --type-hint, which is the
      size the grey sentence under a label is set in: a control's own value read
