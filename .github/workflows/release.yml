@@ -60,13 +60,18 @@ jobs:
       # which is precisely the case dispatch is for.
       - uses: actions/checkout@v4
 
+      # xdg-utils is the one that is not a build dependency: the AppImage
+      # bundler shells out to xdg-mime, and the ARM runner image does not carry
+      # it where the x86 one does. Without it the .deb builds, the AppImage
+      # does not, and the leg fails after seven minutes of compiling.
       - name: System dependencies
         if: startsWith(matrix.platform, 'ubuntu')
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
-            libxdo-dev libssl-dev patchelf file cmake clang libclang-dev
+            libxdo-dev libssl-dev patchelf file cmake clang libclang-dev \
+            xdg-utils
 
       - uses: pnpm/action-setup@v4
         with:
