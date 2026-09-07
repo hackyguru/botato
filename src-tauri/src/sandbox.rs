@@ -665,32 +665,82 @@ fn image_exists() -> bool {
 /// Build the image, streaming progress out as log events — first run pulls a
 /// Debian base and installs a desktop, so this takes minutes.
 fn build_image(bot_id: &str, dir: &Path, log: &dyn Fn(&str, &str)) -> Result<(), String> {
-    let mut cmd = docker_cmd(&["build", "--progress", "plain", "-t", IMAGE, "."])?;
+    // No `--progress plain`: that flag belongs to buildx, and buildx is a CLI
+    // plugin we do not ship. On a machine with Docker Desktop it is there and
+    // the build used BuildKit; on a machine without one, the same command died
+    // with "unknown flag: --progress" — so this only ever worked for people who
+    // already had Docker Desktop installed, which is not who the managed engine
+    // is for. Plain `docker build` uses BuildKit where the plugin exists and
+    // falls back to the legacy builder where it does not.
+    let mut cmd = docker_cmd(&["build", "-t", IMAGE, "."])?;
     cmd.current_dir(dir)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
     let mut child = cmd.spawn().map_err(|e| format!("docker build: {e}"))?;
-    let stderr = child.stderr.take().ok_or("no stderr on docker build")?;
+    let out = child.stdout.take().ok_or("no stdout on docker build")?;
+    let err = child.stderr.take().ok_or("no stderr on docker build")?;
     let _ = bot_id;
-    // Build progress goes to stderr; keep only step lines so the UI stays readable.
-    for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+
+    // Both streams, because which one carries the progress depends on which
+    // builder answered: BuildKit narrates on stderr, the legacy builder puts
+    // its steps on stdout. Reading only one is how a failed build produced
+    // "see the log above" with nothing above it.
+    let (tx, rx) = std::sync::mpsc::channel::<String>();
+    let pump = |src: Box<dyn std::io::Read + Send>, tx: std::sync::mpsc::Sender<String>| {
+        std::thread::spawn(move || {
+            for line in BufReader::new(src).lines().map_while(Result::ok) {
+                if tx.send(line).is_err() {
+                    break;
+                }
+            }
+        })
+    };
+    let a = pump(Box::new(out), tx.clone());
+    let b = pump(Box::new(err), tx);
+
+    // The last few lines whatever they say, so a failure can name itself even
+    // when nothing matched the filter below.
+    let mut tail: Vec<String> = Vec::new();
+    for line in rx {
         let line = line.trim().to_string();
-        if line.starts_with("#") && line.contains("DONE") || line.contains("ERROR") {
+        if line.is_empty() {
+            continue;
+        }
+        let worth_showing = (line.starts_with('#') && line.contains("DONE"))
+            || line.starts_with("Step ")
+            || line.contains("ERROR")
+            || line.contains("error");
+        if worth_showing {
             log("building", &line);
         }
+        tail.push(line);
+        if tail.len() > 12 {
+            tail.remove(0);
+        }
     }
+    let _ = a.join();
+    let _ = b.join();
 
-    if let Some(stdout) = child.stdout.take() {
-        for _ in BufReader::new(stdout).lines().map_while(Result::ok) {}
-    }
     let status = child.wait().map_err(|e| e.to_string())?;
-
     if status.success() {
-        Ok(())
-    } else {
-        Err("building the sandbox image failed — see the log above".into())
+        return Ok(());
     }
+
+    // Say what went wrong here rather than pointing at a log that may have
+    // filtered the reason away.
+    let why = tail
+        .iter()
+        .rev()
+        .find(|l| l.contains("ERROR") || l.contains("error"))
+        .or_else(|| tail.last())
+        .cloned()
+        .unwrap_or_default();
+    Err(if why.is_empty() {
+        "building the sandbox image failed".into()
+    } else {
+        format!("building the sandbox image failed: {why}")
+    })
 }
 
 /* --------------------------------------------------------------- commands */
