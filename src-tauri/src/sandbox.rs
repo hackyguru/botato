@@ -606,6 +606,14 @@ fn sandbox_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let mut candidates = Vec::new();
     if let Ok(resources) = app.path().resource_dir() {
         candidates.push(resources.join("sandbox"));
+        // Where the bundler puts it when the resource is declared as a bare
+        // glob rather than mapped: `../sandbox/*` climbs out of `src-tauri`,
+        // and Tauri preserves that by rebuilding the path under `_up_`. The
+        // config now maps it to `sandbox/` so this is not needed, and it stays
+        // because the failure it caused is invisible until somebody switches on
+        // a desktop in a shipped build — the dev fallback below hides it, which
+        // is exactly how it shipped in the first place.
+        candidates.push(resources.join("_up_").join("sandbox"));
     }
     if let Ok(cwd) = std::env::current_dir() {
         candidates.push(cwd.join("sandbox"));
