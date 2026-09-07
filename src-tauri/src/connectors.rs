@@ -1266,7 +1266,13 @@ fn secret_service() -> bool {
     static FOUND: OnceLock<bool> = OnceLock::new();
     *FOUND.get_or_init(|| {
         Command::new("secret-tool")
-            .args(["lookup", "service", SERVICE_NAME, "account", "botcage-probe"])
+            .args([
+                "lookup",
+                "service",
+                SERVICE_NAME,
+                "account",
+                "botcage-probe",
+            ])
             .output()
             // Ran at all, and did not die on a missing bus. An empty answer to
             // a key nobody stored is exactly the right reply.
@@ -1312,7 +1318,14 @@ fn keyring_store(key: &str, token: &str) -> Result<(), String> {
     // Through stdin rather than argv: an argument is visible in `ps` to every
     // process on the machine for as long as the call takes.
     let mut child = Command::new("secret-tool")
-        .args(["store", "--label=botcage", "service", SERVICE_NAME, "account", key])
+        .args([
+            "store",
+            "--label=botcage",
+            "service",
+            SERVICE_NAME,
+            "account",
+            key,
+        ])
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
@@ -1371,7 +1384,9 @@ fn migrate_file_into_keyring() {
         return;
     }
     for (key, value) in &tokens {
-        let Some(token) = value.as_str() else { continue };
+        let Some(token) = value.as_str() else {
+            continue;
+        };
         if keyring_store(key, token).is_err() {
             // Leave the file exactly as it is and try again next time. Half a
             // migration is worse than none.

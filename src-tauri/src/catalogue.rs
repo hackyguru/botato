@@ -137,7 +137,10 @@ pub struct Provider {
 const KNOWN_API: &[(&str, &str)] = &[
     ("openai", "https://api.openai.com/v1"),
     // Gemini's OpenAI-compatible endpoint, which is what this client speaks.
-    ("google", "https://generativelanguage.googleapis.com/v1beta/openai"),
+    (
+        "google",
+        "https://generativelanguage.googleapis.com/v1beta/openai",
+    ),
     ("deepinfra", "https://api.deepinfra.com/v1/openai"),
     ("venice", "https://api.venice.ai/api/v1"),
 ];
@@ -575,7 +578,12 @@ mod tests {
     /// OpenAI, so it was dropped along with the ones that genuinely have none.
     #[test]
     fn a_provider_we_know_the_address_of_is_offered() {
-        let known = |id: &str| KNOWN_API.iter().find(|(name, _)| *name == id).map(|(_, u)| *u);
+        let known = |id: &str| {
+            KNOWN_API
+                .iter()
+                .find(|(name, _)| *name == id)
+                .map(|(_, u)| *u)
+        };
         assert_eq!(known("openai"), Some("https://api.openai.com/v1"));
 
         // And the ones deliberately left out, because there is no single

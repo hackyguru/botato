@@ -48,7 +48,12 @@ static LOADED: Mutex<Option<WhisperContext>> = Mutex::new(None);
 /// Dropping the context here releases those buffers first, in the ordinary
 /// order, while there is still a program to release them into.
 pub fn unload() {
-    drop(LOADED.lock().unwrap_or_else(|held| held.into_inner()).take());
+    drop(
+        LOADED
+            .lock()
+            .unwrap_or_else(|held| held.into_inner())
+            .take(),
+    );
 }
 
 fn model_path(app: &AppHandle) -> Result<PathBuf, String> {

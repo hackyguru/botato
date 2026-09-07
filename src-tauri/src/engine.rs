@@ -404,7 +404,6 @@ pub fn start_engine(app: AppHandle) -> Result<(), String> {
         "Starting the Linux machine (first run downloads it)…",
     );
 
-
     // Creating a machine and starting one that exists are the same subcommand
     // with different arguments, and passing the creating ones at an instance
     // that is already there is fatal: "instance `botcage` already exists".

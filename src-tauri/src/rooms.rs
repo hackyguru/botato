@@ -219,7 +219,12 @@ pub fn rooms_unseen(app: AppHandle, bot_id: String) -> bool {
     let Ok(workspace) = crate::workspace(&app, &bot_id) else {
         return false;
     };
-    !unseen_in(&read(&mirror_path(&app).unwrap_or_default()), &bot_id, &workspace).is_empty()
+    !unseen_in(
+        &read(&mirror_path(&app).unwrap_or_default()),
+        &bot_id,
+        &workspace,
+    )
+    .is_empty()
 }
 
 #[cfg(test)]
@@ -300,7 +305,9 @@ mod tests {
         let mut mirror = two_rooms();
         mark_in(&mirror, "b1", &dir);
 
-        mirror.rooms[0].said.push(said(300, "guru", "one more thing"));
+        mirror.rooms[0]
+            .said
+            .push(said(300, "guru", "one more thing"));
         let news = unseen_in(&mirror, "b1", &dir);
         assert_eq!(news.len(), 1);
         assert_eq!(news[0].said.len(), 1, "only the new one");
@@ -320,7 +327,9 @@ mod tests {
         mark_in(&mirror, "b1", &dir);
 
         // Said at 150, but only reaching the mirror now — after 200 was read.
-        mirror.rooms[0].said.push(said(150, "Ops", "sorry, delayed"));
+        mirror.rooms[0]
+            .said
+            .push(said(150, "Ops", "sorry, delayed"));
         assert!(
             unseen_in(&mirror, "b1", &dir).is_empty(),
             "a high-water mark cannot see behind itself"

@@ -1371,8 +1371,14 @@ fn make_room(app: AppHandle, need: f64) -> Result<bool, String> {
         return Ok(true);
     }
     let scale = window.scale_factor().map_err(|e| e.to_string())?;
-    let size = window.outer_size().map_err(|e| e.to_string())?.to_logical::<f64>(scale);
-    let at = window.outer_position().map_err(|e| e.to_string())?.to_logical::<f64>(scale);
+    let size = window
+        .outer_size()
+        .map_err(|e| e.to_string())?
+        .to_logical::<f64>(scale);
+    let at = window
+        .outer_position()
+        .map_err(|e| e.to_string())?
+        .to_logical::<f64>(scale);
 
     // The screen this window is on, not the primary one — a laptop beside an
     // external display is the ordinary case, and they are different sizes.
@@ -1836,10 +1842,7 @@ fn desk_shot_data(app: AppHandle, bot_id: String, path: String) -> Result<String
     }
     let file = workspace(&app, &bot_id)?.join(&path);
     let bytes = fs::read(&file).map_err(|e| e.to_string())?;
-    Ok(format!(
-        "data:image/png;base64,{}",
-        mcp::base64(&bytes)
-    ))
+    Ok(format!("data:image/png;base64,{}", mcp::base64(&bytes)))
 }
 
 /// Write the input log that accompanies the frames.
@@ -1913,7 +1916,7 @@ fn teach_list(app: AppHandle, bot_id: String) -> Vec<Lesson> {
             Some(Lesson { slug, name, frames })
         })
         .collect();
-    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    out.sort_by_key(|lesson| lesson.name.to_lowercase());
     out
 }
 

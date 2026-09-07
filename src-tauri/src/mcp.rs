@@ -1154,13 +1154,23 @@ fn call_tool(bot: &Bot, params: &Value) -> Value {
     // asking for one it does not have should be told that rather than told to
     // switch a machine on first — the machine was never the problem.
     if name == "use_credential" {
-        let wanted = params["arguments"]["name"].as_str().unwrap_or_default().trim();
+        let wanted = params["arguments"]["name"]
+            .as_str()
+            .unwrap_or_default()
+            .trim();
         if crate::vault::secret(&bot.id, wanted).is_none() {
-            let has: Vec<String> = crate::vault::list(&bot.id).into_iter().map(|c| c.name).collect();
+            let has: Vec<String> = crate::vault::list(&bot.id)
+                .into_iter()
+                .map(|c| c.name)
+                .collect();
             return text_result(
                 format!(
                     "no credential called \"{wanted}\". You have: {}",
-                    if has.is_empty() { "none".into() } else { has.join(", ") }
+                    if has.is_empty() {
+                        "none".into()
+                    } else {
+                        has.join(", ")
+                    }
                 ),
                 true,
             );
@@ -1246,12 +1256,21 @@ fn call_tool(bot: &Bot, params: &Value) -> Value {
             return text_result(
                 format!(
                     "no credential called \"{wanted}\". You have: {}",
-                    if has.is_empty() { "none".into() } else { has.join(", ") }
+                    if has.is_empty() {
+                        "none".into()
+                    } else {
+                        has.join(", ")
+                    }
                 ),
                 true,
             );
         };
-        return match request(port, "POST", "/type", Some(&json!({ "text": secret }).to_string())) {
+        return match request(
+            port,
+            "POST",
+            "/type",
+            Some(&json!({ "text": secret }).to_string()),
+        ) {
             Err(err) => text_result(err, true),
             // Deliberately says nothing about what was typed, including its
             // length — an answer that varies with the secret is a way to read
@@ -1638,7 +1657,7 @@ mod drawing_tests {
                 brand: Default::default(),
                 colleagues: vec!["Ops".into()],
                 files: false,
-            rooms: None,
+                rooms: None,
             }
         };
 
