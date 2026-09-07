@@ -9508,6 +9508,24 @@ body.is-dragging {
   .setup__host { padding-bottom: var(--space-snug); }
 }
 
+/* While the image builds or the engine downloads. A slow breath rather than a
+   spinner: the sentence already says what is happening, and this says it is
+   still happening — which is the whole question during a four-minute wait.
+   The global reduced-motion rule below stops it for anyone who asked. */
+.is-working {
+  animation: breathe 1.9s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.42;
+  }
+}
+
 /* Respect reduced motion throughout the interface, including animated faces.
    A tiny duration preserves animationend handlers that retire leaving steps. */
 @media (prefers-reduced-motion: reduce) {

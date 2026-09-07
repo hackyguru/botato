@@ -9631,7 +9631,8 @@ const STATE_LABEL: Record<SandboxState, string> = {
 
 const STATE_MESSAGE: Record<SandboxState, string> = {
   stopped: "No desktop yet. Start one to give this bot a private Linux machine.",
-  building: "Building the image. A few minutes the first time, cached after that.",
+  building:
+    "Building image and setting up the bot's desktop — the first boot takes a few extra minutes.",
   starting: "Waking the desktop…",
   running: "Connecting to the desktop…",
   error: "The desktop didn't come up.",
@@ -9780,6 +9781,11 @@ function paintScreen(): void {
     engineStep ||
     (screen.state === "no-docker" ? noEngineSays() : STATE_MESSAGE[screen.state]);
 
+  // Breathing while something long is happening, so a line that does not change
+  // for four minutes still reads as work rather than as a stall.
+  const working = Boolean(engineStep) || screen.state === "building" || screen.state === "starting";
+  screenMessage.classList.toggle("is-working", working);
+
   // With no engine, the useful button is the one that gets you an engine —
   // otherwise the download machinery exists and nobody can reach it.
   const needsEngine = screen.state === "no-docker" && (engine?.supported ?? false);
@@ -9793,7 +9799,12 @@ function paintScreen(): void {
         ? "Try again"
         : "Start desktop";
 
-  screenLog.hidden = screen.log.length === 0;
+  // Not during the build. `docker build` emits a couple of thousand lines of
+  // apt for fifteen that mean anything, and none of the fifteen answer the only
+  // question being asked, which is whether to keep waiting. The line above says
+  // that. The log comes back the moment something goes wrong, which is when its
+  // contents are worth reading.
+  screenLog.hidden = screen.log.length === 0 || screen.state === "building";
   void paintTaught();
   screenLog.textContent = screen.log.slice(-40).join("\n");
   screenLog.scrollTop = screenLog.scrollHeight;
