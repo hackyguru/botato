@@ -558,10 +558,11 @@ button:disabled:hover {
 .sidebar {
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
   grid-template-areas:
     "mark"
     "list"
+    "rule"
     "new"
     "foot";
   /* No align-items here: the list has to stretch to fill its row or it sizes
@@ -663,6 +664,18 @@ button:disabled:hover {
 
 .sidebar .rail-group:first-child {
   display: none;
+}
+
+/* And one under the roster, between it and the controls at the foot. Its own
+   row in the grid rather than a border on either neighbour: the list above it
+   scrolls, and a rule that belongs to the list scrolls away with it. */
+.sidebar .rail-rule {
+  grid-area: rule;
+  width: 46px;
+  height: 2px;
+  margin: 6px auto;
+  background: var(--line);
+  border-radius: 1px;
 }
 
 /* A thread in a rail is a row with nothing in it: its name is hidden and it
