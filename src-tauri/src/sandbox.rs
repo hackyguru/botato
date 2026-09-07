@@ -1071,10 +1071,19 @@ mod tests {
             .lock()
             .unwrap_or_else(|held| held.into_inner());
         let socket = "unix:///Users/someone/.botcage/lima/botcage/sock";
-        use_managed_engine(
-            Some(PathBuf::from("/usr/local/bin/docker")),
-            Some(socket.into()),
-        );
+
+        // A file that certainly exists, because `pick_engine` will not use a
+        // managed client it cannot see on disk. This said /usr/local/bin/docker
+        // for a fortnight: true of the machine it was written on and of the
+        // Linux runner, false of a macOS one, where the whole test failed with
+        // "Docker CLI not found" before reaching a single assertion — the
+        // failure hiding behind an exhausted quota the entire time.
+        //
+        // Nothing is ever run: the point is the command that gets built, so any
+        // file will do to stand in for the CLI.
+        let stand_in = std::env::temp_dir().join("botcage-test-docker");
+        std::fs::write(&stand_in, b"").expect("a stand-in for the docker CLI");
+        use_managed_engine(Some(stand_in.clone()), Some(socket.into()));
 
         for args in [
             vec!["image", "inspect", IMAGE],
@@ -1092,6 +1101,7 @@ mod tests {
         }
 
         use_managed_engine(None, None);
+        let _ = std::fs::remove_file(&stand_in);
     }
 
     /// And where botcage installed nothing, it must not invent a socket: the
