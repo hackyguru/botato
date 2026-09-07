@@ -7810,9 +7810,54 @@ label.setting {
   cursor: pointer;
 }
 
-.terms__accept .switch {
-  flex: none;
+.terms__accept .checkbox {
   margin-top: 1px;
+}
+
+/* A checkbox, because this is not a setting.
+ *
+ * Everywhere else in botcage a boolean is a switch, and a switch is the right
+ * shape for something you turn on and off again — working hours, notifications.
+ * Agreeing to terms is a statement you make once, and the control people have
+ * been trained to read as "I agree" is a box with a tick in it. */
+.checkbox {
+  position: relative;
+  flex: none;
+  width: 19px;
+  height: 19px;
+  appearance: none;
+  cursor: pointer;
+  background: var(--fill-3);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+
+.checkbox:checked {
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+/* The tick: two sides of a box, turned forty-five degrees. Drawn rather than
+   the sprite's #i-check so it can live in a pseudo-element and grow in with
+   the fill instead of appearing whole. */
+.checkbox::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 6px;
+  width: 5px;
+  height: 10px;
+  border: solid var(--on-accent);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(0.5);
+  opacity: 0;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.checkbox:checked::after {
+  opacity: 1;
+  transform: rotate(45deg) scale(1);
 }
 
 .setup__blurb--dim {
