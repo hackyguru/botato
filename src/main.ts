@@ -4701,7 +4701,7 @@ function inkOn(colour: string): string {
   };
   const luminance = 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
   const whiteOnIt = 1.05 / (luminance + 0.05);
-  return whiteOnIt < 3 ? "var(--on-bright)" : "var(--on-accent)";
+  return whiteOnIt < 3 ? "var(--bg)" : "var(--on-accent)";
 }
 
 function renderSheetPreview(bot?: Bot | null): void {
@@ -8165,7 +8165,7 @@ async function heardIt(): Promise<void> {
     return;
   }
 
-  callSays("Working out what you said…");
+  callSays("Transcribing…");
   try {
     const { samples, peak } = await samplesFrom(recorded);
     const said = await invoke<string>("transcribe", { samples: Array.from(samples) });
@@ -10415,7 +10415,7 @@ async function dictate(): Promise<void> {
   // in the call; here the only place to say it is the composer's placeholder.
   if (!(await invoke<boolean>("hearing_ready").catch(() => false))) {
     const was = input.placeholder;
-    input.placeholder = "Getting ready to listen — a few hundred megabytes, once…";
+    input.placeholder = "Preparing voice input…";
     try {
       await invoke("hearing_install");
     } catch (err) {
@@ -10454,7 +10454,7 @@ async function wroteItDown(bits: Blob[]): Promise<void> {
   if (!recorded.size) return;
 
   const was = input.placeholder;
-  input.placeholder = "Working out what you said…";
+  input.placeholder = "Transcribing…";
   try {
     const { samples, peak } = await samplesFrom(recorded);
     const said = (await invoke<string>("transcribe", { samples: Array.from(samples) })).trim();
@@ -11432,12 +11432,12 @@ function paintRoutineFormat(): void {
 
   const hint = $<HTMLSpanElement>("#routine-format-hint");
   if (picker.value === "standup" && room) {
-    hint.textContent = `All ${membersOf(room).length} take a turn, one at a time, each handed what actually ran.`;
+    hint.textContent = `All ${membersOf(room).length} bots report in turn on their recent work.`;
   } else if (picker.value === "review") {
     hint.textContent =
-      "It is handed its own week from botcage's records — what ran, what failed, what is next — and reports on it.";
+      "Reviews its week: completed tasks, failures and upcoming work.";
   } else {
-    hint.textContent = "One bot does the thing and reports back.";
+    hint.textContent = "One bot runs the instruction and reports back.";
   }
 }
 
@@ -12028,42 +12028,42 @@ const TOUR: Stop[] = [
   {
     target: "#bots",
     title: "Your bots",
-    body: "Each one is a separate conversation with its own memory, its own folder on this machine, and its own idea of what it is for. They do not share anything unless you say so.",
+    body: "Each bot has its own conversation, memory and workspace.",
   },
   {
     target: "#btn-new",
     title: "Make one per job",
-    body: "A bot is cheap. Give each real job its own — the one that reviews code should not be the one that plans your week, because they remember different things.",
+    body: "Create a bot for each job to keep its instructions and memory focused.",
   },
   {
     target: "#dock",
     title: "Just talk to it",
-    body: "Say what you want in plain words. A bot answers here, and remembers this conversation the next time you open the app.",
+    body: "Type what you need. Your conversation is saved for next time.",
   },
   {
     target: "#btn-routines",
-    title: "Standing work",
-    body: "A bot can hold instructions on a schedule: every morning, every hour, or once next Tuesday. This opens its week as a calendar — click any slot to add one.",
+    title: "Routines",
+    body: "Schedule recurring or one-time tasks. Click a calendar slot to add a routine.",
   },
   {
     target: "#btn-plugins",
     title: "Its connections",
-    body: "GitHub, Gmail, Calendar, Notion and the rest. You connect an account once and choose which bots may reach it — the credential stays in your keychain, never in a bot.",
+    body: "Connect an account, then choose which bots can access it.",
   },
   {
     target: "#btn-settings",
-    title: "What it is, and what answers it",
-    body: "A bot's name, its job description, and which model replies for it — Claude Code, the Gemini CLI, or any of thousands on models.dev. Different bots can use different ones.",
+    title: "Bot settings",
+    body: "Edit this bot’s name, instructions and model.",
   },
   {
     target: "#btn-monitor",
     title: "Its own computer",
-    body: "Give a bot a private Linux desktop in a container, with a browser and a terminal. You can watch it work and take the mouse back whenever you like.",
+    body: "Watch the bot’s desktop or take control of its mouse and keyboard.",
   },
   {
     target: "#btn-account",
     title: "Everything else",
-    body: "Settings for this machine, and the Phone panel — pair a phone by scanning a square, and reach these bots from anywhere without opening a port.",
+    body: "Open app settings, or pair your phone to access your bots remotely.",
   },
 ];
 

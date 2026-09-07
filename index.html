@@ -216,7 +216,7 @@
                server appears here with the caret in it, the way a new category
                appears in the list with the caret in it. -->
           <div class="rooms__head">
-            <input class="rooms__name" id="rooms-name" placeholder="Server name" spellcheck="false" />
+            <input class="rooms__name" id="rooms-name" aria-label="Server name" placeholder="Server name" spellcheck="false" />
             <!-- Rooms are made where rooms are listed. The rail's plus is for
                  bots and servers, which is what the rail is a list of. -->
             <button class="icon-btn" id="btn-new-room" title="New channel or category" aria-label="New channel or category" aria-haspopup="menu">
@@ -226,7 +226,7 @@
         </div>
         <div class="field" id="rooms-find">
           <svg><use href="#i-search" /></svg>
-          <input id="search" placeholder="Search" spellcheck="false" />
+          <input id="search" aria-label="Search channels" placeholder="Search" spellcheck="false" />
         </div>
         <div class="rooms__list" id="rooms-list"></div>
       </aside>
@@ -245,7 +245,7 @@
              small controls that reads as belonging to the whole. -->
         <div class="find" id="find">
           <svg class="find__glass"><use href="#i-search" /></svg>
-          <input id="find-input" placeholder="Search" spellcheck="false" autocomplete="off" />
+          <input id="find-input" aria-label="Search messages" placeholder="Search" spellcheck="false" autocomplete="off" />
           <button type="button" class="find__clear" id="find-clear" hidden aria-label="Clear">
             <svg><use href="#i-x" /></svg>
           </button>
@@ -366,7 +366,7 @@
           </button>
           <div class="mentions" id="mentions" hidden></div>
           <form class="composer" id="composer">
-            <textarea id="input" rows="1" placeholder="Message" spellcheck="false"></textarea>
+            <textarea id="input" aria-label="Message" rows="1" placeholder="Message" spellcheck="false"></textarea>
             <button type="submit" class="mic" id="btn-send" aria-label="Send">
               <svg><use href="#i-mic" id="send-icon" /></svg>
             </button>
@@ -379,7 +379,7 @@
             <div class="screen__id" id="screen-id"></div>
             <span class="state-pill" id="screen-state">Checking…</span>
             <div class="screen__actions">
-              <input class="teach-name" id="teach-name" placeholder="What are you teaching?"
+              <input class="teach-name" id="teach-name" aria-label="Task to teach" placeholder="What are you teaching?"
                      spellcheck="false" maxlength="48" hidden />
               <button type="button" class="chip" id="btn-teach" hidden>
                 <svg><use href="#i-record" /></svg><span id="btn-teach-label">Teach a task</span>
@@ -454,13 +454,13 @@
              steps ahead cannot, since the way forward is the button that
              checks what you typed. -->
         <ol class="steps" id="sheet-steps" hidden></ol>
-        <div class="tabs" role="tablist">
-          <button type="button" class="tab" role="tab" data-tab="general" aria-selected="true">General</button>
-          <button type="button" class="tab" role="tab" data-tab="computer" aria-selected="false">Computer</button>
-          <button type="button" class="tab" role="tab" data-tab="machine" aria-selected="false">Machine</button>
+        <div class="tabs" role="tablist" aria-label="Bot settings">
+          <button type="button" class="tab" role="tab" id="bot-tab-general" aria-controls="bot-panel-general" data-tab="general" aria-selected="true">General</button>
+          <button type="button" class="tab" role="tab" id="bot-tab-computer" aria-controls="bot-panel-computer" data-tab="computer" aria-selected="false">Computer</button>
+          <button type="button" class="tab" role="tab" id="bot-tab-machine" aria-controls="bot-panel-machine" data-tab="machine" aria-selected="false">Machine</button>
         </div>
         <div class="sheet__body">
-          <div class="settings-panel" data-tab="general" role="tabpanel">
+          <div class="settings-panel" data-tab="general" role="tabpanel" id="bot-panel-general" aria-labelledby="bot-tab-general">
             <div class="sheet__preview" id="sheet-preview" data-wiz="who"></div>
 
             <!-- Only when hiring. Editing somebody who already works here and
@@ -497,7 +497,7 @@
             <div class="settings" data-wiz="how">
             <label class="setting">
               <span class="setting__label">Answered by
-                <span class="setting__hint" id="sheet-engine-hint">Which installed tool runs this bot's turns.</span>
+                <span class="setting__hint" id="sheet-engine-hint">The tool that runs this bot.</span>
               </span>
               <select id="sheet-engine" class="picker"></select>
             </label>
@@ -523,10 +523,10 @@
                 </label>
                 <div class="shift__when" id="sheet-hours-when" hidden>
                   <div class="row">
-                    <input id="sheet-hours-from" class="picker picker--text" value="09:00"
+                    <input id="sheet-hours-from" aria-label="Start time" class="picker picker--text" value="09:00"
                            inputmode="numeric" spellcheck="false" />
                     <span class="shift__to">to</span>
-                    <input id="sheet-hours-to" class="picker picker--text" value="18:00"
+                    <input id="sheet-hours-to" aria-label="End time" class="picker picker--text" value="18:00"
                            inputmode="numeric" spellcheck="false" />
                   </div>
                   <div class="shift__days" id="sheet-hours-days"></div>
@@ -537,9 +537,8 @@
             <!-- Next to working hours because it answers the same question:
                  what this bot does when nobody is talking to it. -->
             <label class="setting">
-              <span class="setting__label">Keeps up
-                <span class="setting__hint">Lets it read its own channels while nobody
-                  is asking. It only ever sees channels it is already in.</span>
+              <span class="setting__label">Read channels automatically
+                <span class="setting__hint">Reads its channels between conversations.</span>
               </span>
               <input type="checkbox" id="sheet-aware" class="switch" />
             </label>
@@ -548,8 +547,7 @@
                  above rather than standing on its own. -->
             <label class="setting" id="sheet-beat-row" hidden>
               <span class="setting__label"><span class="setting__name">Checks in <svg class="leaf" aria-hidden="true"><use href="#i-leaf" /></svg></span>
-                <span class="setting__hint">How often it looks by itself. A check costs nothing when
-                  nothing has been said.</span>
+                <span class="setting__hint">No usage when there are no new messages.</span>
               </span>
               <select id="sheet-beat" class="picker">
                 <option value="0">Never</option>
@@ -562,15 +560,13 @@
             </label>
 
             <label class="setting">
-              <span class="setting__label">Manner
-                <span class="setting__hint">How it writes, not what it says. Its own is chosen by its id.</span>
+              <span class="setting__label">Writing style
               </span>
               <select id="sheet-manner" class="picker"></select>
             </label>
 
             <label class="setting" id="sheet-voice-row">
               <span class="setting__label">Voice
-                <span class="setting__hint">How it sounds on a call.</span>
               </span>
               <select id="sheet-voice" class="picker"></select>
               <button type="button" class="picker picker--open" aria-label="Preview voice" id="sheet-voice-try"
@@ -585,8 +581,7 @@
                  it pushed every setting you actually came for below the fold. -->
             <label class="prose" id="sheet-memory-row">
               <span class="prose__label">What it has learned
-                <span class="prose__hint">Its own notes, kept between conversations. Correct or delete
-                  anything wrong.</span>
+                <span class="prose__hint">Saved between conversations. Edit anything incorrect.</span>
               </span>
               <textarea id="sheet-memory" rows="4"
                         placeholder="Nothing yet. It fills this in as it works."></textarea>
@@ -598,15 +593,14 @@
                  somebody looks to learn what a bot does. -->
             <div class="prose" id="sheet-commands-row" hidden>
               <span class="prose__label">Shortcuts
-                <span class="prose__hint">What it answers to, written by the bot itself. Type "/" in a
-                  message to use one.</span>
+                <span class="prose__hint">Type "/" in a message to use a shortcut.</span>
               </span>
               <div class="cmds" id="sheet-commands"></div>
             </div>
 
           </div>
 
-          <div class="settings-panel" data-tab="computer" role="tabpanel" data-wiz="how" hidden>
+          <div class="settings-panel" data-tab="computer" role="tabpanel" id="bot-panel-computer" aria-labelledby="bot-tab-computer" data-wiz="how" hidden>
             <div class="settings">
             <label class="setting">
               <span class="setting__label">Own computer</span>
@@ -615,7 +609,6 @@
 
             <label class="setting">
               <span class="setting__label">Network
-                <span class="setting__hint">What that desktop can reach.</span>
               </span>
               <select id="sheet-network" class="picker">
                 <option value="full">Internet + your LAN</option>
@@ -629,22 +622,21 @@
                  desktop. Only shown for an existing bot: a bot that does not
                  exist yet has nothing to sign into. -->
             <div class="prose" id="sheet-vault-row" hidden>
-              <span class="prose__label">Its logins
-                <span class="prose__hint">Passwords it types into its own screen but is never shown,
-                  so they cannot reach a conversation.</span>
+              <span class="prose__label">Saved logins
+                <span class="prose__hint">Stored passwords are entered on its desktop, outside the conversation.</span>
               </span>
               <div class="cmds" id="sheet-vault"></div>
               <div class="row">
-                <input id="sheet-vault-name" class="picker picker--text" placeholder="Name, e.g. grafana"
+                <input id="sheet-vault-name" aria-label="Login name" class="picker picker--text" placeholder="Name, e.g. grafana"
                        spellcheck="false" autocomplete="off" />
-                <input id="sheet-vault-secret" class="picker picker--text" type="password"
+                <input id="sheet-vault-secret" aria-label="Login password" class="picker picker--text" type="password"
                        placeholder="Password" autocomplete="off" />
                 <button type="button" class="picker picker--open" id="sheet-vault-add">Add</button>
               </div>
             </div>
           </div>
 
-          <div class="settings-panel" data-tab="machine" role="tabpanel" hidden>
+          <div class="settings-panel" data-tab="machine" role="tabpanel" id="bot-panel-machine" aria-labelledby="bot-tab-machine" hidden>
             <p class="machine__note" id="sheet-machine-note"></p>
             <div class="settings">
               <label class="setting">
@@ -709,7 +701,6 @@
 
               <label class="setting">
                 <span class="setting__label">Fonts
-                  <span class="setting__hint">Which families it has installed.</span>
                 </span>
                 <select id="sheet-fonts" class="picker">
                   <option value="">Automatic</option>
@@ -840,8 +831,8 @@
 
           <label class="setting" id="channel-mute-row" hidden>
             <span class="setting__label">Mute this channel
-              <span class="setting__hint">No unread mark and no notification. Anything waiting on an answer still
-                reaches your desk.</span>
+              <span class="setting__hint">No unread badge or notifications. Pending questions still
+                appear on your desk.</span>
             </span>
             <input type="checkbox" id="channel-mute" class="switch" />
           </label>
@@ -866,14 +857,20 @@
         </div>
         <div class="sheet__body">
           <p class="routine__by" id="routine-by" hidden></p>
-          <input id="routine-name" placeholder="Name it, e.g. Morning summary"
-                 spellcheck="false" maxlength="48" />
-          <textarea id="routine-instruction" rows="4"
-                    placeholder="What should it do each time it runs?"></textarea>
+          <label class="prose">
+            <span class="prose__label">Name</span>
+            <input id="routine-name" placeholder="e.g. Morning summary"
+                   spellcheck="false" maxlength="48" />
+          </label>
+          <label class="prose">
+            <span class="prose__label">Instructions</span>
+            <textarea id="routine-instruction" rows="4"
+                      placeholder="What should the bot do?"></textarea>
+          </label>
 
           <div class="settings">
             <label class="setting" id="routine-bot-row" hidden>
-              <span class="setting__label">Whose</span>
+              <span class="setting__label">Bot</span>
               <select id="routine-bot" class="picker"></select>
             </label>
 
@@ -883,8 +880,8 @@
             </label>
 
             <label class="setting" id="routine-format-row" hidden>
-              <span class="setting__label">Kind
-                <span class="setting__hint" id="routine-format-hint">One bot does the thing.</span>
+              <span class="setting__label">Format
+                <span class="setting__hint" id="routine-format-hint">One bot runs the instruction.</span>
               </span>
               <select id="routine-format" class="picker">
                 <option value="">An instruction</option>
@@ -929,15 +926,14 @@
             </label>
 
             <label class="setting" id="routine-interval-row" hidden>
-              <span class="setting__label">Every
-                <span class="setting__hint">Minutes between runs.</span>
+              <span class="setting__label">Interval (minutes)
               </span>
               <input type="number" id="routine-interval" class="picker" value="15" min="1" max="720" />
             </label>
 
             <label class="setting" id="routine-active-row" hidden>
               <span class="setting__label">Active
-                <span class="setting__hint">Off keeps it without running it.</span>
+                <span class="setting__hint">Pause without deleting.</span>
               </span>
               <input type="checkbox" id="routine-active" class="switch" />
             </label>
@@ -971,19 +967,19 @@
         </button>
 
         <nav class="tabs" role="tablist" aria-label="Settings sections" aria-orientation="vertical">
-          <button type="button" class="tab" role="tab" data-tab="general" aria-selected="true">
+          <button type="button" class="tab" role="tab" id="app-tab-general" aria-controls="app-panel-general" data-tab="general" aria-selected="true">
             <svg><use href="#i-gear" /></svg>General
           </button>
-          <button type="button" class="tab" role="tab" data-tab="desktops" aria-selected="false">
+          <button type="button" class="tab" role="tab" id="app-tab-desktops" aria-controls="app-panel-desktops" data-tab="desktops" aria-selected="false">
             <svg><use href="#i-monitor" /></svg>Desktops
           </button>
-          <button type="button" class="tab" role="tab" data-tab="power" aria-selected="false">
+          <button type="button" class="tab" role="tab" id="app-tab-power" aria-controls="app-panel-power" data-tab="power" aria-selected="false">
             <svg><use href="#i-power" /></svg>Power
           </button>
-          <button type="button" class="tab" role="tab" data-tab="phone" aria-selected="false">
+          <button type="button" class="tab" role="tab" id="app-tab-phone" aria-controls="app-panel-phone" data-tab="phone" aria-selected="false">
             <svg><use href="#i-phone" /></svg>Phone
           </button>
-          <button type="button" class="tab" role="tab" data-tab="backup" aria-selected="false">
+          <button type="button" class="tab" role="tab" id="app-tab-backup" aria-controls="app-panel-backup" data-tab="backup" aria-selected="false">
             <svg><use href="#i-folder" /></svg>Backup
           </button>
         </nav>
@@ -991,7 +987,7 @@
         <div class="settings__main">
         <h2 class="settings__title" id="app-settings-title">General</h2>
         <div class="sheet__body">
-          <div class="settings-panel" data-tab="general" role="tabpanel">
+          <div class="settings-panel" data-tab="general" role="tabpanel" id="app-panel-general" aria-labelledby="app-tab-general">
             <p class="settings__cap">Preferences</p>
             <div class="settings">
               <!-- Sound is a thing an application should never make without
@@ -1000,7 +996,7 @@
                    wherever you are, so the switch belongs where you are. -->
               <label class="setting">
                 <span class="setting__label">Sounds
-                  <span class="setting__hint">A note when you pick a bot, and the music under setup.</span>
+                  <span class="setting__hint">Bot sounds and setup music.</span>
                 </span>
                 <input type="checkbox" id="app-sounds" class="switch" />
               </label>
@@ -1027,9 +1023,8 @@
               </label>
 
               <label class="setting">
-                <span class="setting__label">Tell me when I am needed
-                  <span class="setting__hint">When a bot says your name or a turn fails, and only while you
-                    are elsewhere.</span>
+                <span class="setting__label">Notify me
+                  <span class="setting__hint">Mentions and failed tasks while you’re away.</span>
                 </span>
                 <input type="checkbox" id="app-notify" class="switch" />
               </label>
@@ -1055,7 +1050,7 @@
 
               <div class="setting setting--stack">
                 <span class="setting__label">Engines
-                  <span class="setting__hint">What can answer for a bot on this machine.</span>
+                  <span class="setting__hint">Installed tools that run your bots.</span>
                 </span>
                 <div class="engines" id="app-engines"></div>
               </div>
@@ -1069,13 +1064,12 @@
             </div>
           </div>
 
-          <div class="settings-panel" data-tab="desktops" role="tabpanel" hidden>
+          <div class="settings-panel" data-tab="desktops" role="tabpanel" id="app-panel-desktops" aria-labelledby="app-tab-desktops" hidden>
             <p class="settings__cap">Defaults</p>
             <div class="settings">
               <label class="setting">
                 <span class="setting__label">Desktop size
-                  <span class="setting__hint">New desktops only. Use Rebuild desktop in a bot's
-                    menu to resize one it already has.</span>
+                  <span class="setting__hint">For existing desktops, choose Rebuild desktop in the bot menu.</span>
                 </span>
                 <select id="app-screen" class="picker">
                   <option value="1280x800">1280 × 800</option>
@@ -1086,7 +1080,7 @@
 
               <label class="setting">
                 <span class="setting__label">Stop idle desktops
-                  <span class="setting__hint">A desktop nobody is using costs ~435 MB.</span>
+                  <span class="setting__hint">Free memory when desktops are idle.</span>
                 </span>
                 <select id="app-idle" class="picker">
                   <option value="10">After 10 min</option>
@@ -1101,7 +1095,7 @@
             <div class="settings">
               <div class="setting">
                 <span class="setting__label">Running desktops
-                  <span class="setting__hint">Switch every desktop off now. Files are kept.</span>
+                  <span class="setting__hint">Stops all desktops. Keeps their files.</span>
                 </span>
                 <button type="button" class="chip" id="app-stop-all"><span>Stop all</span></button>
               </div>
@@ -1115,7 +1109,7 @@
             </div>
           </div>
 
-          <div class="settings-panel" data-tab="power" role="tabpanel" hidden>
+          <div class="settings-panel" data-tab="power" role="tabpanel" id="app-panel-power" aria-labelledby="app-tab-power" hidden>
             <div class="settings">
               <label class="setting">
                 <span class="setting__label">Keep this computer awake</span>
@@ -1124,16 +1118,14 @@
 
               <label class="setting">
                 <span class="setting__label">Keep running with the lid closed
-                  <span class="setting__hint">Changes a system setting, not just this app. A closed machine
-                    working constantly runs hot.</span>
+                  <span class="setting__hint">Changes system sleep settings. May cause heat buildup.</span>
                 </span>
                 <input type="checkbox" id="app-lid" class="switch" />
               </label>
 
               <label class="setting">
                 <span class="setting__label">Launch at login
-                  <span class="setting__hint">Routines only fire while botcage is open, so this is
-                    what survives a restart.</span>
+                  <span class="setting__hint">Resume routines after restarting. Requires botcage to stay open.</span>
                 </span>
                 <input type="checkbox" id="app-login" class="switch" />
               </label>
@@ -1142,13 +1134,12 @@
 
           <!-- The phone app talks to this machine over the network, so the
                panel leads with who can reach it rather than with a switch. -->
-          <div class="settings-panel" data-tab="phone" role="tabpanel" hidden>
+          <div class="settings-panel" data-tab="phone" role="tabpanel" id="app-panel-phone" aria-labelledby="app-tab-phone" hidden>
             <p class="settings__cap">Access</p>
             <div class="settings">
               <label class="setting">
                 <span class="setting__label">Allow phone access
-                  <span class="setting__hint">Lets botcage on your phone drive this machine. Only
-                    devices you pair are let in.</span>
+                  <span class="setting__hint">Control this machine from paired phones.</span>
                 </span>
                 <input type="checkbox" id="app-remote" class="switch" />
               </label>
@@ -1172,8 +1163,7 @@
 
               <div class="setting setting--stack">
                 <span class="setting__label">Can't scan?
-                  <span class="setting__hint">This machine's name on the phone, then the code below. Spaces
-                    can be left out.</span>
+                  <span class="setting__hint">Enter the machine ID and pairing code on your phone. Spaces are optional.</span>
                 </span>
                 <span class="machine-key" id="app-remote-key" tabindex="0"
                   title="This machine's name. Hover or focus to read it.">—</span>
@@ -1193,9 +1183,9 @@
                      key, which only the person with the developer account can
                      get, so the row asks for it rather than pretending. -->
                 <div class="row">
-                  <input id="app-push-key-id" class="picker picker--text" placeholder="Key ID"
+                  <input id="app-push-key-id" aria-label="Notification key ID" class="picker picker--text" placeholder="Key ID"
                          spellcheck="false" maxlength="10" />
-                  <input id="app-push-team" class="picker picker--text" placeholder="Team ID"
+                  <input id="app-push-team" aria-label="Notification team ID" class="picker picker--text" placeholder="Team ID"
                          spellcheck="false" maxlength="10" />
                 </div>
                 <div class="row">
@@ -1214,20 +1204,18 @@
             </div>
           </div>
 
-          <div class="settings-panel" data-tab="backup" role="tabpanel" hidden>
+          <div class="settings-panel" data-tab="backup" role="tabpanel" id="app-panel-backup" aria-labelledby="app-tab-backup" hidden>
             <div class="settings">
               <label class="setting">
                 <span class="setting__label">Back up automatically
-                  <span class="setting__hint" id="app-backup-summary">Everything, in one
-                    encrypted file, kept where you like.</span>
+                  <span class="setting__hint" id="app-backup-summary">Save an encrypted copy of your data.</span>
                 </span>
                 <input type="checkbox" id="app-backup-on" class="switch" />
               </label>
 
               <div class="setting setting--stack" id="app-backup-setup" hidden>
                 <span class="setting__label">Choose a passphrase
-                  <span class="setting__hint">The only way to open a backup. Keep it somewhere that
-                    is not this machine.</span>
+                  <span class="setting__hint">Required to restore. Store it somewhere outside this machine.</span>
                 </span>
                 <div class="row">
                   <input aria-label="Backup passphrase" id="app-backup-pass" class="picker picker--text" type="password"
@@ -1302,8 +1290,7 @@
         <div class="sheet__body">
           <p class="setting__note" id="restore-what">—</p>
           <p class="setting__note restore__warn">
-            Everything in botcage now — every bot, conversation and channel — is replaced by what
-            is in this backup. What is here is not kept.
+            Replaces all current bots, conversations and channels. Current data will not be kept.
           </p>
           <input aria-label="Backup passphrase" id="restore-pass" class="picker picker--text" type="password"
                  placeholder="Passphrase for this backup" autocomplete="off" />
@@ -1324,11 +1311,11 @@
           </button>
         </div>
         <div class="market__bar">
-          <div class="tabs tabs--market" role="tablist">
+          <div class="tabs tabs--market" role="tablist" aria-label="Plugins">
             <button type="button" class="tab" role="tab" data-market="all" aria-selected="true">Marketplace</button>
             <button type="button" class="tab" role="tab" data-market="installed" aria-selected="false">Installed</button>
           </div>
-          <input id="plugins-search" class="market__search" placeholder="Search plugins" spellcheck="false" />
+          <input id="plugins-search" aria-label="Search plugins" class="market__search" placeholder="Search plugins" spellcheck="false" />
         </div>
         <div class="market" id="plugins-body"></div>
       </div>
@@ -1384,14 +1371,13 @@
               <input id="setup-name" placeholder="Your name" spellcheck="false" maxlength="40"
                      autocomplete="name" aria-label="What your bots should call you" />
             </label>
-            <p class="setup__blurb setup__blurb--dim">A few things to settle — a minute, no more.</p>
+            <p class="setup__blurb setup__blurb--dim">Let’s set up your bots.</p>
           </section>
 
           <section class="setup__step" data-step="answers" hidden>
-            <h2 class="setup__title">What answers for us</h2>
+            <h2 class="setup__title">Choose a model provider</h2>
             <p class="setup__blurb">
-              botcage ships no model of its own, so pick one way to start. You can change this
-              later.
+              Choose how your bots run. You can change this later.
             </p>
 
             <div class="picks" id="setup-picks">
@@ -1399,8 +1385,7 @@
                 <input type="radio" name="setup-route" value="claude-code" checked />
                 <span class="pick__body">
                   <span class="pick__name">Claude Code</span>
-                  <span class="pick__what">Anthropic's CLI. A Pro or Max subscription covers it,
-                    and bots get files, the web, connectors and a computer.</span>
+                  <span class="pick__what">Use your Claude Code account for files, web, connectors and desktop tools.</span>
                 </span>
               </label>
 
@@ -1408,8 +1393,7 @@
                 <input type="radio" name="setup-route" value="ollama" />
                 <span class="pick__body">
                   <span class="pick__name">Ollama, on this machine</span>
-                  <span class="pick__what">Runs locally with no account. Models that support tools can use workspace files,
-                    connectors and an optional computer.</span>
+                  <span class="pick__what">Local models, no account. Tool support depends on the model.</span>
                 </span>
               </label>
 
@@ -1417,8 +1401,7 @@
                 <input type="radio" name="setup-route" value="hosted" />
                 <span class="pick__body">
                   <span class="pick__name">A hosted model</span>
-                  <span class="pick__what">Any of thousands on models.dev, with your own API key.
-                    Models that support tools can use workspace files, connectors and an optional computer.</span>
+                  <span class="pick__what">Use your own API key. Tool support depends on the model.</span>
                 </span>
               </label>
             </div>
@@ -1435,10 +1418,9 @@
           </section>
 
           <section class="setup__step" data-step="engine" hidden>
-            <h2 class="setup__title">Whether we get a computer</h2>
+            <h2 class="setup__title">Desktop access</h2>
             <p class="setup__blurb">
-              Optional. A bot with its own computer gets a sandboxed Linux desktop you can watch
-              it work on.
+              Optional: give bots a private Linux desktop and watch them work.
             </p>
             <div class="setup__check" id="setup-engine-check">
               <span class="setup__dot" data-state="wait"></span>
@@ -1448,9 +1430,9 @@
           </section>
 
           <section class="setup__step" data-step="voice" hidden>
-            <h2 class="setup__title">Whether we talk out loud</h2>
+            <h2 class="setup__title">Voice calls</h2>
             <p class="setup__blurb">
-              Optional. Call any of us and talk out loud, all on this machine.
+              Optional: talk to your bots using on-device voice.
             </p>
             <div class="setup__check" id="setup-voice-check">
               <span class="setup__dot" data-state="wait"></span>
@@ -1464,10 +1446,9 @@
                of is a notice people learn to click past, and then it has cost
                attention without buying anything. -->
           <section class="setup__step" data-step="care" hidden>
-            <h2 class="setup__title">One thing about the cost</h2>
+            <h2 class="setup__title">Usage and energy</h2>
             <p class="setup__blurb">
-              A bot thinking is not free. Every turn draws real power — small per answer, not
-              small when a routine fires hourly.
+              Each reply uses computing power. Frequent routines increase usage.
             </p>
             <p class="setup__fine">
               Settings marked with a leaf <svg class="leaf leaf--inline"><use href="#i-leaf" /></svg>
@@ -1476,7 +1457,7 @@
           </section>
 
           <section class="setup__step" data-step="done" hidden>
-            <h2 class="setup__title">That's us ready</h2>
+            <h2 class="setup__title">You’re ready</h2>
             <p class="setup__blurb" id="setup-done-blurb">Everything botcage needs is in place.</p>
             <ul class="setup__list">
               <li><b>Make one of us</b> — the + at the foot of the rail on the left.</li>
