@@ -88,6 +88,8 @@
 :root {
   /* Desktop header height; shared colors and sizes come from tokens.json. */
   --head-h: 62px;
+  /* White button labels need stronger contrast than the selection accent. */
+  --action-bg: #0068d9;
 }
 
 * {
@@ -169,25 +171,17 @@ textarea {
  * something into one. `:focus-visible` rather than `:focus`, so this appears
  * for the keyboard and not for every click. */
 :focus-visible {
-  outline: 2px solid var(--accent, var(--blue));
+  outline: 2px solid var(--link);
   outline-offset: 2px;
 }
 
-/* No ring on anything you type into.
- *
- * There was a quiet one, on the argument that a caret cannot identify focus on
- * a select or a switch and that tabbing a sheet of six fields showed nothing
- * at all. True, and it still drew a box round a field every time somebody
- * clicked to type — text inputs match :focus-visible on a click as well as a
- * tab — which is a ring at the one moment it tells you nothing.
- *
- * Buttons and the rest keep theirs above. This is fields only, and it is worth
- * knowing what it costs: tabbing between the settings fields no longer shows
- * where you are, except by the caret. */
+/* Fields need the same visible focus as buttons, including switches and
+   selects where a caret cannot identify the active control. */
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: none;
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
 }
 
 button:disabled {
@@ -245,7 +239,7 @@ button:disabled:hover {
      column to the right of the sidebar, so opening a panel beside the
      conversation divides what is under the header without redrawing the
      header — its width is the window's, not the conversation's. */
-  grid-template-rows: var(--head-h) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas:
     "side head"
     "side main";
@@ -1826,7 +1820,8 @@ button:disabled:hover {
   display: grid;
   /* border-box: the top 14 reserves the traffic-light strip, and the rest is
      the row the controls sit in. */
-  height: var(--head-h);
+  min-height: var(--head-h);
+  container: toolbar / inline-size;
   padding: 14px 0 0;
   flex: none;
   position: relative;
@@ -1842,7 +1837,7 @@ button:disabled:hover {
      wrong: on a window this narrow the fixed middle ate the row and crushed
      the channel's name to one letter and a full stop. What the eye wants is a
      wide field between two legible ends, not a field at an exact coordinate. */
-  grid-template-columns: auto minmax(110px, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(110px, 1.3fr) auto;
   align-items: center;
   gap: 12px;
   padding: 0 14px 0 18px;
@@ -1903,7 +1898,6 @@ button:disabled:hover {
   height: 32px;
   padding: 0 8px 0 11px;
   background: var(--field);
-  background: color-mix(in srgb, var(--ink) 26%, transparent);
   border-radius: var(--radius-control);
 }
 
@@ -1936,8 +1930,8 @@ button:disabled:hover {
   display: grid;
   place-items: center;
   flex: none;
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   color: var(--text-3);
   border-radius: 50%;
   cursor: pointer;
@@ -2090,7 +2084,7 @@ button:disabled:hover {
   min-width: 0;
   /* So a long channel name gives way to the field rather than the other way
      round. */
-  max-width: 40%;
+  max-width: 100%;
   font-size: var(--type-body);
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -4272,7 +4266,7 @@ button:disabled:hover {
  * The close button carries its own padding, hence the smaller number on its
    side: what lines up down the right edge is the glyph, not the box round it. */
 .sheet {
-  --gutter: 24px;
+  --gutter: var(--space-loose);
 }
 
 .sheet__head {
@@ -4294,7 +4288,7 @@ button:disabled:hover {
   flex: 1;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-row);
   /* The part that scrolls when there is more than fits: the head stays put and
      the footer's buttons stay reachable. */
   min-height: 0;
@@ -4304,6 +4298,7 @@ button:disabled:hover {
      longer tab does not shift every row four pixels left. */
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
+  container: settings-panel / inline-size;
 }
 
 .sheet__preview {
@@ -4437,7 +4432,8 @@ button:disabled:hover {
    right rather than four boxes of different sizes. */
 .setting > .picker,
 .setting > .chip {
-  height: 30px;
+  min-height: var(--row-control-height);
+  height: auto;
 }
 
 .setting > .picker--text {
@@ -5766,7 +5762,7 @@ button:disabled:hover {
 .settings__title {
   margin: 0;
   padding: 22px 56px 14px 24px;
-  font-size: 21px;
+  font-size: var(--type-title);
   font-weight: 600;
   color: var(--text);
 }
@@ -5865,7 +5861,7 @@ button:disabled:hover {
 
 .market__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr));
   gap: 2px;
   margin-top: 6px;
 }
@@ -6368,8 +6364,10 @@ a.detail__source:hover {
 .settings-panel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-row);
+  min-width: 0;
   width: 100%;
+  container: settings-panel / inline-size;
 }
 
 /* These sat in a centring flex body before they moved into a panel. */
@@ -6559,11 +6557,11 @@ a.detail__source:hover {
 .setting {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: var(--space-gutter-phone);
   /* One height for a row with a label and one with a label and a sentence
      under it, so a group of mixed rows still has a rhythm. */
-  min-height: 58px;
-  padding: 14px 18px;
+  min-height: var(--row-min-height);
+  padding: var(--space-row) var(--space-gutter-phone);
 }
 
 /* Only the rows that are actually a control. A div with a chip in it is not
@@ -6591,7 +6589,8 @@ label.setting {
   flex-direction: column;
   /* Three points read as a line that had wrapped rather than as a sentence
      explaining the one above it. */
-  gap: 5px;
+  gap: var(--space-tight);
+  overflow-wrap: anywhere;
   font-size: var(--type-small);
 }
 
@@ -6869,8 +6868,8 @@ label.setting {
 .sheet__foot {
   flex-shrink: 0;
   display: grid;
-  gap: 10px;
-  padding: 16px var(--gutter) var(--gutter);
+  gap: var(--space-row);
+  padding: var(--space-gutter-phone) var(--gutter);
   border-top: 1px solid var(--line);
 }
 
@@ -6898,7 +6897,7 @@ label.setting {
      loudest warning on the page. Colour that carries a meaning cannot also
      carry an identity. */
   color: var(--on-accent);
-  background: var(--blue);
+  background: var(--action-bg);
   border-radius: var(--radius-card);
 }
 
@@ -7392,8 +7391,13 @@ label.setting {
   z-index: 60;
   padding: 8px 14px;
   font-size: var(--type-small);
-  color: var(--on-bright);
-  background: var(--bright);
+  max-width: calc(100vw - 32px);
+  overflow-wrap: anywhere;
+  text-align: center;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-float);
   border-radius: var(--radius-pill);
   transform: translateX(-50%);
   animation: pop 0.13s ease both;
@@ -7765,8 +7769,8 @@ label.setting {
 .setting--stack {
   flex-direction: column;
   align-items: stretch;
-  gap: 10px;
-  padding: 14px;
+  gap: var(--space-row);
+  padding: var(--space-row) var(--space-gutter-phone);
 }
 
 /* A stack's own controls sit under its label at full width rather than
@@ -7887,16 +7891,16 @@ label.setting {
 }
 
 /* Room for the mark, so it never sits on the last line of text. */
-/* Revoking one device. Kept quiet until the row is hovered: it is destructive,
-   and a row of X buttons reads as a list of things to delete. */
+/* Keep the remove action discoverable without requiring hover. */
 .device__forget {
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  flex: none;
+  width: 28px;
+  height: 28px;
   color: var(--text-3);
-  border-radius: 6px;
-  opacity: 0;
+  border-radius: var(--radius-chip);
+  opacity: 1;
 }
 
 .device:hover .device__forget,
@@ -9095,20 +9099,6 @@ body.is-dragging {
     padding: 12px;
   }
 
-  .sheet--settings .setting:has(> .picker) {
-    flex-wrap: wrap;
-  }
-
-  .sheet--settings .setting:has(> .picker) > .setting__label {
-    flex-basis: 100%;
-  }
-
-  .sheet--settings .setting > .picker {
-    width: 100%;
-    max-width: 100%;
-    text-align: left;
-  }
-
   .chooser__side {
     flex-basis: 150px;
   }
@@ -9134,6 +9124,136 @@ body.is-dragging {
   .models__key input {
     flex-basis: 100%;
   }
+}
+
+/* Reflow against the space the control actually has: docked panes can be
+   narrow even on a large monitor. Switches retain their compact inline row. */
+@container settings-panel (max-width: 420px) {
+  .setting:not(.setting--stack):has(> .picker),
+  .setting:not(.setting--stack):has(> .chip) {
+    flex-wrap: wrap;
+    gap: var(--space-snug);
+  }
+
+  .setting:not(.setting--stack):has(> .picker) > .setting__label,
+  .setting:not(.setting--stack):has(> .chip) > .setting__label {
+    flex: 1 0 100%;
+  }
+
+  .setting > .picker,
+  .setting > .picker--text {
+    flex: 1 1 160px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .setting > .picker--open,
+  .setting > .chip {
+    flex: 0 1 auto;
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .row {
+    flex-wrap: wrap;
+  }
+
+  .row > input {
+    flex: 1 1 140px;
+  }
+
+  .row > button {
+    max-width: 100%;
+    white-space: normal;
+    height: auto;
+    min-height: 34px;
+  }
+}
+
+/* Title and actions stay visible; search gets its own row before they collide.
+   The shell's auto header row gives this space back to the scrolling content. */
+@container toolbar (max-width: 620px) {
+  .topbar__bar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-snug);
+    padding: 0 var(--space-row) var(--space-snug);
+  }
+
+  .topbar__id { grid-column: 1; grid-row: 1; }
+  .topbar__actions { grid-column: 2; grid-row: 1; }
+  .find {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    max-width: none;
+  }
+}
+
+@container toolbar (max-width: 360px) {
+  .topbar__id { grid-column: 1 / -1; }
+  .topbar__actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+  .find { grid-row: 3; }
+}
+
+.cal__head,
+.cal__nav {
+  flex-wrap: wrap;
+}
+
+.sheet__head h2,
+.prose,
+.setting--stack > *,
+.provider-row__name {
+  min-width: 0;
+}
+
+.sheet__head .icon-btn {
+  flex: none;
+}
+
+.pairing-qr {
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.setting__hint,
+.prose__hint,
+.machine-key {
+  overflow-wrap: anywhere;
+}
+
+.shift__when .row { flex-wrap: nowrap; }
+.shift__when .row > input { flex: 1 1 0; }
+
+/* Short windows need less frame and one scroll area through setup. */
+@media (max-height: 600px), (max-width: 700px) {
+  .sheet { --gutter: var(--space-gutter-phone); }
+  .pane .sheet__head,
+  .pane.is-wizard .sheet__head {
+    padding: var(--space-gutter-phone) var(--space-row) var(--space-snug) var(--space-gutter-phone);
+  }
+  .pane .sheet__body,
+  .pane.is-wizard .sheet__body {
+    padding: var(--space-loose) var(--space-gutter-phone);
+  }
+  .pane .tabs { margin: 0 var(--space-gutter-phone) var(--space-snug); }
+  .pane .sheet__foot,
+  .pane.is-wizard .sheet__foot {
+    padding: var(--space-row) var(--space-gutter-phone);
+  }
+  .steps { padding: var(--space-row) var(--space-gutter-phone); }
+  .pane .settings-panel { gap: var(--space-gutter-phone); }
+  .setup__body { padding: var(--space-gutter-phone); }
+  .setup__steps { flex: 0 0 auto; }
+  .setup__step { flex: none; overflow: visible; }
+  .setup__host { padding-bottom: var(--space-snug); }
 }
 
 /* Respect reduced motion throughout the interface, including animated faces.
