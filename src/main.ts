@@ -10998,9 +10998,40 @@ menu.addEventListener("click", (event) => {
   else openSheet();
 });
 
+/** A newer release than this build, if GitHub has one. Asked once at launch
+ *  and cached on the Rust side for six hours, so opening the menu is never a
+ *  network call and a rate limit is never reachable. */
+const RELEASES_URL = "https://github.com/hackyguru/botcage/releases/latest";
+
+let newRelease: { version: string; url: string } | null = null;
+
+/** This build's own version, for the line under the offer. */
+let thisVersion = "";
+void invoke<string>("app_version")
+  .then((v) => {
+    thisVersion = v;
+  })
+  .catch(() => {});
+
+void invoke<{ version: string; url: string } | null>("update_check")
+  .then((found) => {
+    newRelease = found;
+  })
+  .catch(() => {
+    // Offline, or GitHub having a day. No update offered is the right answer
+    // to "is there one" when nobody could ask.
+  });
+
 $<HTMLButtonElement>("#btn-account").addEventListener("click", (event) => {
   openMenu(
     event.currentTarget as HTMLElement,
+      // Above the rest, and only when there is one. A row that says "you are
+      // up to date" is a row that is wrong most of the time it is read.
+      (newRelease
+        ? `<button type="button" class="menu-item menu-item--update" data-app="update">${icon("arrow-up")}` +
+          `<span class="menu-item__body"><span class="menu-item__name">Update to ${escapeHtml(newRelease.version)}</span>` +
+          `<span class="menu-item__note">You have ${escapeHtml(thisVersion)}</span></span></button>`
+        : "") +
       `<button type="button" class="menu-item" data-app="calendar">${icon("clock")}` +
       `<span class="menu-item__body"><span class="menu-item__name">Calendar</span></span></button>` +
       `<button type="button" class="menu-item" data-app="settings">${icon("gear")}` +
@@ -11304,7 +11335,10 @@ menu.addEventListener("click", (e) => {
   const app = target.closest<HTMLButtonElement>("[data-app]")?.dataset.app;
   if (app) {
     closeMenu();
-    if (app === "calendar") openCalendar();
+    // The release page rather than an install: botcage ships no updater, and a
+    // button that pretends to be one is worse than a link that is honest.
+    if (app === "update") void openUrl(newRelease?.url ?? RELEASES_URL);
+    else if (app === "calendar") openCalendar();
     else if (app === "settings") void openAppSettings();
     else if (app === "tour") startTour();
     else if (app === "setup") void openSetup(appSettings().onboarded ? "answers" : "welcome");

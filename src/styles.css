@@ -3189,14 +3189,27 @@ button.learn-badge--open:hover {
   }
 }
 
+/* With nothing said yet, this block is the whole screen — so it sits in the
+   middle of it rather than hanging from the top under a 14vh drop, which read
+   as the top of a page with more below.
+ *
+   The thread has to fill the scroller before anything inside it can be centred
+   against it; `min-height` rather than `height` so a real conversation still
+   grows past it. `safe` matters: when the block is taller than the pane — a
+   short window, or the guide with its cards — centring would push the top out
+   of the scroll container where it cannot be reached, and `safe` falls back to
+   the top edge instead. */
+.thread:has(> .empty) {
+  min-height: 100%;
+  justify-content: safe center;
+}
+
 .empty {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  /* Less of a drop when something follows it: the guide's lessons sit
-     underneath, and 14vh of nothing pushed the last two off the fold. */
-  padding: 14vh 20px 0;
+  padding: 0 20px;
   color: var(--text-2);
   text-align: center;
 }
@@ -9533,6 +9546,19 @@ body.is-dragging {
   50% {
     opacity: 0.42;
   }
+}
+
+/* The one row in this menu that is news rather than a place to go. Its icon
+   carries the colour; the label stays the same weight as its neighbours,
+   because a menu where one item shouts is a menu you stop reading. */
+.menu-item--update svg {
+  color: var(--blue);
+}
+
+.menu-item__note {
+  display: block;
+  font-size: var(--type-hint);
+  color: var(--text-3);
 }
 
 /* Respect reduced motion throughout the interface, including animated faces.

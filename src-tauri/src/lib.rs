@@ -38,6 +38,7 @@ mod sandbox;
 mod setup;
 mod speech;
 mod transcript;
+mod update;
 mod vault;
 mod voice;
 
@@ -2003,6 +2004,7 @@ pub fn run() {
             transcribe,
             bots_dir,
             app_version,
+            update::update_check,
             user_name,
             plugins::list_plugins,
             connectors::connectors,
