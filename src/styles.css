@@ -4322,6 +4322,15 @@ button.learn-badge--open:hover {
   gap: 6px;
 }
 
+/* Bigger than the rail's 38: this is the one place the mark is the subject
+   rather than a label on a column. */
+.about__mark {
+  display: block;
+  width: 68px;
+  height: 68px;
+  margin-bottom: 2px;
+}
+
 .about__name {
   margin: 10px 0 0;
   font-size: var(--type-title);

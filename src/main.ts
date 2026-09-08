@@ -8607,6 +8607,7 @@ const aboutWrap = $<HTMLDivElement>("#about");
 
 async function openAbout(): Promise<void> {
   aboutWrap.hidden = false;
+  $<HTMLElement>("#about-mark").innerHTML = brandMarkHtml();
   const version = await invoke<string>("app_version").catch(() => "");
   $<HTMLParagraphElement>("#about-version").textContent = version ? `Version ${version}` : "";
 }
@@ -14013,13 +14014,17 @@ load();
  *  Its own face when there is nobody to be: an install where the guide has
  *  been deleted still has a corner to fill, and a stranger's face there would
  *  be worse than the app's own. */
-function paintMark(): void {
+/** botcage's own mark: the guide's body, drawn by the generator every bot is
+ *  drawn by, so the app's face is one of the family rather than a picture of
+ *  one. Blue and a squircle where there is no guide to ask. */
+function brandMarkHtml(): string {
   const host = state.bots.find((b) => b.guide);
   const face = host ? faceOf(host) : null;
-  $<HTMLElement>("#brand-mark").innerHTML = markHtml(
-    silhouetteOf(face?.head),
-    host?.color ?? "#0a84ff",
-  );
+  return markHtml(silhouetteOf(face?.head), host?.color ?? "#0a84ff");
+}
+
+function paintMark(): void {
+  $<HTMLElement>("#brand-mark").innerHTML = brandMarkHtml();
 }
 
 installAccessibility();

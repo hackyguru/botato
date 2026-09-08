@@ -265,7 +265,20 @@ fn pick_engine() -> Option<PathBuf> {
 fn docker_cmd(args: &[&str]) -> Result<Command, String> {
     let bin = locate_docker().ok_or("Docker CLI not found")?;
     let mut cmd = Command::new(bin);
-    cmd.args(args);
+    // The policy goes straight after the subcommand, where podman expects a
+    // flag and where docker would never see one — it is only ever added when
+    // the bundled policy.json is actually there, which only the podman bundle
+    // has.
+    match (args.first().copied(), signature_policy()) {
+        (Some(sub @ ("build" | "pull")), Some(policy)) => {
+            cmd.arg(sub);
+            cmd.arg(format!("--signature-policy={}", policy.display()));
+            cmd.args(&args[1..]);
+        }
+        _ => {
+            cmd.args(args);
+        }
+    }
     with_socket(&mut cmd);
     quiet(&mut cmd);
     Ok(cmd)
@@ -372,8 +385,75 @@ fn docker_stdin(args: &[&str], input: &str) -> Result<Output, String> {
 /// botcage installed its own engine; it keeps its own config next to it, and
 /// then none of the above is our business. Written once and left alone: an
 /// empty object is the whole file.
+/// The directory botcage unpacked its engine into, worked back from the client
+/// inside it: macOS puts docker at `<engine>/bin/docker`, the Linux podman
+/// bundle puts podman at `<engine>/usr/local/bin/podman`. Told apart by the
+/// shape of the path rather than by a cfg, so either can be exercised from a
+/// test on either platform.
+fn engine_root(client: &Path) -> Option<PathBuf> {
+    let up = if client.ends_with("usr/local/bin/podman") {
+        4
+    } else {
+        2
+    };
+    let mut dir = client.to_path_buf();
+    for _ in 0..up {
+        dir = dir.parent()?.to_path_buf();
+    }
+    Some(dir)
+}
+
+fn managed_root() -> Option<PathBuf> {
+    let (client, _) = MANAGED.lock().unwrap().clone()?;
+    engine_root(&client)
+}
+
+/// podman, told where its own parts are.
+///
+/// The static bundle ships conmon at `<engine>/usr/local/lib/podman/conmon`,
+/// but podman looks for it at absolute system paths — `/usr/libexec/podman`,
+/// `/usr/local/lib/podman` and so on. botcage does not install to `/`, so on a
+/// machine with no podman of its own every `podman info` fails with "could not
+/// find a working conmon binary". That is the first rung of `served_by`, so
+/// `answers()` says no, `pick_engine` walks past the engine botcage just
+/// installed, and the app reports it has none.
+///
+/// Written once beside the engine. Storage is deliberately not configured: the
+/// bundled storage.conf points at `/var/lib/containers`, which is the rootful
+/// location, and podman's own rootless defaults under the user's home are
+/// right.
+fn containers_conf(root: &Path) -> Option<PathBuf> {
+    let conmon = root.join("usr/local/lib/podman/conmon");
+    if !conmon.is_file() {
+        return None; // not the podman bundle — nothing to point anywhere
+    }
+    let path = root.join("botcage-containers.conf");
+    if !path.is_file() {
+        let helpers = root.join("usr/local/lib/podman");
+        let bin = root.join("usr/local/bin");
+        let body = format!(
+            "[engine]\n\
+             cgroup_manager = \"cgroupfs\"\n\
+             conmon_path = [\"{}\"]\n\
+             helper_binaries_dir = [\"{}\", \"{}\"]\n\
+             runtime = \"crun\"\n\
+             \n\
+             [engine.runtimes]\n\
+             crun = [\"{}\"]\n\
+             runc = [\"{}\"]\n",
+            conmon.display(),
+            helpers.display(),
+            bin.display(),
+            bin.join("crun").display(),
+            bin.join("runc").display(),
+        );
+        std::fs::write(&path, body).ok()?;
+    }
+    Some(path)
+}
+
 fn managed_config(client: &Path) -> Option<PathBuf> {
-    let dir = client.parent()?.parent()?.join("docker-config");
+    let dir = engine_root(client)?.join("docker-config");
     if !dir.join("config.json").is_file() {
         std::fs::create_dir_all(&dir).ok()?;
         std::fs::write(dir.join("config.json"), "{}\n").ok()?;
@@ -392,6 +472,31 @@ fn with_socket(cmd: &mut Command) {
     if let Some(dir) = managed_config(&client) {
         cmd.env("DOCKER_CONFIG", dir);
     }
+
+    // And the same for podman, which needs three things pointed at the bundle
+    // rather than at the machine. Docker ignores all of them, so there is no
+    // need to ask which engine this is.
+    if let Some(root) = engine_root(&client) {
+        if let Some(conf) = containers_conf(&root) {
+            cmd.env("CONTAINERS_CONF", conf);
+        }
+        // Without this, `FROM debian:bookworm-slim` is refused: podman will not
+        // guess that an unqualified name means Docker Hub, and says so as
+        // "short-name did not resolve to an alias".
+        let registries = root.join("etc/containers/registries.conf");
+        if registries.is_file() {
+            cmd.env("CONTAINERS_REGISTRIES_CONF", registries);
+        }
+    }
+}
+
+/// podman refuses to build or pull without a signature policy and looks for one
+/// only in `~/.config/containers` and `/etc/containers`. The bundle ships a
+/// perfectly good one; this is the path to it, when the engine in use is that
+/// bundle. There is no environment variable for it, so it goes on the command.
+fn signature_policy() -> Option<PathBuf> {
+    let path = managed_root()?.join("etc/containers/policy.json");
+    path.is_file().then_some(path)
 }
 
 fn stdout_of(output: &Output) -> String {
@@ -1184,6 +1289,99 @@ mod tests {
 
         use_managed_engine(None, None);
         let _ = std::fs::remove_file(&stand_in);
+    }
+
+    fn env_of(cmd: &Command, want: &str) -> Option<String> {
+        cmd.get_envs().find_map(|(key, value)| {
+            (key == want).then(|| value.unwrap_or_default().to_string_lossy().into_owned())
+        })
+    }
+
+    /// The Linux engine, told where its own parts are.
+    ///
+    /// podman looks for conmon, a registries.conf and a policy.json at absolute
+    /// system paths. botcage does not install to `/`, so a bundle unpacked into
+    /// its app data directory is invisible to the binary inside it: `podman
+    /// info` fails on conmon, which is the first thing `served_by` asks, so the
+    /// engine botcage just installed reports itself as no engine at all. The
+    /// two after it stop a build: an unqualified `FROM debian:...` is refused
+    /// without registries.conf, and nothing builds at all without a policy.
+    ///
+    /// Found by running the real thing on Ubuntu, having shipped two releases
+    /// where the Linux desktop could not start.
+    #[test]
+    fn the_linux_engine_is_pointed_at_its_own_parts() {
+        let _alone = ONE_AT_A_TIME
+            .lock()
+            .unwrap_or_else(|held| held.into_inner());
+
+        // The layout podman-static unpacks into.
+        let root = std::env::temp_dir().join("botcage-podman-layout");
+        let _ = std::fs::remove_dir_all(&root);
+        let bin = root.join("usr/local/bin");
+        let lib = root.join("usr/local/lib/podman");
+        let etc = root.join("etc/containers");
+        for dir in [&bin, &lib, &etc] {
+            std::fs::create_dir_all(dir).expect("the bundle's shape");
+        }
+        let podman = bin.join("podman");
+        for file in [
+            &podman,
+            &lib.join("conmon"),
+            &etc.join("registries.conf"),
+            &etc.join("policy.json"),
+        ] {
+            std::fs::write(file, b"").expect("a bundled file");
+        }
+
+        use_managed_engine(Some(podman.clone()), None);
+
+        let cmd = docker_cmd(&["image", "inspect", IMAGE]).expect("a command");
+        let conf = env_of(&cmd, "CONTAINERS_CONF").expect("podman is told where conmon is");
+        assert!(
+            std::fs::read_to_string(&conf)
+                .unwrap()
+                .contains(&lib.join("conmon").display().to_string()),
+            "the generated containers.conf must name the bundled conmon"
+        );
+        assert_eq!(
+            env_of(&cmd, "CONTAINERS_REGISTRIES_CONF").as_deref(),
+            Some(etc.join("registries.conf").display().to_string().as_str()),
+            "without this an unqualified FROM is refused"
+        );
+
+        // The policy is a flag rather than a variable, and only on the two
+        // subcommands that read one.
+        let build = docker_cmd(&["build", "-t", IMAGE, "."]).expect("a build");
+        let args: Vec<String> = build
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            args.first().map(String::as_str),
+            Some("build"),
+            "the subcommand stays first"
+        );
+        assert!(
+            args.iter().any(|a| a.starts_with("--signature-policy=")),
+            "podman will not build without one: {args:?}"
+        );
+        assert!(
+            !args.iter().any(|a| a.starts_with("--signature-policy="))
+                || args.contains(&".".to_string()),
+            "the original arguments survive"
+        );
+
+        // And nowhere else, because docker has never heard of it.
+        let run = docker_cmd(&["run", "-d", IMAGE]).expect("a run");
+        assert!(
+            !run.get_args()
+                .any(|a| a.to_string_lossy().starts_with("--signature-policy")),
+            "only build and pull take a policy"
+        );
+
+        use_managed_engine(None, None);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// And where botcage installed nothing, it must not invent a socket: the

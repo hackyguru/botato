@@ -1346,10 +1346,11 @@
     <div class="overlay" id="about" hidden>
       <div class="sheet sheet--about">
         <div class="sheet__body">
-          <span class="face face--lg" data-head="squircle" data-mood="idle" data-eyes="dot"
-                  data-brow="none" data-smile="soft" data-mark="none" style="--skin:#0a84ff;--beat:2.6s"><span
-                  class="face__brows"><i></i><i></i></span><span class="face__eyes"><i></i><i></i></span><span
-                  class="face__mouth"></span><span class="face__mark"></span><span class="face__aura"></span></span>
+          <!-- Drawn by the same generator the rail's mark is, rather than
+               written out by hand: the markup that used to be here described a
+               face in CSS classes the stylesheet no longer has, so it rendered
+               as two loose eyes and nothing else. -->
+          <span class="about__mark" id="about-mark"></span></span>
           <h2 class="about__name">botcage</h2>
           <p class="about__version" id="about-version">—</p>
           <p class="about__blurb">
