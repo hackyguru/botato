@@ -254,5 +254,5 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  sendText: { color: "#fff", fontSize: 17, fontWeight: "600" },
+  sendText: { color: T.onBlue, fontSize: 17, fontWeight: "600" },
 });

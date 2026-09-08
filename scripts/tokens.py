@@ -103,7 +103,8 @@ def theme_file(t: dict) -> str:
         ("bubbleBot", "field"), ("bubbleMe", "raised"), ("raised", "raised"),
         ("fill1", "fill-1"), ("fill2", "fill-2"), ("fill3", "fill-3"),
         ("line", "line"), ("text", "text"), ("text2", "text-2"), ("text3", "text-3"),
-        ("onAccent", "on-accent"), ("link", "link"), ("blue", "blue"),
+        ("onAccent", "on-accent"), ("onBlue", "on-blue"),
+        ("link", "link"), ("blue", "blue"),
         ("green", "green"), ("amber", "amber"), ("red", "red"),
     ]
     for prop, token in same:

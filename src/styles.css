@@ -36,16 +36,18 @@
   --text-2: #8e8e93;
   /* What explains it. */
   --text-3: #85858b;
-  /* Type on blue, red or green. */
+  /* Type on red or amber, which stay dark enough to carry white. */
   --on-accent: #ffffff;
   /* A surface that stays light whatever sits behind it: the send button, a live pill. */
   --bright: #f2f2f2;
   /* Ink on that surface. inkOn() picks between this and on-accent. */
   --on-bright: #0a0a0a;
-  /* The one accent: what is chosen, what is yours to press. */
-  --blue: #0a84ff;
-  /* Blue that has to stay legible in a paragraph. */
-  --link: #4a9dff;
+  /* The one accent: what is chosen, what is yours to press. Named blue because it was, and because renaming it is a rewrite of both apps rather than a colour. */
+  --blue: #c8a06a;
+  /* Type on the accent. It is a light colour now, so its ink is dark: white on it is 2.4:1, and this is 6.7:1. */
+  --on-blue: #2a1e0d;
+  /* The accent, lifted until it stays legible in a paragraph: 10.5:1 on the conversation's own ground. */
+  --link: #dab98e;
   /* Ready, connected, alive. */
   --green: #30d158;
   /* Wants you: a mention, a warning that is not a failure. */
@@ -92,8 +94,11 @@
 :root {
   /* Desktop header height; shared colors and sizes come from tokens.json. */
   --head-h: 62px;
-  /* White button labels need stronger contrast than the selection accent. */
-  --action-bg: #0068d9;
+  /* The accent itself now. This was a darker blue than the selection colour
+     because white labels needed it; the label on it is dark ink these days, so
+     the button can simply be the accent and there is nothing to compensate
+     for. */
+  --action-bg: var(--blue);
 }
 
 * {

@@ -244,8 +244,8 @@ const s = StyleSheet.create({
   link: { color: T.link, textDecorationLine: "underline" },
   /* A tint rather than the link colour: a mention is not tappable, and
      colouring it like the link on the line above would say that it was. */
-  men: { color: "#7ab6ff", backgroundColor: "rgba(10,132,255,0.16)", fontWeight: "500" },
-  menRoom: { backgroundColor: "rgba(10,132,255,0.22)" },
+  men: { color: T.link, backgroundColor: "rgba(200,160,106,0.16)", fontWeight: "500" },
+  menRoom: { backgroundColor: "rgba(200,160,106,0.22)" },
   menYou: { color: "#f5c26b", backgroundColor: "rgba(240,178,50,0.22)" },
   heading: { marginTop: 4, color: T.text, fontSize: 16, fontWeight: "600", lineHeight: 23 },
   block: {

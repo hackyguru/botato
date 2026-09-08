@@ -252,7 +252,7 @@ const s = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: T.blue,
   },
-  eye: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#04203f" },
+  eye: { width: 8, height: 8, borderRadius: 4, backgroundColor: T.onBlue },
   title: { marginTop: 18, color: T.text, fontSize: 22, fontWeight: "600", textAlign: "center" },
   blurb: {
     marginBottom: 14,
@@ -284,6 +284,6 @@ const s = StyleSheet.create({
     borderRadius: 14,
   },
   buttonOff: { opacity: 0.4 },
-  buttonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  buttonText: { color: T.onBlue, fontSize: 16, fontWeight: "600" },
   fine: { marginTop: 18, color: T.text3, fontSize: 12, lineHeight: 18, textAlign: "center" },
 });
