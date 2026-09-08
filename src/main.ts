@@ -11297,7 +11297,7 @@ menu.addEventListener("click", (event) => {
 /** A newer release than this build, if GitHub has one. Asked once at launch
  *  and cached on the Rust side for six hours, so opening the menu is never a
  *  network call and a rate limit is never reachable. */
-const RELEASES_URL = "https://github.com/hackyguru/botcage/releases/latest";
+const RELEASES_URL = "https://github.com/hackyguru/botcage/releases";
 
 let newRelease: { version: string; url: string } | null = null;
 

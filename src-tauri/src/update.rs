@@ -1,9 +1,15 @@
 //! Whether there is a newer botcage than this one.
 //!
-//! GitHub's `releases/latest` is the whole source. It deliberately excludes
-//! drafts and pre-releases, so a release being built, or sitting unpublished
-//! while somebody checks its assets, is invisible here — which is the right
-//! answer: an update nobody has published is not an update.
+//! GitHub's releases list is the whole source, rather than `releases/latest`.
+//! botcage is alpha and every release is published as a pre-release, which
+//! `releases/latest` excludes by definition — pointed there, this would answer
+//! 404 for ever and nobody would be offered an update again.
+//!
+//! Drafts are still excluded: unauthenticated, the API does not return them at
+//! all, and the filter below drops any that appear anyway. A release being
+//! built, or sitting unpublished while somebody checks its assets, is invisible
+//! here, which is the right answer — an update nobody has published is not an
+//! update.
 //!
 //! Nothing is downloaded or installed. botcage ships no auto-updater, and
 //! pretending otherwise with a progress bar that ends at "now go to the
@@ -20,7 +26,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
-const LATEST: &str = "https://api.github.com/repos/hackyguru/botcage/releases/latest";
+/// Newest first, and one page is plenty: the answer is always in the first
+/// few, and asking for more only makes the reply bigger.
+const RELEASES: &str = "https://api.github.com/repos/hackyguru/botcage/releases?per_page=20";
+
+/// Where somebody is sent to fetch it. The list rather than `latest`, for the
+/// same reason as above: with only pre-releases published, `latest` is a 404.
+const RELEASES_PAGE: &str = "https://github.com/hackyguru/botcage/releases";
 
 /// How long an answer stays good. The unauthenticated API allows sixty calls
 /// an hour per address; this asks four times a day at most, and a release
@@ -81,6 +93,31 @@ pub fn newer(than: &str, candidate: &str) -> bool {
     parts(candidate) > parts(than)
 }
 
+/// The highest version among the published releases in a list reply.
+///
+/// By version rather than by position. The list arrives newest-created first,
+/// which is nearly always the same order, but a patch tagged on an old branch
+/// after a newer one went out is created last and is not an upgrade — and a
+/// release edited later can move. Comparing the numbers cannot get that wrong.
+fn best(body: &serde_json::Value) -> Option<(String, String)> {
+    let list = body.as_array()?;
+    list.iter()
+        .filter(|r| {
+            // Absent means published: the field is only ever true on a draft,
+            // and unauthenticated the API does not return drafts at all.
+            !r.get("draft").and_then(|v| v.as_bool()).unwrap_or(false)
+        })
+        .filter_map(|r| {
+            let tag = r.get("tag_name")?.as_str()?.trim_start_matches('v');
+            let url = r
+                .get("html_url")
+                .and_then(|v| v.as_str())
+                .unwrap_or(RELEASES_PAGE);
+            Some((tag.to_string(), url.to_string()))
+        })
+        .max_by_key(|(tag, _)| parts(tag))
+}
+
 fn ask() -> Result<(String, String), String> {
     let out = std::process::Command::new("curl")
         .args([
@@ -89,7 +126,7 @@ fn ask() -> Result<(String, String), String> {
             "20",
             "-H",
             "Accept: application/vnd.github+json",
-            LATEST,
+            RELEASES,
         ])
         .output()
         .map_err(|e| format!("could not run curl: {e}"))?;
@@ -98,18 +135,13 @@ fn ask() -> Result<(String, String), String> {
     }
     let body: serde_json::Value =
         serde_json::from_slice(&out.stdout).map_err(|e| format!("not JSON: {e}"))?;
-    let tag = body
-        .get("tag_name")
-        .and_then(|v| v.as_str())
-        .ok_or("no tag_name in the answer")?;
-    let url = body
-        .get("html_url")
-        .and_then(|v| v.as_str())
-        .unwrap_or("https://github.com/hackyguru/botcage/releases/latest");
-    Ok((tag.trim_start_matches('v').to_string(), url.to_string()))
+    // A rate limit answers 200 with an object rather than a list, so "no
+    // releases in the answer" covers both that and a repository with none.
+    best(&body).ok_or_else(|| "no releases in the answer".to_string())
 }
 
-/// The newest published release, if it is newer than this build.
+/// The newest published release, pre-releases included, if it is newer
+/// than this build.
 ///
 /// Answers from the cache when it is fresh, and from the cache again when the
 /// network fails — an aeroplane should not make an offered update disappear.
@@ -191,5 +223,55 @@ mod tests {
     fn a_prerelease_suffix_is_ignored_rather_than_misread() {
         assert!(!newer("0.5.0", "0.5.0-rc.1"));
         assert!(newer("0.5.0", "0.5.1-rc.1"));
+    }
+
+    fn release(tag: &str, draft: bool, prerelease: bool) -> serde_json::Value {
+        serde_json::json!({
+            "tag_name": tag,
+            "draft": draft,
+            "prerelease": prerelease,
+            "html_url": format!("https://example.invalid/{tag}"),
+        })
+    }
+
+    /// The whole point of the change: every botcage release is marked as a
+    /// pre-release, so one that is ignored is one nobody is ever offered.
+    #[test]
+    fn a_prerelease_is_still_an_update() {
+        let body = serde_json::json!([release("v0.7.0", false, true)]);
+        let (version, url) = best(&body).expect("the pre-release counts");
+        assert_eq!(version, "0.7.0");
+        assert_eq!(url, "https://example.invalid/v0.7.0");
+    }
+
+    /// Published only. A draft is a release nobody has pressed the button on,
+    /// and its assets may not exist yet.
+    #[test]
+    fn a_draft_is_not_offered() {
+        let body = serde_json::json!([
+            release("v0.9.0", true, true),
+            release("v0.7.0", false, true),
+        ]);
+        assert_eq!(best(&body).unwrap().0, "0.7.0");
+    }
+
+    /// The list arrives in creation order, which a patch tagged on an old
+    /// branch puts out of version order.
+    #[test]
+    fn the_highest_version_wins_rather_than_the_first_row() {
+        let body = serde_json::json!([
+            release("v0.6.1", false, true),
+            release("v0.10.0", false, true),
+            release("v0.9.0", false, true),
+        ]);
+        assert_eq!(best(&body).unwrap().0, "0.10.0");
+    }
+
+    /// A rate limit answers 200 with an object, and a repository with no
+    /// releases answers with an empty list. Neither is an update.
+    #[test]
+    fn nothing_usable_offers_nothing() {
+        assert!(best(&serde_json::json!([])).is_none());
+        assert!(best(&serde_json::json!({ "message": "API rate limit exceeded" })).is_none());
     }
 }

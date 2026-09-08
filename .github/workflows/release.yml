@@ -139,7 +139,12 @@ jobs:
           tagName: ${{ github.event.inputs.tag || github.ref_name }}
           releaseName: botcage ${{ github.event.inputs.tag || github.ref_name }}
           releaseDraft: true
-          prerelease: false
+          # Every release is a pre-release. botcage is alpha: the version
+          # number is not a promise, and GitHub's "Latest release" badge is —
+          # it is the one people download without reading anything else. The
+          # in-app update check reads the releases list rather than
+          # `releases/latest` precisely so this flag costs nothing.
+          prerelease: true
           args: --target ${{ matrix.target }}
           releaseBody: |
             ## Which file do I want?

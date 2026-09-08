@@ -12,7 +12,30 @@ node .github/scripts/check-version.mjs        # confirm they agree
 git tag v0.2.0 && git push origin v0.2.0
 
 # 3. edit and publish the draft release on GitHub
+#    Leave "Set as a pre-release" ticked — the workflow ticks it for you.
 ```
+
+## Everything is a pre-release
+
+The workflow sets `prerelease: true` and it stays that way while botcage is
+alpha. Leave the box ticked when publishing the draft; GitHub remembers the flag
+from the release the workflow created, and unticking it is a one-click way to
+promise a stability nothing here has.
+
+Two things depend on that being true rather than on it looking tidy:
+
+- **`releases/latest` does not exist** while every release is a pre-release —
+  the API answers 404 and the web page redirects nowhere. Nothing should link
+  there. The app, the README and the site all point at `/releases`, and
+  [`update.rs`](../src-tauri/src/update.rs) reads the releases *list* and picks
+  the highest version itself.
+- **The release notes lead with the alpha and no-warranty disclaimer**, because
+  the release page is where most people meet botcage for the first time. It is
+  in `releaseBody` in [the workflow](workflows/release.yml); keep it at the top
+  when the rest of the notes are edited.
+
+Promoting a release to stable one day means: untick the flag, and put
+`releases/latest` back in the four places above.
 
 ## Signing and notarising macOS builds
 
