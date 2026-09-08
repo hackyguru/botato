@@ -1376,6 +1376,31 @@
       </div>
     </div>
 
+    <!-- Updating in place. A sheet rather than a silent swap, because
+         installing one restarts the app, and a restart stops every bot that is
+         mid-task — which is a thing to be asked about rather than told after.
+         The same sheet carries the progress and the failure. -->
+    <div class="overlay" id="update" hidden>
+      <div class="sheet sheet--update">
+        <div class="sheet__body">
+          <h2 class="update__title" id="update-title">Update botcage</h2>
+          <p class="update__what" id="update-what"></p>
+          <!-- In the body rather than the footer. A footer of three buttons
+               makes somebody choose between three things, when the choice is
+               only ever install or not; what changed is worth reading first,
+               not weighing against them. -->
+          <button type="button" class="update__notes" id="update-notes">What changed</button>
+          <div class="update__bar" id="update-bar" hidden>
+            <span class="update__fill" id="update-fill"></span>
+          </div>
+        </div>
+        <div class="sheet__foot update__foot">
+          <button type="button" class="chip" id="update-close">Not now</button>
+          <button type="button" class="btn-primary" id="update-go">Install and restart</button>
+        </div>
+      </div>
+    </div>
+
     <div class="overlay" id="about" hidden>
       <div class="sheet sheet--about">
         <div class="sheet__body">

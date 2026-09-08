@@ -11,10 +11,10 @@
 //! here, which is the right answer — an update nobody has published is not an
 //! update.
 //!
-//! Nothing is downloaded or installed. botcage ships no auto-updater, and
-//! pretending otherwise with a progress bar that ends at "now go to the
-//! website" would be worse than saying so. The menu item opens the release
-//! page and the person decides.
+//! Installing is the updater plugin's job, not this module's. What lives here
+//! is the question asked at launch — is there a newer one — and the question
+//! asked before offering to install it, which is whether this particular copy
+//! of botcage is one that can replace itself at all. See `update_installable`.
 //!
 //! Through curl, for the same reason the rest of botcage does: it is on every
 //! machine, and an app bundle started by the system has a PATH of four
@@ -138,6 +138,35 @@ fn ask() -> Result<(String, String), String> {
     // A rate limit answers 200 with an object rather than a list, so "no
     // releases in the answer" covers both that and a repository with none.
     best(&body).ok_or_else(|| "no releases in the answer".to_string())
+}
+
+/// Whether this copy of botcage can install an update over itself.
+///
+/// Not every install can, and the ones that cannot must not be offered a
+/// button that fails. A .deb or a .rpm belongs to the system package manager:
+/// its files are root-owned, its version is recorded in a database botcage has
+/// no business writing to, and replacing them behind apt's back is how a
+/// machine ends up with a package it can no longer upgrade. Those are sent to
+/// the release page, which is the honest answer for them.
+///
+/// An AppImage is a single file the person downloaded and owns, which is why
+/// it is the one Linux format that can be swapped in place. The runtime sets
+/// APPIMAGE to its path, and its absence is what tells us we are inside a
+/// packaged install instead.
+///
+/// macOS is always yes: the bundle is a directory in /Applications that the
+/// person installed by dragging, and the plugin replaces it wholesale.
+#[tauri::command]
+#[must_use]
+pub fn update_installable() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        std::env::var_os("APPIMAGE").is_some()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        true
+    }
 }
 
 /// The newest published release, pre-releases included, if it is newer

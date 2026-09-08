@@ -11318,6 +11318,141 @@ void invoke<{ version: string; url: string } | null>("update_check")
     // to "is there one" when nobody could ask.
   });
 
+/** Whether this install can replace itself, asked once. A .deb or .rpm belongs
+ *  to the package manager and is sent to the release page instead. */
+let canInstall = false;
+void invoke<boolean>("update_installable")
+  .then((yes) => {
+    canInstall = yes;
+  })
+  .catch(() => {});
+
+const updateWrap = $<HTMLDivElement>("#update");
+const updateTitle = $<HTMLHeadingElement>("#update-title");
+const updateWhat = $<HTMLParagraphElement>("#update-what");
+const updateBar = $<HTMLDivElement>("#update-bar");
+const updateFill = $<HTMLSpanElement>("#update-fill");
+const updateGo = $<HTMLButtonElement>("#update-go");
+// Named for the convention the backdrop-click and Escape handlers look for.
+const updateLater = $<HTMLButtonElement>("#update-close");
+
+/** True once the bytes are on disk. The app is not new until it restarts, so
+ *  the button changes rather than the sheet closing. */
+let staged = false;
+
+function openUpdate(): void {
+  if (!newRelease) return;
+  staged = false;
+  updateTitle.textContent = `botcage ${newRelease.version}`;
+  updateBar.hidden = true;
+  updateFill.style.width = "0";
+  updateLater.hidden = false;
+  updateGo.disabled = false;
+  if (canInstall) {
+    // Said before it happens, not after. Every bot mid-task stops when the app
+    // does, and somebody with one working deserves to choose the moment.
+    updateWhat.textContent =
+      `You have ${thisVersion}. Installing restarts botcage, which stops anything your bots are in the middle of.`;
+    updateGo.textContent = "Install and restart";
+  } else {
+    // A package manager owns this copy. Saying so is better than a button that
+    // fails, and better than silence about why there isn't one.
+    updateWhat.textContent =
+      `You have ${thisVersion}. This copy was installed by your package manager, so botcage cannot replace it itself — the release page has the new one.`;
+    updateGo.textContent = "Open the release page";
+  }
+  updateWrap.hidden = false;
+}
+
+/** Refused while bytes are landing. The download does not stop when the sheet
+ *  is dismissed, and a person who cannot see it is a person who restarts in
+ *  the middle of it. */
+let updating = false;
+
+function closeUpdate(): void {
+  if (updating) return;
+  updateWrap.hidden = true;
+}
+
+updateLater.addEventListener("click", closeUpdate);
+$<HTMLButtonElement>("#update-notes").addEventListener("click", () => {
+  void openUrl(newRelease?.url ?? RELEASES_URL);
+});
+
+updateGo.addEventListener("click", () => {
+  if (!canInstall) {
+    void openUrl(newRelease?.url ?? RELEASES_URL);
+    closeUpdate();
+    return;
+  }
+  if (staged) return void relaunchIntoNew();
+  void installUpdate();
+});
+
+async function relaunchIntoNew(): Promise<void> {
+  const { relaunch } = await import("@tauri-apps/plugin-process");
+  await relaunch();
+}
+
+/** Download, verify, replace. The plugin checks the bundle against the public
+ *  key in tauri.conf.json before it writes anything, which is the only reason
+ *  an updater is a feature rather than a way to run somebody else's code. */
+async function installUpdate(): Promise<void> {
+  updating = true;
+  updateGo.disabled = true;
+  updateLater.hidden = true;
+  updateBar.hidden = false;
+  updateGo.textContent = "Downloading…";
+  try {
+    const { check } = await import("@tauri-apps/plugin-updater");
+    const found = await check();
+    if (!found) {
+      // The launch check reads GitHub's releases; this one reads the updater
+      // manifest. A version in one and not yet the other is a few minutes of
+      // publishing, not a failure worth an error message.
+      updateWhat.textContent =
+        "That version is not ready to install yet. Try again shortly, or take it from the release page.";
+      updateBar.hidden = true;
+      updateGo.textContent = "Open the release page";
+      updateGo.disabled = false;
+      updateLater.hidden = false;
+      updating = false;
+      canInstall = false;
+      return;
+    }
+    // contentLength is absent often enough to matter, so the bar only tracks
+    // real bytes and otherwise just says it is working.
+    let total = 0;
+    let got = 0;
+    await found.downloadAndInstall((event) => {
+      if (event.event === "Started") total = event.data.contentLength ?? 0;
+      else if (event.event === "Progress") {
+        got += event.data.chunkLength;
+        if (total > 0) updateFill.style.width = `${Math.min(100, (got / total) * 100)}%`;
+      } else if (event.event === "Finished") updateFill.style.width = "100%";
+    });
+    staged = true;
+    updating = false;
+    updateTitle.textContent = "Ready to restart";
+    updateWhat.textContent =
+      `botcage ${newRelease?.version ?? ""} is installed. It starts the moment you restart, and your bots come back with it.`;
+    updateGo.textContent = "Restart now";
+    updateGo.disabled = false;
+    updateLater.hidden = false;
+    updateLater.textContent = "Later";
+  } catch (err) {
+    // Offline, a signature that did not match, a disk that said no. The page
+    // still works, so that is what is offered rather than a dead end.
+    updateWhat.textContent = `That did not install: ${String(err)}`;
+    updating = false;
+    updateBar.hidden = true;
+    updateGo.textContent = "Open the release page";
+    updateGo.disabled = false;
+    updateLater.hidden = false;
+    canInstall = false;
+  }
+}
+
 $<HTMLButtonElement>("#btn-account").addEventListener("click", (event) => {
   openMenu(
     event.currentTarget as HTMLElement,
@@ -11631,9 +11766,7 @@ menu.addEventListener("click", (e) => {
   const app = target.closest<HTMLButtonElement>("[data-app]")?.dataset.app;
   if (app) {
     closeMenu();
-    // The release page rather than an install: botcage ships no updater, and a
-    // button that pretends to be one is worse than a link that is honest.
-    if (app === "update") void openUrl(newRelease?.url ?? RELEASES_URL);
+    if (app === "update") void openUpdate();
     else if (app === "calendar") openCalendar();
     else if (app === "settings") void openAppSettings();
     else if (app === "tour") startTour();
@@ -12458,6 +12591,7 @@ document.addEventListener("keydown", (e) => {
     // Escape is how you leave a dialog; this one is a gate, and a gate with a
     // keystroke that opens it is a formality. The tick is the only way past.
     else if (!setupWrap.hidden && termsAccepted()) closeSetup();
+    else if (!updateWrap.hidden) closeUpdate();
     else if (!aboutWrap.hidden) aboutWrap.hidden = true;
     else if (!appWrap.hidden) appWrap.hidden = true;
     else if (teach.arming) cancelArming();

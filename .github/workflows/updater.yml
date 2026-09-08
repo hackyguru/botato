@@ -1,0 +1,75 @@
+# Where the app looks to find out there is a newer one.
+name: Updater manifest
+
+# On publish, never on build. A draft's assets are private, so a manifest
+# written when the bundles are built would advertise files that answer 404 to
+# everyone but us, and the app would offer an update it cannot fetch. Pressing
+# publish is the moment the download actually exists, so that is the trigger.
+#
+# Pre-releases fire this too, which is the point: every botcage release is one,
+# and an updater that skipped them would never see anything.
+on:
+  release:
+    types: [published]
+  # For fixing a manifest by hand without cutting a release to do it.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release to publish the manifest from, e.g. v0.7.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Written by tauri-action alongside the bundles, and absent if the signing
+      # secrets were not set — in which case there is nothing to publish, and
+      # saying so beats pushing a manifest nobody can install from.
+      - name: Take latest.json off the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
+        run: |
+          if ! gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --pattern latest.json --dir "$RUNNER_TEMP"; then
+            echo "::error::$TAG has no latest.json. The build ran without TAURI_SIGNING_PRIVATE_KEY, so there are no signed bundles to offer."
+            exit 1
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+      # A release can be published out of order: an old one re-published, or a
+      # patch cut on a branch after a newer version went out. Either would walk
+      # every install backwards, so the manifest only ever moves forward.
+      - name: Only if it is newer than the manifest already there
+        run: |
+          git fetch origin updater --depth 1 2>/dev/null || true
+          if git show origin/updater:latest.json > "$RUNNER_TEMP/current.json" 2>/dev/null; then
+            node .github/scripts/manifest-newer.mjs "$RUNNER_TEMP/current.json" "$RUNNER_TEMP/latest.json"
+          else
+            echo "No manifest yet; this is the first."
+          fi
+
+      # Its own branch, holding nothing but the manifest. The app fetches this
+      # over raw.githubusercontent, so anything else here would be a copy of the
+      # source made once per release for no reason.
+      - name: Publish it
+        if: env.SKIP != '1'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git show-ref --quiet refs/remotes/origin/updater; then
+            git checkout -B updater origin/updater
+          else
+            git checkout --orphan updater
+            git reset
+            find . -maxdepth 1 -not -name .git -not -name . -exec rm -rf {} +
+          fi
+          cp "$RUNNER_TEMP/latest.json" latest.json
+          git add latest.json
+          git commit -m "botcage $TAG"
+          git push origin updater

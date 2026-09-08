@@ -4853,6 +4853,82 @@ button.learn-badge--open:hover {
   gap: 6px;
 }
 
+/* ------------------------------------------------------------- updating */
+
+.sheet--update {
+  width: min(420px, 92vw);
+}
+
+/* Left, and full width. .sheet__body centres what it holds, which suits About
+   — a name and a blurb — and not this: a sentence about what installing will
+   interrupt is read, not admired, and a centred paragraph is harder to read. */
+.sheet--update .sheet__body {
+  align-items: stretch;
+}
+
+.update__title {
+  margin: 0;
+  font-size: var(--type-title-sm);
+  font-weight: 600;
+}
+
+.update__what {
+  margin: 8px 0 0;
+  font-size: var(--type-small);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+/* A link, not a button that competes with the two below. */
+.update__notes {
+  align-self: flex-start;
+  margin-top: 10px;
+  padding: 0;
+  background: none;
+  border: 0;
+  font-size: var(--type-hint);
+  color: var(--link);
+  cursor: pointer;
+}
+
+.update__notes:hover {
+  text-decoration: underline;
+}
+
+/* Only while something is downloading. A bar that sits at zero before anybody
+   has pressed anything is a bar that says the app is stuck. */
+.update__bar {
+  margin-top: 14px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--fill-2);
+  overflow: hidden;
+}
+
+.update__fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--blue);
+  transition: width 0.2s ease-out;
+}
+
+/* The base .sheet__foot is a grid and is defined further down the file, so a
+   bare .update__foot loses to it and the buttons stack. Both classes are on
+   the element; naming both is what makes this a row. */
+.sheet__foot.update__foot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* The primary action takes the room left over, so the two chips stay the size
+   of their words and the button somebody wants is the wide one. */
+.update__foot .btn-primary {
+  flex: 1;
+}
+
 /* Bigger than the rail's 38: this is the one place the mark is the subject
    rather than a label on a column. */
 .about__mark {

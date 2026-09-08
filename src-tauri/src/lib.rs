@@ -1960,6 +1960,11 @@ pub fn run() {
         // "botcage://" — how a template on the website gets into the roster.
         // Nothing is created by a link arriving; see `handed_a_bot`.
         .plugin(tauri_plugin_deep_link::init())
+        // Replacing this app with a newer one, and restarting into it. The
+        // bundle is checked against the public key in tauri.conf.json first;
+        // see update.rs for which installs can take one at all.
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(Running::default())
         .manage(sandbox::Sandboxes::default())
         .invoke_handler(tauri::generate_handler![
@@ -2006,6 +2011,7 @@ pub fn run() {
             bots_dir,
             app_version,
             update::update_check,
+            update::update_installable,
             user_name,
             plugins::list_plugins,
             connectors::connectors,

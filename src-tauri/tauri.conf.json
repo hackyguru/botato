@@ -53,7 +53,8 @@
       "minimumSystemVersion": "11.0",
       "hardenedRuntime": true,
       "entitlements": "entitlements.plist"
-    }
+    },
+    "createUpdaterArtifacts": true
   },
   "plugins": {
     "deep-link": {
@@ -62,6 +63,12 @@
           "botcage"
         ]
       }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI5QjRFNkIyQjJGOTRBNTEKUldSUlN2bXlzdWEwdVdJbDBXM1F2eDNyaXRLS3lZNFhmMElIWW1QbjJtSk1vRFpxbmdVekxCbW4K",
+      "endpoints": [
+        "https://raw.githubusercontent.com/hackyguru/botcage/updater/latest.json"
+      ]
     }
   }
 }

@@ -131,6 +131,12 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signs the updater bundles. Without these the build still succeeds
+          # and simply produces no .sig files, which the updater then refuses —
+          # so a missing secret shows up as "that did not install" rather than
+          # as a failed build. The keypair is not the Apple one; see RELEASING.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # Signing and notarisation happen only once these exist. Without them
           # the build still succeeds and produces an unsigned bundle, which
           # Gatekeeper will refuse on anyone else's machine — so the release

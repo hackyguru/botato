@@ -24,18 +24,89 @@ promise a stability nothing here has.
 
 Two things depend on that being true rather than on it looking tidy:
 
-- **`releases/latest` does not exist** while every release is a pre-release —
-  the API answers 404 and the web page redirects nowhere. Nothing should link
-  there. The app, the README and the site all point at `/releases`, and
-  [`update.rs`](../src-tauri/src/update.rs) reads the releases *list* and picks
-  the highest version itself.
+- **`releases/latest` skips pre-releases**, which is worse than it failing.
+  It resolves to the newest release that is *not* one — so once the newer
+  releases are all pre-releases it quietly keeps answering with an old version,
+  and only 404s if no ordinary release was ever published. Either way it must
+  not be linked or fetched: the app, the README and the site point at
+  `/releases`, [`update.rs`](../src-tauri/src/update.rs) reads the releases
+  *list*, and the updater manifest is served from its own branch.
 - **The release notes lead with the alpha and no-warranty disclaimer**, because
   the release page is where most people meet botcage for the first time. It is
   in `releaseBody` in [the workflow](workflows/release.yml); keep it at the top
   when the rest of the notes are edited.
 
-Promoting a release to stable one day means: untick the flag, and put
-`releases/latest` back in the four places above.
+**v0.7.0 was published as an ordinary release on purpose.** Everything up to
+v0.6.0 shipped an updater that reads `releases/latest`, so a pre-release is
+invisible to it and those installs would never have been offered anything
+again. Publishing one normal release is the bridge that carries them onto a
+build whose updater reads the list. Later releases can go back to being
+pre-releases, because by then the app on the other end can see them.
+
+## Updating in place
+
+The app replaces itself rather than sending people to download a file. Three
+pieces have to line up, and the failure mode when one does not is quiet — the
+build succeeds, and the app says "that did not install" to whoever presses it.
+
+### 1. The signing keypair
+
+Not the Apple one. This is a minisign keypair that signs the update bundles, and
+it is what stops the updater from being a way to run somebody else's code as
+you: the app refuses anything the public key in `tauri.conf.json` does not
+verify.
+
+```sh
+pnpm exec tauri signer generate -w ~/.tauri/botcage-updater.key
+```
+
+The public half is already committed in `tauri.conf.json` under
+`plugins.updater.pubkey`. The private half must never be — put it in Actions:
+
+| Secret | Value |
+| --- | --- |
+| `TAURI_SIGNING_PRIVATE_KEY` | the contents of `~/.tauri/botcage-updater.key` |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | the passphrase, or empty if none |
+
+Losing the private key means every existing install stops accepting updates,
+because a new key cannot verify against the old public one. Back it up
+somewhere that is not this repository.
+
+### 2. The manifest, on its own branch
+
+`tauri-action` writes `latest.json` beside the bundles. The app reads it from
+`https://raw.githubusercontent.com/hackyguru/botcage/updater/latest.json` —
+an `updater` branch holding that one file and nothing else.
+
+It is published by [`updater.yml`](workflows/updater.yml), which runs on
+`release: published` and never on build. That timing is the point: a draft's
+assets are private, so a manifest written when the bundles were built would
+advertise downloads that answer 404 to everyone but you. The workflow also
+refuses to move the manifest backwards, so re-publishing an old release to fix
+its notes cannot walk every install down a version.
+
+### 3. Who can actually take one
+
+- **macOS** — yes. The `.app` is replaced wholesale, which is why
+  `createUpdaterArtifacts` is on: updates travel as `.app.tar.gz`, and the
+  `.dmg` is only ever for first installs.
+- **Linux, AppImage** — yes. One file the person owns.
+- **Linux, `.deb` and `.rpm`** — no, and deliberately. Those files belong to
+  the system package manager; replacing them behind apt's back is how a machine
+  ends up with a package it can no longer upgrade. `update_installable` in
+  [`update.rs`](../src-tauri/src/update.rs) detects this by the absence of
+  `$APPIMAGE` and the app offers the release page instead.
+
+### Checking it worked
+
+After publishing, the manifest should be live and name the version you just cut:
+
+```sh
+curl -s https://raw.githubusercontent.com/hackyguru/botcage/updater/latest.json | head -5
+```
+
+raw.githubusercontent caches for around five minutes, so an immediate check can
+still show the version before.
 
 ## Signing and notarising macOS builds
 

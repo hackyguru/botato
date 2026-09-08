@@ -49,6 +49,18 @@ tauri-plugin-notification = "2.3.3"
 jsonwebtoken = { version = "11.0.0", default-features = false, features = ["use_pem", "rust_crypto"] }
 tauri-plugin-deep-link = "2.4.10"
 
+# Updating in place, rather than sending somebody to a browser to fetch a file
+# and drag it over the one they are running. The bundle is verified against the
+# public key in tauri.conf.json before anything is replaced, which is the whole
+# reason an updater is safe to have: without a signature it is a channel for
+# running somebody else's code as you.
+#
+# Desktop only, and not every desktop: see updater.rs for which installs can
+# actually take one.
+tauri-plugin-updater = "2"
+# Restarting into the version that was just installed. Only used for that.
+tauri-plugin-process = "2"
+
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
