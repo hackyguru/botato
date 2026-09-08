@@ -502,10 +502,7 @@ pub fn homes(app: &AppHandle) -> Vec<PathBuf> {
 /// which is a worse position than having none.
 pub fn remove(app: &AppHandle) -> Result<(), String> {
     if let (Some(bin), Ok(home)) = (limactl(app), lima_home(app)) {
-        for args in [
-            ["stop", "--force", VM_NAME],
-            ["delete", "--force", VM_NAME],
-        ] {
+        for args in [["stop", "--force", VM_NAME], ["delete", "--force", VM_NAME]] {
             let mut cmd = Command::new(&bin);
             cmd.args(args).env("LIMA_HOME", &home);
             let _ = cmd.output();

@@ -1198,10 +1198,14 @@ pub fn sandbox_destroy(bot_id: String) -> Result<(), String> {
 }
 
 /* ------------------------------------------------------- what it is holding */
-/* Read by the storage panel. Sizes come from the engine rather than from the
-   disk: on macOS everything here lives inside the VM's own disk image, where
-   the host filesystem can see one enormous file and nothing about what is in
-   it. The engine can say, so it is asked. */
+// Read by the storage panel. Sizes come from the engine rather than from the
+// disk: on macOS everything here lives inside the VM's own disk image, where
+// the host filesystem can see one enormous file and nothing about what is in
+// it. The engine can say, so it is asked.
+//
+// Line comments rather than a block: rustfmt reflows a multi-line /* */ to the
+// left margin, and the hanging indent is the only thing making this read as
+// one paragraph under the section rule above it.
 
 /// The image every desktop is built from, by name.
 #[must_use]
@@ -1239,8 +1243,14 @@ pub fn desks() -> Vec<(String, u64)> {
     // Without `--size` here: it makes the engine measure every container to
     // print a column this does not read, and each one is measured below by
     // name anyway.
-    let Ok(out) = docker(&["ps", "-a", "--filter", "label=botcage=1", "--format", "{{.Names}}"])
-    else {
+    let Ok(out) = docker(&[
+        "ps",
+        "-a",
+        "--filter",
+        "label=botcage=1",
+        "--format",
+        "{{.Names}}",
+    ]) else {
         return Vec::new();
     };
     stdout_of(&out)
