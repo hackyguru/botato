@@ -1,285 +1,178 @@
-# botcage
+<p align="center">
+	<img width="150" height="150" src="src-tauri/icons/Square310x310Logo.png" alt="botcage logo">
+</p>
 
-Bots that live on your own machine.
+<h1 align="center">botcage</h1>
 
-Each bot is a persistent session with its own memory and workspace,
-and — if you give it one — its own sandboxed Linux desktop with a browser and a
-terminal, which you can watch it use. They share channels, so several can work
-on the same thing and answer each other rather than only you. There is a
-desktop app and a phone app; the phone reaches the laptop directly, from
-anywhere, with nothing in between.
+<p align="center">
+	Bots that live on your own machine. Each one gets a memory, a schedule and a computer of its own. Shut the lid and they carry on.
+</p>
 
-Nothing runs on anyone else's computer. There is no account to make, no server
-of ours, and no telemetry.
+<p align="center">
+	<a href="https://github.com/hackyguru/botcage/releases/latest">Download</a>
+	·
+	<a href="#what-a-bot-gets">What a bot gets</a>
+	·
+	<a href="#get-started">Get started</a>
+	·
+	<a href="mobile/README.md">Phone app</a>
+	·
+	<a href="#local-development">Develop</a>
+</p>
 
-## What you need
+<p align="center">
+	<a href="https://github.com/hackyguru/botcage/releases"><img src="https://img.shields.io/github/v/release/hackyguru/botcage?include_prereleases&label=release" alt="Latest release"></a>
+	<a href="LICENSE"><img src="https://img.shields.io/github/license/hackyguru/botcage" alt="Apache 2.0"></a>
+	<img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20iOS%20%7C%20Android-lightgrey" alt="Platforms">
+	<img src="https://img.shields.io/badge/binary-~11%20MB-brightgreen" alt="About 11 MB">
+</p>
 
-- **The Claude Code CLI**, installed and signed in. botcage drives it rather
-  than shipping a model, and a Claude Pro or Max subscription covers it. The
-  app's setup screen installs it for you if it is missing.
-- **Or not**: a bot can instead be pointed at the Gemini CLI, at any model on
-  models.dev with an API key you hold, or at Ollama on your own machine, which
-  needs nothing.
-- **Nothing else** for chat, memory, routines, connectors and plugins.
-- **For calls on Linux**, espeak-ng to speak with and one of paplay, aplay or
-  ffplay to play with. GStreamer's base and good plugin sets, which a desktop
-  will already have, are what let the webview record.
-- **A container engine** only if you want bots to have their own computer.
-  botcage downloads and manages one itself — lima and the docker CLI on macOS,
-  rootless podman on Linux — so Docker Desktop is not required.
+> [!WARNING]
+> **botcage is alpha software, provided as is and without warranty of any kind.**
+> Every release is a pre-release. Bots run commands, drive a browser, use accounts
+> you connect to them, spend money against your own API keys and act on a schedule
+> while nobody is watching. Language models are unpredictable and can be
+> manipulated by content they read. **What your bots do is your responsibility.**
+> Do not give one access to anything you cannot afford to lose, break or expose,
+> and keep your own backups. Sections 7 and 8 of [Apache 2.0](LICENSE) say the
+> same thing in the usual words.
 
-## Running it
+## Why botcage
 
-```sh
-pnpm install
-pnpm tauri dev
-```
+- **It runs on your computer.** No account to make, no server of ours, no telemetry. Your bots, files, keys and conversations never leave the machine.
+- **A bot is somewhere, not something.** Each one owns a session and a workspace on disk and remembers across restarts, rather than being a box you type into and close.
+- **They share rooms.** A channel holds several bots and you. They read what the others said and answer each other, which is the difference between a set of assistants and colleagues.
+- **They work while you are away.** Routines run on a schedule and report back. botcage holds the machine awake for them and on a Mac it can keep the lid from stopping them.
+- **Your phone reaches them.** Directly, from anywhere, with nothing in between.
+- **Bring your own model.** Claude Code by default, or the Gemini CLI, or any of 5,559 hosted models, or Ollama on your own machine for nothing.
 
-Building on Linux needs `cmake`, `clang` and `libclang-dev` on top of the usual
-webkit development packages: whisper.cpp is compiled in, and bindgen reads its
-headers. On **ARM** Linux, build with `CC=clang CXX=clang++` — gcc refuses
-ggml's half-precision NEON intrinsics with "target specific option mismatch",
-and clang does not.
+## What a bot gets
 
-Voice is the exception, on macOS. It grants the microphone against an app
-bundle's stated reason for wanting it, and `tauri dev` runs a bare executable
-with nowhere to state one — so calls can speak but not listen there. `pnpm dev:app`, used instead of `pnpm tauri dev`, runs the same dev build as a
-bundle that can — it starts vite itself, and keeps its own scratch roster.
-
-Builds are produced by tagging a release; see [.github/RELEASING.md](.github/RELEASING.md).
-macOS builds are signed and notarised, so they open without warnings.
-
-## What a bot is
-
-- **A conversation that persists.** Each bot owns a session and a workspace on
-  disk, and remembers across restarts.
-- **An engine**: which tool answers for it, chosen per bot.
-  A bot's voice and its face are written down the first time it has them, not
-  worked out from its id every time. What is derived from an id depends on the
-  size of the list it indexes into, and those lists move — a voice fetched
-  later, a system voice installed, a trait added in an update — so anything
-  derived would quietly change under a bot you had been talking to for a
-  month. Recorded once; the same bot afterwards.
-- **A face.** Head, eyes, brows, a resting smile and a mark — 7,776 combinations
-  before colour, derived from the bot's own id so no two look alike. It blinks,
-  thinks with a cloud over its head, jumps when a turn lands and slumps when one
-  fails. A bot can change its own face when you ask it to, and draw things the
-  wardrobe has not got out of a handful of shapes.
-- **Calls.** Hold to talk and a bot listens, thinks and answers out loud —
-  transcribed and spoken on this machine, nothing sent anywhere. Call a channel
-  instead and the whole room is on it: faces side by side, whoever has the
-  floor lit, one voice at a time, and the conversation written down in the
-  channel when you hang up.
-- **A voice**, on a call: one of the machine's own, chosen from the bot's id
-  the way its face is, and changeable in its settings. macOS has two dozen
-  usable ones; Linux has espeak-ng's accents crossed with its variants, which
-  is seventy-odd — but neither sounds like a person, so your first call fetches
-  one that does. Kyutai's Pocket TTS is 24 recorded people rather than a
-  synthesiser, sounds the same on both platforms, and runs on the processor in
-  about a second a sentence. It arrives with the speech recogniser on the first
-  call anyone makes, and Settings takes it away again. A 130 MB download,
-  340 MB on disk, and nothing said leaves the machine.
-
-  Point `BOTCAGE_TTS` at a command to use something else again — Kokoro, Piper,
-  whatever comes next — without botcage shipping a model:
-
-  ```sh
-  BOTCAGE_TTS='pocket-tts generate --voice {voice} --output - --text -'
-  BOTCAGE_TTS_VOICES='Alba,Giovanni,Estelle,Charles'
-  ```
-
-  The command reads the text on stdin and may either play the audio or write
-  it to stdout; botcage works out which by whether anything came out.
-- **A memory file** it maintains itself, seeded from its name and role.
-- **Optionally, a computer**: a Linux desktop in a container with Firefox or
-  Chromium, a terminal, and a screen you can watch and take over. Each one has
-  its own filesystem, network policy, and a machine fingerprint of its own —
-  cores, screen size, fonts, locale, rendering — so ten bots do not look like
-  one machine wearing ten hats.
-- **Routines**: things it does on a schedule, reported into its own chat or
-  into a channel.
-- **Connectors and plugins**: GitHub, Gmail, Calendar, Notion, Stripe, Vercel
-  and others, connected once and scoped per bot.
+| | |
+| --- | --- |
+| **A memory** | A session and workspace on disk that survives restarts, plus a memory file it maintains itself, seeded from its name and role |
+| **A face** | Head, eyes, brows, a resting smile and a mark. 7,776 combinations before colour, derived from the bot's own id so no two look alike. It blinks, thinks with a cloud overhead, jumps when a turn lands and slumps when one fails |
+| **A voice** | One of the machine's own, or Kyutai's Pocket TTS: 24 recorded people rather than a synthesiser, fetched on the first call, about a second a sentence on the processor. Nothing said leaves the machine |
+| **A computer** | Optional. A Linux desktop in a container with Firefox or Chromium, a terminal and a screen you can watch or take over. Each has its own filesystem, network policy and machine fingerprint, so ten bots do not look like one machine wearing ten hats |
+| **Routines** | Work it does on a schedule, reported into its own chat or into a channel |
+| **Connectors** | GitHub, Gmail, Calendar, Notion, Stripe and others, connected once and scoped per bot. botcage runs its own OAuth flows and keeps the tokens in your system keychain |
+| **An engine** | Which tool answers for it, chosen per bot and changeable mid-conversation |
 
 ## Rooms, not just conversations
 
-A bot has its own chat, and bots share channels. A channel is a room with
-several of them and you in it, which is the difference between having a set of
-assistants and having colleagues: they read what the others said, and answer
-each other.
-
-- **Say who you mean.** Type `@` and it offers whoever is in the room.
-  `@everyone` reaches all of them and is yours alone — a bot cannot summon the
-  room. A message naming nobody is addressed to the room, and the room works
-  out who should take it.
-- **Threads and pins**, as you would expect. A message that has a thread says
-  so where it was sent, so a conversation that moved sideways is not hidden.
-- **Unread marks**, and a brighter one when a bot used your name.
-- **Call the room.** Faces side by side, whoever has the floor lit, one voice
-  at a time, and every word written into the channel as it is said — so the
-  meeting is already minuted when it ends, and whoever was not on it can read
-  what happened.
-- **Stand-ups.** A routine can be a meeting rather than an instruction: every
-  bot in the channel takes a turn. None of them is asked how its week went —
-  each is handed what actually ran, what it said, what broke, and what is next
-  on its own calendar, and reports that. A bot with nothing to report says so,
-  which is the entire reason it is built this way. Ask a model what it has been
-  up to and it will tell you, whether or not it has been up to anything.
+- **Say who you mean.** Type `@` and it offers whoever is in the room. `@everyone` is yours alone: a bot cannot summon the room. A message naming nobody is addressed to the room, which works out who should take it.
+- **Threads, pins and unread marks**, with a brighter mark when a bot used your name.
+- **Call the room.** Faces side by side, whoever has the floor lit, one voice at a time. Every word is written into the channel as it is said, so the meeting is minuted before it ends.
+- **Stand-ups.** A routine can be a meeting rather than an instruction. Every bot in the channel takes a turn and none is asked how its week went: each is handed what actually ran, what it said, what broke and what is next on its own calendar. A bot with nothing to report says so.
 
 ## What answers for a bot
 
-Claude Code is the default and the one that has been used in anger, but a bot
-names its own engine and can be pointed at another in its settings. There are
-three:
+| Engine | What it needs | Notes |
+| --- | --- | --- |
+| **Claude Code** (default) | The CLI, signed in | A Claude Pro or Max subscription covers it. Setup installs the CLI if it is missing |
+| **Gemini CLI** | The CLI and an API key | Google has retired the free personal login for this client |
+| **Any hosted model** | A base URL and a key you hold | 166 providers and 5,559 models, by way of [models.dev](https://models.dev) |
+| **Ollama** | Nothing at all | On your own machine, no key and no cost |
 
-- **Claude Code** and the **Gemini CLI** — programs botcage runs, each bringing
-  its own tool loop and MCP client, so a bot keeps its connectors.
-- **Any hosted model**, by way of [models.dev](https://models.dev): one file
-  describing 192 providers and 6,841 models, of which 166 providers publish an
-  API base and 5,559 models sit behind one. A base URL and a key are the whole
-  of what talking to a model takes, so botcage searches that catalogue, keeps
-  one key per provider in the keychain, and speaks the chat completions shape
-  everyone has settled on. Ollama on your own machine is offered too, and needs
-  no key at all.
+The seam is [`inference.rs`](src-tauri/src/inference.rs): an engine says how to run a turn, how to read its output, how it takes a bot's connectors and which models it can be asked for. Everything else, from the roster to the sandbox to the phone, speaks botcage's own vocabulary and never learns which tool answered.
 
-The seam is [`inference.rs`](src-tauri/src/inference.rs): an engine says how to
-run a turn, how to read its output, how it takes a bot's connectors, and which
-models it can be asked for. Everything else — the roster, the threads, the
-sandbox, the routines, the phone — speaks botcage's vocabulary and never learns
-which tool answered.
+The difference that is not cosmetic is memory. Claude Code keeps a conversation on disk and resumes it by id. The Gemini CLI cannot, so botcage keeps a transcript of every bot itself and replays what fits. That is also why a bot can change engine mid-conversation and carry the thread across: the transcript belongs to botcage rather than to whatever last answered.
 
-The difference that is not cosmetic is memory. Claude Code keeps a conversation
-on disk and resumes it by id; the Gemini CLI cannot, so botcage keeps a
-transcript of every bot itself and replays what fits. That is also why a bot can
-change engine mid-conversation and carry the thread across: the transcript
-belongs to botcage, not to whatever last answered.
+## Your data stays here
 
-## Connectors are botcage's own
+- **Nothing runs on anyone else's computer.** The API is bound to loopback, so no port is open on any network the machine joins.
+- **Connectors are botcage's own.** It disables claude.ai's connectors and runs its own OAuth flows, so a flow you completed once is not repeated because you changed model.
+- **Backups are one encrypted file**, written on a schedule to a folder you name. Point it at iCloud Drive, Dropbox or a disk you plug in. It carries no API keys, no OAuth tokens and no phone pairing, so it is not a credential store.
+- **The format is written down.** Argon2id to XChaCha20-Poly1305, the cost parameters travelling in the header and authenticated with it. [`scripts/open-backup.py`](scripts/open-backup.py) recovers a backup with nothing but Python and `cryptography`, on a machine that has never seen botcage.
 
-botcage disables claude.ai's connectors and runs its own OAuth flows, storing
-tokens in your system keychain. That is not only about privacy: a connector that
-lives in botcage can be handed to whatever answers for a bot, so an OAuth flow
-you completed once does not have to be repeated because you changed model.
+## Get started
 
-MCP is how a connector is implemented, not something an engine has to
-understand — see [`inference.rs`](src-tauri/src/inference.rs).
-
-## Backups
-
-What botcage keeps is about half a gigabyte and almost none of it matters: the
-speech models, the container engine and the model catalogue are all fetched, and
-fetched again as easily. What cannot be is a couple of megabytes — conversations,
-memory files, workspaces, routines — and it is in a worse place than anyone would
-guess, because the conversations live in the webview's `localStorage` rather than
-in botcage's own folder.
-
-So: one encrypted file, written on a schedule to a folder you name. Point it at
-iCloud Drive, Dropbox or a disk you plug in and the copy is off the machine
-without botcage holding an account anywhere. It carries no API keys, no OAuth
-tokens and no phone pairing, so it is not a credential store — restoring means
-reconnecting accounts and pairing a phone again.
-
-Argon2id to XChaCha20-Poly1305, the cost parameters travelling in the header and
-authenticated with it. An encrypted backup you can only open with the program
-that died is not a backup, so the format is written down in
-[`backup.rs`](src-tauri/src/backup.rs) and
-[`scripts/open-backup.py`](scripts/open-backup.py) recovers one with nothing but
-Python and `cryptography` — botcage uninstalled, on a machine that has never
-seen it.
+1. **Download** the [latest release](https://github.com/hackyguru/botcage/releases/latest) for macOS or Linux. macOS builds are signed and notarised, so they open without warnings.
+2. **Pick an engine.** Setup installs the Claude Code CLI for you, or point a bot at Ollama and pay nothing.
+3. **Make a bot.** Give it a name and a line about what it is for. Everything after that happens on your machine.
+4. **Optionally give it a computer.** botcage downloads and manages a container engine itself: lima and the docker CLI on macOS, rootless podman on Linux. Docker Desktop is not required.
+5. **Optionally pair your phone.** Scan the QR code the laptop shows.
 
 ## The phone app
 
-[`mobile/`](mobile/) is a React Native app for iOS and Android. It holds no state
-of its own: every request is answered by the desktop window using the same code
-its own UI calls, so the phone gets whatever the desktop can do rather than a
-second implementation that drifts.
+[`mobile/`](mobile/) is a React Native app for iOS and Android. It holds no state of its own: every request is answered by the desktop window using the same code its own UI calls, so the phone gets whatever the desktop can do rather than a second implementation that drifts. Calls are the one thing it cannot do yet.
 
-Channels and the threads hanging off them are on the phone too, with the same
-unread dots and mention badges — a message sent from a train is routed by the
-laptop's own function, so the mentions, the hop budget and everything else
-behave identically. Calls are the one thing the phone cannot do yet.
+**How it reaches your laptop.** The only way in is a QUIC connection made directly between the two devices, in which the laptop's identity *is* its public key ([iroh](https://iroh.computer)). Same guarantees at home and on mobile data:
 
-**How it reaches your laptop.** The laptop listens on nothing — the API is bound
-to loopback, so no port is open on any network it joins. The only way in is a
-QUIC connection made directly between the two devices, in which the laptop's
-identity *is* its public key ([iroh](https://iroh.computer)). Same guarantees at
-home and on mobile data:
-
-- Encrypted end to end; when a direct path cannot be punched through a NAT,
-  packets fall back to public relays that forward ciphertext they cannot read.
-- The laptop cannot be impersonated without its private key, and your phone
-  cannot either: the token it is given is bound to the phone's own key, so a
-  copy is refused from any other device.
+- Encrypted end to end. When a direct path cannot be punched through a NAT, packets fall back to public relays that forward ciphertext they cannot read.
+- The laptop cannot be impersonated without its private key and neither can your phone: the token it is given is bound to the phone's own key, so a copy is refused from any other device.
 - No account, no tailnet, no port forwarding, nothing of ours in the middle.
 
-**Pairing** is a QR code the laptop shows and the phone scans, carrying the
-laptop's address and a six-character code that lasts five minutes, works once,
-and is burned after five wrong guesses. Typing it by hand is kept for when a
-camera is not an option, and a `botcage://pair` link does the same for the
-phones that have no camera to point — a simulator, mostly.
+**Pairing** is a QR code the laptop shows and the phone scans, carrying the laptop's address and a six-character code that lasts five minutes, works once and is burned after five wrong guesses.
 
-Speaking QUIC needs native code, so the app needs a development build rather
-than Expo Go — see [mobile/README.md](mobile/README.md).
+Speaking QUIC needs native code, so the app needs a development build rather than Expo Go. See [mobile/README.md](mobile/README.md).
 
-## Layout
+## Local development
+
+**Requirements**
+
+- [pnpm](https://pnpm.io) and a Rust toolchain.
+- **On Linux**, `cmake`, `clang` and `libclang-dev` on top of the usual webkit development packages: whisper.cpp is compiled in and bindgen reads its headers.
+- **On ARM Linux**, build with `CC=clang CXX=clang++`. gcc refuses ggml's half-precision NEON intrinsics with "target specific option mismatch" and clang does not.
+- **For calls on Linux**, espeak-ng to speak with and one of paplay, aplay or ffplay to play with. GStreamer's base and good plugin sets, which a desktop will already have, are what let the webview record.
+
+**Commands**
+
+| Command | What it does |
+| --- | --- |
+| `pnpm install` | Install dependencies |
+| `pnpm tauri dev` | Run the desktop app |
+| `pnpm dev:app` | The same dev build as a bundle, with its own scratch roster |
+
+`pnpm dev:app` exists because of one macOS rule: the microphone is granted against an app bundle's stated reason for wanting it and `tauri dev` runs a bare executable with nowhere to state one. Calls can speak but not listen under `tauri dev`.
+
+**Custom speech.** Point `BOTCAGE_TTS` at a command to use Kokoro, Piper or whatever comes next, without botcage shipping a model:
+
+```sh
+BOTCAGE_TTS='pocket-tts generate --voice {voice} --output - --text -'
+BOTCAGE_TTS_VOICES='Alba,Giovanni,Estelle,Charles'
+```
+
+The command reads the text on stdin and may either play the audio or write it to stdout. botcage works out which by whether anything came out.
+
+Builds are produced by tagging a release. See [.github/RELEASING.md](.github/RELEASING.md).
+
+## Repository map
 
 | Path | What it is |
 | --- | --- |
-| [`src/`](src/) | The desktop UI — vanilla TypeScript, no framework |
+| [`src/`](src/) | The desktop UI. Vanilla TypeScript, no framework |
 | [`src-tauri/src/`](src-tauri/src/) | The Rust side: turns, sandboxes, connectors, plugins, the phone server |
 | [`sandbox/`](sandbox/) | The Linux desktop image a bot's computer runs |
-| [`mobile/`](mobile/) | The phone app, and the Rust crate that gives it QUIC |
+| [`mobile/`](mobile/) | The phone app and the Rust crate that gives it QUIC |
+| [`website/`](website/) | The marketing site |
 
-Worth knowing about the Rust: [`engine.rs`](src-tauri/src/engine.rs) is the
-*container* engine botcage installs, and [`inference.rs`](src-tauri/src/inference.rs)
-is what answers for a bot. Different things, unfortunately similar words.
-
-## Why it is small
-
-The desktop binary is about 11 MB because it uses the system webview instead of
-bundling a browser. Most of that is QUIC and whisper.cpp; the app itself is a
-fraction of it. The models it speaks and listens with are fetched on first use
-rather than shipped, which is why adding them cost a megabyte here rather than
-four hundred.
+Worth knowing about the Rust: [`engine.rs`](src-tauri/src/engine.rs) is the *container* engine botcage installs and [`inference.rs`](src-tauri/src/inference.rs) is what answers for a bot. Different things, unfortunately similar words.
 
 ## Status
 
-Version 0.4.0, and honest about what that means. The desktop app and its
-sandboxes have been used daily. The phone client runs on iOS and Android, pairs
-by scanning the square on the laptop, streams replies, survives restarts, and
-has reached a laptop at home from a phone on mobile data — which is the claim
-the whole transport rests on, so it is worth saying that it has actually been
-done rather than merely designed for.
+Version 0.6.0 and honest about what that means.
 
-Android is built and runs, but has only been exercised against a stand-in
-desktop, never a real one.
+| | |
+| --- | --- |
+| **Desktop and sandboxes** | Used daily |
+| **iOS** | Pairs, streams replies, survives restarts and has reached a laptop at home from a phone on mobile data |
+| **Android** | Builds and runs, but only exercised against a stand-in desktop |
+| **Hosted engines** | Answered for real through Ollama over the same API a paid provider speaks, with tools. That test is in the repository |
+| **Gemini CLI** | Wired up and its flags checked against a real install. Its stream mapping is written from documentation rather than from output anyone has watched |
 
-The hosted engine has answered for real — through Ollama on this machine, over
-the same API a paid provider speaks — and that test is in the repository. It
-now carries tools too, which was the point of the whole seam: botcage speaks
-MCP as a client for it, runs the tool loop itself, and hands over the same
-connectors a bot would have had on any other engine. A bot there also gets its
-own folder to read and write, because the file tools Claude Code arrives with
-are that program's rather than the protocol's. What it does not get is the web
-or a shell, and its prompt says so plainly rather than describing what it would
-have found.
+Small local models are the honest weak point. llama3.2:3b calls a tool correctly from a clean conversation and then, once its own history contains a tool call it wrote out as prose, will happily imitate itself instead of calling anything. Bigger models do not do this and nothing in botcage can stop a model that does. The bound on that loop is twelve rounds.
 
-The bound on that loop is twelve rounds. Small local models are the honest
-weak point: llama3.2:3b calls a tool correctly from a clean conversation and,
-once its own history contains a tool call it wrote out as prose, will happily
-imitate itself instead of calling anything. Bigger models do not do this, and
-nothing in botcage can stop a model that does.
+## Why it is small
 
-The Gemini CLI is wired up and its flags have been checked against a real
-install, but Google has since retired the free personal login for that client,
-so it now needs an API key like any other provider. Its stream mapping is
-written from documentation rather than from output anyone has watched.
+The desktop binary is about 11 MB because it uses the system webview instead of bundling a browser. Most of that is QUIC and whisper.cpp. The models it speaks and listens with are fetched on first use rather than shipped, which is why adding them cost a megabyte here rather than four hundred.
+
+## Contributing
+
+Issues and pull requests are welcome. The codebase is small and the seams are documented at the top of each Rust module, so start there.
 
 ## Licence
 
-Apache-2.0. Use it, fork it, build on it, ship it in something you sell — the
-licence asks only that you keep the notice and say what you changed.
+[Apache-2.0](LICENSE). Use it, fork it, build on it, ship it in something you sell. The licence asks only that you keep the notice and say what you changed.
 
-The name is not part of that grant: `LICENSE` covers the code, and the Apache
-licence explicitly does not hand over trademarks. Fork it and call it something
-of your own.
+The name is not part of that grant: `LICENSE` covers the code and the Apache licence explicitly does not hand over trademarks. Fork it and call it something of your own.
