@@ -8304,7 +8304,8 @@ label.setting {
  * own transform, and a second thing writing to it would fight every wave and
  * every nod. --look-x and --look-y arrive unitless and already clamped to
  * -1..1; how far a look is worth in pixels is decided here, because only the
- * stylesheet knows the face is 54px on one step and 132px on the last.
+ * stylesheet knows the face is 132px on the first step and the last, and 54px
+ * on the ones in between.
  *
  * The brows move about half as far. They are further from the middle of a
  * face than the eyes are, so moving them the same distance reads as the whole
@@ -8348,8 +8349,28 @@ label.setting {
   animation: host-grow 0.44s cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
 
+/* Full size on the first step as well as the last, and for the same reason:
+ * both are a bot talking to you rather than a heading over a form. Hello and
+ * goodbye are the two moments there is nothing else on the screen to be
+ * bigger than it — the steps in between are questions, and there the guide
+ * goes back to 54 so the question is the thing you are looking at.
+ *
+ * The welcome step is short enough to carry it: a title, one field and a line,
+ * inside a sheet that is 800 tall because the terms need to be. */
+.setup[data-at="welcome"] .setup__host .face,
 .setup[data-at="tour"] .setup__host .face {
   --u: 132px;
+}
+
+/* Between those two sizes rather than snapping. --u is an unregistered custom
+ * property and cannot be transitioned itself, but the width and height it
+ * feeds can, and the parts inside are positioned in percentages of those — so
+ * the whole face grows and shrinks together. Only inside setup: a roster of
+ * faces re-rendering at a new size should not each animate to it. */
+.setup .setup__host .face {
+  transition:
+    width 0.3s cubic-bezier(0.22, 0.61, 0.36, 1),
+    height 0.3s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 @keyframes host-grow {
@@ -8373,6 +8394,10 @@ label.setting {
 @media (prefers-reduced-motion: reduce) {
   .setup[data-at="tour"] .setup__host {
     animation: none;
+  }
+
+  .setup .setup__host .face {
+    transition: none;
   }
 }
 

@@ -13318,8 +13318,9 @@ function showStep(to: SetupStep): void {
 
 function paintSetup(): void {
   const index = SETUP_STEPS.indexOf(setupAt);
-  // Which step the sheet is on, for the rules that need to know — the last one
-  // grows the guide's face, which lives above the steps rather than in one.
+  // Which step the sheet is on, for the rules that need to know — the first
+  // and last grow the guide's face, which lives above the steps rather than
+  // in one.
   setupWrap.dataset.at = setupAt;
   setupRail.querySelectorAll<HTMLElement>(".setup__seg").forEach((seg, at) => {
     seg.dataset.on = String(at <= index);
