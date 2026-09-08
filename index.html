@@ -1384,12 +1384,22 @@
                face in CSS classes the stylesheet no longer has, so it rendered
                as two loose eyes and nothing else. -->
           <span class="about__mark" id="about-mark"></span></span>
-          <h2 class="about__name">botcage</h2>
+          <h2 class="about__name">botcage <span class="about__stage">Alpha</span></h2>
           <p class="about__version" id="about-version">—</p>
           <p class="about__blurb">
             Bots that live on your own machine — each a conversation that persists, with its own
             memory and workspace, sharing channels and optionally its own sandboxed Linux desktop
             to work on.
+          </p>
+          <!-- Said here as well as in the terms at setup. The terms are read
+               once, months ago, by somebody who had not used the app yet; this
+               is the panel people open when something has gone wrong, which is
+               the moment it is worth knowing what was promised. -->
+          <p class="about__warn">
+            botcage is <b>alpha software</b>, released as a pre-release and provided
+            <b>as is, without warranty of any kind</b>. Expect bugs and breaking changes
+            between versions. What your bots do is your responsibility — keep your own
+            backups.
           </p>
         </div>
         <div class="sheet__foot about__foot">
@@ -1445,13 +1455,18 @@
           <section class="setup__step" data-step="terms" hidden>
             <h2 class="setup__title">Before you start</h2>
             <p class="setup__blurb">
-              Botcage comes with no warranty and what your bots do is your
-              responsibility. Read more below.
+              Botcage is alpha software, comes with no warranty, and what your
+              bots do is your responsibility. Read more below.
             </p>
 
             <div class="terms" id="setup-terms" tabindex="0" role="region"
                  aria-label="Terms and conditions">
-              <h3>1. No warranty</h3>
+              <h3>1. Alpha software, and no warranty</h3>
+              <p>
+                botcage is in <b>alpha</b>. Every release is a pre-release: it is
+                unfinished, it will contain bugs, and behaviour, settings and stored
+                data may change or break between versions with no way back.
+              </p>
               <p>
                 botcage is provided <b>“as is”</b> and <b>“as available”</b>, without
                 warranty of any kind, express or implied, including but not limited to

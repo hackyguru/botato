@@ -147,6 +147,19 @@ jobs:
           prerelease: true
           args: --target ${{ matrix.target }}
           releaseBody: |
+            > ## Alpha software, no warranty
+            >
+            > botcage is in **alpha** and every release is a pre-release. It is
+            > provided **as is**, without warranty of any kind — expect bugs,
+            > breaking changes between versions, and data that does not survive
+            > an upgrade. Bots run commands, spend money against your own API
+            > accounts and act while nobody is watching; what they do is your
+            > responsibility. Do not point one at anything you cannot afford to
+            > lose, break or expose, and keep your own backups.
+            >
+            > Full terms are shown in the app before first use, and in
+            > [the licence](../blob/main/LICENSE).
+
             ## Which file do I want?
 
             | You have | Download |

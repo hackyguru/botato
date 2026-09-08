@@ -4868,6 +4868,25 @@ button.learn-badge--open:hover {
   font-weight: 600;
 }
 
+/* Beside the name rather than under it: the stage is part of what this thing
+   is, not a footnote about it. */
+.about__stage {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--amber);
+  /* Same reason as the desktop chip: a tint that fails to resolve must fall
+     back to the neutral fill, not to the colour of the text on it. */
+  background: var(--fill-2);
+  background: color-mix(in srgb, var(--amber) 16%, transparent);
+}
+
 .about__version {
   margin: 0;
   font-size: var(--type-hint);
@@ -4879,6 +4898,24 @@ button.learn-badge--open:hover {
   font-size: var(--type-small);
   line-height: 1.5;
   color: var(--text-2);
+}
+
+.about__warn {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-card);
+  border: 1px solid color-mix(in srgb, var(--amber) 26%, transparent);
+  background: var(--fill-2);
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  font-size: var(--type-hint);
+  line-height: 1.5;
+  text-align: left;
+  color: var(--text-2);
+}
+
+.about__warn b {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .about__foot {
