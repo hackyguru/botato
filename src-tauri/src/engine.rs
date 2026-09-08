@@ -480,6 +480,46 @@ pub fn start_engine(app: AppHandle) -> Result<(), String> {
 ///
 /// Where the socket will be is a fact about where the engine is installed, not
 /// about whether it happens to be up.
+/// Where the engine's two halves sit: the client botcage unpacked, and the
+/// Linux machine it drives on macOS. Both are wanted by the storage panel, and
+/// only this module knows the second one is not where the first one is.
+#[must_use]
+pub fn homes(app: &AppHandle) -> Vec<PathBuf> {
+    let mut all = Vec::new();
+    if let Ok(dir) = engine_dir(app) {
+        all.push(dir);
+    }
+    if let Ok(home) = lima_home(app) {
+        all.push(home);
+    }
+    all
+}
+
+/// Remove the engine: stop the machine, delete it, then delete the client.
+///
+/// Deliberately whole rather than partial. Half an engine looks installed to
+/// `managed_client` and fails at the point somebody switches a desktop on,
+/// which is a worse position than having none.
+pub fn remove(app: &AppHandle) -> Result<(), String> {
+    if let (Some(bin), Ok(home)) = (limactl(app), lima_home(app)) {
+        for args in [
+            ["stop", "--force", VM_NAME],
+            ["delete", "--force", VM_NAME],
+        ] {
+            let mut cmd = Command::new(&bin);
+            cmd.args(args).env("LIMA_HOME", &home);
+            let _ = cmd.output();
+        }
+    }
+    for dir in homes(app) {
+        if dir.exists() {
+            std::fs::remove_dir_all(&dir)
+                .map_err(|e| format!("could not remove {}: {e}", dir.display()))?;
+        }
+    }
+    Ok(())
+}
+
 pub fn docker_host(app: &AppHandle) -> Option<String> {
     if !cfg!(target_os = "macos") {
         return None;

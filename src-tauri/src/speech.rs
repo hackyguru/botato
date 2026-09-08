@@ -50,7 +50,7 @@ const VOICES: &[&str] = &[
     "p261", "p264", "p267", "p270", "p273", "p276", "p279", "p282", "p285", "p288", "p292", "p295",
 ];
 
-fn home(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn home(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app
         .path()
         .app_data_dir()

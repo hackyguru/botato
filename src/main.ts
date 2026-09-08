@@ -765,6 +765,7 @@ void listen<string>("engine", (event) => {
  *  show the same running commentary. */
 function paintEngineProgress(): void {
   paintScreen();
+  paintExtras();
   if (!setupWrap.hidden) paintSetup();
 }
 
@@ -781,6 +782,7 @@ async function installEngine(): Promise<void> {
   } finally {
     installing = false;
     engineStep = "";
+    paintExtras();
   }
 }
 
@@ -1383,6 +1385,11 @@ function restingMood(botId: string): string {
   // Judged on the conversation rather than on a timestamp of its own, because
   // that is the thing that actually stopped.
   const bot = state.bots.find((b) => b.id === botId);
+  // Except the guide, while setup is open: it is standing in front of you
+  // showing you around, and how long ago its own thread went quiet says
+  // nothing about that. Asked of the document rather than of `setupWrap`,
+  // which is declared much further down this file than a face is drawn.
+  if (bot?.guide && document.getElementById("setup")?.hidden === false) return "idle";
   const last = bot?.messages[bot.messages.length - 1]?.at ?? 0;
   if (last && Date.now() - last > SLEEP_AFTER) return "sleep";
   return "idle";
@@ -2129,7 +2136,7 @@ function renderDesk(): void {
     : `<div class="desk__clear">` +
       `<p class="desk__clear-head">Nothing is waiting on you.</p>` +
       `<p class="desk__clear-note">Bots that asked you something or said your name, turns that ` +
-      `failed, and engines that cannot run turn up here. Everything else they can get on with ` +
+      `failed and engines that cannot run turn up here. Everything else they can get on with ` +
       `themselves.</p>` +
       `</div>`;
 }
@@ -2718,7 +2725,9 @@ function badgeHtml(news: { unread: number; mentions: number }): string {
  *  a block landing on a calendar, a screen coming on, a signal leaving a
  *  phone, a plug going in — and none of those needs more than a few boxes. */
 const ART: Record<string, string> = {
-  "new-bot": `<span class="art art--bot"><i></i><i></i></span>`,
+  // Three heads rather than one: the lesson is one bot per job, and the button
+  // it points at is the one that gives you another.
+  "new-bot": `<span class="art art--bots"><i></i><i></i><i></i></span>`,
   engine: `<span class="art art--engine"><i></i><i></i><i></i></span>`,
   teach: `<span class="art art--teach"><i></i><i></i></span>`,
   routines: `<span class="art art--cal"><i></i><i></i><i></i><i></i></span>`,
@@ -4647,9 +4656,11 @@ function paintSheetHours(bot: Bot | null): void {
   when.hidden = !hours;
   $<HTMLInputElement>("#sheet-hours-from").value = hours?.from ?? "09:00";
   $<HTMLInputElement>("#sheet-hours-to").value = hours?.to ?? "18:00";
+  // One line. What it says when a bot has hours is already a clause longer
+  // than the rows around it, and the caveat that matters fits in two words.
   $<HTMLSpanElement>("#sheet-hours-says").textContent = bot
-    ? `${saysHours(bot)}. Routines only — a message you send is always answered.`
-    : "Routines only — a message you send is always answered.";
+    ? `${saysHours(bot)}. Routines only.`
+    : "Routines only. You are always answered.";
 
   const days = hours?.days ?? [1, 2, 3, 4, 5];
   // Monday first: a working week starts on Monday however Date#getDay counts.
@@ -5263,7 +5274,7 @@ $<HTMLButtonElement>("#sheet-voice-try").addEventListener("click", () => {
   const chosen = picker.value || picker.options[0]?.textContent?.split(" — ")[0] || "";
   const name = sheetName.value.trim() || "your new bot";
   void invoke("speak", {
-    text: `Hello. I am ${name}, and this is how I sound.`,
+    text: `Hello. I am ${name} and this is how I sound.`,
     voice: chosen,
   }).catch(() => {});
 });
@@ -5289,7 +5300,7 @@ function paintSheetEngines(bot: Bot | null): void {
           tools: "native",
           searchable: false,
           models: [
-            { key: "opus", name: "Opus", hint: "The most capable, and the hungriest." },
+            { key: "opus", name: "Opus", hint: "The most capable and the hungriest." },
             { key: "sonnet", name: "Sonnet", hint: "Easier on your usage limits." },
           ],
         },
@@ -5312,7 +5323,7 @@ function paintSheetEngines(bot: Bot | null): void {
   if (bot?.engine && !known) {
     const option = document.createElement("option");
     option.value = bot.engine;
-    option.textContent = `${bot.engine} — unknown to this version`;
+    option.textContent = `${bot.engine} (unknown to this version)`;
     option.disabled = true;
     options.push(option);
   }
@@ -5361,7 +5372,7 @@ function paintSheetModels(want?: string): void {
   const models = chosen?.models.length
     ? chosen.models
     : [
-        { key: "opus", name: "Opus", hint: "The most capable, and the hungriest." },
+        { key: "opus", name: "Opus", hint: "The most capable and the hungriest." },
         { key: "sonnet", name: "Sonnet", hint: "Easier on your usage limits." },
       ];
 
@@ -5382,27 +5393,26 @@ function paintSheetModels(want?: string): void {
  *  whose engine cannot resume one is remembered by botcage instead. */
 function paintSheetHints(): void {
   const chosen = engineChoices.find((info) => info.key === sheetEngine.value);
-  // Two things worth saying, in the order they matter: what picking this one
-  // means, and why the others are greyed out.
-  const lines: string[] = [];
-  if (chosen?.searchable) {
+  // One line, like every other hint in the sheet. It used to append a reason
+  // for each unusable engine, which made the tallest row in the pane a
+  // paragraph about engines nobody had picked — and those options are already
+  // disabled in the select, which says the same thing where you are looking.
+  // The only reason worth a sentence is the chosen one's.
+  let says = "Which installed tool runs this bot's turns.";
+  if (chosen && !chosen.ready.usable) {
+    // A colon, not a dash: the reason may itself contain one, and two dashes
+    // in a sentence read as a mistake.
+    says = `${chosen.name}: ${chosen.ready.missing ?? "not available"}`;
+  } else if (chosen?.searchable) {
     // What it is, rather than how it remembers: someone choosing this is
     // choosing reach, and the transcript is botcage's problem either way.
-    lines.push("Any model on models.dev, and Ollama on this machine.");
+    says = "Any model on models.dev and Ollama on this machine.";
   } else if (chosen) {
-    lines.push(
-      chosen.ownsTranscript
-        ? `${chosen.name} keeps this bot's conversation itself.`
-        : `${chosen.name} can't resume a conversation, so botcage keeps the thread.`,
-    );
+    says = chosen.ownsTranscript
+      ? `${chosen.name} keeps this bot's conversation itself.`
+      : `${chosen.name} can't resume a conversation, so botcage keeps the thread.`;
   }
-  for (const info of engineChoices) {
-    // A colon, not a dash: the reason may itself contain one ("not installed —
-    // npm install …"), and two dashes in a sentence read as a mistake.
-    if (!info.ready.usable) lines.push(`${info.name}: ${info.ready.missing ?? "not available"}`);
-  }
-  $<HTMLSpanElement>("#sheet-engine-hint").textContent =
-    lines.join(" ") || "Which installed tool runs this bot's turns.";
+  $<HTMLSpanElement>("#sheet-engine-hint").textContent = says;
 
   if (chosen?.searchable) {
     // The provider's name, not the id it is keyed by: "From ollama" is a
@@ -5420,7 +5430,7 @@ function paintSheetHints(): void {
     }
     $<HTMLSpanElement>("#sheet-model-hint").textContent = draftModel.model
       ? `From ${from?.name ?? draftModel.provider}.`
-      : "Anything on models.dev, or Ollama on this machine — click to search.";
+      : "Anything on models.dev, or Ollama on this machine.";
     return;
   }
 
@@ -5648,7 +5658,7 @@ function askForKey(model: Listing): void {
       "that can read your files can read it";
   modelsNote.textContent = provider?.doc
     ? `${model.providerName} issues keys at ${provider.doc} — ${kept}.`
-    : `${kept}, and hands it to nothing but this provider.`;
+    : `${kept} and hands it to nothing but this provider.`;
   modelsKeyInput.focus();
 }
 
@@ -5754,11 +5764,15 @@ $<HTMLButtonElement>("#models-key-forget").addEventListener("click", () => {
 
 $<HTMLButtonElement>("#sheet-model-open").addEventListener("click", () => void openModels());
 
-$<HTMLInputElement>("#setup-terms-ok").addEventListener("change", paintSetup);
+$<HTMLInputElement>("#setup-terms-ok").addEventListener("change", (e) => {
+  setupMood((e.target as HTMLInputElement).checked ? "nod" : "shrug");
+  paintSetup();
+});
 
 $<HTMLDivElement>("#setup-picks").addEventListener("change", (e) => {
   const chosen = (e.target as HTMLInputElement).value;
   if (chosen !== "claude-code" && chosen !== "ollama" && chosen !== "hosted") return;
+  setupMood("nod");
   setupRoute = chosen;
   // A model picked for one route means nothing to another.
   setupPick = null;
@@ -6699,7 +6713,7 @@ sheetDelete.addEventListener("click", () => {
 
   if (!sheetDelete.classList.contains("is-armed")) {
     sheetDelete.classList.add("is-armed");
-    sheetDelete.textContent = "Delete permanently — its files and desktop too";
+    sheetDelete.textContent = "Delete permanently, with its files and desktop";
     return;
   }
 
@@ -6791,7 +6805,7 @@ function saveSheet(): void {
     if (before.network !== sheetNetwork.value || (before.computer && !sheetComputer.checked)) {
       toast(
         sheetComputer.checked
-          ? "Setting applies next time the desktop starts — stop it to take effect now"
+          ? "Setting applies next time the desktop starts. Stop it to take effect now"
           : "Computer access revoked",
       );
     }
@@ -7189,6 +7203,123 @@ speechBtn.addEventListener("click", () => {
     }
   })();
 });
+
+/* ------------------------------------------------- the optional extras */
+/* Voice and a bot's computer are hundreds of megabytes each, and onboarding
+   lets both be skipped. What that leaves is a window with buttons on it that
+   look like every other button and would quietly spend a gigabyte if pressed.
+   So the buttons say they are not set up, and pressing one offers the download
+   rather than starting it. */
+
+/** Which halves of the voice are on this machine. A call wants both — being
+ *  heard and being answered aloud; dictation only listens, so it asks for
+ *  less and is offered less. */
+let voice = { ears: false, mouth: false };
+/** Until the answer is in, nothing is dimmed: a button that dims a moment
+ *  after the window opens has told you something about the machine's speed
+ *  rather than about the feature. */
+let voiceAsked = false;
+
+async function refreshVoice(): Promise<void> {
+  const [ears, mouth] = await Promise.all([
+    invoke<boolean>("hearing_ready").catch(() => false),
+    invoke<boolean>("speech_ready").catch(() => false),
+  ]);
+  voice = { ears, mouth };
+  voiceAsked = true;
+  paintExtras();
+}
+
+/** Fetch whichever halves are missing. Throws, so each caller reports it where
+ *  the person is looking — a toast here, the step's own line in setup. */
+async function fetchVoice(both: boolean): Promise<void> {
+  if (!(await invoke<boolean>("hearing_ready").catch(() => false))) {
+    await invoke("hearing_install");
+  }
+  if (both && !(await invoke<boolean>("speech_ready").catch(() => false))) {
+    await invoke("speech_install");
+  }
+  voiceNames = [];
+  await knownVoices();
+  await refreshVoice();
+}
+
+/** True once the voice is there. Reports in a toast because what asked for it
+ *  was a button in a toolbar, which has no room to narrate. */
+let gettingVoice = false;
+async function setUpVoice(both: boolean): Promise<boolean> {
+  if (gettingVoice) return false;
+  gettingVoice = true;
+  paintExtras();
+  toast(both ? "Setting up voice — a few hundred megabytes, once…" : "Fetching the ears, once…");
+  try {
+    await fetchVoice(both);
+    toast(both ? "Voice ready" : "Ready — press again and talk");
+    // The ears either way: the voices are an improvement on something that
+    // already works, so a call goes ahead without them.
+    return voice.ears;
+  } catch (err) {
+    toast(String(err));
+    return false;
+  } finally {
+    gettingVoice = false;
+    paintExtras();
+  }
+}
+
+/** Say what it costs, then do what was asked once it is there.
+ *
+ *  Anchored to the button that was pressed rather than shown as a dialog in
+ *  the middle of the window: the answer is about that button, and a card
+ *  hanging off it is read as such without having to say so. */
+function offerVoice(anchor: HTMLElement, both: boolean, then: () => void): void {
+  if (gettingVoice) {
+    toast("Setting up voice…");
+    return;
+  }
+  openMenu(
+    anchor,
+    `<div class="offer">` +
+      `<p class="offer__what">${both ? "Voice calls aren't set up" : "Dictation isn't set up"}</p>` +
+      `<p class="offer__why">${
+        both
+          ? "About 400 MB, once: a speech recogniser and two dozen voices. Nothing you say leaves this machine."
+          : "About 60 MB, once: a speech recogniser that runs here. Nothing you say leaves this machine."
+      }</p>` +
+      `<button type="button" class="btn-primary" data-get-voice>${both ? "Set up voice" : "Set it up"}</button>` +
+      `</div>`,
+    "menu--card",
+  );
+  // The listener dies with the card: openMenu replaces the contents every time.
+  menu.querySelector<HTMLButtonElement>("[data-get-voice]")?.addEventListener("click", () => {
+    closeMenu();
+    void setUpVoice(both).then((ready) => {
+      if (ready) then();
+    });
+  });
+}
+
+/** Dress the two buttons that lead to something not installed.
+ *
+ *  Dimmed rather than disabled: a disabled button cannot say why it is
+ *  disabled, and the whole point is that pressing it is how you find out. */
+function paintExtras(): void {
+  // Locked on the ears alone: a bot answering in the machine's own voice is a
+  // call, and one that cannot hear you is not.
+  const phone = $<HTMLButtonElement>("#btn-call");
+  phone.classList.toggle("is-locked", voiceAsked && !voice.ears && !gettingVoice);
+  phone.classList.toggle("is-getting", gettingVoice);
+
+  // Only where botcage could actually supply one. On a platform with no engine
+  // at all the button is not waiting on a download, and dimming it would offer
+  // something that is not on offer.
+  const monitor = $<HTMLButtonElement>("#btn-monitor");
+  monitor.classList.toggle(
+    "is-locked",
+    Boolean(engine && engine.supported && !engine.installed && !installing),
+  );
+  monitor.classList.toggle("is-getting", installing);
+}
 
 /** Resolves when this bot's turn ends, however it ends. */
 function settled(botId: string): Promise<void> {
@@ -7602,6 +7733,7 @@ function paintTopbarFor(bot: Bot | null): void {
   gear.hidden = false;
   gear.title = inRoom ? "Channel settings" : "Bot settings";
   gear.setAttribute("aria-label", gear.title);
+  paintExtras();
 }
 
 /* --------------------------------------------------------- making a channel */
@@ -8007,6 +8139,22 @@ async function startCall(bot: Bot, room?: Channel): Promise<void> {
     toast("Claude Code CLI not found — install it to talk to your bots");
     return;
   }
+
+  // A call needs to be able to hear you. This used to be fetched from inside
+  // the call — four hundred megabytes begun by pressing a phone icon, narrated
+  // in a call nobody could yet have — and onboarding can be walked past, so
+  // that was the common path rather than the rare one. Asked here instead, and
+  // the call opens when there is a call to be had.
+  //
+  // The ears alone, not both halves: the machine's own voices are a real
+  // answer — settings offer them, and removing the good ones is a thing
+  // somebody can choose — so a call is only impossible when nothing can
+  // listen. The offer still fetches both, because a first call in a 2005
+  // satnav is a poor first impression of the feature.
+  if (!voice.ears) {
+    offerVoice($<HTMLButtonElement>("#btn-call"), true, () => void startCall(bot, room));
+    return;
+  }
   call = {
     botId: bot.id,
     channelId: room?.id,
@@ -8029,39 +8177,11 @@ async function startCall(bot: Bot, room?: Channel): Promise<void> {
     callSays("Everyone can hear you. Say a name to ask just that one.");
   } else {
     setMood(bot.id, "wave");
-    callSays("Hold the button, or hold space, and talk.");
+    callSays("Hold the button, or hold space and talk.");
   }
 
   await knownVoices();
 
-  // Everything a call needs, once, on the first one ever made. Fetched here
-  // rather than at install because most people will never make a call, and
-  // this is a lot to spend on their behalf until they do.
-  //
-  // Both halves, not just the ear: a first call that can hear you and answers
-  // in a 2005 satnav is a bad first impression of the whole feature, and
-  // "there is a better voice, go and find the setting" is a thing nobody
-  // should have to be told. Settings can take it away again.
-  const needsEars = !(await invoke<boolean>("hearing_ready").catch(() => false));
-  const needsVoice = !(await invoke<boolean>("speech_ready").catch(() => false));
-
-  if (needsEars || needsVoice) {
-    callSays("Setting up voice — a few hundred megabytes, once.");
-    try {
-      if (needsEars) await invoke("hearing_install");
-      if (needsVoice) await invoke("speech_install");
-      voiceNames = [];
-      await knownVoices();
-      callSays("Ready. Hold the button, or hold space, and talk.");
-    } catch (err) {
-      // A voice that could not be fetched is not a call that cannot happen:
-      // the machine's own still works, and so does hearing.
-      callSays(`${err}`);
-      window.setTimeout(() => {
-        if (call?.botId === bot.id) callSays("Hold the button, or hold space, and talk.");
-      }, 2500);
-    }
-  }
 }
 
 function endCall(): void {
@@ -8594,8 +8714,8 @@ function paintNotifyRow(): void {
   row?.classList.toggle("is-off", !canNotify);
   if (hint) {
     hint.textContent = canNotify
-      ? "A notification when a bot says your name or a turn fails, and only while you are looking at something else."
-      : "Not from a development build: macOS hangs notifications off an app bundle, and this one is a bare binary. It works in the packaged app, and on Linux either way.";
+      ? "A notification when a bot says your name or a turn fails, only while you are looking at something else."
+      : "Not from a development build: macOS hangs notifications off an app bundle and this one is a bare binary. It works in the packaged app and on Linux either way.";
   }
 }
 const appAwake = $<HTMLInputElement>("#app-awake");
@@ -8620,7 +8740,13 @@ function wireTabs(root: HTMLElement): (name: string) => void {
   const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>(".tabs .tab"));
   const panels = Array.from(root.querySelectorAll<HTMLElement>(".settings-panel"));
   for (const tab of tabs) {
-    tab.id = `${root.id}-tab-${tab.dataset.tab}`;
+    // Only where the markup did not name it — the same as the panels below.
+    // Renaming a tab that already had an id made the markup say one thing and
+    // the running window another: `#app-tab-storage` in index.html was
+    // `#app-settings-tab-storage` by the time any handler looked for it, and
+    // the throw that follows a missing element takes the whole module, and so
+    // the whole window, with it.
+    tab.id ||= `${root.id}-tab-${tab.dataset.tab}`;
     const panel = panels.find((item) => item.dataset.tab === tab.dataset.tab);
     if (panel) {
       panel.id ||= `${root.id}-panel-${tab.dataset.tab}`;
@@ -9046,6 +9172,8 @@ async function openAppSettings(): Promise<void> {
   backupSettings();
   void paintBackups();
   void paintSpeech();
+  storeSettle();
+  void paintStorage();
   const settings = appSettings();
   $<HTMLInputElement>("#app-name").value = settings.name ?? "";
   appModel.value = settings.model;
@@ -9126,6 +9254,181 @@ async function paintEngines(): Promise<void> {
     }),
   );
 }
+
+/* ------------------------------------------------------------------ storage */
+/* Everything botcage downloads or builds, and a way to get it back. Nothing
+   listed here was written by a person: a speech model, an engine, an image, a
+   container per bot. All of it is large, all of it comes back on demand, and
+   until this panel the only way to find out how much of it there was involved
+   knowing where an app keeps things. */
+
+interface StorageItem {
+  id: string;
+  kind: "voice" | "engine" | "image" | "desk" | "files";
+  bot: string | null;
+  label: string | null;
+  bytes: number;
+  removable: boolean;
+  /** Inside the engine's own disk, which is a row of its own further up. */
+  inside: boolean;
+}
+
+/** Bytes the way a disk is talked about — powers of a thousand, because that
+ *  is what the machine's own storage panel says and a second opinion on what a
+ *  gigabyte is helps nobody. */
+function saysBytes(bytes: number): string {
+  if (bytes < 1000) return `${bytes} B`;
+  const units = ["kB", "MB", "GB", "TB"];
+  let size = bytes / 1000;
+  let at = 0;
+  while (size >= 1000 && at < units.length - 1) {
+    size /= 1000;
+    at += 1;
+  }
+  // One decimal below ten, none above: "1.4 GB" is a useful number and
+  // "847.3 MB" is three digits of noise on a figure nobody acts on.
+  return `${size < 10 ? size.toFixed(1) : Math.round(size)} ${units[at]}`;
+}
+
+/** What each row is, in words. The Rust side sends sizes and kinds and no
+ *  prose at all, so everything anybody reads is written here. */
+function storageSays(item: StorageItem): { name: string; hint: string } {
+  const named = item.bot ? state.bots.find((b) => b.id === item.bot)?.name : null;
+  switch (item.kind) {
+    case "voice":
+      return {
+        name: "Voice",
+        hint: "The speech recogniser and the voices your bots answer in. Fetched again the next time you call one.",
+      };
+    case "engine":
+      return {
+        name: "Desktop engine",
+        hint: "The container engine and on this platform the Linux machine it runs in. Removing it stops every desktop.",
+      };
+    case "image":
+      return {
+        name: "Desktop image",
+        hint: `${item.label ?? "The image"} — what every bot's desktop is built from. It builds again the next time one starts.`,
+      };
+    case "desk":
+      return named
+        ? {
+            name: `${named}'s desktop`,
+            hint: "What it has put on its own machine since the desktop was built. Its workspace files are kept.",
+          }
+        : {
+            name: "A desktop with no bot",
+            hint: `${item.label ?? "A container"} — left behind by a bot that has been deleted.`,
+          };
+    default:
+      return {
+        name: named ? `${named}'s files` : "A bot's files",
+        hint: "Its memory, its transcript and its workspace. These go when the bot does.",
+      };
+  }
+}
+
+const storeDisk = $<HTMLDivElement>("#app-store-disk");
+const storeInside = $<HTMLDivElement>("#app-store-inside");
+
+/** A row per thing, biggest first — the order the answer to "what is taking up
+ *  the room" wants to be read in. */
+function storeRow(item: StorageItem): string {
+  const { name, hint } = storageSays(item);
+  return (
+    `<div class="store__row" data-store="${escapeHtml(item.id)}">` +
+    `<span class="store__what"><span class="store__name">${escapeHtml(name)}</span>` +
+    `<span class="store__hint">${escapeHtml(hint)}</span></span>` +
+    `<span class="store__size">${saysBytes(item.bytes)}</span>` +
+    (item.removable
+      ? `<button type="button" class="chip store__go"><span>Remove</span></button>`
+      : "") +
+    `</div>`
+  );
+}
+
+async function paintStorage(): Promise<void> {
+  const all = await invoke<StorageItem[]>("storage_usage", {
+    bots: state.bots.map((b) => b.id),
+  }).catch(() => [] as StorageItem[]);
+
+  const here = all.filter((item) => !item.inside);
+  const inside = all.filter((item) => item.inside);
+  const total = here.reduce((sum, item) => sum + item.bytes, 0);
+
+  $<HTMLParagraphElement>("#app-store-cap").textContent = total
+    ? `On this disk · ${saysBytes(total)}`
+    : "On this disk";
+  storeDisk.innerHTML = here.length
+    ? here.map(storeRow).join("")
+    : `<p class="store__note">Nothing downloaded yet. Voice and desktops are fetched the first time you ask for one.</p>`;
+
+  // Hidden entirely when there is no engine: a heading over an empty list
+  // teaches people to skip the place the things will appear.
+  $<HTMLParagraphElement>("#app-store-inside-cap").hidden = inside.length === 0;
+  $<HTMLParagraphElement>("#app-store-inside-note").hidden = inside.length === 0;
+  storeInside.innerHTML = inside.map(storeRow).join("");
+}
+
+/** Removing costs minutes of downloading to undo, and one of these rows is a
+ *  machine with a bot's own files on it. So the button asks once — in place,
+ *  because a dialog for this would be a bigger interruption than the question
+ *  is, and the row it is standing in says which thing is going. */
+let storeAsking: string | null = null;
+
+function storeSettle(): void {
+  storeAsking = null;
+  for (const row of document.querySelectorAll<HTMLElement>(".store__row")) {
+    const go = row.querySelector<HTMLButtonElement>(".store__go span");
+    if (go) go.textContent = "Remove";
+    row.classList.remove("is-asking");
+  }
+}
+
+for (const list of [storeDisk, storeInside]) {
+  list.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".store__go");
+    const row = button?.closest<HTMLElement>("[data-store]");
+    const id = row?.dataset.store;
+    if (!button || !row || !id) return;
+
+    if (storeAsking !== id) {
+      storeSettle();
+      storeAsking = id;
+      row.classList.add("is-asking");
+      button.querySelector("span")!.textContent = "Remove?";
+      return;
+    }
+
+    storeAsking = null;
+    button.disabled = true;
+    button.querySelector("span")!.textContent = "Removing…";
+    void invoke<number>("storage_free", { id })
+      .then(async (freed) => {
+        toast(freed ? `Freed ${saysBytes(freed)}` : "Removed");
+        // Both of these are what the toolbar's two buttons lead to, so what
+        // was just thrown away decides how they are drawn from here on.
+        await Promise.all([refreshVoice(), refreshEngine()]);
+        paintExtras();
+        void paintSpeech();
+      })
+      .catch((err) => toast(String(err)))
+      .finally(() => void paintStorage());
+  });
+}
+
+// Measured again each time the section is opened. Sizes here change while the
+// window is open — a desktop starts, an image is rebuilt — and a panel of
+// figures from when the window opened is worse than one that takes a moment.
+//
+// Found by what it selects rather than by its id: wireTabs renames every tab
+// after its dialog, so `#app-tab-storage` is `#app-settings-tab-storage` by
+// the time anything down here runs. Asking for the old one threw at import,
+// which takes the whole module — and the whole window — with it.
+$<HTMLButtonElement>('#app-settings .tab[data-tab="storage"]').addEventListener("click", () => {
+  storeSettle();
+  void paintStorage();
+});
 
 /** The login name, which stands in until somebody says otherwise. Asked once
  *  and kept, because a name is not worth a round trip per render. */
@@ -9443,7 +9746,7 @@ function saysHours(bot: Bot): string {
     : hours.days.length === 5 && [1, 2, 3, 4, 5].every((d) => hours.days.includes(d))
       ? "weekdays"
       : hours.days.map((d) => DAY_NAME[d]).join(", ");
-  return `${hours.from}–${hours.to}, ${days}`;
+  return `${hours.from}-${hours.to}, ${days}`;
 }
 
 function tickRoutines(): void {
@@ -9650,6 +9953,7 @@ const STATE_MESSAGE: Record<SandboxState, string> = {
 
 const taughtWrap = $<HTMLElement>("#taught");
 const taughtList = $<HTMLElement>("#taught-list");
+const taughtNone = $<HTMLElement>("#taught-none");
 
 interface Taught {
   slug: string;
@@ -9669,10 +9973,16 @@ async function paintTaught(): Promise<void> {
     return;
   }
   const lessons = await invoke<Taught[]>("teach_list", { botId }).catch(() => []);
-  // Hidden rather than shown empty. A heading over nothing teaches you to skip
-  // the place where the things will be.
-  taughtWrap.hidden = lessons.length === 0;
-  if (!lessons.length) return;
+  // The heading stays whether or not there is anything under it. Hiding the
+  // section until a bot had been taught something meant the one place that
+  // says teaching exists only appeared to people who had already found it.
+  taughtWrap.hidden = false;
+  taughtNone.hidden = lessons.length > 0;
+  taughtList.hidden = lessons.length === 0;
+  if (!lessons.length) {
+    taughtList.innerHTML = "";
+    return;
+  }
   taughtList.innerHTML = lessons
     .map(
       (one) =>
@@ -9728,12 +10038,12 @@ function noEngineSays(): string {
   if (engine?.supported) {
     return (
       "A bot's computer is a small Linux machine. botcage can set one up for itself — " +
-      `about ${engine.downloadMb ?? 0} MB, kept in botcage's own folder, and nothing else on ` +
+      `about ${engine.downloadMb ?? 0} MB, kept in botcage's own folder and nothing else on ` +
       "this computer is touched. Everything else works without it."
     );
   }
   return (
-    "A bot's computer runs in a Linux container, and botcage cannot set one up on this " +
+    "A bot's computer runs in a Linux container and botcage cannot set one up on this " +
     "platform. Installing podman or docker from your package manager gives it one. " +
     "Everything else in botcage works without it."
   );
@@ -9975,24 +10285,16 @@ async function openScreen(): Promise<void> {
 
   let docker = await wakeEngine();
 
-  // No engine, and botcage carries one: fetch it and carry on. Switching a
-  // bot's computer on is the request — stopping here to offer a button called
-  // "Set up botcage's engine" asks somebody to agree to a thing they have
-  // already asked for, in words about an engine they should never need to
-  // meet. It narrates the download either way, so nothing happens silently.
+  // No engine, and botcage carries one. This used to fetch it on the spot, on
+  // the argument that switching a computer on is the request and being asked
+  // to confirm it is a step for its own sake. That was written when onboarding
+  // installed the engine before anyone got here; onboarding can be walked past,
+  // and a couple of gigabytes should not begin because somebody pressed a
+  // monitor icon to see what it did. The pane below says what it costs and its
+  // button does it, which is one press either way and no surprise.
   if (!docker.version && !installing) {
     engine = await invoke<EngineStatus>("engine_status").catch(() => null);
-    if (engine?.supported && !engine.installed) {
-      try {
-        await installEngine();
-        docker = await wakeEngine();
-      } catch (err) {
-        screen.state = "error";
-        screen.log = [String(err)];
-        paintScreen();
-        return;
-      }
-    }
+    paintExtras();
   }
 
   if (!docker.version) {
@@ -10508,8 +10810,8 @@ async function startDesktop(botId: string): Promise<void> {
 }
 
 startBtn.addEventListener("click", () => {
-  // Still here for the case where the automatic attempt failed and this is
-  // "Try again", and for an engine that could not be supplied the first time.
+  // The offer, now that opening the pane no longer fetches an engine by
+  // itself: this is where a bot's computer is actually agreed to.
   if (screen.state === "no-docker" && engine?.supported && !engine.installed) {
     void setUpEngine();
     return;
@@ -10633,19 +10935,13 @@ async function dictate(): Promise<void> {
     return;
   }
 
-  // The ears are a few hundred megabytes and are fetched once. A call says so
-  // in the call; here the only place to say it is the composer's placeholder.
-  if (!(await invoke<boolean>("hearing_ready").catch(() => false))) {
-    const was = input.placeholder;
-    input.placeholder = "Fetching the ears — a few hundred megabytes, once…";
-    try {
-      await invoke("hearing_install");
-    } catch (err) {
-      toast(String(err));
-      input.placeholder = was;
-      return;
-    }
-    input.placeholder = was;
+  // Dictation listens and nothing more, so it asks for the ears alone rather
+  // than for the voices as well. Offered on the button that was pressed: a
+  // download begun by a microphone icon is a surprise, and the placeholder it
+  // used to be announced in is not where anyone was looking.
+  if (!voice.ears) {
+    offerVoice(sendBtn, false, () => void dictate());
+    return;
   }
 
   const mic = await openMicrophone(toast);
@@ -11529,7 +11825,7 @@ appNotify.addEventListener("change", async () => {
   if (appNotify.checked) {
     sendNotification({
       title: "botcage will tell you",
-      body: "When a bot says your name or a turn fails, and you are elsewhere.",
+      body: "When a bot says your name or a turn fails and you are elsewhere.",
     });
   }
 });
@@ -12200,7 +12496,7 @@ const TERMS_VERSION = 1;
 
 const termsAccepted = () => (appSettings().termsVersion ?? 0) >= TERMS_VERSION;
 
-const SETUP_STEPS = ["welcome", "terms", "answers", "engine", "voice", "care", "done"] as const;
+const SETUP_STEPS = ["welcome", "terms", "answers", "engine", "voice", "care", "tour"] as const;
 type SetupStep = (typeof SETUP_STEPS)[number];
 
 const setupWrap = $<HTMLDivElement>("#setup");
@@ -12214,6 +12510,11 @@ let setupAt: SetupStep = "welcome";
 /** True when the overlay was opened only to collect acceptance — an install
  *  that was already set up before there were terms to accept. */
 let termsOnly = false;
+/** Set by the last step's button. A first run is shown round by default, but
+ *  somebody who reopened setup from the account menu and walked to the end has
+ *  asked for the tour just as plainly, and pressing "Let's go" should not be
+ *  the one button in the app that does nothing. */
+let tourWanted = false;
 let claudeState: ClaudeState | null = null;
 let claudeBusy = "";
 let setupLog: string[] = [];
@@ -12245,6 +12546,8 @@ function paintMute(): void {
 
 setupMute.addEventListener("click", () => {
   const off = !appSettings().hush;
+  // Cupping an ear when the music comes back, a shrug when it goes.
+  setupMood(off ? "shrug" : "listen");
   state.app = { ...appSettings(), hush: off };
   save();
   paintMute();
@@ -12259,12 +12562,20 @@ async function openSetup(at: SetupStep = "welcome"): Promise<void> {
   // places. A fresh install always has it; an install that deleted it gets the
   // app's own mark instead of a stranger's face.
   const host = state.bots.find((b) => b.guide);
+  // Alive rather than a portrait: this one is talking to you, and it answers
+  // what you press. A still picture of somebody mid-sentence is the worse half
+  // of both.
   $<HTMLElement>("#setup-face").innerHTML = host
-    ? faceHtml(host, "lg")
+    ? faceHtml(host, "lg", true)
     : `<svg class="setup__mark"><use href="#i-cube" /></svg>`;
+  // The layer the steps dress it in, added here rather than by the renderer:
+  // every other face in the app is a bot going about its work and has nothing
+  // to hold, and a span each would be a span on all of them.
+  setupFace()?.insertAdjacentHTML("beforeend", `<span class="face__prop"><i></i><i></i><i></i></span>`);
   // By name, not by the name it shipped with: somebody who renamed it should
   // be greeted by the bot they have rather than the one we made.
-  $<HTMLElement>("#setup-hello").textContent = `Hi — I'm ${host?.name ?? "your guide"}`;
+  $<HTMLElement>("#setup-hello").textContent =
+    `Hi, I'm ${host?.name ?? "your guide"} and I'll help you get onboarded`;
   $<HTMLInputElement>("#setup-name").value = appSettings().name ?? "";
   // Start on whatever this app is already set up to use, so reopening setup
   // shows the arrangement someone made rather than the one botcage prefers.
@@ -12296,6 +12607,11 @@ function closeSetup(): void {
   setupWrap.hidden = true;
   music.stop();
   stopSignInWatch();
+  // Whatever was arranged or walked past in there decides how the toolbar is
+  // drawn, so it is asked again on the way out rather than left as it was
+  // when the window opened.
+  void refreshVoice();
+  void refreshEngine().then(paintExtras);
   // Shown once. Someone who skipped a step can reopen it from the account menu,
   // and a missing CLI still warns on its own.
   const first = !appSettings().onboarded;
@@ -12304,8 +12620,11 @@ function closeSetup(): void {
     save();
   }
   // Setup arranges what botcage needs; the tour says what the app is. They are
-  // different jobs, so they are different screens, one after the other.
-  if (first && !termsOnly && !appSettings().toured) window.setTimeout(startTour, 260);
+  // different jobs, so they are different screens, one after the other — and
+  // setup's last step is the guide offering the second one.
+  const wanted = tourWanted || (first && !appSettings().toured);
+  if (wanted && !termsOnly) window.setTimeout(startTour, 260);
+  tourWanted = false;
   termsOnly = false;
 }
 
@@ -12357,7 +12676,7 @@ const TOUR: Stop[] = [
   {
     target: "#btn-settings",
     title: "Bot settings",
-    body: "Edit this bot's name, instructions, and which model answers for it — Claude Code, the Gemini CLI, or any on models.dev.",
+    body: "Edit this bot's name, instructions and which model answers for it — Claude Code, the Gemini CLI, or any on models.dev.",
   },
   {
     target: "#btn-monitor",
@@ -12367,7 +12686,7 @@ const TOUR: Stop[] = [
   {
     target: "#btn-account",
     title: "Everything else",
-    body: "Settings for this machine, and pairing a phone — reach these bots from anywhere without opening a port.",
+    body: "Settings for this machine and pairing a phone — reach these bots from anywhere without opening a port.",
   },
 ];
 
@@ -12387,7 +12706,7 @@ const LESSONS: Lesson[] = [
       {
         target: "#btn-new",
         title: "One bot per job",
-        body: "This makes one. A bot is cheap, and two jobs in one bot means one memory holding both.",
+        body: "This makes one. A bot is cheap and two jobs in one bot means one memory holding both.",
         open: () => {
           showSheet(false);
         },
@@ -12455,7 +12774,7 @@ const LESSONS: Lesson[] = [
       {
         target: "#btn-settings",
         title: "Start here",
-        body: "Everything about the bot you are looking at lives behind this: its name, what it is for, what answers it, and whether it has a computer.",
+        body: "Everything about the bot you are looking at lives behind this: its name, what it is for, what answers it and whether it has a computer.",
         // Closing it again matters on the way back: the gear is underneath the
         // sheet, and a ring around something covered by a modal points at
         // nothing.
@@ -12475,7 +12794,7 @@ const LESSONS: Lesson[] = [
       {
         target: "#sheet-computer",
         title: "Its own machine",
-        body: "A Linux desktop in a container: a browser, a terminal, a file manager. Nobody else's files are on it, and nothing it does there touches yours.",
+        body: "A Linux desktop in a container: a browser, a terminal, a file manager. Nobody else's files are on it and nothing it does there touches yours.",
         open: () => {
           openSheet(activeBot());
           showSheetTab("computer");
@@ -12493,7 +12812,7 @@ const LESSONS: Lesson[] = [
       {
         target: "#btn-monitor",
         title: "Watch it work",
-        body: "This opens the screen. You can take the mouse back at any point, and hand it over again when you are done.",
+        body: "This opens the screen. You can take the mouse back at any point and hand it over again when you are done.",
         open: () => {
           showSheet(false);
         },
@@ -12542,7 +12861,7 @@ const LESSONS: Lesson[] = [
       {
         target: "#app-remote-list",
         title: "What you have paired",
-        body: "Every phone that has been let in, and a way to revoke any of them. The key each one holds is bound to that phone and refused from anywhere else.",
+        body: "Every phone that has been let in and a way to revoke any of them. The key each one holds is bound to that phone and refused from anywhere else.",
         open: () => {
           void openAppSettings();
           showSettingsTab("phone");
@@ -12557,7 +12876,7 @@ const LESSONS: Lesson[] = [
       {
         target: "#btn-settings",
         title: "Nothing here ships a model",
-        body: "botcage drives something else, and which something is a property of each bot rather than of the app. It lives in the bot's own settings.",
+        body: "botcage drives something else and which something is a property of each bot rather than of the app. It lives in the bot's own settings.",
         open: () => {
           showSheet(false);
         },
@@ -12565,7 +12884,7 @@ const LESSONS: Lesson[] = [
       {
         target: "#sheet-engine",
         title: "Answered by",
-        body: "Claude Code, the Gemini CLI, or any hosted model. Different bots can use different ones, and changing this does not lose the conversation — botcage keeps the thread and hands it to whatever answers next.",
+        body: "Claude Code, the Gemini CLI, or any hosted model. Different bots can use different ones and changing this does not lose the conversation — botcage keeps the thread and hands it to whatever answers next.",
         open: () => {
           openSheet(activeBot());
           showSheetTab("general");
@@ -12583,7 +12902,7 @@ const LESSONS: Lesson[] = [
       {
         target: "#bots",
         title: "One roster, several engines",
-        body: "A bot on your Claude subscription can sit beside one on a local model that costs nothing, and a third on something you are only trying out. They do not know about each other.",
+        body: "A bot on your Claude subscription can sit beside one on a local model that costs nothing and a third on something you are only trying out. They do not know about each other.",
         open: () => {
           showSheet(false);
         },
@@ -12597,7 +12916,7 @@ const LESSONS: Lesson[] = [
       {
         target: "#btn-monitor",
         title: "It has to be watching",
-        body: "Teaching happens on a bot's own computer, so this is where it starts. The bot needs one, and it needs to be switched on.",
+        body: "Teaching happens on a bot's own computer, so this is where it starts. The bot needs one and it needs to be switched on.",
         open: () => {
           showSheet(false);
         },
@@ -12605,7 +12924,7 @@ const LESSONS: Lesson[] = [
       {
         target: "#screen-pane",
         title: "Its screen",
-        body: "A Linux desktop nobody else uses. You can watch what the bot does on it, and you can reach in.",
+        body: "A Linux desktop nobody else uses. You can watch what the bot does on it and you can reach in.",
         open: () => void openScreen(),
       },
       {
@@ -12826,6 +13145,101 @@ function somethingCanAnswer(): boolean {
   return Boolean(settings.model);
 }
 
+/** What the guide does as each step arrives.
+ *
+ *  Every one of these is an event-shaped mood — one that plays and hands the
+ *  face back. A state would stick, and the bot would still be thinking about
+ *  onboarding in the roster an hour later. */
+const SETUP_MOOD: Record<SetupStep, string> = {
+  welcome: "wave",
+  terms: "read",
+  answers: "point",
+  engine: "peek",
+  voice: "listen",
+  care: "nod",
+  // It has just grown to fill the sheet and is offering to show you round.
+  tour: "wave",
+};
+
+/** Make the guide react. Nothing happens when there is no guide — an install
+ *  that deleted it shows the app's own mark, which has no face to pull. */
+function setupMood(mood: string): void {
+  const host = state.bots.find((b) => b.guide);
+  if (host) setMood(host.id, mood);
+}
+
+/** The guide's face itself, rather than the box it is drawn in. Absent when
+ *  the guide has been deleted and the app's own mark is standing in. */
+function setupFace(): HTMLElement | null {
+  return $<HTMLElement>("#setup-face").querySelector<HTMLElement>(".face");
+}
+
+/** What the guide is holding or wearing on each step.
+ *
+ *  Onboarding is eight screens of the same face saying different things, and a
+ *  face that looks the same on all of them is a face people stop reading. A
+ *  prop says what a step is about before its heading does — and it is the
+ *  guide doing the explaining, so it is the guide that gets dressed for it
+ *  rather than an illustration put beside it.
+ *
+ *  Named here and drawn in CSS off `data-prop`, exactly as the moods and the
+ *  marks are: this file knows that the terms step has a magnifying glass and
+ *  nothing whatever about what one looks like.
+ *
+ *  The steps with nothing here are the ones that are about you rather than
+ *  about the app — your name, and the two that hand you over. */
+const SETUP_PROP: Partial<Record<SetupStep, string>> = {
+  terms: "glass",
+  answers: "brain",
+  engine: "laptop",
+  voice: "sing",
+  care: "eco",
+};
+
+function setupProp(prop: string): void {
+  const face = setupFace();
+  if (!face) return;
+  delete face.dataset.prop;
+  // Read a layout property between taking it off and putting one on, or the
+  // browser treats a prop replacing a prop as nothing having changed and the
+  // new one arrives without its animation. The steps do the same thing.
+  void face.offsetWidth;
+  if (prop) face.dataset.prop = prop;
+}
+
+/** The guide watches the cursor.
+ *
+ *  Eyes and brows only, never the body: a mood animates the face's own
+ *  transform — a wave, a nod, a shrug — and a second thing writing to it would
+ *  fight every one of them. What goes out is a pair of unitless numbers in
+ *  -1..1; how far a look is worth in pixels is the stylesheet's business,
+ *  because only it knows how big the face is being drawn at the time.
+ *
+ *  Saturating rather than linear: a cursor across the window and one just off
+ *  the face are both "over there", and an eye has no way to say which. */
+function look(e: PointerEvent): void {
+  const face = setupFace();
+  if (!face) return;
+  const box = face.getBoundingClientRect();
+  if (!box.width) return;
+  const reach = box.width * 2.4;
+  const at = (n: number): string => Math.max(-1, Math.min(1, n / reach)).toFixed(3);
+  face.style.setProperty("--look-x", at(e.clientX - (box.left + box.width / 2)));
+  face.style.setProperty("--look-y", at(e.clientY - (box.top + box.height / 2)));
+}
+
+/* Coalesced onto a frame. Pointermove fires far faster than anything can be
+   drawn, and each one of these measures an element — which is a layout read,
+   and the one thing worth not doing a hundred times a second. */
+let looking = 0;
+window.addEventListener("pointermove", (e) => {
+  if (setupWrap.hidden || looking) return;
+  looking = window.requestAnimationFrame(() => {
+    looking = 0;
+    look(e);
+  });
+});
+
 /** Which step is on screen, as opposed to which one is current. They differ
  *  only while one is sliding off. */
 let setupShown: SetupStep | null = null;
@@ -12853,6 +13267,11 @@ function showStep(to: SetupStep): void {
 
   const from = all.find((s) => s.dataset.step === setupShown);
   setupShown = to;
+  // The step actually changed, so the guide reacts to it. Inside this branch
+  // rather than in paintSetup, which runs on every log line and every poll and
+  // would restart the emote a dozen times per install.
+  setupMood(SETUP_MOOD[to]);
+  setupProp(SETUP_PROP[to] ?? "");
 
   for (const s of all) {
     if (s !== next && s !== from) s.hidden = true;
@@ -12868,18 +13287,40 @@ function showStep(to: SetupStep): void {
   if (!from || from === next) return;
   from.classList.remove("is-on", "is-back");
   from.classList.add("is-leaving", setupWay === "back" ? "is-back" : "is-on");
-  const done = (): void => {
+  let belt = 0;
+  const done = (e?: Event): void => {
+    // The step's own animation, not one belonging to something inside it:
+    // animationend bubbles, so a dot or a spinner finishing in there would
+    // otherwise retire the step early, mid-slide.
+    if (e && e.target !== from) return;
+    window.clearTimeout(belt);
+    from.removeEventListener("animationend", done);
+    // And only while this is still the step that is leaving.
+    //
+    // Both of these outlive the transition that made them. `once` takes the
+    // listener off when it fires, so the run where the belt got there first
+    // left one attached for good — and the next time that step came back and
+    // animated in, its own arrival fired the old handler and it hid itself a
+    // moment after appearing, leaving the guide standing on an empty sheet.
+    // Cancelling both is what stops that; this is the guard that makes it safe
+    // even if one gets through.
+    if (from.dataset.step === setupShown) return;
     from.classList.remove("is-leaving", "is-on", "is-back");
     from.hidden = true;
   };
-  from.addEventListener("animationend", done, { once: true });
-  // A belt for the case the animation never runs — reduced motion, a hidden
+  from.addEventListener("animationend", done);
+  // A belt for the case the animation never runs — reduced motion, an occluded
   // window — where animationend does not fire and the old step would stay.
-  window.setTimeout(done, 400);
+  // Comfortably past the slide's own 0.42s, or the belt retires a step that is
+  // still moving.
+  belt = window.setTimeout(done, 560);
 }
 
 function paintSetup(): void {
   const index = SETUP_STEPS.indexOf(setupAt);
+  // Which step the sheet is on, for the rules that need to know — the last one
+  // grows the guide's face, which lives above the steps rather than in one.
+  setupWrap.dataset.at = setupAt;
   setupRail.querySelectorAll<HTMLElement>(".setup__seg").forEach((seg, at) => {
     seg.dataset.on = String(at <= index);
   });
@@ -12892,6 +13333,10 @@ function paintSetup(): void {
   setupNext.textContent = "Continue";
 
   if (setupAt === "welcome") setupNext.textContent = "Get started";
+  // The last screen that arranges anything, so its button is the one that says
+  // the arranging is over. What follows is the guide offering to show you
+  // round, which is not setup and does not read as another step of it.
+  if (setupAt === "care") setupNext.textContent = "Start using botcage";
   if (setupAt === "terms") {
     const ok = $<HTMLInputElement>("#setup-terms-ok");
     ok.checked = ok.checked || termsAccepted();
@@ -12904,7 +13349,7 @@ function paintSetup(): void {
   if (setupAt === "answers") paintAnswersStep();
   if (setupAt === "engine") paintEngineStep();
   if (setupAt === "voice") void paintVoiceStep();
-  if (setupAt === "done") paintDoneStep();
+  if (setupAt === "tour") setupNext.textContent = "Let's go";
 }
 
 /** The onboarding step that offers a voice.
@@ -12928,10 +13373,8 @@ async function paintVoiceStep(): Promise<void> {
     return;
   }
 
-  const [ears, mouth] = await Promise.all([
-    invoke<boolean>("hearing_ready").catch(() => false),
-    invoke<boolean>("speech_ready").catch(() => false),
-  ]);
+  await refreshVoice();
+  const { ears, mouth } = voice;
   check.hidden = false;
 
   if (ears && mouth) {
@@ -12960,14 +13403,7 @@ async function installVoice(): Promise<void> {
   voiceStep = "Starting…";
   paintSetup();
   try {
-    if (!(await invoke<boolean>("hearing_ready").catch(() => false))) {
-      await invoke("hearing_install");
-    }
-    if (!(await invoke<boolean>("speech_ready").catch(() => false))) {
-      await invoke("speech_install");
-    }
-    voiceNames = [];
-    await knownVoices();
+    await fetchVoice(true);
   } catch (err) {
     toast(String(err));
   }
@@ -13020,7 +13456,7 @@ function paintAnswersStep(): void {
       text.textContent = "Ollama isn't running, or has nothing pulled.";
       fine.hidden = false;
       fine.textContent =
-        "Install it from ollama.com, then run `ollama pull llama3`. Nothing leaves this machine, and there is nothing to pay for.";
+        "Install it from ollama.com, then run `ollama pull llama3`. Nothing leaves this machine and there is nothing to pay for.";
       setupNext.textContent = "Look again";
       setupSkip.hidden = false;
       return;
@@ -13122,17 +13558,6 @@ function paintEngineStep(): void {
   setupSkip.hidden = false;
 }
 
-function paintDoneStep(): void {
-  const blurb = $<HTMLParagraphElement>("#setup-done-blurb");
-  if (stepSatisfied("answers")) {
-    blurb.textContent = "Everything botcage needs is in place.";
-  } else {
-    blurb.textContent =
-      "Nothing can answer a bot yet. Reopen this from the account menu when you're ready, or change what answers in any bot's settings.";
-  }
-  setupNext.textContent = "Start using botcage";
-}
-
 /** Keep what was chosen, so the first bot is made with it rather than with
  *  whatever the app happened to default to before anyone was asked. */
 function rememberRoute(): void {
@@ -13200,7 +13625,10 @@ async function setupAdvance(): Promise<void> {
     return termsOnly ? closeSetup() : goTo("answers");
   }
 
-  if (setupAt === "done") return closeSetup();
+  if (setupAt === "tour") {
+    tourWanted = true;
+    return closeSetup();
+  }
 
   if (setupAt === "answers") {
     if (stepSatisfied("answers")) {
@@ -13247,13 +13675,16 @@ async function setupAdvance(): Promise<void> {
   }
 
   if (setupAt === "voice") {
-    const [ears, mouth] = await Promise.all([
-      invoke<boolean>("hearing_ready").catch(() => false),
-      invoke<boolean>("speech_ready").catch(() => false),
-    ]);
-    if (ears && mouth) return goTo("done");
+    await refreshVoice();
+    if (voice.ears && voice.mouth) return goTo("care");
     await installVoice();
+    return;
   }
+
+  // Nothing to do but read it. Without this the button did nothing at all, and
+  // since the only way onto this step is skipping the voice, anyone who
+  // skipped an optional step could not finish setup at all.
+  if (setupAt === "care") return goTo("tour");
 }
 
 async function installClaude(): Promise<void> {
@@ -13314,12 +13745,22 @@ function stopSignInWatch(): void {
   claudeBusy = "";
 }
 
-setupNext.addEventListener("click", () => void setupAdvance());
+/* Every press gets an answer from the face. Where the press also moves the
+   carousel, the arriving step's own mood lands a moment later and replaces
+   this one — which is the right order: it acknowledges you, then it gets on
+   with the next thing. Where the press does nothing to the carousel (setting
+   up voice, signing in, the last step), this is the whole reaction. */
+setupNext.addEventListener("click", () => {
+  setupMood("nod");
+  void setupAdvance();
+});
 setupBack.addEventListener("click", () => {
+  setupMood("peek");
   const index = SETUP_STEPS.indexOf(setupAt);
   if (index > 0) goTo(SETUP_STEPS[index - 1]);
 });
 setupSkip.addEventListener("click", () => {
+  setupMood("shrug");
   stopSignInWatch();
   const index = SETUP_STEPS.indexOf(setupAt);
   goTo(SETUP_STEPS[Math.min(index + 1, SETUP_STEPS.length - 1)]);
@@ -13393,7 +13834,7 @@ function paintRemote(status: RemoteStatus): void {
     remoteWhere.textContent = "Off.";
   } else if (peerId) {
     remoteWhere.textContent =
-      "Anywhere — encrypted end to end, and nothing is open on your network.";
+      "Anywhere — encrypted end to end and nothing is open on your network.";
   } else {
     remoteWhere.textContent = "Starting the connection…";
   }
@@ -13420,7 +13861,7 @@ function paintRemote(status: RemoteStatus): void {
     remoteCode.hidden = false;
     remoteNewCode.hidden = true;
     const minutes = Math.max(1, Math.round(status.codeExpiresIn / 60));
-    remoteHint.textContent = `Expires in ${minutes} min, and works once.`;
+    remoteHint.textContent = `Expires in ${minutes} min and works once.`;
     void paintPairingCode(status.code);
   } else {
     remoteCode.hidden = true;
@@ -14051,10 +14492,17 @@ load();
 /** botcage's own mark: the guide's body, drawn by the generator every bot is
  *  drawn by, so the app's face is one of the family rather than a picture of
  *  one. Blue and a squircle where there is no guide to ask. */
+/** The app's own mark.
+ *
+ *  The guide's silhouette, which is what makes it botcage's rather than a
+ *  generic blob — but drawn in `currentColor` rather than in the guide's
+ *  colour, so the stylesheet paints it the same ink as the buttons it stands
+ *  next to. It is furniture in a row of icons, not a bot in a roster, and a
+ *  coloured blob among grey glyphs read as somebody's avatar left in the
+ *  header by mistake. */
 function brandMarkHtml(): string {
   const host = state.bots.find((b) => b.guide);
-  const face = host ? faceOf(host) : null;
-  return markHtml(silhouetteOf(face?.head), host?.color ?? "#0a84ff");
+  return markHtml(silhouetteOf(host ? faceOf(host).head : undefined), "currentColor");
 }
 
 function paintMark(): void {
@@ -14080,6 +14528,11 @@ if (state.screenOpen) void openScreen();
 // Settles every bot's voice on the first run after this exists, so nothing
 // about a bot is still being calculated by the time you look at it.
 void knownVoices();
+// What was skipped at setup, or removed since. Both buttons that lead to an
+// optional extra are dressed by the answer, so it is asked at launch rather
+// than the first time one is pressed.
+void refreshVoice();
+void refreshEngine().then(paintExtras);
 autoGrow();
 input.focus();
 

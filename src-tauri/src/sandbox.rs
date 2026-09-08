@@ -1197,6 +1197,83 @@ pub fn sandbox_destroy(bot_id: String) -> Result<(), String> {
     Ok(())
 }
 
+/* ------------------------------------------------------- what it is holding */
+/* Read by the storage panel. Sizes come from the engine rather than from the
+   disk: on macOS everything here lives inside the VM's own disk image, where
+   the host filesystem can see one enormous file and nothing about what is in
+   it. The engine can say, so it is asked. */
+
+/// The image every desktop is built from, by name.
+#[must_use]
+pub fn image_name() -> &'static str {
+    IMAGE
+}
+
+/// What the desktop image occupies, or zero if there is no engine or no image.
+#[must_use]
+pub fn image_bytes() -> u64 {
+    docker(&["image", "inspect", IMAGE, "-f", "{{.Size}}"])
+        .ok()
+        .filter(|out| out.status.success())
+        .and_then(|out| stdout_of(&out).lines().next()?.trim().parse().ok())
+        .unwrap_or(0)
+}
+
+/// Throw the image away. The next desktop to start builds it again.
+pub fn remove_image() -> Result<(), String> {
+    let out = docker(&["image", "rm", "-f", IMAGE])?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(stderr_of(&out))
+    }
+}
+
+/// Every desktop that exists, running or not, as (container, bot id, bytes).
+///
+/// The bytes are the writable layer alone — what this desktop has added since
+/// it was built. Counting the image in each would report the same few
+/// gigabytes once per bot, and it is listed on its own row instead.
+#[must_use]
+pub fn desks() -> Vec<(String, u64)> {
+    // Without `--size` here: it makes the engine measure every container to
+    // print a column this does not read, and each one is measured below by
+    // name anyway.
+    let Ok(out) = docker(&["ps", "-a", "--filter", "label=botcage=1", "--format", "{{.Names}}"])
+    else {
+        return Vec::new();
+    };
+    stdout_of(&out)
+        .lines()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(|name| {
+            let size = docker(&["inspect", "--size", "-f", "{{.SizeRw}}", name])
+                .ok()
+                .filter(|out| out.status.success())
+                .and_then(|out| stdout_of(&out).lines().next()?.trim().parse().ok())
+                .unwrap_or(0);
+            (name.to_string(), size)
+        })
+        .collect()
+}
+
+/// Which bot a container belongs to, given the ids of the bots there are.
+/// Containers left behind by a bot that has since been deleted match nothing,
+/// which is exactly the case worth showing.
+#[must_use]
+pub fn bot_of(container: &str, bots: &[String]) -> Option<String> {
+    bots.iter()
+        .find(|id| container_of(id) == container)
+        .cloned()
+}
+
+/// Discard one desktop by container name, volume included.
+pub fn remove_desk(container: &str) {
+    let _ = docker(&["rm", "-f", container]);
+    let _ = docker(&["volume", "rm", "-f", container]);
+}
+
 /// Rebuild the sandbox image on demand — the usual reason is that the image
 /// changed and existing desktops should be recreated from the new one.
 #[tauri::command]

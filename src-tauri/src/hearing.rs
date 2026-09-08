@@ -56,7 +56,7 @@ pub fn unload() {
     );
 }
 
-fn model_path(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn model_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app
         .path()
         .app_data_dir()

@@ -37,6 +37,7 @@ mod rooms;
 mod sandbox;
 mod setup;
 mod speech;
+mod storage;
 mod transcript;
 mod update;
 mod vault;
@@ -2068,6 +2069,8 @@ pub fn run() {
             sandbox::rebuild_image,
             sandbox::sandbox_destroy,
             sandbox::sandbox_sync_tools,
+            storage::storage_usage,
+            storage::storage_free,
         ])
         .setup(|app| {
             allow_the_microphone(app);

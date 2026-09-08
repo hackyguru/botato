@@ -140,6 +140,13 @@
         <path d="m8.4 7.2-1.2-2M15.6 7.2l1.2-2" />
         <path d="M9.6 9.2h.01M14.4 9.2h.01" />
       </symbol>
+      <!-- Storage. The drum every filesystem has been drawn as since before
+           anything here had a spinning disk in it, which is why it reads. -->
+      <symbol id="i-disk" viewBox="0 0 24 24">
+        <ellipse cx="12" cy="6" rx="8" ry="3.2" />
+        <path d="M4 6v12c0 1.8 3.6 3.2 8 3.2s8-1.4 8-3.2V6" />
+        <path d="M4 12c0 1.8 3.6 3.2 8 3.2s8-1.4 8-3.2" />
+      </symbol>
       <symbol id="i-cube" viewBox="0 0 24 24">
         <path d="M12 2.7 20.5 7.4v9.2L12 21.3 3.5 16.6V7.4z" />
         <path d="M3.5 7.4 12 12l8.5-4.6M12 12v9.3" />
@@ -244,10 +251,10 @@
       <header class="topbar" data-tauri-drag-region="deep">
         <div class="topbar__bar">
         <div class="topbar__id" id="topbar-id"></div>
-        <!-- In the middle of the bar rather than at the end of the row: it
-             searches the conversation in front of you, which is the middle of
-             the window, and a centred field is the one thing in a bar of
-             small controls that reads as belonging to the whole. -->
+        <!-- Beside the icon tray at the right, not adrift in the middle of the
+             bar. It searches the conversation in front of you, and it belongs
+             with the other things you press to act on that conversation
+             rather than floating between the bot's name and them. -->
         <div class="find" id="find">
           <svg class="find__glass"><use href="#i-search" /></svg>
           <input id="find-input" aria-label="Search messages" placeholder="Search" spellcheck="false" autocomplete="off" />
@@ -417,9 +424,16 @@
                existed and never listed until now: `replay` is a tool the bot
                calls by slug, so a demonstration you made had nowhere to be
                seen from. -->
+          <!-- The heading stands whether or not there is anything under it: a
+               section that appears only once it has content is a section you
+               never learn is there, and "nothing yet" is the thing worth
+               knowing before you have taught it anything. -->
           <div class="taught" id="taught" hidden>
             <p class="taught__head">Taught</p>
             <div class="taught__list" id="taught-list"></div>
+            <p class="taught__none" id="taught-none" hidden>
+              Nothing yet. Take the mouse, press Teach and do the task once.
+            </p>
           </div>
         </aside>
 
@@ -543,8 +557,7 @@
                  what this bot does when nobody is talking to it. -->
             <label class="setting">
               <span class="setting__label">Read channels automatically
-                <span class="setting__hint">Reads between conversations, and only
-                  channels it is already in.</span>
+                <span class="setting__hint">Only channels it is already in.</span>
               </span>
               <input type="checkbox" id="sheet-aware" class="switch" />
             </label>
@@ -585,7 +598,7 @@
                  it pushed every setting you actually came for below the fold. -->
             <label class="prose" id="sheet-memory-row">
               <span class="prose__label">What it has learned
-                <span class="prose__hint">Saved between conversations. Edit anything incorrect.</span>
+                <span class="prose__hint">Saved between conversations - edit anything incorrect.</span>
               </span>
               <textarea id="sheet-memory" rows="4"
                         placeholder="Nothing yet. It fills this in as it works."></textarea>
@@ -626,7 +639,7 @@
                  exist yet has nothing to sign into. -->
             <div class="prose" id="sheet-vault-row" hidden>
               <span class="prose__label">Saved logins
-                <span class="prose__hint">Stored passwords are entered on its desktop, outside the conversation.</span>
+                <span class="prose__hint">Entered on its desktop, outside the conversation.</span>
               </span>
               <div class="cmds" id="sheet-vault"></div>
               <div class="row">
@@ -784,7 +797,7 @@
 
         <div class="market__bar">
           <input aria-label="Search models" id="models-search" class="market__search" spellcheck="false"
-                 placeholder="Search every model — sonnet, llama, gpt" />
+                 placeholder="Search every model - sonnet, llama, gpt" />
           <label class="chip chip--check">
             <input type="checkbox" id="models-tools" />
             <span>Can use tools</span>
@@ -1000,6 +1013,9 @@
           </button>
           <button type="button" class="tab" role="tab" id="app-tab-phone" aria-controls="app-panel-phone" data-tab="phone" aria-selected="false">
             <svg><use href="#i-phone" /></svg>Mobile
+          </button>
+          <button type="button" class="tab" role="tab" id="app-tab-storage" aria-controls="app-panel-storage" data-tab="storage" aria-selected="false">
+            <svg><use href="#i-disk" /></svg>Storage
           </button>
           <button type="button" class="tab" role="tab" id="app-tab-backup" aria-controls="app-panel-backup" data-tab="backup" aria-selected="false">
             <svg><use href="#i-folder" /></svg>Backup
@@ -1226,6 +1242,23 @@
             </div>
           </div>
 
+          <!-- What botcage has downloaded or built, and a way to get it back.
+               None of this was written by hand and none of it is irreplaceable
+               — a model, an engine, an image, a container per bot — which is
+               what makes listing it worth doing and removing it safe to
+               offer. -->
+          <div class="settings-panel" data-tab="storage" role="tabpanel" id="app-panel-storage" aria-labelledby="app-tab-storage" hidden>
+            <p class="settings__cap" id="app-store-cap">On this disk</p>
+            <div class="store" id="app-store-disk"></div>
+
+            <p class="settings__cap" id="app-store-inside-cap" hidden>Inside the engine</p>
+            <div class="store" id="app-store-inside"></div>
+            <p class="store__note" id="app-store-inside-note" hidden>
+              These live in the container engine's own storage rather than as files
+              botcage can see, so they are not part of the figure above.
+            </p>
+          </div>
+
           <div class="settings-panel" data-tab="backup" role="tabpanel" id="app-panel-backup" aria-labelledby="app-tab-backup" hidden>
             <div class="settings">
               <label class="setting">
@@ -1355,7 +1388,7 @@
           <p class="about__version" id="about-version">—</p>
           <p class="about__blurb">
             Bots that live on your own machine — each a conversation that persists, with its own
-            memory and workspace, sharing channels, and optionally its own sandboxed Linux desktop
+            memory and workspace, sharing channels and optionally its own sandboxed Linux desktop
             to work on.
           </p>
         </div>
@@ -1370,7 +1403,7 @@
          reports what botcage can see rather than telling someone what to type:
          the CLI is either there or it is installed from here, and the engine is
          optional and says so. -->
-    <div class="overlay" id="setup" hidden>
+    <div class="overlay setup" id="setup" hidden>
       <div class="sheet sheet--setup">
         <div class="setup__rail" id="setup-rail" aria-hidden="true"></div>
 
@@ -1383,8 +1416,15 @@
           <div class="setup__steps">
           <div class="setup__host" id="setup-face"></div>
 
+          <!-- The steps travel inside this rather than loose under the face.
+               It is exactly one step wide and clipped to that width, so a step
+               leaving goes off the side and out of sight instead of sliding
+               across the sheet — which is what lets the two pass each other
+               without either being faded down to hide the overlap. -->
+          <div class="setup__deck">
+
           <section class="setup__step" data-step="welcome">
-            <h2 class="setup__title" id="setup-hello">Hi — I'm Potato</h2>
+            <h2 class="setup__title" id="setup-hello">Hi, I'm Potato and I'll help you get onboarded</h2>
             <!-- No blurb and no question over the field. The title says where
                  you are and the placeholder says what the box is for; a
                  paragraph explaining the app to somebody who has just opened it
@@ -1405,8 +1445,8 @@
           <section class="setup__step" data-step="terms" hidden>
             <h2 class="setup__title">Before you start</h2>
             <p class="setup__blurb">
-              botcage runs bots that act on your behalf. It comes with no warranty,
-              and what your bots do is your responsibility.
+              Botcage comes with no warranty and what your bots do is your
+              responsibility. Read more below.
             </p>
 
             <div class="terms" id="setup-terms" tabindex="0" role="region"
@@ -1422,7 +1462,7 @@
 
               <h3>2. You accept the risk</h3>
               <p>
-                You use botcage entirely at your own risk, and you are solely
+                You use botcage entirely at your own risk and you are solely
                 responsible for the instructions you give your bots and for everything
                 those bots do.
               </p>
@@ -1430,7 +1470,7 @@
               <h3>3. What a bot can do</h3>
               <p>
                 A bot can run commands, control a sandboxed desktop, read and write
-                files in its workspace, use accounts you connect to it, and act on a
+                files in its workspace, use accounts you connect to it and act on a
                 schedule while nobody is watching. Language models are unpredictable
                 and can be manipulated by content they read. Do not give a bot access
                 to anything you cannot afford to lose, break or expose.
@@ -1445,16 +1485,16 @@
                 of anything that matters.
               </p>
 
-              <h3>5. Third-party services, and your account with them</h3>
+              <h3>5. Third-party services and your account with them</h3>
               <p>
                 botcage drives software and services it does not own or control,
                 including the Claude Code CLI, Anthropic, Google, OpenAI, Ollama,
                 GitHub and any provider or plugin you connect. Your use of those is
-                governed by <b>their</b> terms, and complying with them is your
+                governed by <b>their</b> terms and complying with them is your
                 responsibility.
               </p>
               <p>
-                Automated and agentic use may breach some providers’ terms, and may
+                Automated and agentic use may breach some providers’ terms and may
                 result in throttling, suspension, loss of credit or the
                 <b>permanent termination of your account</b>. botcage does not control
                 and is not responsible for any action a provider takes against you.
@@ -1473,11 +1513,11 @@
                 To the maximum extent permitted by law, in no event shall the authors,
                 copyright holders or contributors be liable for any claim, damages or
                 other liability, whether in contract, tort (including negligence) or
-                otherwise, arising from or in connection with botcage or its use —
+                otherwise, arising from or in connection with botcage or its use,
                 including without limitation <b>loss of data, loss of profit, loss of
                 revenue, business interruption, loss of goodwill, suspension or
-                termination of any account, and any direct, indirect, incidental,
-                special, exemplary, consequential or punitive damages</b> — even if
+                termination of any account and any direct, indirect, incidental,
+                special, exemplary, consequential or punitive damages</b>, even if
                 advised of the possibility of such damage.
               </p>
 
@@ -1509,7 +1549,7 @@
 
             <label class="terms__accept">
               <input type="checkbox" id="setup-terms-ok" class="checkbox" />
-              <span>I have read and accept these terms, and I take full responsibility
+              <span>I have read and accept these terms and I take full responsibility
                 for what my bots do.</span>
             </label>
           </section>
@@ -1552,7 +1592,7 @@
             </div>
             <pre class="setup__log" id="setup-claude-log" hidden></pre>
             <p class="setup__fine" id="setup-claude-fine" hidden>
-              Anthropic's own installer, <code>https://claude.ai/install.sh</code> — no admin
+              Anthropic's own installer, <code>https://claude.ai/install.sh</code> - no admin
               password needed.
             </p>
           </section>
@@ -1588,24 +1628,29 @@
           <section class="setup__step" data-step="care" hidden>
             <h2 class="setup__title">Usage and energy</h2>
             <p class="setup__blurb">
-              Each reply uses computing power. Frequent routines increase usage.
+              AI consumes energy. Every prompt and every action your bots take
+              consumes computing power. To make this world a better place, it is
+              important to be mindful of your AI usage.
             </p>
             <p class="setup__fine">
-              Settings marked with a leaf <svg class="leaf leaf--inline"><use href="#i-leaf" /></svg>
-              are where that is decided.
+              To help you optimise your experience with sustainability in mind, look
+              out for the leaf <svg class="leaf leaf--inline"><use href="#i-leaf" /></svg>
+              around the application.
             </p>
           </section>
 
-          <section class="setup__step" data-step="done" hidden>
-            <h2 class="setup__title">You’re ready</h2>
-            <p class="setup__blurb" id="setup-done-blurb">Everything botcage needs is in place.</p>
-            <ul class="setup__list">
-              <li><b>Make one of us</b> — the + at the foot of the rail on the left.</li>
-              <li><b>Plug things in</b> — GitHub, Gmail, Notion and the rest, from the bar above.</li>
-              <li><b>Set a routine</b> — give a bot something to do on a schedule.</li>
-              <li><b>Ask me</b> — I'm the first face in the rail.</li>
-            </ul>
+          <!-- The last thing setup does is hand you over.
+               The guide has been a face at the top of every step; here it comes
+               down into the middle of the sheet at more than twice the size and
+               says the one thing this screen is for. Nothing else is on it: the
+               offer is the whole step, and a heading over a single sentence
+               would only be the sentence said twice. -->
+          <section class="setup__step" data-step="tour" hidden>
+            <p class="setup__says">
+              I'll help you understand the different parts of the app with a quick tour
+            </p>
           </section>
+          </div>
           </div>
         </div>
 

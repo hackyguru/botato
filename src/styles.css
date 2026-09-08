@@ -859,6 +859,10 @@ button:disabled:hover {
   align-items: center;
   gap: 7px;
   min-width: 0;
+  /* The same ink as the icon buttons beside it, and from the same token, so
+     the two cannot drift apart. The mark is drawn in currentColor for exactly
+     this. */
+  color: var(--text-2);
   margin-right: auto;
   padding-left: 10px;
   /* The header is a drag region; the mark is not a control and should not look
@@ -940,6 +944,44 @@ button:disabled:hover {
 .icon-btn:hover {
   color: var(--text);
   background: var(--hover);
+}
+
+/* A button for something that was never installed.
+ *
+ * Dimmed, not disabled. A disabled button cannot tell you why it is disabled,
+ * and here that is the only thing worth saying — so it stays pressable, dims
+ * to say it is not ready, and answers with what it would cost when pressed.
+ * The dot is what separates "not set up" from "off the clock" at a glance. */
+.icon-btn.is-locked {
+  opacity: 0.5;
+}
+
+.icon-btn.is-locked:hover {
+  opacity: 1;
+}
+
+.icon-btn.is-locked::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 5px;
+  height: 5px;
+  background: var(--text-3);
+  border: 1.5px solid var(--bg-main);
+  border-radius: 50%;
+}
+
+/* Being fetched, at the button that asked for it. */
+.icon-btn.is-getting {
+  color: var(--text);
+  animation: getting 1.4s ease-in-out infinite;
+}
+
+@keyframes getting {
+  50% {
+    opacity: 0.42;
+  }
 }
 
 .icon-btn--sm {
@@ -1783,6 +1825,441 @@ button:disabled:hover {
   clip-path: polygon(60% 0, 0 55%, 42% 55%, 30% 100%, 100% 40%, 55% 40%);
 }
 
+/* ---- props: what the guide is holding on a given onboarding screen
+ *
+ * A layer of its own, above everything else a face is made of and empty until
+ * a step names one.
+ *
+ * Not the mark, which belongs to the bot and is the thing people recognise it
+ * by; not the aura, which is where a mood puts a hand or a thought. These are
+ * picked up for the length of one screen and put down again, and only the
+ * guide in setup ever holds one — which is why the renderer does not draw this
+ * layer and the setup screen adds it.
+ *
+ * Three children and two pseudo-elements on the layer, plus two on each child:
+ * enough for a pair of sunglasses, a microphone and the sound coming out of it
+ * without any prop wanting a piece it has not got.
+ *
+ * Everything is a fraction of --u, like the rest of a face, so the same
+ * numbers draw the same prop on the 54px face in the sheet and the 132px one
+ * on the last step. What is anchored to the eyes is anchored through --eye-y
+ * and --eye-gap, which is where the generator actually put them — a lens
+ * placed at a guessed percentage misses on a teardrop and lands on an ear. */
+.face__prop {
+  /* Where an eye's centre actually is.
+   *
+   * --eye-y is where the row of them is positioned from, and a row is
+   * positioned by its top edge — so the middle of an eye is half an eye lower
+   * than the number the generator publishes. A lens hung on --eye-y alone sits
+   * above the thing it is supposed to be over, which is exactly what the
+   * magnifying glass and the sunglasses both did. Every eye is 0.15u tall
+   * whatever a bot's eye trait says, because at rest they are all the same
+   * eye, so half of one is a constant. */
+  --eye-mid: calc(var(--eye-y, 42%) + var(--u) * 0.075);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.face__prop > i {
+  position: absolute;
+  display: block;
+}
+
+/* Arriving. Set on the attribute rather than the layer so that swapping one
+   prop for another plays it again — the step does the same thing, and for the
+   same reason. */
+.face[data-prop] .face__prop {
+  animation: prop-in 0.34s cubic-bezier(0.22, 0.61, 0.36, 1.5) both;
+}
+
+@keyframes prop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6) translateY(6%);
+  }
+}
+
+/* The bot's own mark stands down while it is holding something. An antenna
+   through a halo is two things in one place and neither of them reads. */
+.face[data-prop] .face__mark {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* ---- usage and energy: a halo, and the thing it is being good about */
+.face[data-prop="eco"] .face__prop::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--u) * -0.25);
+  left: 50%;
+  width: calc(var(--u) * 0.5);
+  height: calc(var(--u) * 0.13);
+  margin-left: calc(var(--u) * -0.25);
+  border: calc(var(--u) * 0.045) solid #ffd166;
+  border-radius: 50%;
+  animation: halo-hover 3.4s ease-in-out infinite;
+}
+
+/* A leaf is a square with one pair of opposite corners rounded the whole way
+   and the other pair left sharp. */
+.face[data-prop="eco"] .face__prop > i:nth-child(1) {
+  /* On the crown rather than above it: a leaf floating over a head is a
+     sticker, and one growing out of it is a potato. */
+  top: calc(var(--u) * -0.03);
+  left: 50%;
+  width: calc(var(--u) * 0.26);
+  height: calc(var(--u) * 0.26);
+  margin-left: calc(var(--u) * -0.06);
+  background: #4cc38a;
+  border-radius: 0 100% 0 100%;
+  transform-origin: 0 100%;
+  transform: rotate(-24deg);
+  animation: leaf-sway 4.2s ease-in-out infinite;
+}
+
+/* The midrib, drawn as the one diagonal the shape already has rather than as
+   another element laid across it at the same angle. */
+.face[data-prop="eco"] .face__prop > i:nth-child(1)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    45deg,
+    transparent calc(50% - max(1px, var(--u) * 0.012)),
+    rgba(0, 0, 0, 0.22) calc(50% - max(1px, var(--u) * 0.012)),
+    rgba(0, 0, 0, 0.22) calc(50% + max(1px, var(--u) * 0.012)),
+    transparent calc(50% + max(1px, var(--u) * 0.012))
+  );
+}
+
+/* ---- the terms: read closely */
+.face[data-prop="glass"] .face__prop > i:nth-child(1) {
+  top: var(--eye-mid);
+  /* Over the left eye, at the coordinate the body generator actually put it,
+     gaze included — the two shift together or the glass drifts off it. */
+  left: calc(50% - var(--eye-gap, 13%) + var(--gaze, 0%));
+  width: calc(var(--u) * 0.4);
+  height: calc(var(--u) * 0.4);
+  margin: calc(var(--u) * -0.2) 0 0 calc(var(--u) * -0.2);
+  background: rgba(186, 222, 255, 0.16);
+  border: calc(var(--u) * 0.038) solid #3a3a44;
+  border-radius: 50%;
+  animation: glass-peer 4s ease-in-out infinite;
+}
+
+/* The handle, hinged at the rim it comes off. */
+.face[data-prop="glass"] .face__prop > i:nth-child(1)::after {
+  content: "";
+  position: absolute;
+  top: 82%;
+  left: 18%;
+  width: calc(var(--u) * 0.06);
+  height: calc(var(--u) * 0.22);
+  margin-left: calc(var(--u) * -0.03);
+  background: #8a6242;
+  border-radius: calc(var(--u) * 0.03);
+  transform-origin: 50% 0;
+  transform: rotate(34deg);
+}
+
+/* One streak of light across the lens, which is what stops a circle with a
+   stick on it reading as a lollipop. */
+.face[data-prop="glass"] .face__prop > i:nth-child(1)::before {
+  content: "";
+  position: absolute;
+  top: 16%;
+  left: 22%;
+  width: 22%;
+  height: 46%;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  transform: rotate(28deg);
+}
+
+/* The eye behind it, magnified. A magnifying glass that does not magnify
+   anything is a hoop. */
+.face[data-prop="glass"] .face__eyes i:first-child {
+  transform: scale(1.6);
+}
+
+/* ---- choosing what answers: the lid comes off */
+.face[data-prop="brain"] .face__prop::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--u) * -0.17);
+  left: 50%;
+  width: calc(var(--u) * 0.56);
+  height: calc(var(--u) * 0.17);
+  margin-left: calc(var(--u) * -0.28);
+  background: var(--skin);
+  border-radius: 50% 50% 16% 16%;
+  /* Hinged at the back left and tipped up, so it is a lid off rather than a
+     hat on. Behind the brain, because it is the piece that came off it. */
+  transform-origin: 4% 100%;
+  transform: rotate(-26deg);
+  animation: lid-lift 4.6s ease-in-out infinite;
+}
+
+.face[data-prop="brain"] .face__prop > i:nth-child(1) {
+  /* Most of it above the head's own outline rather than inside it. Pink on tan
+     is barely a shape at the 54px the sheet draws this face at; pink against
+     the window behind it reads at a glance, which is the whole job. */
+  top: calc(var(--u) * -0.07);
+  left: 50%;
+  width: calc(var(--u) * 0.5);
+  height: calc(var(--u) * 0.25);
+  margin-left: calc(var(--u) * -0.25);
+  background: #e79fb2;
+  /* Lobed rather than domed: the bumps are most of what says brain at this
+     size, and the flat underside is the rim it is sitting in. */
+  border-radius: 46% 46% 10% 10% / 78% 78% 12% 12%;
+  animation: brain-think 2.8s ease-in-out infinite;
+}
+
+/* Two folds, as holes in a flat colour rather than as two more elements. */
+.face[data-prop="brain"] .face__prop > i:nth-child(1)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  /* Folds, as arcs struck from below the brain so that only their tops cross
+     it — a full circle inside a shape this small reads as a bubble. */
+  background:
+    linear-gradient(
+      to right,
+      transparent calc(50% - max(1px, var(--u) * 0.008)),
+      rgba(0, 0, 0, 0.16) calc(50% - max(1px, var(--u) * 0.008)),
+      rgba(0, 0, 0, 0.16) calc(50% + max(1px, var(--u) * 0.008)),
+      transparent calc(50% + max(1px, var(--u) * 0.008))
+    ),
+    radial-gradient(
+      circle at 24% 128%,
+      transparent 62%,
+      rgba(0, 0, 0, 0.15) 62%,
+      rgba(0, 0, 0, 0.15) 70%,
+      transparent 70%
+    ),
+    radial-gradient(
+      circle at 76% 128%,
+      transparent 62%,
+      rgba(0, 0, 0, 0.15) 62%,
+      rgba(0, 0, 0, 0.15) 70%,
+      transparent 70%
+    );
+}
+
+/* ---- desktop access: a machine of its own */
+.face[data-prop="laptop"] .face__prop > i:nth-child(1) {
+  bottom: calc(var(--u) * 0.15);
+  left: 50%;
+  width: calc(var(--u) * 0.48);
+  height: calc(var(--u) * 0.31);
+  margin-left: calc(var(--u) * -0.24);
+  background: #23232b;
+  border: max(1px, calc(var(--u) * 0.02)) solid #43434f;
+  border-radius: calc(var(--u) * 0.035);
+}
+
+.face[data-prop="laptop"] .face__prop > i:nth-child(1)::after {
+  content: "";
+  position: absolute;
+  inset: calc(var(--u) * 0.03);
+  background: var(--blue);
+  border-radius: calc(var(--u) * 0.016);
+  animation: screen-lit 3.6s ease-in-out infinite;
+}
+
+/* The base, wider than the lid and going away from you, which is the whole of
+   what says the thing is open and facing the bot. */
+.face[data-prop="laptop"] .face__prop > i:nth-child(2) {
+  bottom: calc(var(--u) * 0.07);
+  left: 50%;
+  width: calc(var(--u) * 0.64);
+  height: calc(var(--u) * 0.08);
+  margin-left: calc(var(--u) * -0.32);
+  background: #50505d;
+  border-radius: 0 0 calc(var(--u) * 0.02) calc(var(--u) * 0.02);
+  clip-path: polygon(9% 0, 91% 0, 100% 100%, 0 100%);
+}
+
+/* Two hands on it, out past the edge of the base so neither is drawn over it.
+   A ::after is the last child and would sit in front of the machine. */
+.face[data-prop="laptop"] .face__prop::before,
+.face[data-prop="laptop"] .face__prop::after {
+  content: "";
+  position: absolute;
+  bottom: calc(var(--u) * 0.115);
+  width: calc(var(--u) * 0.14);
+  height: calc(var(--u) * 0.1);
+  background: var(--skin);
+  border-radius: calc(var(--u) * 0.05);
+}
+
+.face[data-prop="laptop"] .face__prop::before {
+  left: calc(var(--u) * 0.075);
+}
+
+.face[data-prop="laptop"] .face__prop::after {
+  right: calc(var(--u) * 0.075);
+}
+
+/* ---- voice calls: shades, and something to sing into */
+/* Translucent on purpose. A face whose eyes you cannot see is a face that has
+   stopped looking at you, and looking at you is what it is doing. */
+.face[data-prop="sing"] .face__prop > i:nth-child(1),
+.face[data-prop="sing"] .face__prop > i:nth-child(2) {
+  top: var(--eye-mid);
+  width: calc(var(--u) * 0.28);
+  height: calc(var(--u) * 0.21);
+  margin: calc(var(--u) * -0.105) 0 0 calc(var(--u) * -0.14);
+  background: rgba(18, 20, 28, 0.58);
+  border: max(1px, calc(var(--u) * 0.018)) solid rgba(8, 8, 12, 0.85);
+  border-radius: calc(var(--u) * 0.08) calc(var(--u) * 0.08) calc(var(--u) * 0.11)
+    calc(var(--u) * 0.11);
+}
+
+.face[data-prop="sing"] .face__prop > i:nth-child(1) {
+  left: calc(50% - var(--eye-gap, 13%) + var(--gaze, 0%));
+}
+
+.face[data-prop="sing"] .face__prop > i:nth-child(2) {
+  left: calc(50% + var(--eye-gap, 13%) + var(--gaze, 0%));
+}
+
+/* The bridge, exactly as long as the gap between the two eyes it spans. */
+.face[data-prop="sing"] .face__prop::before {
+  content: "";
+  position: absolute;
+  top: var(--eye-mid);
+  left: calc(50% + var(--gaze, 0%));
+  width: calc(var(--eye-gap, 13%) * 2);
+  height: calc(var(--u) * 0.028);
+  margin: calc(var(--u) * -0.014) 0 0 calc(var(--eye-gap, 13%) * -1);
+  background: rgba(8, 8, 12, 0.85);
+}
+
+.face[data-prop="sing"] .face__prop > i:nth-child(3) {
+  top: calc(var(--u) * 0.58);
+  right: calc(var(--u) * 0.07);
+  width: calc(var(--u) * 0.23);
+  height: calc(var(--u) * 0.23);
+  background: #d6d6de;
+  /* The mesh, as a tiled dot rather than as a pile of elements. */
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.32) 24%, transparent 25%);
+  background-size: calc(var(--u) * 0.045) calc(var(--u) * 0.045);
+  border-radius: 50%;
+  animation: mic-hold 2.2s ease-in-out infinite;
+}
+
+.face[data-prop="sing"] .face__prop > i:nth-child(3)::after {
+  content: "";
+  position: absolute;
+  top: 76%;
+  left: 50%;
+  width: calc(var(--u) * 0.07);
+  height: calc(var(--u) * 0.22);
+  margin-left: calc(var(--u) * -0.035);
+  background: #3a3a46;
+  border-radius: calc(var(--u) * 0.03);
+  transform-origin: 50% 0;
+  transform: rotate(24deg);
+}
+
+/* What is coming out of it, drawn the way the phone's signal is: a ring with
+   two of its sides taken off. */
+.face[data-prop="sing"] .face__prop::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--u) * 0.55);
+  right: calc(var(--u) * -0.07);
+  width: calc(var(--u) * 0.13);
+  height: calc(var(--u) * 0.13);
+  border: max(1px, calc(var(--u) * 0.022)) solid var(--blue);
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+  border-radius: 0 calc(var(--u) * 0.1) 0 0;
+  animation: sing-out 1.9s ease-out infinite;
+}
+
+@keyframes halo-hover {
+  50% {
+    transform: translateY(calc(var(--u) * -0.035));
+  }
+}
+
+@keyframes leaf-sway {
+  50% {
+    transform: rotate(-4deg);
+  }
+}
+
+@keyframes glass-peer {
+  50% {
+    transform: translate(calc(var(--u) * 0.02), calc(var(--u) * -0.02)) rotate(-5deg);
+  }
+}
+
+@keyframes lid-lift {
+  50% {
+    transform: rotate(-34deg) translateY(calc(var(--u) * -0.02));
+  }
+}
+
+@keyframes brain-think {
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes screen-lit {
+  0%,
+  100% {
+    opacity: 0.62;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes mic-hold {
+  50% {
+    transform: translateY(calc(var(--u) * -0.025));
+  }
+}
+
+@keyframes sing-out {
+  0% {
+    opacity: 0;
+    transform: translateX(calc(var(--u) * -0.05)) scale(0.7);
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(calc(var(--u) * 0.05)) scale(1.1);
+  }
+}
+
+/* Props still arrive, because a prop appearing is the thing that says the
+   screen changed. What stops is the idling: nothing hovers, sways or pulses
+   for the rest of the time you are on it. */
+@media (prefers-reduced-motion: reduce) {
+  .face[data-prop] .face__prop,
+  .face[data-prop="eco"] .face__prop::before,
+  .face[data-prop="eco"] .face__prop > i:nth-child(1),
+  .face[data-prop="glass"] .face__prop > i:nth-child(1),
+  .face[data-prop="brain"] .face__prop::before,
+  .face[data-prop="brain"] .face__prop > i:nth-child(1),
+  .face[data-prop="laptop"] .face__prop > i:nth-child(1)::after,
+  .face[data-prop="sing"] .face__prop > i:nth-child(3),
+  .face[data-prop="sing"] .face__prop::after {
+    animation: none;
+  }
+}
+
 /* --------------------------------------------------------- sidebar footer */
 .sidebar__foot {
   display: flex;
@@ -1928,7 +2405,10 @@ button:disabled:hover {
      field any more. */
   width: 100%;
   max-width: 420px;
-  margin: 0 auto;
+  /* Against the icons rather than in the middle of its column. Centred, it
+     floated in the gap with a hand's width of nothing on either side; beside
+     the tray it reads as one group of controls at the right of the bar. */
+  margin: 0 0 0 auto;
   height: 32px;
   padding: 0 8px 0 11px;
   background: var(--field);
@@ -1936,7 +2416,8 @@ button:disabled:hover {
 }
 
 /* No widening on focus any more: it is a column of the bar's grid now, and a
-   field that grew would push the channel's name out of the way to do it. */
+   field that grew would push the channel's name out of the way to do it. It
+   sits at the right of that column, against the tray. */
 
 .find__glass {
   width: 14px;
@@ -2067,7 +2548,7 @@ button:disabled:hover {
 
 .hit__text mark {
   color: var(--text);
-  background: rgba(88, 101, 242, 0.32);
+  background: rgba(200, 160, 106, 0.32);
   border-radius: 2px;
 }
 
@@ -2079,7 +2560,7 @@ button:disabled:hover {
 
 /* Where a result took you, so the eye lands on the right line. */
 .turn--lit {
-  background: rgba(88, 101, 242, 0.16);
+  background: rgba(200, 160, 106, 0.16);
 }
 
 .topbar__actions {
@@ -2192,8 +2673,8 @@ button:disabled:hover {
 .men {
   padding: 0 2px;
   border-radius: 3px;
-  background: rgba(10, 132, 255, 0.16);
-  color: #7ab6ff;
+  background: rgba(200, 160, 106, 0.16);
+  color: var(--link);
   font-weight: 500;
 }
 
@@ -2220,9 +2701,9 @@ button:disabled:hover {
 }
 
 /* Calling the whole room is louder than calling one person, because it is —
-   and it belongs to no bot, so it keeps the app's own blue. */
+   and it belongs to no bot, so it keeps the app's own accent. */
 .men--room {
-  background: rgba(10, 132, 255, 0.22);
+  background: rgba(200, 160, 106, 0.22);
 }
 
 /* Your own name, which is the one you are scanning for. */
@@ -2611,7 +3092,7 @@ button:disabled:hover {
 }
 
 .cal__col.is-today {
-  background: rgba(10, 132, 255, 0.045);
+  background: rgba(200, 160, 106, 0.045);
 }
 
 /* Where the day has got to. */
@@ -2643,7 +3124,7 @@ button:disabled:hover {
   font-size: var(--type-caption);
   line-height: 1.25;
   text-align: left;
-  background: var(--tint, rgba(10, 132, 255, 0.9));
+  background: var(--tint, rgba(200, 160, 106, 0.9));
   border-radius: 6px;
 }
 
@@ -2651,7 +3132,7 @@ button:disabled:hover {
   display: block;
   overflow: hidden;
   font-weight: 600;
-  color: var(--on-accent);
+  color: var(--on-blue);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2830,7 +3311,7 @@ button:disabled:hover {
 }
 
 .cal__cell.is-today {
-  background: rgba(10, 132, 255, 0.05);
+  background: rgba(200, 160, 106, 0.05);
 }
 
 .cal__date {
@@ -2845,7 +3326,7 @@ button:disabled:hover {
 }
 
 .cal__cell.is-today .cal__date {
-  color: var(--on-accent);
+  color: var(--on-blue);
   font-weight: 600;
   background: var(--blue);
 }
@@ -2971,7 +3452,7 @@ button:disabled:hover {
   font-size: var(--type-micro);
   font-weight: 600;
   line-height: 13px;
-  color: var(--on-accent);
+  color: var(--on-blue);
   text-align: center;
   background: var(--blue);
   border-radius: var(--radius-pill);
@@ -3903,7 +4384,10 @@ button.learn-badge--open:hover {
   display: flex;
   align-items: flex-end;
   gap: 10px;
-  padding: 7px 7px 7px 8px;
+  /* More room on the left than the right: the send button is a circle inside
+     the pill and carries its own gap, while the text has nothing between it
+     and the curve. 8px looked even in the box model and cramped on screen. */
+  padding: 7px 7px 7px 16px;
   background: var(--field);
   border-radius: 26px;
 }
@@ -4004,6 +4488,35 @@ button.learn-badge--open:hover {
 .menu--card {
   width: 288px;
   padding: 0;
+}
+
+/* What an optional extra costs, hanging off the button that would spend it.
+   A dialog in the middle of the window would be a bigger interruption than
+   the question deserves, and would not say which button it was about. */
+.offer {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 13px 14px 14px;
+}
+
+.offer__what {
+  margin: 0;
+  font-size: var(--type-small);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.offer__why {
+  margin: 0;
+  font-size: var(--type-hint);
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.offer .btn-primary {
+  margin-top: 3px;
+  width: 100%;
 }
 
 .card__head {
@@ -4652,33 +5165,107 @@ button.learn-badge--open:hover {
   transition: all 0.28s cubic-bezier(0.3, 0.9, 0.3, 1.4);
 }
 
-/* A face, which blinks when you look at it. */
-.art--bot {
+/* A roster, which blinks when you look at it.
+ *
+ * This was one face. The lesson behind the card is "one bot per job" — a bot
+ * is cheap and two jobs in one bot means one memory holding both — and a
+ * single head said "here is a bot" when what the button does is give you
+ * another one.
+ *
+ * Three, and not three of a size in a row: that came out as six eyes along one
+ * line and read as a chain of dots rather than as anybody. Two smaller ones
+ * behind and one in front, bigger, raised and in the app's accent — the ones you
+ * have, and the one pressing this makes.
+ *
+ * Each head is sized by its own font-size and drawn in em, so the whole face
+ * — corner radius, eyes, the gap between them — scales with it and the three
+ * are one shape at three sizes rather than three sets of numbers. */
+.art--bots i {
+  width: 1em;
+  height: 1em;
+  background: var(--text-3);
+  /* A squircle, like every head in this app, rather than the bead a token
+     radius makes of something this small. */
+  border-radius: 0.32em;
+}
+
+.art--bots i::before,
+.art--bots i::after {
+  content: "";
+  position: absolute;
+  top: 0.36em;
+  width: 0.17em;
+  height: 0.25em;
+  /* Knocked out to the ground behind the card, which is the one colour that
+     works on the grey heads and the accent one alike. */
+  background: var(--bg-main);
+  border-radius: 0.08em;
+}
+
+.art--bots i::before {
+  left: 0.22em;
+}
+
+.art--bots i::after {
+  right: 0.22em;
+}
+
+.art--bots i:nth-child(1) {
+  top: 14px;
+  left: 0;
+  font-size: 11px;
+}
+
+.art--bots i:nth-child(2) {
+  top: 14px;
+  left: 19px;
+  font-size: 11px;
+  --blink-in: 0.18s;
+}
+
+/* Last, so it is in front of the two it stands between. */
+.art--bots i:nth-child(3) {
+  top: 5px;
+  left: 7.5px;
+  font-size: 15px;
   background: var(--blue);
-  border-radius: var(--radius-control);
+  /* A ring in the card's own colour, so the one in front is read as being in
+     front rather than as merged with the pair behind it. */
+  box-shadow: 0 0 0 1.5px var(--fill-1);
+  --blink-in: 0.36s;
 }
 
-.art--bot i {
-  top: 10px;
-  width: 4px;
-  height: 6px;
-  background: #04203f;
-  border-radius: 2px;
+/* Pointed at, and the group opens up around the new one. */
+.lesson:hover .art--bots i:nth-child(1),
+.lesson:focus-visible .art--bots i:nth-child(1) {
+  transform: translateX(-2.5px);
 }
 
-.art--bot i:first-child {
-  left: 7px;
+.lesson:hover .art--bots i:nth-child(2),
+.lesson:focus-visible .art--bots i:nth-child(2) {
+  transform: translateX(2.5px);
 }
 
-.art--bot i:last-child {
-  right: 7px;
+.lesson:hover .art--bots i:nth-child(3),
+.lesson:focus-visible .art--bots i:nth-child(3) {
+  transform: translateY(-2px) scale(1.08);
 }
 
-/* On the card, the blink happens straight away rather than on the face's own
-   slow cycle: you have just pointed at it, and it looks back. */
-.lesson:hover .art--bot i,
-.lesson:focus-visible .art--bot i {
-  animation: eye-blink-now 0.9s linear;
+/* The ring follows the card it is cut out of. */
+.lesson:hover .art--bots i:nth-child(3),
+.lesson:focus-visible .art--bots i:nth-child(3) {
+  box-shadow: 0 0 0 1.5px var(--fill-2);
+}
+
+/* On the card the blink happens straight away rather than on each face's own
+   slow cycle: you have just pointed at them, and they look back. Staggered
+   through a custom property, which pseudo-elements inherit — three heads
+   blinking in unison is a machine, three blinking a beat apart is a roster. */
+.lesson:hover .art--bots i::before,
+.lesson:hover .art--bots i::after,
+.lesson:focus-visible .art--bots i::before,
+.lesson:focus-visible .art--bots i::after {
+  animation: eye-blink-now 0.9s linear var(--blink-in, 0s);
 }
 
 /* The same shape at the same speed, just sooner: on a card the face blinks as
@@ -4994,22 +5581,22 @@ button.learn-badge--open:hover {
   white-space: nowrap;
 }
 
-/* Room for a face is room a chip has not got. */
+/* Room for a face is room a chip has not got.
+ *
+ * Scaled rather than resized. Every mark is drawn with pixel offsets tuned to
+ * the 30px box, so shrinking the box left each one wherever its numbers
+ * happened to land — the plug's two halves sat 9px down a 20px square, which
+ * put the whole mark below the words it belongs to. Scaling moves the mark as
+ * one thing and keeps it on the chip's centre line, and the negative margin
+ * gives the layout back the space the transform does not take. */
 .lessons--bar .art {
-  width: 20px;
-  height: 20px;
+  margin: -5px;
+  transform: scale(0.667);
 }
 
-.lessons--bar .art--bot i {
-  top: 7px;
-  width: 3px;
-  height: 4px;
-}
-
+/* Taller than it is wide, so its horizontal slack is not the same as the rest. */
 .lessons--bar .art--phone {
-  width: 13px;
-  height: 20px;
-  margin-left: 3px;
+  margin: -5px -3px;
 }
 
 /* "Show me" is what the whole chip says by being pressable. */
@@ -5052,7 +5639,7 @@ button.learn-badge--open:hover {
   position: absolute;
   border: 2px solid var(--blue);
   border-radius: var(--radius-card);
-  box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.22);
+  box-shadow: 0 0 0 4px rgba(200, 160, 106, 0.22);
   pointer-events: none;
   transition: all 0.22s ease;
 }
@@ -5135,8 +5722,8 @@ button.learn-badge--open:hover {
 }
 
 .pick:has(input:checked) {
-  background: rgba(10, 132, 255, 0.1);
-  border-color: rgba(10, 132, 255, 0.5);
+  background: rgba(200, 160, 106, 0.1);
+  border-color: rgba(200, 160, 106, 0.5);
 }
 
 .pick input {
@@ -5454,7 +6041,7 @@ button.learn-badge--open:hover {
 }
 
 .model-row.is-on {
-  background: rgba(10, 132, 255, 0.16);
+  background: rgba(200, 160, 106, 0.16);
 }
 
 .model-row__name {
@@ -5831,7 +6418,7 @@ button.learn-badge--open:hover {
    drop the fill, so the row reads left to right as finished, here, not yet —
    rather than as three things of equal weight. */
 .step.is-now .step__no {
-  color: var(--on-accent);
+  color: var(--on-blue);
   background: var(--blue);
 }
 
@@ -5842,7 +6429,7 @@ button.learn-badge--open:hover {
 .step.is-done .step__no {
   color: var(--blue);
   /* The neutral fill first, for engines with no color-mix: a tinted chip that
-     falls back to the blue it prints its tick in would hide the tick. */
+     falls back to the accent it prints its tick in would hide the tick. */
   background: var(--fill-2);
   background: color-mix(in srgb, var(--blue) 18%, transparent);
 }
@@ -6573,12 +7160,22 @@ a.detail__source:hover {
   width: 100%;
 }
 
+/* The switch on the right, where every other switch in this pane keeps its.
+   On the left it read as a checkbox with a caption and broke the column the
+   rest of the rows line up on: label first, control at the edge. */
 .shift__on {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
+  width: 100%;
   font-size: var(--type-small);
   cursor: pointer;
+}
+
+.shift__on > .switch {
+  order: 1;
+  flex: none;
 }
 
 .shift__when {
@@ -6626,7 +7223,7 @@ a.detail__source:hover {
 }
 
 .shift__day.is-on {
-  color: var(--on-accent);
+  color: var(--on-blue);
   background: var(--blue);
 }
 
@@ -7062,7 +7659,7 @@ label.setting {
      directly under an outlined red "Delete bot" — the safe action became the
      loudest warning on the page. Colour that carries a meaning cannot also
      carry an identity. */
-  color: var(--on-accent);
+  color: var(--on-blue);
   background: var(--action-bg);
   border-radius: var(--radius-card);
 }
@@ -7197,7 +7794,16 @@ label.setting {
   border-radius: 0;
 }
 
-.is-modal .screen__caption {
+/* The caption and the taught list both stand down while the computer is
+   expanded. You expanded it to see the screen, and anything else in the column
+   is height the screen is not getting.
+ *
+ * The list is worth saying twice over: its grid-area is not in this template at
+ * all, so it was not merely visible but auto-placed into an implicit row under
+ * the body — taking its height out of the very thing you pressed the button to
+ * make bigger. */
+.is-modal .screen__caption,
+.is-modal .taught {
   display: none;
 }
 
@@ -7233,7 +7839,7 @@ label.setting {
 
 /* Buttons in a bot's own column wear its colour.
  *
- * The settings sheet keeps blue for its primary, because a red bot there gets
+ * The settings sheet keeps the accent for its primary, because a red bot there gets
  * a red Save directly under a red Delete and the safe action becomes the
  * loudest warning on the page. This column has no destructive action in it —
  * nothing here can lose anything — so the objection does not apply and the
@@ -7324,9 +7930,13 @@ label.setting {
   color: var(--red);
 }
 
+/* Indented to the rows' text, so the empty state stands where the first name
+   will. */
 .taught__none {
   margin: 0;
+  padding: 7px 8px;
   font-size: var(--type-hint);
+  line-height: 1.45;
   color: var(--text-3);
 }
 
@@ -7586,16 +8196,18 @@ label.setting {
 .sheet--setup {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  /* The same window the app's own settings get. Setup is the one screen a
-     person meets before anything else, and the tallest step — three answers
-     with their trade-offs, and the state of whichever is chosen — was arriving
-     with its last option below the fold. Nothing here should ever need
-     scrolling to be seen.
+  /* Setup is the one screen a person meets before anything else, and nothing
+     in it should need scrolling to be seen. The terms are what set the size:
+     a heading, a paragraph, a box of clauses tall enough to be worth reading,
+     and an acceptance tick that has to be reachable without hunting — at 680
+     that tick was under the footer, and the guide's face was pressed into the
+     progress rail above it.
    *
-     Fixed, so moving between steps does not resize the sheet under the
-     cursor. */
-  width: min(1040px, 94vw);
-  height: min(680px, 88vh);
+     Fixed, so moving between steps does not resize the sheet under the cursor,
+     and generous with the window: 92vh rather than 88 is another two lines of
+     terms on a laptop, which is where this is read. */
+  width: min(1120px, 94vw);
+  height: min(800px, 92vh);
 }
 
 /* Progress as a row of segments rather than "step 2 of 4": it shows how much is
@@ -7649,13 +8261,92 @@ label.setting {
   color: var(--blue);
 }
 
+/* The guide watches the cursor, for as long as setup is open.
+ *
+ * Eyes and brows only, and never the face itself: a mood animates the face's
+ * own transform, and a second thing writing to it would fight every wave and
+ * every nod. --look-x and --look-y arrive unitless and already clamped to
+ * -1..1; how far a look is worth in pixels is decided here, because only the
+ * stylesheet knows the face is 54px on one step and 132px on the last.
+ *
+ * The brows move about half as far. They are further from the middle of a
+ * face than the eyes are, so moving them the same distance reads as the whole
+ * front of the head sliding rather than as a glance.
+ *
+ * A transition, because pointermove arrives in jumps and eyes that teleport
+ * between them look like a bug rather than like attention. */
+.setup .face__eyes {
+  transform: translateX(var(--gaze, 0))
+    translate(
+      calc(var(--u) * 0.06 * var(--look-x, 0)),
+      calc(var(--u) * 0.05 * var(--look-y, 0))
+    );
+  transition: transform 0.13s ease-out;
+}
+
+.setup .face__brows {
+  transform: translateX(var(--gaze, 0))
+    translate(
+      calc(var(--u) * 0.03 * var(--look-x, 0)),
+      calc(var(--u) * 0.028 * var(--look-y, 0))
+    );
+  transition: transform 0.13s ease-out;
+}
+
+/* The last step, where the guide stops being the header of a form and becomes
+ * the screen.
+ *
+ * The steps are centred as a group under the face, so a step with one sentence
+ * in it puts the pair in the middle of the sheet without being told to. All
+ * this has to do is make the face big enough to be a character rather than an
+ * avatar — set on --u rather than as a transform, because every part of a face
+ * is a fraction of it and raising it draws the same face larger instead of
+ * scaling a small one and its edges with it.
+ *
+ * The animation runs because the rule starts matching, which is the moment the
+ * step changes: it grows into place from about the size it was on the step
+ * before, so it reads as the same bot coming forward. */
+.setup[data-at="tour"] .setup__host {
+  padding-bottom: 30px;
+  animation: host-grow 0.44s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.setup[data-at="tour"] .setup__host .face {
+  --u: 132px;
+}
+
+@keyframes host-grow {
+  from {
+    opacity: 0.4;
+    transform: scale(0.41);
+  }
+}
+
+/* The offer, which is the whole of that step. Larger than a blurb because
+   there is nothing above it to be larger than it. */
+.setup__says {
+  max-width: 26ch;
+  margin: 0;
+  font-size: var(--type-title-sm);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup[data-at="tour"] .setup__host {
+    animation: none;
+  }
+}
+
 .setup__step {
   min-height: 0;
   overflow-y: auto;
-  /* A column of readable width down the middle of a wide sheet. The sheet is
+  /* The deck's full width, and the deck is the readable column — the sheet is
      as wide as the app's settings so that everything fits, not so that a
-     paragraph can be a metre long. */
-  width: min(100%, 620px);
+     paragraph can be a metre long. Full width here rather than capped is what
+     makes translateX(100%) mean exactly one panel over. */
+  width: 100%;
   display: flex;
   /* Its own height, and shrinking rather than overflowing when a step has more
      in it than the dialog has room for — at flex: 1 it stretched, which put
@@ -7670,29 +8361,13 @@ label.setting {
   text-align: center;
 }
 
-/* The carousel.
- *
- * A step used to be un-hidden, which does not restart an animation — the pop
- * that was on this rule played once, on the first step, and never again. Both
- * steps are on screen while it moves: the one leaving is taken out of the flow
- * so the one arriving can have the same place, and the two pass each other in
- * the direction of travel.
- *
- * The distance is small and the fade does most of the work. A panel that flies
- * across the sheet is a slideshow; this should feel like a page turning. */
 /* The host and the step it is hosting, centred together as one group.
  *
  * The face was pinned to the top of the dialog while the step was centred in
  * whatever was left under it, which put a hand's width of nothing between
  * somebody's face and the sentence they were saying. They are one thing on the
- * screen, so they are one thing in the layout.
- *
- * A leaving step is taken out of the flow so the arriving one can have its
- * place, and its box starts under the face — 54 of face and 22 of gap — or it
- * would animate from a position it never occupied. */
+ * screen, so they are one thing in the layout. */
 .setup__steps {
-  --host-h: 76px;
-  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -7701,53 +8376,124 @@ label.setting {
   min-height: 0;
 }
 
+/* The carousel.
+ *
+ * One step wide, and clipped to it, so a step on its way out travels off the
+ * side and is gone rather than sliding across the sheet over its neighbour.
+ *
+ * That clip is the whole reason this can be a slide and nothing else. The two
+ * steps are on screen together while it moves, and the old way of stopping
+ * them reading as one pile of overlapping words was to fade them both — which
+ * is a dissolve wearing a slide's clothes: the panels barely travelled, and
+ * what you actually saw was text going grey and other text coming out of it.
+ * Clipped, they can move a full width each and never be seen overlapping, so
+ * neither has to be faded at all.
+ *
+ * clip-path rather than overflow: hidden, because horizontal is the only axis
+ * that wants clipping. The steps differ in height by a couple of paragraphs
+ * and a box that cropped them vertically would cut a tall one off mid-sentence
+ * — and asking for hidden on one axis alone silently makes the other scroll. */
+.setup__deck {
+  position: relative;
+  display: flex;
+  /* Stretch, never centre.
+   *
+     The deck is a row, so vertical is its cross axis, and centring a step
+     taller than the deck lets it hang out of both ends — the heading came out
+     of the top and was drawn over the guide's face. Stretched, the step is
+     exactly the deck's height and its own overflow-y does the scrolling, which
+     is what it was always for. The step centres its own content, so nothing is
+     lost by not centring the box. */
+  align-items: stretch;
+  justify-content: center;
+  flex: 0 1 auto;
+  width: min(100%, 620px);
+  min-height: 0;
+  clip-path: inset(-50vh 0);
+}
+
+/* Taken out of the flow so the arriving step has its place. Its own box rather
+   than the deck's, so a tall step leaving does not get squashed to the height
+   of the short one replacing it on the way out. */
 .setup__step.is-leaving {
   position: absolute;
-  inset: var(--host-h) 0 0;
+  inset: 0;
   pointer-events: none;
 }
 
+/* One duration and one curve for both halves, so the pair moves as a strip
+   rather than as two panels that happen to be going the same way. They were
+   0.28 in and 0.24 out on different easings, which is a fifth of the movement
+   happening after the thing it was handing over to had already stopped. */
+.setup__step.is-on,
+.setup__step.is-back,
+.setup__step.is-leaving.is-on,
+.setup__step.is-leaving.is-back {
+  animation-duration: 0.38s;
+  /* Symmetric, eased at both ends: nothing about a page turning is abrupt at
+     either end of it. */
+  animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* The arriving step fills nothing, and that is deliberate.
+ *
+ * `animation-fill-mode: both` pins an element at its first keyframe whenever
+ * the animation does not actually run — suspended in a window that lost focus,
+ * throttled by the engine, dropped by a media query. The first keyframe of an
+ * arrival is "off screen", so a step whose animation went missing was never
+ * seen at all: a blank sheet with the guide's face on it and nothing under it.
+ * The old fade had exactly the same trap, one keyframe further along — its
+ * first frame was `opacity: 0`.
+ *
+ * With no fill the step simply sits where it belongs and the animation is the
+ * only thing that ever moves it. If the movement is lost, the movement is all
+ * that is lost. */
 .setup__step.is-on {
-  animation: step-in-on 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  animation-name: step-in-on;
 }
 
 .setup__step.is-back {
-  animation: step-in-back 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  animation-name: step-in-back;
 }
 
+/* The one leaving holds its last frame, so it stays off screen in the moment
+   between the slide finishing and `done` taking it out of the flow. Its
+   failure mode is the safe one the other way round: an animation that never
+   runs leaves it sitting there visible, and the belt in showStep retires it. */
 .setup__step.is-leaving.is-on {
-  animation: step-out-on 0.24s ease-in both;
+  animation-name: step-out-on;
+  animation-fill-mode: forwards;
 }
 
 .setup__step.is-leaving.is-back {
-  animation: step-out-back 0.24s ease-in both;
+  animation-name: step-out-back;
+  animation-fill-mode: forwards;
 }
 
+/* A full width each, in the direction of travel. No opacity anywhere in here:
+   the clip is what hides them, and a slide that also dissolves is two effects
+   doing one job and neither doing it well. */
 @keyframes step-in-on {
   from {
-    opacity: 0;
-    transform: translateX(26px);
+    transform: translateX(100%);
   }
 }
 
 @keyframes step-in-back {
   from {
-    opacity: 0;
-    transform: translateX(-26px);
+    transform: translateX(-100%);
   }
 }
 
 @keyframes step-out-on {
   to {
-    opacity: 0;
-    transform: translateX(-22px);
+    transform: translateX(-100%);
   }
 }
 
 @keyframes step-out-back {
   to {
-    opacity: 0;
-    transform: translateX(22px);
+    transform: translateX(100%);
   }
 }
 
@@ -7875,7 +8621,7 @@ label.setting {
   left: 6px;
   width: 5px;
   height: 10px;
-  border: solid var(--on-accent);
+  border: solid var(--on-blue);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg) scale(0.5);
   opacity: 0;
@@ -7985,21 +8731,6 @@ label.setting {
   font-family: var(--mono);
   font-size: var(--type-caption);
   color: var(--text-2);
-}
-
-.setup__list {
-  margin: 16px 0 0;
-  padding: 0;
-  font-size: var(--type-small);
-  line-height: 1.75;
-  color: var(--text-2);
-  text-align: left;
-  list-style: none;
-}
-
-.setup__list b {
-  font-weight: 600;
-  color: var(--text);
 }
 
 .setup__foot {
@@ -8281,9 +9012,92 @@ label.setting {
   white-space: nowrap;
 }
 
+/* ------------------------------------------------------------------ storage */
+
+/* Built like a settings group — a card of divided rows — because that is what
+   it is: one thing per row, with what it costs and a way to be rid of it. */
+.store {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: 100%;
+  background: var(--fill-1);
+  border-radius: var(--radius-card);
+}
+
+.store + .settings__cap {
+  margin-top: 14px;
+}
+
+.store__row {
+  display: flex;
+  gap: var(--space-gutter-phone);
+  align-items: center;
+  min-height: var(--row-min-height);
+  padding: var(--space-row) var(--space-gutter-phone);
+}
+
+.store__row + .store__row {
+  border-top: 1px solid var(--line);
+}
+
+.store__what {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-tight);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.store__name {
+  font-size: var(--type-small);
+  color: var(--text);
+}
+
+.store__hint {
+  font-size: var(--type-hint);
+  line-height: 1.4;
+  color: var(--text-3);
+}
+
+/* Tabular, so a column of sizes lines up on the decimal point and can be
+   compared by looking down it rather than by reading each one. */
+.store__size {
+  flex: none;
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+
+/* Asked, not done. The first press turns the button into the question and the
+   second answers it — no dialog, because the row it is standing in already
+   says which thing is going, which is the only thing a dialog would add. */
+.store__row.is-asking {
+  background: color-mix(in srgb, var(--red) 13%, transparent);
+}
+
+.store__row.is-asking .store__go {
+  color: var(--red);
+}
+
+.store__note {
+  margin: 9px 4px 0;
+  font-size: var(--type-hint);
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
+/* The same words, used as the whole of an empty list rather than as a footnote
+   under a full one. */
+.store > .store__note {
+  margin: 0;
+  padding: var(--space-row) var(--space-gutter-phone);
+}
+
 /* Where a routine came from, when it was not you. Tinted rather than plain
    text: it is the one line in this sheet that is not a field you filled in.
-   In the colour of the bot whose week it lands on rather than the app's blue —
+   In the colour of the bot whose week it lands on rather than the app's accent —
    the line is about that bot, and everywhere else a bot is named it is drawn
    in its own colour. Blue anywhere the accent has not been set. */
 .routine__by {
@@ -8695,7 +9509,7 @@ body.is-dragging {
 /* Unread is the loud state, and only that one: a bot answering while you read
  * back through a channel is the case this exists for. */
 .jump.is-new {
-  color: var(--on-accent);
+  color: var(--on-blue);
   background: var(--blue);
   border-color: transparent;
 }
@@ -8832,7 +9646,7 @@ body.is-dragging {
   /* The bot's own colour, breathed into the room it is on a call in. */
   background-image: radial-gradient(
     62% 52% at 50% 42%,
-    color-mix(in srgb, var(--skin, #0a84ff) 22%, transparent),
+    color-mix(in srgb, var(--skin, #c8a06a) 22%, transparent),
     transparent 70%
   );
 }
@@ -8920,12 +9734,12 @@ body.is-dragging {
    state this screen can be in. */
 .call__talk.is-live {
   background: var(--blue);
-  color: var(--on-accent);
+  color: var(--on-blue);
   animation: call-live 1.5s ease-in-out infinite;
 }
 @keyframes call-live {
   50% {
-    box-shadow: 0 0 0 10px rgba(10, 132, 255, 0.14);
+    box-shadow: 0 0 0 10px rgba(200, 160, 106, 0.14);
   }
 }
 
@@ -8994,7 +9808,7 @@ body.is-dragging {
 
 /* Unread, with its count. Quieter than a mention: red is for somebody having
    addressed you by name, and a room that has merely been talking must not ask
-   for the same attention. In the rail it takes the blue the dot had there,
+   for the same attention. In the rail it takes the accent the dot had there,
    which is what a corner mark on a face has always meant. */
 .row-badge--quiet {
   color: var(--text);
@@ -9002,7 +9816,7 @@ body.is-dragging {
 }
 
 .sidebar .row-badge--quiet {
-  color: var(--on-accent);
+  color: var(--on-blue);
   background: var(--blue);
 }
 
@@ -9531,6 +10345,14 @@ body.is-dragging {
   .pane .settings-panel { gap: var(--space-gutter-phone); }
   .setup__body { padding: var(--space-gutter-phone); }
   .setup__steps { flex: 0 0 auto; }
+  /* The deck grows with the step, or it does not grow at all.
+   *
+     Everything here lets the group size to its content and hands the scrolling
+     to .setup__body. The step was told that directly; the deck between them
+     was not, so it kept shrinking under a step that had stopped shrinking —
+     and because it centres what it holds, the overflow came out of the top as
+     well as the bottom and the heading was drawn over the guide's face. */
+  .setup__deck { flex: none; min-height: auto; }
   .setup__step { flex: none; overflow: visible; }
   .setup__host { padding-bottom: var(--space-snug); }
 }

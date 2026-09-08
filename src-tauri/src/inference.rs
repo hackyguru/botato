@@ -506,7 +506,7 @@ impl Engine for ClaudeCode {
             Model {
                 key: "opus",
                 name: "Opus",
-                hint: "The most capable, and the hungriest.",
+                hint: "The most capable and the hungriest.",
             },
             Model {
                 key: "sonnet",
@@ -776,12 +776,12 @@ impl Engine for GeminiCli {
             Model {
                 key: "gemini-2.5-pro",
                 name: "Gemini 2.5 Pro",
-                hint: "The capable one, and the slower one.",
+                hint: "The capable one and the slower one.",
             },
             Model {
                 key: "gemini-2.5-flash",
                 name: "Gemini 2.5 Flash",
-                hint: "Quick, and cheap enough to leave running.",
+                hint: "Quick and cheap enough to leave running.",
             },
         ]
     }
