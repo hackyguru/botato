@@ -664,7 +664,7 @@ fn image_exists() -> bool {
 
 /// Build the image, streaming progress out as log events — first run pulls a
 /// Debian base and installs a desktop, so this takes minutes.
-fn build_image(bot_id: &str, dir: &Path, log: &dyn Fn(&str, &str)) -> Result<(), String> {
+fn build_image(bot_id: &str, dir: &Path) -> Result<(), String> {
     // No `--progress plain`: that flag belongs to buildx, and buildx is a CLI
     // plugin we do not ship. On a machine with Docker Desktop it is there and
     // the build used BuildKit; on a machine without one, the same command died
@@ -699,27 +699,17 @@ fn build_image(bot_id: &str, dir: &Path, log: &dyn Fn(&str, &str)) -> Result<(),
     let a = pump(Box::new(out), tx.clone());
     let b = pump(Box::new(err), tx);
 
-    // The last few lines whatever they say, so a failure can name itself even
-    // when nothing matched the filter below.
+    // The last few lines, kept only so a failure can name itself. Nothing here
+    // reaches the window: hiding the build's narration in the UI was not
+    // enough, because it piled up in the log and appeared the moment the state
+    // stopped being "building" — so a desktop that came up and then dropped
+    // showed the entire build underneath the error. The pane says one sentence
+    // for the whole wait; this is for the sentence after it, if it fails.
     let mut tail: Vec<String> = Vec::new();
     for line in rx {
         let line = line.trim().to_string();
         if line.is_empty() {
             continue;
-        }
-        // Strictly: the step headings, and something that is actually an
-        // error rather than a line that happens to contain the letters.
-        // `contains("error")` matched liberror-perl, and so a build turned
-        // into a wall of apt package names with the steps lost inside it.
-        let shouts = line.starts_with("ERROR")
-            || line.starts_with("error:")
-            || line.contains("ERROR:")
-            || line.contains("failed to");
-        let worth_showing = line.starts_with("Step ")
-            || (line.starts_with('#') && (line.contains(" DONE") || line.contains(" ERROR")))
-            || shouts;
-        if worth_showing {
-            log("building", &line);
         }
         tail.push(line);
         if tail.len() > 12 {
@@ -904,13 +894,12 @@ pub fn ensure_desktop(
     let name = container_of(bot_id);
 
     if !image_exists() {
-        log(
-            "building",
-            "Building the sandbox image (first run takes a few minutes)…",
-        );
+        // State only, no text: the window shows its own line for this, and two
+        // sentences saying the same thing is one more than the wait needs.
+        log("building", "");
         let dir =
             build_context.ok_or("the sandbox image is missing and this process cannot build it")?;
-        build_image(bot_id, dir, log)?;
+        build_image(bot_id, dir)?;
     }
 
     log("starting", "");
@@ -1109,12 +1098,9 @@ pub fn sandbox_destroy(bot_id: String) -> Result<(), String> {
 pub fn rebuild_image(app: AppHandle) -> Result<(), String> {
     let dir = sandbox_dir(&app)?;
     let app_handle = app.clone();
-    std::thread::spawn(move || {
-        let log = |_state: &str, line: &str| emit_log(&app_handle, "app", line);
-        match build_image("app", &dir, &log) {
-            Ok(()) => emit_log(&app_handle, "app", "Sandbox image rebuilt."),
-            Err(err) => emit_log(&app_handle, "app", &format!("Image build failed: {err}")),
-        }
+    std::thread::spawn(move || match build_image("app", &dir) {
+        Ok(()) => emit_log(&app_handle, "app", "Sandbox image rebuilt."),
+        Err(err) => emit_log(&app_handle, "app", &format!("Image build failed: {err}")),
     });
     Ok(())
 }
