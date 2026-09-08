@@ -4914,6 +4914,32 @@ button.learn-badge--open:hover {
   transition: width 0.2s ease-out;
 }
 
+/* Not every server sends a length, and a bar that cannot know the total was
+   sitting at zero looking broken for the whole download. When there is no
+   total it says "working" instead of lying about "none of it yet". */
+.update__bar--unknown .update__fill {
+  width: 35%;
+  transition: none;
+  animation: update-slide 1.15s ease-in-out infinite;
+}
+
+@keyframes update-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(286%);
+  }
+}
+
+.update__count {
+  margin: 8px 0 0;
+  font-size: var(--type-hint);
+  color: var(--text-3);
+  /* So the digits do not shuffle the line width as they climb. */
+  font-variant-numeric: tabular-nums;
+}
+
 /* The base .sheet__foot is a grid and is defined further down the file, so a
    bare .update__foot loses to it and the buttons stack. Both classes are on
    the element; naming both is what makes this a row. */
@@ -8468,6 +8494,13 @@ label.setting {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* A sliver sliding back and forth for minutes is exactly what somebody who
+     asked for less motion asked to be spared. The count below it says the same
+     thing in words, so the bar goes rather than freezing mid-track. */
+  .update__bar--unknown {
+    display: none;
+  }
+
   .setup[data-at="tour"] .setup__host {
     animation: none;
   }

@@ -11332,6 +11332,7 @@ const updateTitle = $<HTMLHeadingElement>("#update-title");
 const updateWhat = $<HTMLParagraphElement>("#update-what");
 const updateBar = $<HTMLDivElement>("#update-bar");
 const updateFill = $<HTMLSpanElement>("#update-fill");
+const updateCount = $<HTMLParagraphElement>("#update-count");
 const updateGo = $<HTMLButtonElement>("#update-go");
 // Named for the convention the backdrop-click and Escape handlers look for.
 const updateLater = $<HTMLButtonElement>("#update-close");
@@ -11345,7 +11346,10 @@ function openUpdate(): void {
   staged = false;
   updateTitle.textContent = `botcage ${newRelease.version}`;
   updateBar.hidden = true;
+  updateBar.classList.remove("update__bar--unknown");
   updateFill.style.width = "0";
+  updateCount.hidden = true;
+  updateCount.textContent = "";
   updateLater.hidden = false;
   updateGo.disabled = false;
   if (canInstall) {
@@ -11416,23 +11420,59 @@ async function installUpdate(): Promise<void> {
       updateGo.textContent = "Open the release page";
       updateGo.disabled = false;
       updateLater.hidden = false;
+      updateCount.hidden = true;
       updating = false;
       canInstall = false;
       return;
     }
-    // contentLength is absent often enough to matter, so the bar only tracks
-    // real bytes and otherwise just says it is working.
+    // contentLength is absent often enough to matter. With a total the bar is
+    // the fraction; without one it slides, because a bar pinned at zero for a
+    // whole download is indistinguishable from a broken one.
     let total = 0;
     let got = 0;
+    // Every chunk repaints otherwise, which on a fast connection is thousands
+    // of layouts a second to move a bar by less than a pixel.
+    let painted = 0;
+    const paint = (done = false) => {
+      if (total > 0) {
+        const pct = Math.min(100, (got / total) * 100);
+        updateFill.style.width = `${pct}%`;
+        updateCount.textContent =
+          `${saysBytes(got)} of ${saysBytes(total)} · ${Math.round(pct)}%`;
+      } else {
+        updateCount.textContent = saysBytes(got);
+      }
+      // Once the bytes are down the numbers are just the size; the button is
+      // what says which of the two steps is running.
+      if (done) updateCount.textContent = saysBytes(total || got);
+    };
+
+    updateCount.hidden = false;
     await found.downloadAndInstall((event) => {
-      if (event.event === "Started") total = event.data.contentLength ?? 0;
-      else if (event.event === "Progress") {
+      if (event.event === "Started") {
+        total = event.data.contentLength ?? 0;
+        // No total, no fraction to draw: the bar slides instead.
+        updateBar.classList.toggle("update__bar--unknown", total === 0);
+        paint();
+      } else if (event.event === "Progress") {
         got += event.data.chunkLength;
-        if (total > 0) updateFill.style.width = `${Math.min(100, (got / total) * 100)}%`;
-      } else if (event.event === "Finished") updateFill.style.width = "100%";
+        const now = performance.now();
+        if (now - painted > 80) {
+          painted = now;
+          paint();
+        }
+      } else if (event.event === "Finished") {
+        // The bytes are down; what follows is unpacking and replacing, which
+        // reports nothing and is not instant on a large bundle.
+        updateBar.classList.remove("update__bar--unknown");
+        updateFill.style.width = "100%";
+        updateGo.textContent = "Installing…";
+        paint(true);
+      }
     });
     staged = true;
     updating = false;
+    updateCount.hidden = true;
     updateTitle.textContent = "Ready to restart";
     updateWhat.textContent =
       `botcage ${newRelease?.version ?? ""} is installed. It starts the moment you restart, and your bots come back with it.`;
@@ -11446,6 +11486,8 @@ async function installUpdate(): Promise<void> {
     updateWhat.textContent = `That did not install: ${String(err)}`;
     updating = false;
     updateBar.hidden = true;
+    updateBar.classList.remove("update__bar--unknown");
+    updateCount.hidden = true;
     updateGo.textContent = "Open the release page";
     updateGo.disabled = false;
     updateLater.hidden = false;

@@ -1393,6 +1393,10 @@
           <div class="update__bar" id="update-bar" hidden>
             <span class="update__fill" id="update-fill"></span>
           </div>
+          <!-- The numbers under the bar. A bar on its own cannot say whether a
+               slow one is working or stuck, and this is the download somebody
+               is deciding whether to keep waiting for. -->
+          <p class="update__count" id="update-count" hidden aria-live="polite"></p>
         </div>
         <div class="sheet__foot update__foot">
           <button type="button" class="chip" id="update-close">Not now</button>
