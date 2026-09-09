@@ -39,6 +39,10 @@ whisper-rs = { version = "0.16", default-features = false }
 chacha20poly1305 = "0.10"
 argon2 = "0.5"
 tar = "0.4"
+# Fingerprinting the desktop build context, so an image built by an older
+# botcage is recognised as stale rather than reused for ever. Already in the
+# tree under argon2; naming it here only makes the dependency honest.
+sha2 = "0.10"
 flate2 = "1"
 rand = "0.8"
 tauri-plugin-dialog = "2"

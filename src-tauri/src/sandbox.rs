@@ -17,6 +17,25 @@ use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager};
 
 const IMAGE: &str = "botcage/desktop:1";
+
+/// What the image was built from, written onto the image as a label and checked
+/// before it is reused.
+///
+/// The tag alone cannot answer "is this image current". It is `:1` and has been
+/// since the first commit, while the build context has changed three times
+/// since — so every machine that built a desktop before one of those changes
+/// kept running the old one for ever, and nothing said so. The only way out was
+/// a Rebuild button you would press only if you already suspected.
+///
+/// So the stamp is the content: a hash of every file the build reads. Change
+/// the Dockerfile, change the stamp, and the next desktop that starts rebuilds
+/// itself. Nobody has to remember to bump anything, which is the part a
+/// hand-kept version number gets wrong.
+const LAYER_LABEL: &str = "com.botcage.desktop-layer";
+
+/// Bumped by hand only to force a rebuild the build context cannot explain —
+/// a new `debian:bookworm-slim` under the same tag being the likely reason.
+const LAYER_EPOCH: u32 = 1;
 const READY_TIMEOUT: Duration = Duration::from_secs(90);
 /// Minutes of disuse before a desktop stops itself; 0 disables reaping. Bots
 /// may switch their own machines on, so something has to switch them off.
@@ -767,6 +786,112 @@ fn image_exists() -> bool {
         .unwrap_or(false)
 }
 
+/// A stamp for the build context: every file in it, by name and by content.
+///
+/// Sorted, and with the name hashed alongside the bytes, so that renaming a
+/// file or swapping two of them is a different stamp rather than the same one.
+/// Directories are not walked: the context is flat and a nested one would be a
+/// change to this function, not something to guess at.
+fn context_stamp(dir: &Path) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+
+    let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
+        .map_err(|e| format!("cannot read the build context: {e}"))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file())
+        .collect();
+    files.sort();
+
+    let mut hasher = Sha256::new();
+    hasher.update(LAYER_EPOCH.to_le_bytes());
+    for path in &files {
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| format!("unreadable name in the build context: {}", path.display()))?;
+        let body = std::fs::read(path).map_err(|e| format!("cannot read {name}: {e}"))?;
+        hasher.update(name.as_bytes());
+        // The length, so that two files cannot be concatenated into the same
+        // digest as one longer file with the same bytes.
+        hasher.update(u64::try_from(body.len()).unwrap_or(u64::MAX).to_le_bytes());
+        hasher.update(&body);
+    }
+    // Half of it. This identifies a build context, and 128 bits is far past the
+    // point where two of ours collide.
+    Ok(hex(&hasher.finalize()[..16]))
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// The stamp on the image that is actually installed, if there is one.
+///
+/// An image built before this existed carries no label, which reads as `None`
+/// and so as stale — which is right: those are exactly the old desktops this
+/// was written to notice.
+fn image_stamp() -> Option<String> {
+    let out = docker(&[
+        "image",
+        "inspect",
+        IMAGE,
+        "-f",
+        &format!("{{{{index .Config.Labels \"{LAYER_LABEL}\"}}}}"),
+    ])
+    .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let stamp = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    // `docker inspect` prints "<no value>" for a label that is not there, and
+    // podman prints an empty line. Neither is a stamp.
+    if stamp.is_empty() || stamp == "<no value>" {
+        None
+    } else {
+        Some(stamp)
+    }
+}
+
+/// The stamp on one bot's existing desktop, if it has one.
+///
+/// Read from the container rather than from the image it names, because the two
+/// come apart: rebuilding replaces the tag, and anything already created from
+/// the old image goes on running it. A desktop made before this existed carries
+/// no label and so counts as stale, which is the case worth catching.
+fn container_stamp(name: &str) -> Option<String> {
+    let out = docker(&[
+        "inspect",
+        "-f",
+        &format!("{{{{index .Config.Labels \"{LAYER_LABEL}\"}}}}"),
+        name,
+    ])
+    .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let stamp = stdout_of(&out);
+    if stamp.is_empty() || stamp == "<no value>" {
+        None
+    } else {
+        Some(stamp)
+    }
+}
+
+/// Whether the installed image was built from the build context we have.
+///
+/// A context we cannot read is not a reason to throw away a working desktop, so
+/// that answers "current" and leaves the image alone.
+fn image_is_current(dir: &Path) -> bool {
+    if !image_exists() {
+        return false;
+    }
+    match context_stamp(dir) {
+        Ok(want) => image_stamp().is_some_and(|have| have == want),
+        Err(_) => true,
+    }
+}
+
 /// Build the image, streaming progress out as log events — first run pulls a
 /// Debian base and installs a desktop, so this takes minutes.
 fn build_image(bot_id: &str, dir: &Path) -> Result<(), String> {
@@ -777,7 +902,13 @@ fn build_image(bot_id: &str, dir: &Path) -> Result<(), String> {
     // already had Docker Desktop installed, which is not who the managed engine
     // is for. Plain `docker build` uses BuildKit where the plugin exists and
     // falls back to the legacy builder where it does not.
-    let mut cmd = docker_cmd(&["build", "-t", IMAGE, "."])?;
+    // The stamp goes on at build time, so what the image says about itself is
+    // what it was actually built from. Computed before the build rather than
+    // after, so a context that changes underneath a running build cannot leave
+    // an image labelled with something it does not contain.
+    let stamp = context_stamp(dir)?;
+    let label = format!("{LAYER_LABEL}={stamp}");
+    let mut cmd = docker_cmd(&["build", "-t", IMAGE, "--label", &label, "."])?;
     cmd.current_dir(dir)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -998,13 +1129,39 @@ pub fn ensure_desktop(
 
     let name = container_of(bot_id);
 
-    if !image_exists() {
+    // Missing, or built from a build context this botcage no longer ships. The
+    // second case used to be invisible: the tag never changes, so an image from
+    // an older version answered "yes, present" for ever and the desktop people
+    // got was the one their first install happened to build.
+    // What this botcage would build right now. None when the context cannot be
+    // read, which is never a reason to disturb a desktop that works.
+    let want = build_context.and_then(|dir| context_stamp(dir).ok());
+
+    let stale = match build_context {
+        Some(dir) => !image_is_current(dir),
+        None => !image_exists(),
+    };
+    if stale {
         // State only, no text: the window shows its own line for this, and two
         // sentences saying the same thing is one more than the wait needs.
         log("building", "");
         let dir =
             build_context.ok_or("the sandbox image is missing and this process cannot build it")?;
         build_image(bot_id, dir)?;
+    }
+
+    // The image is current; this bot's desktop may still not be. Rebuilding
+    // moves the tag and leaves every container made from the old one alone, so
+    // without this the bot keeps the desktop it has had since it was created.
+    //
+    // Safe to throw away: /home/bot is a named volume and ~/work is the host
+    // workspace, so both outlive the container. What is lost is whatever was
+    // only ever in the container's own layer, which is the stale part.
+    if let Some(want) = &want {
+        if container_running(&name).is_some() && container_stamp(&name).as_ref() != Some(want) {
+            log("building", "Rebuilding this desktop on the new image…");
+            let _ = docker(&["rm", "-f", &name]);
+        }
     }
 
     log("starting", "");
@@ -1031,6 +1188,12 @@ pub fn ensure_desktop(
             log("starting", "Creating a fresh desktop…");
             let vnc = free_port()?;
             let control = free_port()?;
+            // Which build context this desktop was made from, so the next
+            // start can tell whether it is still the one botcage ships.
+            let container_label = format!(
+                "{LAYER_LABEL}={}",
+                want.clone().unwrap_or_else(|| "unknown".to_string())
+            );
             let volume = format!("{}:/home/bot", name);
             let vnc_map = format!("127.0.0.1:{vnc}:6080");
             let control_map = format!("127.0.0.1:{control}:6081");
@@ -1075,6 +1238,8 @@ pub fn ensure_desktop(
                 &name,
                 "--label",
                 "botcage=1",
+                "--label",
+                &container_label,
                 "--shm-size",
                 "512m",
                 // A desktop idles at ~130MB and ~3% CPU, but a browser that
@@ -1324,6 +1489,129 @@ mod tests {
         cmd.get_envs().find_map(|(key, value)| {
             (key == "DOCKER_HOST").then(|| value.unwrap_or_default().to_string_lossy().into_owned())
         })
+    }
+
+    /// A build context, written to a fresh directory of its own. Named, because
+    /// cargo runs these in parallel and a shared path is a shared answer.
+    fn context(name: &str, files: &[(&str, &str)]) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("botcage-context-{name}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("a folder");
+        for (file, body) in files {
+            std::fs::write(dir.join(file), body).expect("write");
+        }
+        dir
+    }
+
+    /// The bug all of this exists for. The tag is `botcage/desktop:1` and has
+    /// never changed, while the build context has changed three times — so an
+    /// image built by an older botcage answered "present" for ever and the
+    /// desktop somebody got was whichever one their first install happened to
+    /// build. The stamp has to move when the Dockerfile does.
+    #[test]
+    fn changing_the_dockerfile_changes_the_stamp() {
+        let before = context(
+            "edit-before",
+            &[("Dockerfile", "FROM debian:bookworm-slim\n")],
+        );
+        let after = context(
+            "edit-after",
+            &[(
+                "Dockerfile",
+                "FROM debian:bookworm-slim\nRUN apt-get update\n",
+            )],
+        );
+        assert_ne!(
+            context_stamp(&before).expect("a stamp"),
+            context_stamp(&after).expect("a stamp"),
+        );
+    }
+
+    /// The other half: an unchanged context must not rebuild. A stamp that
+    /// moved on its own would rebuild the desktop on every launch, which is
+    /// minutes of waiting for nothing.
+    #[test]
+    fn an_unchanged_context_keeps_its_stamp() {
+        let files: &[(&str, &str)] = &[
+            ("Dockerfile", "FROM debian:bookworm-slim\n"),
+            ("entrypoint.sh", "#!/bin/sh\nexec /usr/bin/x11vnc\n"),
+        ];
+        let one = context("same-one", files);
+        let two = context("same-two", files);
+        assert_eq!(
+            context_stamp(&one).expect("a stamp"),
+            context_stamp(&two).expect("a stamp"),
+        );
+    }
+
+    /// Every file the build reads counts, not just the Dockerfile. control.py
+    /// and entrypoint.sh are most of what the desktop actually is, and a change
+    /// to one of those used to be just as invisible.
+    #[test]
+    fn a_changed_script_beside_the_dockerfile_also_counts() {
+        let docker = ("Dockerfile", "FROM debian:bookworm-slim\n");
+        let before = context(
+            "script-before",
+            &[docker, ("control.py", "print('hello')\n")],
+        );
+        let after = context(
+            "script-after",
+            &[docker, ("control.py", "print('goodbye')\n")],
+        );
+        assert_ne!(
+            context_stamp(&before).expect("a stamp"),
+            context_stamp(&after).expect("a stamp"),
+        );
+    }
+
+    /// Renaming a file is a change even when the bytes in the directory are the
+    /// same set, because the Dockerfile copies things in by name.
+    #[test]
+    fn moving_bytes_between_files_is_a_change() {
+        let before = context(
+            "swap-before",
+            &[("Dockerfile", "FROM x\n"), ("a.sh", "one"), ("b.sh", "two")],
+        );
+        let after = context(
+            "swap-after",
+            &[("Dockerfile", "FROM x\n"), ("a.sh", "two"), ("b.sh", "one")],
+        );
+        assert_ne!(
+            context_stamp(&before).expect("a stamp"),
+            context_stamp(&after).expect("a stamp"),
+        );
+    }
+
+    /// Two files must not hash as one longer file with the same bytes, which is
+    /// what a digest over concatenated contents alone would do.
+    #[test]
+    fn a_split_is_not_the_same_as_a_join() {
+        let before = context("join", &[("Dockerfile", "FROM x\n"), ("a", "onetwo")]);
+        let after = context(
+            "split",
+            &[("Dockerfile", "FROM x\n"), ("a", "one"), ("b", "two")],
+        );
+        assert_ne!(
+            context_stamp(&before).expect("a stamp"),
+            context_stamp(&after).expect("a stamp"),
+        );
+    }
+
+    /// The epoch is the hand pull for a rebuild the context cannot explain — a
+    /// new base image under the same tag. It has to reach the stamp.
+    #[test]
+    fn the_epoch_is_part_of_the_stamp() {
+        let dir = context("epoch", &[("Dockerfile", "FROM debian:bookworm-slim\n")]);
+        let stamp = context_stamp(&dir).expect("a stamp");
+        // Recomputed the way the constant would if it were bumped.
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update((LAYER_EPOCH + 1).to_le_bytes());
+        let body = std::fs::read(dir.join("Dockerfile")).expect("read");
+        hasher.update(b"Dockerfile");
+        hasher.update(u64::try_from(body.len()).unwrap_or(u64::MAX).to_le_bytes());
+        hasher.update(&body);
+        assert_ne!(stamp, hex(&hasher.finalize()[..16]));
     }
 
     /// The bug this exists to prevent, in the words of the person who hit it:
