@@ -1,5 +1,5 @@
 /**
- * Talking to a botcage running on your own machine.
+ * Talking to a botato running on your own machine.
  *
  * One connection, one set of rules, wherever the two devices happen to be. The
  * laptop listens on nothing but its own loopback, so there is no port open on
@@ -12,7 +12,7 @@
  * key, and it carried this phone's token. A token copied off this device is
  * refused from any other.
  *
- * This file knows the transport and nothing about what botcage can do — a call
+ * This file knows the transport and nothing about what botato can do — a call
  * is POST /api/<action>, and the action names belong to the desktop.
  */
 import { Platform } from "react-native";
@@ -31,7 +31,7 @@ export interface Pairing {
   name: string;
 }
 
-const STORE_KEY = "botcage.pairing";
+const STORE_KEY = "botato.pairing";
 
 export async function loadPairing(): Promise<Pairing | null> {
   try {
@@ -84,7 +84,7 @@ let linkProblem = "";
 try {
   // The local module's entry point is the file, not the directory — there is no
   // package.json here to resolve an index for us.
-  native = (require("../modules/botcage-p2p/src/index") as { default: NativeLink }).default;
+  native = (require("../modules/botato-p2p/src/index") as { default: NativeLink }).default;
 } catch (err) {
   native = null;
   linkProblem = err instanceof Error ? err.message : String(err);
@@ -112,7 +112,7 @@ export function readable(error: unknown): string {
   return cleaned || "something went wrong";
 }
 
-const NO_LINK = `botcage can't open a connection — it needs a development build${
+const NO_LINK = `botato can't open a connection — it needs a development build${
   linkProblem ? ` (${linkProblem})` : ""
 }`;
 
@@ -121,7 +121,7 @@ function link(): NativeLink {
   return native;
 }
 
-/** Is a botcage answering at this address, and what is it?
+/** Is a botato answering at this address, and what is it?
  *
  *  Used before pairing, when there is no token yet. The connection is already
  *  encrypted and the laptop's key already proven by then — this only asks what
@@ -146,7 +146,7 @@ export async function probe(address: string): Promise<{ app: string; version: st
     throw new Error(readable(err));
   });
   const body = answer.body ? JSON.parse(answer.body) : {};
-  if (body?.app !== "botcage") throw new Error("something else answered at that address");
+  if (body?.app !== "botato") throw new Error("something else answered at that address");
   return body;
 }
 
@@ -178,7 +178,7 @@ export async function pair(address: string, code: string, name: string): Promise
     // just worked. Either way the key inside it survives the laptop moving.
     peer: typeof body.peer === "string" && body.peer ? body.peer : address,
     token: body.token,
-    name: "botcage",
+    name: "botato",
   };
   await savePairing(pairing);
   return pairing;

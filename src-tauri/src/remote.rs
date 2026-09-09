@@ -1,5 +1,5 @@
 //! The desktop's side of the phone client: a small HTTP server that lets a
-//! paired device drive this copy of botcage.
+//! paired device drive this copy of botato.
 //!
 //! Almost nothing is implemented here twice. Bots, threads and settings live in
 //! the desktop window's own storage, not in Rust, so this server does not try to
@@ -41,7 +41,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 /// No fixed port. Nothing outside this machine dials it — the peer-to-peer link
 /// is the only route in, and it is told which port to use — so a number in the
-/// source can only cause the failure it was meant to prevent: a second botcage,
+/// source can only cause the failure it was meant to prevent: a second botato,
 /// or a stale one from a rebuild, finding the port taken and refusing to start.
 fn port() -> u16 {
     remote().lock().unwrap().port
@@ -471,7 +471,7 @@ fn handle(app: AppHandle, mut stream: TcpStream) {
         send(
             &mut stream,
             "200 OK",
-            &json!({ "app": "botcage", "version": version }),
+            &json!({ "app": "botato", "version": version }),
         );
         return;
     }
@@ -485,7 +485,7 @@ fn handle(app: AppHandle, mut stream: TcpStream) {
             None => send(
                 &mut stream,
                 "403 Forbidden",
-                &json!({ "error": "pair over botcage's own connection" }),
+                &json!({ "error": "pair over botato's own connection" }),
             ),
         }
         return;

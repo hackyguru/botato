@@ -1,5 +1,5 @@
 /**
- * botcage — desktop bot roster + threads, modelled on the Grok bot app UI.
+ * botato — desktop bot roster + threads, modelled on the Grok bot app UI.
  *
  * Each bot is a Claude Code session: turns run through the local `claude` CLI
  * (see src-tauri/src/lib.rs), authenticated by the user's own login.
@@ -99,7 +99,7 @@ interface Channel {
   from?: { channelId: string; messageId: string };
   /** Silenced: no unread mark, no badge, no notification.
    *
-   *  Bots talk to each other, so a room of them is the one place in botcage
+   *  Bots talk to each other, so a room of them is the one place in botato
    *  that can be genuinely noisy — and a room you cannot quieten is a room you
    *  end up leaving. Muting is not leaving: everything still happens in there
    *  and is still read when you open it.
@@ -186,7 +186,7 @@ interface Routine {
 
 interface Bot {
   id: string;
-  /** The one bot botcage makes for you, which teaches the app. It blinks, and
+  /** The one bot botato makes for you, which teaches the app. It blinks, and
    *  its thread carries lessons rather than a blank page. Delete it whenever it
    *  has served its purpose — nothing else depends on it existing. */
   guide?: boolean;
@@ -302,7 +302,7 @@ interface CatalogEntry {
   note: string;
 }
 
-/** A service botcage connects to itself, holding the credential for it. */
+/** A service botato connects to itself, holding the credential for it. */
 interface Connector {
   key: string;
   name: string;
@@ -361,9 +361,9 @@ interface BotEvent {
 
 const COLORS = ["#0a84ff", "#8e8e93", "#e0393e", "#ff5a00", "#ffb020", "#30d158", "#bf5af2"];
 const SHAPES: Shape[] = ["circle", "squircle", "drop"];
-const STORE = "botcage.state.v3";
+const STORE = "botato.state.v3";
 /** Earlier builds persisted canned demo threads — don't carry them forward. */
-const STALE_STORES = ["botcage.state.v1", "botcage.state.v2"];
+const STALE_STORES = ["botato.state.v1", "botato.state.v2"];
 
 /** Fallback model for bots created before the per-bot setting existed. */
 const MODEL = "opus";
@@ -395,7 +395,7 @@ interface Persisted {
   app?: AppSettings;
 }
 
-/** Settings that belong to botcage rather than to one bot. */
+/** Settings that belong to botato rather than to one bot. */
 interface AppSettings {
   /** How a new bot is answered by default — the choice made in setup. Absent on
    *  a settings file written before there was one, which means Claude Code. */
@@ -423,7 +423,7 @@ interface AppSettings {
   remoteOn: boolean;
   /** Where encrypted backups are written. Absent until someone picks one. */
   backupFolder?: string;
-  /** How often, while botcage is open. */
+  /** How often, while botato is open. */
   backupEvery?: "off" | "day" | "week";
   /** How many to keep in that folder before the oldest is deleted. */
   backupKeep?: number;
@@ -492,7 +492,7 @@ const MIN_CHAT_WIDTH = 560;
     down at import time, leaving an app with no bots and no clue why. */
 const $ = <T extends Element>(sel: string): T => {
   const found = document.querySelector(sel);
-  if (!found) throw new Error(`botcage: no element matches ${sel}`);
+  if (!found) throw new Error(`botato: no element matches ${sel}`);
   return found as T;
 };
 
@@ -580,7 +580,7 @@ const sheetVaultSecret = $<HTMLInputElement>("#sheet-vault-secret");
 
 /** What this bot can sign into, by name.
  *
- *  Names and nothing else — there is no path in botcage that reads one of
+ *  Names and nothing else — there is no path in botato that reads one of
  *  these back, including this one. The row exists so you can see what a bot
  *  holds and take one away, not so you can check what you typed. */
 async function paintVault(bot: Bot | null): Promise<void> {
@@ -686,7 +686,7 @@ const screenMessage = $<HTMLParagraphElement>("#screen-message");
 const screenLog = $<HTMLPreElement>("#screen-log");
 const startBtn = $<HTMLButtonElement>("#btn-screen-start");
 
-/** The engine botcage can install for itself, and how far along that is. */
+/** The engine botato can install for itself, and how far along that is. */
 interface EngineStatus {
   installed: boolean;
   path: string | null;
@@ -705,7 +705,7 @@ interface EngineInfo {
   key: string;
   name: string;
   ready: { usable: boolean; missing: string | null };
-  /** False when botcage has to hold this bot's conversation itself. */
+  /** False when botato has to hold this bot's conversation itself. */
   ownsTranscript: boolean;
   tools: string;
   models: { key: string; name: string; hint: string }[];
@@ -724,7 +724,7 @@ interface Listing {
   costOut: number | null;
   tools: boolean;
   reasoning: boolean;
-  /** Whether botcage holds a key for this model's provider. */
+  /** Whether botato holds a key for this model's provider. */
   ready: boolean;
 }
 
@@ -740,7 +740,7 @@ interface ProviderInfo {
   local: boolean;
 }
 
-/** What botcage found, fetched at launch so a bot's settings can offer the
+/** What botato found, fetched at launch so a bot's settings can offer the
  *  choice without waiting on a round trip. */
 let engineChoices: EngineInfo[] = [];
 
@@ -1033,7 +1033,7 @@ function markMentions(html: string, targets: Mentionable[]): string {
   return out;
 }
 
-/** A notification, when botcage is not the window you are looking at.
+/** A notification, when botato is not the window you are looking at.
  *
  *  The rule is the desk's rule: this is for things that are blocked on you, not
  *  for things that happened. Every turn a bot takes is something that happened;
@@ -1587,7 +1587,7 @@ function seed(): void {
     {
       ...make(
       "Potato",
-      "Shows you around botcage. Ask it what a bot is, what routines and " +
+      "Shows you around botato. Ask it what a bot is, what routines and " +
         "connectors do, how to give a bot its own computer, or what to make next — " +
         "and when you know, make that bot and leave this one behind.",
       "#c8a06a",
@@ -1733,7 +1733,7 @@ function theAsk(text: string): string {
  *  should travel.
  */
 interface Template {
-  /** What shape this file is, so a later botcage can read an earlier one and
+  /** What shape this file is, so a later botato can read an earlier one and
    *  say so plainly when it cannot. */
   v: 1;
   name: string;
@@ -1801,7 +1801,7 @@ function templateOf(bot: Bot): Template {
  *  Everything here is checked rather than trusted. A template is a file that
  *  arrived from somebody else — by definition the one input to this app that
  *  did not come from the person using it — so every field is either a shape
- *  botcage already understands or it is dropped. A colour becomes a colour or
+ *  botato already understands or it is dropped. A colour becomes a colour or
  *  the next one in the palette; a manner becomes one of the manners or none;
  *  an engine that is not installed here becomes this machine's default rather
  *  than a bot that cannot answer.
@@ -1812,11 +1812,11 @@ function templateOf(bot: Bot): Template {
 function botFromTemplate(raw: unknown): Bot {
   const t = raw as Partial<Template> | null;
   if (!t || typeof t !== "object" || typeof t.name !== "string") {
-    throw new Error("that file is not a botcage template");
+    throw new Error("that file is not a botato template");
   }
   if (t.v !== 1) {
     throw new Error(
-      `that template was made by a newer botcage (version ${String(t.v)}) — update this one to open it`,
+      `that template was made by a newer botato (version ${String(t.v)}) — update this one to open it`,
     );
   }
 
@@ -2444,7 +2444,7 @@ function nameCategory(id: string): void {
  *  Pointer events rather than HTML5 drag-and-drop. That API needs the
  *  platform's own drag session, which means it cannot be driven or tested from
  *  outside the app — and it brings a drag image, a drop-effect cursor and a set
- *  of quirks that differ between the webviews botcage runs in. This is a
+ *  of quirks that differ between the webviews botato runs in. This is a
  *  mousedown, some movement and a mouseup, which behaves the same everywhere
  *  and which I can watch actually work.
  *
@@ -3654,7 +3654,7 @@ function mannerLine(bot: Bot): string {
 
 /** The shortcuts this bot declared, said back to it.
  *
- *  It writes the list with a tool, botcage stores it, and the user picks from
+ *  It writes the list with a tool, botato stores it, and the user picks from
  *  it — and none of that reaches the bot, whose next turn sees "/breakfast"
  *  and has no idea what it is. It answered "unknown command", correctly.
  *
@@ -3674,7 +3674,7 @@ function commandsLine(bot: Bot): string {
 
 function systemPromptFor(bot: Bot): string {
   return [
-    `You are "${bot.name}", one of several bots the user keeps in botcage, a desktop app where each bot is a persistent chat.`,
+    `You are "${bot.name}", one of several bots the user keeps in botato, a desktop app where each bot is a persistent chat.`,
     // Bots have been talking to "the user", who is nobody. If this person has
     // said what they are called, say it — once, plainly, without instructing
     // anyone to use it in every sentence.
@@ -4020,7 +4020,7 @@ function handleBotEvent(event: BotEvent): void {
     save();
   }
 
-  // What the bot's face does about it. Everything here is already in botcage's
+  // What the bot's face does about it. Everything here is already in botato's
   // vocabulary, so a mood costs a line rather than a new event.
   // Work a bot put on a calendar — its own, or a colleague's. Applied at the
   // end of a turn for the same reason a face is: the tool wrote a file and the
@@ -4345,7 +4345,7 @@ document.addEventListener("pointerdown", () => (viaPointer = true), true);
 document.addEventListener("keydown", () => (viaPointer = false), true);
 
 function openMenu(anchor: HTMLElement | null, html: string, extraClass = ""): void {
-  if (!anchor) throw new Error("botcage: openMenu called without an anchor");
+  if (!anchor) throw new Error("botato: openMenu called without an anchor");
   menu.className = `menu ${extraClass}`.trim();
   menu.innerHTML = html;
   menuAnchor = anchor;
@@ -5011,7 +5011,7 @@ function renderRoutines(): void {
         calEveryone
           ? "Open a bot's own calendar to give it a standing instruction."
           : `Click any slot to give ${escapeHtml(drawn[0].name)} a standing instruction`
-      } — routines run while botcage is open.</div>`;
+      } — routines run while botato is open.</div>`;
 
   /** What this bot has to do on that day, earliest first. */
   const dueOn = (day: Date) =>
@@ -5390,7 +5390,7 @@ function paintSheetModels(want?: string): void {
 
 /** The sentence under each picker. The engine's says who keeps the
  *  conversation, because that is the one difference a person can feel: a bot
- *  whose engine cannot resume one is remembered by botcage instead. */
+ *  whose engine cannot resume one is remembered by botato instead. */
 function paintSheetHints(): void {
   const chosen = engineChoices.find((info) => info.key === sheetEngine.value);
   // One line, like every other hint in the sheet. It used to append a reason
@@ -5405,12 +5405,12 @@ function paintSheetHints(): void {
     says = `${chosen.name}: ${chosen.ready.missing ?? "not available"}`;
   } else if (chosen?.searchable) {
     // What it is, rather than how it remembers: someone choosing this is
-    // choosing reach, and the transcript is botcage's problem either way.
+    // choosing reach, and the transcript is botato's problem either way.
     says = "Any model on models.dev and Ollama on this machine.";
   } else if (chosen) {
     says = chosen.ownsTranscript
       ? `${chosen.name} keeps this bot's conversation itself.`
-      : `${chosen.name} can't resume a conversation, so botcage keeps the thread.`;
+      : `${chosen.name} can't resume a conversation, so botato keeps the thread.`;
   }
   $<HTMLSpanElement>("#sheet-engine-hint").textContent = says;
 
@@ -5464,7 +5464,7 @@ let draftModel: { provider?: string; model: string } = { model: "" };
 let pending: Listing | null = null;
 let providerList: ProviderInfo[] = [];
 
-/** Whether the operating system is holding botcage's credentials, or a file
+/** Whether the operating system is holding botato's credentials, or a file
  *  is. True everywhere with a keychain or a running keyring; false on a box
  *  with neither, which is the only case anybody needs telling about. */
 let keysProtected = true;
@@ -5498,7 +5498,7 @@ function facts(model: Listing): string {
 
 /** The left column: whose models these are.
  *
- *  Ordered by what you can use — the one on this machine, then the ones botcage
+ *  Ordered by what you can use — the one on this machine, then the ones botato
  *  holds a key for, then the rest by how much they offer. A green dot means it
  *  will answer right now; a dim one means it needs a key first. */
 function paintProviders(): void {
@@ -5653,8 +5653,8 @@ function askForKey(model: Listing): void {
   // key deserves to be told which of those is about to happen rather than
   // reading a promise that is true elsewhere.
   const kept = keysProtected
-    ? "botcage keeps it in your keychain"
-    : "botcage keeps it in a file in your home folder — no keyring is running, so anything " +
+    ? "botato keeps it in your keychain"
+    : "botato keeps it in a file in your home folder — no keyring is running, so anything " +
       "that can read your files can read it";
   modelsNote.textContent = provider?.doc
     ? `${model.providerName} issues keys at ${provider.doc} — ${kept}.`
@@ -5912,7 +5912,7 @@ function pluginTitle(name: string): string {
     .join(" ");
 }
 
-/** Services botcage connects itself, with the credential we hold for each. */
+/** Services botato connects itself, with the credential we hold for each. */
 function connectedSection(query: string): string {
   const services = connectors.filter(
     (service) => !query || service.name.toLowerCase().includes(query),
@@ -6035,7 +6035,7 @@ function chooseScopes(card: HTMLElement, service: Connector): void {
     });
 }
 
-/** The point of this one: the server registers botcage on request, so there is
+/** The point of this one: the server registers botato on request, so there is
  *  nothing to set up. Press Connect, approve in the browser, done. */
 function startOAuth(card: HTMLElement, service: Connector): void {
   card.innerHTML =
@@ -6103,7 +6103,7 @@ function startDeviceFlow(card: HTMLElement, service: Connector, scopes: string[]
 }
 
 /** Google will not register an OAuth client for us, so the user makes one and
- *  botcage walks them through consent. Everything they must paste into the
+ *  botato walks them through consent. Everything they must paste into the
  *  Google console is shown here rather than left to the docs. */
 function askForGoogle(card: HTMLElement, service: Connector): void {
   card.innerHTML =
@@ -6255,9 +6255,9 @@ function showConnectorDetail(service: Connector): void {
   const holders = state.bots.filter((bot) => bot.plugins?.includes(service.key));
 
   const how = service.needsOauth
-    ? "Signs in through your browser. botcage registers itself with the service, so there is nothing to set up."
+    ? "Signs in through your browser. botato registers itself with the service, so there is nothing to set up."
     : service.needsDevice
-      ? "Signs in with a short code you approve in your browser. No password or secret is stored by botcage."
+      ? "Signs in with a short code you approve in your browser. No password or secret is stored by botato."
       : service.needsGoogle
         ? "Signs in through Google, using an OAuth client you create once."
         : service.needsToken || service.tokenOptional
@@ -6780,7 +6780,7 @@ function saveSheet(): void {
     });
 
     // A session id belongs to the engine that made it, so a bot that changed
-    // engines starts a fresh one. The conversation is not lost with it: botcage
+    // engines starts a fresh one. The conversation is not lost with it: botato
     // keeps its own transcript of every bot, and hands it to whatever answers
     // next — which is the whole reason it keeps one.
     if (swapped) {
@@ -6880,7 +6880,7 @@ function deleteBot(id: string): void {
 }
 
 /** Wipe a guide's conversation — the messages, the session its engine resumes,
- *  and the transcript botcage keeps for engines that cannot.
+ *  and the transcript botato keeps for engines that cannot.
  *
  *  The guide is a tutorial, not a correspondent. Coming back to it should show
  *  the five things it can teach, not the tail of a chat about cowboy hats —
@@ -7040,7 +7040,7 @@ function addressees(ch: Channel, text: string, exclude?: string): Bot[] {
 
 /** What was said in here since this bot last spoke, attributed.
  *
- *  A bot's session only ever saw what botcage sent it, so a room's other
+ *  A bot's session only ever saw what botato sent it, so a room's other
  *  voices reach it as text or not at all. Attributed on every line because in
  *  a room "who said that" is half the message. */
 function whatItMissed(ch: Channel, botId: string): string {
@@ -7104,7 +7104,7 @@ function markSeen(): void {
 function channelPromptFor(ch: Channel, bot: Bot): string {
   const others = membersOf(ch).filter((b) => b.id !== bot.id);
   return [
-    `You are "${bot.name}". This is #${ch.name}, a shared channel in botcage — a room, not a private chat.`,
+    `You are "${bot.name}". This is #${ch.name}, a shared channel in botato — a room, not a private chat.`,
     userName() ? `The person you are talking to is called ${userName()}.` : "",
     ch.purpose ? `What this channel is for:\n\n${ch.purpose}` : "",
     bot.role ? `What you are here to do, as the user described it:\n\n${bot.role}` : "",
@@ -7152,7 +7152,7 @@ function voiceProgress(note: string): void {
 }
 
 /* ------------------------------------------------------- the better voices */
-/* botcage can fetch a speech model rather than use the machine's own: a
+/* botato can fetch a speech model rather than use the machine's own: a
    hundred and six people's voices instead of two dozen synthesisers, the same
    on macOS and Linux. About 130 MB, so it is asked for rather than assumed —
    the same bargain as a container engine. */
@@ -7310,7 +7310,7 @@ function paintExtras(): void {
   phone.classList.toggle("is-locked", voiceAsked && !voice.ears && !gettingVoice);
   phone.classList.toggle("is-getting", gettingVoice);
 
-  // Only where botcage could actually supply one. On a platform with no engine
+  // Only where botato could actually supply one. On a platform with no engine
   // at all the button is not waiting on a download, and dimming it would offer
   // something that is not on offer.
   const monitor = $<HTMLButtonElement>("#btn-monitor");
@@ -7445,7 +7445,7 @@ async function channelTurn(
   }
 }
 
-/** What a bot has actually been doing, from botcage's own records.
+/** What a bot has actually been doing, from botato's own records.
  *
  *  The whole difference between a standup worth reading and five bots
  *  generating three paragraphs of plausible progress. A bot is not asked what
@@ -7502,7 +7502,7 @@ const clockDate = (at: number) =>
 function reviewPrompt(bot: Bot, routine: Routine, since: number, room?: Channel): string {
   return (
     (room ? `Your week, reported in #${room.name}.` : `Your week.`) +
-    `\n\nFrom botcage's own records rather than from memory:\n\n` +
+    `\n\nFrom botato's own records rather than from memory:\n\n` +
     `${weekOf(bot, since)}\n\n` +
     (routine.instruction.trim() ? `What this review is for:\n\n${routine.instruction}\n\n` : "") +
     `Report on it in a few short lines: what you actually did, anything that failed and whether it ` +
@@ -7544,7 +7544,7 @@ async function runStandup(room: Channel, routine: Routine, since: number): Promi
     fromRoutine.set(bot.id, routine.name);
     const asked =
       `Stand-up in #${room.name}. It is your turn.\n\n` +
-      `Here is your week, from botcage's own records rather than from memory:\n\n` +
+      `Here is your week, from botato's own records rather than from memory:\n\n` +
       `${weekOf(bot, since)}\n\n` +
       (routine.instruction.trim() ? `What this stand-up is for:\n\n${routine.instruction}\n\n` : "") +
       `Say what you did, what is next, and anything you are stuck on — two or three short lines, ` +
@@ -7860,7 +7860,7 @@ thread.addEventListener("click", (e) => {
   if (!card) return;
   const path = card.dataset.path!;
   if ((e.target as HTMLElement).closest("[data-reveal]")) {
-    // The folder, not the file: opening a .botcage would ask the system what
+    // The folder, not the file: opening a .botato would ask the system what
     // opens one, and nothing does.
     void openPath(path.replace(/\/[^/]+$/, "")).catch((err) => toast(String(err)));
   } else if ((e.target as HTMLElement).closest("[data-copy]")) {
@@ -8236,7 +8236,7 @@ async function openMicrophone(complain: (why: string) => void): Promise<MediaStr
     const why = String(err);
     complain(
       why.includes("NotAllowed") || why.includes("denied")
-        ? "botcage needs the microphone: System Settings → Privacy & Security → Microphone."
+        ? "botato needs the microphone: System Settings → Privacy & Security → Microphone."
         : `No microphone: ${why}`,
     );
     return null;
@@ -8556,7 +8556,7 @@ const CALL_STYLE = `You are on a voice call with the user right now: they are sp
 /** Where a sentence ends, for something being read aloud.
  *
  *  A full stop followed by a space, which is enough: it leaves "3.5" and
- *  "botcage.app" alone, and the worst an abbreviation can do is put a pause
+ *  "botato.app" alone, and the worst an abbreviation can do is put a pause
  *  where a person would not have made one. Speech is forgiving about that in a
  *  way that text is not. */
 const SENTENCE = /[.!?…]["')\]]*\s/g;
@@ -8601,7 +8601,7 @@ function speakAsItArrives(botId: string, whole: string, ending = false): void {
   // The first sentence goes out as soon as it exists, because that is where
   // the three seconds of waiting are. After that, wait for a decent mouthful.
   //
-  // Not tidiness: the model botcage installs is generative and has no seed, so
+  // Not tidiness: the model botato installs is generative and has no seed, so
   // every separate utterance is an independent performance of the same voice.
   // Speaking a reply one sentence at a time made a bot's voice change halfway
   // through its own answer, which is far more noticeable than it changing
@@ -8783,11 +8783,11 @@ const showSheetTab = wireTabs($<HTMLElement>("#sheet-wrap"));
 
 /* ------------------------------------------------------------------ backups */
 
-/** One encrypted file holding the part of botcage that cannot be downloaded
+/** One encrypted file holding the part of botato that cannot be downloaded
  *  again.
  *
  *  The window's own store goes with it, and has to: the conversations live in
- *  localStorage rather than in botcage's data folder, so a backup made by
+ *  localStorage rather than in botato's data folder, so a backup made by
  *  walking the disk would look complete and hold none of them. */
 
 /** Hand a bot over as a file somebody else can open.
@@ -8802,8 +8802,8 @@ async function shareTemplate(bot: Bot): Promise<void> {
   const { save } = await import("@tauri-apps/plugin-dialog");
   const where = await save({
     title: `Share ${bot.name}`,
-    defaultPath: `${bot.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "bot"}.botcage`,
-    filters: [{ name: "botcage template", extensions: ["botcage"] }],
+    defaultPath: `${bot.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "bot"}.botato`,
+    filters: [{ name: "botato template", extensions: ["botato"] }],
   });
   if (!where) return;
 
@@ -8842,7 +8842,7 @@ async function importTemplate(): Promise<void> {
     directory: false,
     multiple: false,
     title: "Open a bot template",
-    filters: [{ name: "botcage template", extensions: ["botcage", "json"] }],
+    filters: [{ name: "botato template", extensions: ["botato", "json"] }],
   });
   if (typeof picked !== "string") return;
 
@@ -8877,7 +8877,7 @@ async function openBackupFile(): Promise<string | null> {
     directory: false,
     multiple: false,
     title: "Which backup",
-    filters: [{ name: "botcage backup", extensions: ["backup"] }],
+    filters: [{ name: "botato backup", extensions: ["backup"] }],
   });
   return typeof picked === "string" ? picked : null;
 }
@@ -8911,7 +8911,7 @@ interface BackupFile {
   bytes: number;
 }
 
-/** Whether botcage is holding a passphrase. Asked once per opening of the
+/** Whether botato is holding a passphrase. Asked once per opening of the
  *  sheet, because the answer only changes when someone changes it here. */
 let hasPassphrase = false;
 
@@ -9256,7 +9256,7 @@ async function paintEngines(): Promise<void> {
 }
 
 /* ------------------------------------------------------------------ storage */
-/* Everything botcage downloads or builds, and a way to get it back. Nothing
+/* Everything botato downloads or builds, and a way to get it back. Nothing
    listed here was written by a person: a speech model, an engine, an image, a
    container per bot. All of it is large, all of it comes back on demand, and
    until this panel the only way to find out how much of it there was involved
@@ -9445,7 +9445,7 @@ function paintAccount(): void {
   const account = $<HTMLButtonElement>("#btn-account");
   account.setAttribute("aria-label", name ? `${name} — app menu` : "App menu");
   account.title = "App menu";
-  $<HTMLSpanElement>("#account-name").textContent = name || "botcage";
+  $<HTMLSpanElement>("#account-name").textContent = name || "botato";
   $<HTMLSpanElement>("#account-initial").textContent = (name || "b").slice(0, 1).toUpperCase();
 }
 
@@ -9940,11 +9940,11 @@ const STATE_MESSAGE: Record<SandboxState, string> = {
   starting: "Waking the desktop…",
   running: "Connecting to the desktop…",
   error: "The desktop didn't come up.",
-  // Deliberately says nothing about Docker. botcage brings its own engine and
+  // Deliberately says nothing about Docker. botato brings its own engine and
   // the button under this offers to fetch it, so a list of things to go and
   // install was the app talking somebody out of the answer it already had —
   // in words they may have no reason to know. What it says instead depends on
-  // whether botcage can actually supply one here, which `paintScreen` decides.
+  // whether botato can actually supply one here, which `paintScreen` decides.
   "no-docker": "",
   "no-computer": "No computer. Turn on Own computer in its settings to give it one.",
 };
@@ -10030,22 +10030,22 @@ function pushLog(line: string): void {
 
 /** What to say when there is no machine for a bot to work on.
  *
- *  Two different situations wearing one state. On a platform botcage can serve,
+ *  Two different situations wearing one state. On a platform botato can serve,
  *  nothing is missing that the button below cannot fetch — so this says what it
  *  is and what it costs, and never the word Docker. Where it cannot, naming an
  *  engine is the only useful thing left to do. */
 function noEngineSays(): string {
   if (engine?.supported) {
     return (
-      "A bot's computer is a small Linux machine. botcage can set one up for itself — " +
-      `about ${engine.downloadMb ?? 0} MB, kept in botcage's own folder and nothing else on ` +
+      "A bot's computer is a small Linux machine. botato can set one up for itself — " +
+      `about ${engine.downloadMb ?? 0} MB, kept in botato's own folder and nothing else on ` +
       "this computer is touched. Everything else works without it."
     );
   }
   return (
-    "A bot's computer runs in a Linux container and botcage cannot set one up on this " +
+    "A bot's computer runs in a Linux container and botato cannot set one up on this " +
     "platform. Installing podman or docker from your package manager gives it one. " +
-    "Everything else in botcage works without it."
+    "Everything else in botato works without it."
   );
 }
 
@@ -10105,7 +10105,7 @@ function paintScreen(): void {
   startBtn.textContent = installing
     ? "Setting up…"
     : needsEngine
-      ? `Set up botcage's engine (${engine?.downloadMb ?? 0} MB)`
+      ? `Set up botato's engine (${engine?.downloadMb ?? 0} MB)`
       : screen.state === "error"
         ? "Try again"
         : "Start desktop";
@@ -10210,9 +10210,9 @@ function connectScreen(port: number, attempt = 0): void {
 
 type EngineSaid = { path: string | null; version: string | null; error: string | null };
 
-/** Make sure there is an engine answering, waking botcage's own if it is asleep.
+/** Make sure there is an engine answering, waking botato's own if it is asleep.
  *
- *  Installed and asleep is not a state worth reporting. botcage owns this
+ *  Installed and asleep is not a state worth reporting. botato owns this
  *  engine — it put it there, it knows where it is and it is the only program
  *  that can start it — so it starts it. Nobody installs a thing in order to be
  *  told later that it is not running, and on macOS the engine is a VM that
@@ -10225,7 +10225,7 @@ type EngineSaid = { path: string | null; version: string | null; error: string |
  *  wrong — it re-ran the step after it.
  */
 /** Why the last attempt to wake the engine failed, if it did. Shown where the
- *  pane would otherwise offer to install one botcage already has. */
+ *  pane would otherwise offer to install one botato already has. */
 let wokeBadly = "";
 
 async function wakeEngine(): Promise<EngineSaid> {
@@ -10236,7 +10236,7 @@ async function wakeEngine(): Promise<EngineSaid> {
   engine = await invoke<EngineStatus>("engine_status").catch(() => null);
   if (!engine?.installed || !engine.needsVm || engine.vmRunning) return said;
 
-  engineStep = "Waking botcage's engine…";
+  engineStep = "Waking botato's engine…";
   paintScreen();
   try {
     await invoke("start_engine");
@@ -10285,7 +10285,7 @@ async function openScreen(): Promise<void> {
 
   let docker = await wakeEngine();
 
-  // No engine, and botcage carries one. This used to fetch it on the spot, on
+  // No engine, and botato carries one. This used to fetch it on the spot, on
   // the argument that switching a computer on is the request and being asked
   // to confirm it is a step for its own sake. That was written when onboarding
   // installed the engine before anyone got here; onboarding can be walked past,
@@ -10298,11 +10298,11 @@ async function openScreen(): Promise<void> {
   }
 
   if (!docker.version) {
-    // Ask whether botcage could supply one itself, so the pane can offer that
+    // Ask whether botato could supply one itself, so the pane can offer that
     // rather than only naming things to go and install.
     engine = await invoke<EngineStatus>("engine_status").catch(() => null);
     screen.state = "no-docker";
-    // Only when botcage cannot supply one itself. Where it can, the message
+    // Only when botato cannot supply one itself. Where it can, the message
     // above already says what will happen and the button below does it — and
     // the engine's own words underneath them say the same thing a third time,
     // in the vocabulary this pane is trying not to use.
@@ -11297,7 +11297,7 @@ menu.addEventListener("click", (event) => {
 /** A newer release than this build, if GitHub has one. Asked once at launch
  *  and cached on the Rust side for six hours, so opening the menu is never a
  *  network call and a rate limit is never reachable. */
-const RELEASES_URL = "https://github.com/hackyguru/botcage/releases";
+const RELEASES_URL = "https://github.com/hackyguru/botato/releases";
 
 let newRelease: { version: string; url: string } | null = null;
 
@@ -11344,7 +11344,7 @@ let staged = false;
 function openUpdate(): void {
   if (!newRelease) return;
   staged = false;
-  updateTitle.textContent = `botcage ${newRelease.version}`;
+  updateTitle.textContent = `botato ${newRelease.version}`;
   updateBar.hidden = true;
   updateBar.classList.remove("update__bar--unknown");
   updateFill.style.width = "0";
@@ -11356,13 +11356,13 @@ function openUpdate(): void {
     // Said before it happens, not after. Every bot mid-task stops when the app
     // does, and somebody with one working deserves to choose the moment.
     updateWhat.textContent =
-      `You have ${thisVersion}. Installing restarts botcage, which stops anything your bots are in the middle of.`;
+      `You have ${thisVersion}. Installing restarts botato, which stops anything your bots are in the middle of.`;
     updateGo.textContent = "Install and restart";
   } else {
     // A package manager owns this copy. Saying so is better than a button that
     // fails, and better than silence about why there isn't one.
     updateWhat.textContent =
-      `You have ${thisVersion}. This copy was installed by your package manager, so botcage cannot replace it itself — the release page has the new one.`;
+      `You have ${thisVersion}. This copy was installed by your package manager, so botato cannot replace it itself — the release page has the new one.`;
     updateGo.textContent = "Open the release page";
   }
   updateWrap.hidden = false;
@@ -11475,7 +11475,7 @@ async function installUpdate(): Promise<void> {
     updateCount.hidden = true;
     updateTitle.textContent = "Ready to restart";
     updateWhat.textContent =
-      `botcage ${newRelease?.version ?? ""} is installed. It starts the moment you restart, and your bots come back with it.`;
+      `botato ${newRelease?.version ?? ""} is installed. It starts the moment you restart, and your bots come back with it.`;
     updateGo.textContent = "Restart now";
     updateGo.disabled = false;
     updateLater.hidden = false;
@@ -11990,7 +11990,7 @@ appNotify.addEventListener("change", async () => {
     const answer = await requestPermission().catch(() => "denied");
     if (answer !== "granted") {
       appNotify.checked = false;
-      toast("macOS is not letting botcage send notifications");
+      toast("macOS is not letting botato send notifications");
     }
   }
   saveAppSettings();
@@ -11999,7 +11999,7 @@ appNotify.addEventListener("change", async () => {
   // the only one that is about the setting rather than about a bot.
   if (appNotify.checked) {
     sendNotification({
-      title: "botcage will tell you",
+      title: "botato will tell you",
       body: "When a bot says your name or a turn fails and you are elsewhere.",
     });
   }
@@ -12014,7 +12014,7 @@ $<HTMLButtonElement>("#about-close").addEventListener("click", () => {
   aboutWrap.hidden = true;
 });
 $<HTMLButtonElement>("#about-repo").addEventListener("click", () => {
-  void openUrl("https://github.com/hackyguru/botcage");
+  void openUrl("https://github.com/hackyguru/botato");
 });
 
 $<HTMLButtonElement>("#app-settings-close").addEventListener("click", () => {
@@ -12043,7 +12043,7 @@ appLid.addEventListener("change", () => {
 appLogin.addEventListener("change", () => {
   const wanted = appLogin.checked;
   void invoke("set_login_launch", { on: wanted })
-    .then(() => toast(wanted ? "botcage will start at login" : "botcage won't start at login"))
+    .then(() => toast(wanted ? "botato will start at login" : "botato won't start at login"))
     .catch((err) => {
       appLogin.checked = !wanted;
       toast(String(err));
@@ -12432,10 +12432,10 @@ $<HTMLDivElement>("#sheet-hires-row").addEventListener("click", (e) => {
 
 /* ---------------------------------------------------- a bot from a link */
 
-/** What a "botcage://bot?t=…" link carries.
+/** What a "botato://bot?t=…" link carries.
  *
  *  The website puts the whole template in the URL rather than an id to fetch,
- *  so botcage never has to talk to the website and a link keeps working after
+ *  so botato never has to talk to the website and a link keeps working after
  *  the page it came from is gone. Which also means anyone can share a bot they
  *  worked out, without it having to be on our site first.
  *
@@ -12463,7 +12463,7 @@ let importedRoutines: Handover["routines"] | null = null;
 
 /** Read one, and be unfriendly about it.
  *
- *  This is the one thing in botcage that arrives from a web page, so nothing
+ *  This is the one thing in botato that arrives from a web page, so nothing
  *  is trusted for being present: every field is checked for the type it is
  *  supposed to be, the colour has to be a colour, the network has to be one of
  *  the three, and anything else is dropped rather than passed through. A bad
@@ -12487,7 +12487,7 @@ function readHandover(raw: string): Handover | null {
   const t = got as Record<string, unknown>;
   if (!t || typeof t !== "object") return null;
   if (t.v !== 1) {
-    toast("That template was made for a newer botcage");
+    toast("That template was made for a newer botato");
     return null;
   }
   const name = typeof t.name === "string" ? t.name.trim().slice(0, 60) : "";
@@ -12574,7 +12574,7 @@ function offerBot(handover: Handover): void {
 void listen<string>("deep-link", (event) => {
   const handover = readHandover(event.payload);
   if (handover) offerBot(handover);
-  else toast("That botcage link could not be read");
+  else toast("That botato link could not be read");
 });
 
 sheetAware.addEventListener("change", paintBeatRow);
@@ -12651,7 +12651,7 @@ document.addEventListener("keydown", (e) => {
 window.addEventListener("resize", closeMenu);
 
 /* ----------------------------------------------------------------- onboarding */
-/* botcage needs a signed-in Claude Code CLI to answer at all, and optionally an
+/* botato needs a signed-in Claude Code CLI to answer at all, and optionally an
    engine for bots given a computer. Both used to be a toast and a paragraph in
    the release notes; this walks through them, does the work where it can, and
    never claims a step is done without looking. */
@@ -12754,7 +12754,7 @@ async function openSetup(at: SetupStep = "welcome"): Promise<void> {
     `Hi, I'm ${host?.name ?? "your guide"} and I'll help you get onboarded`;
   $<HTMLInputElement>("#setup-name").value = appSettings().name ?? "";
   // Start on whatever this app is already set up to use, so reopening setup
-  // shows the arrangement someone made rather than the one botcage prefers.
+  // shows the arrangement someone made rather than the one botato prefers.
   const chosen = appSettings().engine ?? DEFAULT_ENGINE;
   setupRoute =
     chosen === DEFAULT_ENGINE
@@ -12795,7 +12795,7 @@ function closeSetup(): void {
     state.app = { ...appSettings(), onboarded: true };
     save();
   }
-  // Setup arranges what botcage needs; the tour says what the app is. They are
+  // Setup arranges what botato needs; the tour says what the app is. They are
   // different jobs, so they are different screens, one after the other — and
   // setup's last step is the guide offering the second one.
   const wanted = tourWanted || (first && !appSettings().toured);
@@ -12866,7 +12866,7 @@ const TOUR: Stop[] = [
   },
 ];
 
-/** What botcage can teach, each one a walk through the thing itself rather than
+/** What botato can teach, each one a walk through the thing itself rather than
  *  a description of it. Reached from the guide's thread. */
 interface Lesson {
   id: string;
@@ -13052,7 +13052,7 @@ const LESSONS: Lesson[] = [
       {
         target: "#btn-settings",
         title: "Nothing here ships a model",
-        body: "botcage drives something else and which something is a property of each bot rather than of the app. It lives in the bot's own settings.",
+        body: "botato drives something else and which something is a property of each bot rather than of the app. It lives in the bot's own settings.",
         open: () => {
           showSheet(false);
         },
@@ -13060,7 +13060,7 @@ const LESSONS: Lesson[] = [
       {
         target: "#sheet-engine",
         title: "Answered by",
-        body: "Claude Code, the Gemini CLI, or any hosted model. Different bots can use different ones and changing this does not lose the conversation — botcage keeps the thread and hands it to whatever answers next.",
+        body: "Claude Code, the Gemini CLI, or any hosted model. Different bots can use different ones and changing this does not lose the conversation — botato keeps the thread and hands it to whatever answers next.",
         open: () => {
           openSheet(activeBot());
           showSheetTab("general");
@@ -13112,7 +13112,7 @@ const LESSONS: Lesson[] = [
       {
         target: "#btn-teach",
         title: "Record what you do",
-        body: "Name the task, press record, do it once, press stop. botcage keeps every click, every key and a picture of each step — as a demonstration, not a video.",
+        body: "Name the task, press record, do it once, press stop. botato keeps every click, every key and a picture of each step — as a demonstration, not a video.",
         open: () => void openScreen(),
       },
       {
@@ -13137,7 +13137,7 @@ const LESSONS: Lesson[] = [
       {
         target: "#plugins-search",
         title: "Find one",
-        body: "botcage runs its own connections rather than claude.ai's, so an account you connect here works whatever model answers the bot.",
+        body: "botato runs its own connections rather than claude.ai's, so an account you connect here works whatever model answers the bot.",
         open: () => void openPlugins(),
       },
       {
@@ -13513,7 +13513,7 @@ function paintSetup(): void {
   // The last screen that arranges anything, so its button is the one that says
   // the arranging is over. What follows is the guide offering to show you
   // round, which is not setup and does not read as another step of it.
-  if (setupAt === "care") setupNext.textContent = "Start using botcage";
+  if (setupAt === "care") setupNext.textContent = "Start using botato";
   if (setupAt === "terms") {
     const ok = $<HTMLInputElement>("#setup-terms-ok");
     ok.checked = ok.checked || termsAccepted();
@@ -13670,7 +13670,7 @@ function paintClaudeStep(): void {
     text.textContent = claudeBusy;
     fine.hidden = true;
     if (signInWaiting) {
-      // The sign-in is finished in a browser, and botcage only finds out by
+      // The sign-in is finished in a browser, and botato only finds out by
       // asking. It asks every couple of seconds anyway; this is for the person
       // who would rather not wait for the next one.
       setupNext.textContent = "Check again";
@@ -13718,7 +13718,7 @@ function paintEngineStep(): void {
   }
   if (engine?.supported === false) {
     dot.dataset.state = "missing";
-    text.textContent = "botcage has no engine for this platform yet.";
+    text.textContent = "botato has no engine for this platform yet.";
     return;
   }
   if (engine?.installed) {
@@ -13815,7 +13815,7 @@ async function setupAdvance(): Promise<void> {
 
     if (setupRoute === "ollama") {
       // Ask again: someone who just installed Ollama in another window should
-      // not have to restart botcage to be believed.
+      // not have to restart botato to be believed.
       ollamaModels = null;
       paintSetup();
       return;
@@ -13971,7 +13971,7 @@ const remoteWhere = $<HTMLSpanElement>("#app-remote-where");
 
 /** Say where this stands: set up and for which app, or what is missing.
  *
- *  The key is the one thing botcage cannot do for you — Apple issues it once,
+ *  The key is the one thing botato cannot do for you — Apple issues it once,
  *  to the person with the account — so the row says so plainly rather than
  *  offering a switch that would do nothing. */
 async function paintPush(): Promise<void> {
@@ -14202,7 +14202,7 @@ $<HTMLButtonElement>("#app-push-pick").addEventListener("click", async () => {
   if (typeof picked !== "string") return;
   try {
     // The phone's own identifier, which is what Apple calls the topic.
-    await invoke("push_setup", { path: picked, keyId, teamId: team, topic: "com.botcage.phone" });
+    await invoke("push_setup", { path: picked, keyId, teamId: team, topic: "com.botato.phone" });
     toast("Key saved — your phone will be told the next time something happens");
   } catch (err) {
     toast(String(err));
@@ -14539,7 +14539,7 @@ const REMOTE_ACTIONS: Record<string, (payload: Record<string, unknown>) => unkno
     if (typeof p.engine === "string" && engineChoices.some((info) => info.key === p.engine)) {
       if (p.engine !== (bot.engine ?? DEFAULT_ENGINE)) {
         // Same reasoning as the sheet: the session id belonged to the old
-        // engine, and the transcript botcage keeps carries the thread over.
+        // engine, and the transcript botato keeps carries the thread over.
         bot.engine = p.engine;
         bot.sessionId = newSessionId();
         bot.started = false;
@@ -14640,7 +14640,7 @@ void listen<RemoteRequest>("remote-request", async (event) => {
   const { id, kind, payload } = event.payload;
   const action = REMOTE_ACTIONS[kind];
   if (!action) {
-    void invoke("remote_reply", { id, ok: false, payload: `botcage has no "${kind}" action` });
+    void invoke("remote_reply", { id, ok: false, payload: `botato has no "${kind}" action` });
     return;
   }
   try {
@@ -14666,12 +14666,12 @@ load();
  *  Its own face when there is nobody to be: an install where the guide has
  *  been deleted still has a corner to fill, and a stranger's face there would
  *  be worse than the app's own. */
-/** botcage's own mark: the guide's body, drawn by the generator every bot is
+/** botato's own mark: the guide's body, drawn by the generator every bot is
  *  drawn by, so the app's face is one of the family rather than a picture of
  *  one. Blue and a squircle where there is no guide to ask. */
 /** The app's own mark.
  *
- *  The guide's silhouette, which is what makes it botcage's rather than a
+ *  The guide's silhouette, which is what makes it botato's rather than a
  *  generic blob — but drawn in `currentColor` rather than in the guide's
  *  colour, so the stylesheet paints it the same ink as the buttons it stands
  *  next to. It is furniture in a row of icons, not a bot in a roster, and a
@@ -14747,7 +14747,7 @@ if (appSettings().awake) void invoke("set_awake", { on: true }).catch(() => {});
 // bots actually depend on is missing, and opens at that step rather than at the
 // welcome screen someone has already read.
 // A phone paired at the kitchen table is no use if the laptop stops answering
-// the moment botcage restarts, so phone access comes back by itself. No pairing
+// the moment botato restarts, so phone access comes back by itself. No pairing
 // code is shown — that stays a deliberate act.
 if (appSettings().remoteOn) {
   void startRemote().catch((err) => toast(`Phone access could not start: ${err}`));

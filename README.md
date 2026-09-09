@@ -1,15 +1,15 @@
 <p align="center">
-	<img width="150" height="150" src="src-tauri/icons/Square310x310Logo.png" alt="botcage logo">
+	<img width="150" height="150" src="src-tauri/icons/Square310x310Logo.png" alt="botato logo">
 </p>
 
-<h1 align="center">botcage</h1>
+<h1 align="center">botato</h1>
 
 <p align="center">
 	Bots that live on your own machine. Each one gets a memory, a schedule and a computer of its own. Shut the lid and they carry on.
 </p>
 
 <p align="center">
-	<a href="https://github.com/hackyguru/botcage/releases/latest">Download</a>
+	<a href="https://github.com/hackyguru/botato/releases/latest">Download</a>
 	·
 	<a href="#what-a-bot-gets">What a bot gets</a>
 	·
@@ -21,14 +21,14 @@
 </p>
 
 <p align="center">
-	<a href="https://github.com/hackyguru/botcage/releases"><img src="https://img.shields.io/github/v/release/hackyguru/botcage?include_prereleases&label=release" alt="Latest release"></a>
-	<a href="LICENSE"><img src="https://img.shields.io/github/license/hackyguru/botcage" alt="Apache 2.0"></a>
+	<a href="https://github.com/hackyguru/botato/releases"><img src="https://img.shields.io/github/v/release/hackyguru/botato?include_prereleases&label=release" alt="Latest release"></a>
+	<a href="LICENSE"><img src="https://img.shields.io/github/license/hackyguru/botato" alt="Apache 2.0"></a>
 	<img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20iOS%20%7C%20Android-lightgrey" alt="Platforms">
 	<img src="https://img.shields.io/badge/binary-~11%20MB-brightgreen" alt="About 11 MB">
 </p>
 
 > [!WARNING]
-> **botcage is alpha software, provided as is and without warranty of any kind.**
+> **botato is alpha software, provided as is and without warranty of any kind.**
 > Every release is a pre-release. Bots run commands, drive a browser, use accounts
 > you connect to them, spend money against your own API keys and act on a schedule
 > while nobody is watching. Language models are unpredictable and can be
@@ -37,12 +37,12 @@
 > and keep your own backups. Sections 7 and 8 of [Apache 2.0](LICENSE) say the
 > same thing in the usual words.
 
-## Why botcage
+## Why botato
 
 - **It runs on your computer.** No account to make, no server of ours, no telemetry. Your bots, files, keys and conversations never leave the machine.
 - **A bot is somewhere, not something.** Each one owns a session and a workspace on disk and remembers across restarts, rather than being a box you type into and close.
 - **They share rooms.** A channel holds several bots and you. They read what the others said and answer each other, which is the difference between a set of assistants and colleagues.
-- **They work while you are away.** Routines run on a schedule and report back. botcage holds the machine awake for them and on a Mac it can keep the lid from stopping them.
+- **They work while you are away.** Routines run on a schedule and report back. botato holds the machine awake for them and on a Mac it can keep the lid from stopping them.
 - **Your phone reaches them.** Directly, from anywhere, with nothing in between.
 - **Bring your own model.** Claude Code by default, or the Gemini CLI, or any of 5,559 hosted models, or Ollama on your own machine for nothing.
 
@@ -55,7 +55,7 @@
 | **A voice** | One of the machine's own, or Kyutai's Pocket TTS: 24 recorded people rather than a synthesiser, fetched on the first call, about a second a sentence on the processor. Nothing said leaves the machine |
 | **A computer** | Optional. A Linux desktop in a container with Firefox or Chromium, a terminal and a screen you can watch or take over. Each has its own filesystem, network policy and machine fingerprint, so ten bots do not look like one machine wearing ten hats |
 | **Routines** | Work it does on a schedule, reported into its own chat or into a channel |
-| **Connectors** | GitHub, Gmail, Calendar, Notion, Stripe and others, connected once and scoped per bot. botcage runs its own OAuth flows and keeps the tokens in your system keychain |
+| **Connectors** | GitHub, Gmail, Calendar, Notion, Stripe and others, connected once and scoped per bot. botato runs its own OAuth flows and keeps the tokens in your system keychain |
 | **An engine** | Which tool answers for it, chosen per bot and changeable mid-conversation |
 
 ## Rooms, not just conversations
@@ -74,23 +74,23 @@
 | **Any hosted model** | A base URL and a key you hold | 166 providers and 5,559 models, by way of [models.dev](https://models.dev) |
 | **Ollama** | Nothing at all | On your own machine, no key and no cost |
 
-The seam is [`inference.rs`](src-tauri/src/inference.rs): an engine says how to run a turn, how to read its output, how it takes a bot's connectors and which models it can be asked for. Everything else, from the roster to the sandbox to the phone, speaks botcage's own vocabulary and never learns which tool answered.
+The seam is [`inference.rs`](src-tauri/src/inference.rs): an engine says how to run a turn, how to read its output, how it takes a bot's connectors and which models it can be asked for. Everything else, from the roster to the sandbox to the phone, speaks botato's own vocabulary and never learns which tool answered.
 
-The difference that is not cosmetic is memory. Claude Code keeps a conversation on disk and resumes it by id. The Gemini CLI cannot, so botcage keeps a transcript of every bot itself and replays what fits. That is also why a bot can change engine mid-conversation and carry the thread across: the transcript belongs to botcage rather than to whatever last answered.
+The difference that is not cosmetic is memory. Claude Code keeps a conversation on disk and resumes it by id. The Gemini CLI cannot, so botato keeps a transcript of every bot itself and replays what fits. That is also why a bot can change engine mid-conversation and carry the thread across: the transcript belongs to botato rather than to whatever last answered.
 
 ## Your data stays here
 
 - **Nothing runs on anyone else's computer.** The API is bound to loopback, so no port is open on any network the machine joins.
-- **Connectors are botcage's own.** It disables claude.ai's connectors and runs its own OAuth flows, so a flow you completed once is not repeated because you changed model.
+- **Connectors are botato's own.** It disables claude.ai's connectors and runs its own OAuth flows, so a flow you completed once is not repeated because you changed model.
 - **Backups are one encrypted file**, written on a schedule to a folder you name. Point it at iCloud Drive, Dropbox or a disk you plug in. It carries no API keys, no OAuth tokens and no phone pairing, so it is not a credential store.
-- **The format is written down.** Argon2id to XChaCha20-Poly1305, the cost parameters travelling in the header and authenticated with it. [`scripts/open-backup.py`](scripts/open-backup.py) recovers a backup with nothing but Python and `cryptography`, on a machine that has never seen botcage.
+- **The format is written down.** Argon2id to XChaCha20-Poly1305, the cost parameters travelling in the header and authenticated with it. [`scripts/open-backup.py`](scripts/open-backup.py) recovers a backup with nothing but Python and `cryptography`, on a machine that has never seen botato.
 
 ## Get started
 
-1. **Download** the [latest release](https://github.com/hackyguru/botcage/releases/latest) for macOS or Linux. macOS builds are signed and notarised, so they open without warnings.
+1. **Download** the [latest release](https://github.com/hackyguru/botato/releases/latest) for macOS or Linux. macOS builds are signed and notarised, so they open without warnings.
 2. **Pick an engine.** Setup installs the Claude Code CLI for you, or point a bot at Ollama and pay nothing.
 3. **Make a bot.** Give it a name and a line about what it is for. Everything after that happens on your machine.
-4. **Optionally give it a computer.** botcage downloads and manages a container engine itself: lima and the docker CLI on macOS, rootless podman on Linux. Docker Desktop is not required.
+4. **Optionally give it a computer.** botato downloads and manages a container engine itself: lima and the docker CLI on macOS, rootless podman on Linux. Docker Desktop is not required.
 5. **Optionally pair your phone.** Scan the QR code the laptop shows.
 
 ## The phone app
@@ -126,14 +126,14 @@ Speaking QUIC needs native code, so the app needs a development build rather tha
 
 `pnpm dev:app` exists because of one macOS rule: the microphone is granted against an app bundle's stated reason for wanting it and `tauri dev` runs a bare executable with nowhere to state one. Calls can speak but not listen under `tauri dev`.
 
-**Custom speech.** Point `BOTCAGE_TTS` at a command to use Kokoro, Piper or whatever comes next, without botcage shipping a model:
+**Custom speech.** Point `BOTATO_TTS` at a command to use Kokoro, Piper or whatever comes next, without botato shipping a model:
 
 ```sh
-BOTCAGE_TTS='pocket-tts generate --voice {voice} --output - --text -'
-BOTCAGE_TTS_VOICES='Alba,Giovanni,Estelle,Charles'
+BOTATO_TTS='pocket-tts generate --voice {voice} --output - --text -'
+BOTATO_TTS_VOICES='Alba,Giovanni,Estelle,Charles'
 ```
 
-The command reads the text on stdin and may either play the audio or write it to stdout. botcage works out which by whether anything came out.
+The command reads the text on stdin and may either play the audio or write it to stdout. botato works out which by whether anything came out.
 
 Builds are produced by tagging a release. See [.github/RELEASING.md](.github/RELEASING.md).
 
@@ -147,7 +147,7 @@ Builds are produced by tagging a release. See [.github/RELEASING.md](.github/REL
 | [`mobile/`](mobile/) | The phone app and the Rust crate that gives it QUIC |
 | [`website/`](website/) | The marketing site |
 
-Worth knowing about the Rust: [`engine.rs`](src-tauri/src/engine.rs) is the *container* engine botcage installs and [`inference.rs`](src-tauri/src/inference.rs) is what answers for a bot. Different things, unfortunately similar words.
+Worth knowing about the Rust: [`engine.rs`](src-tauri/src/engine.rs) is the *container* engine botato installs and [`inference.rs`](src-tauri/src/inference.rs) is what answers for a bot. Different things, unfortunately similar words.
 
 ## Status
 
@@ -161,7 +161,7 @@ Version 0.6.0 and honest about what that means.
 | **Hosted engines** | Answered for real through Ollama over the same API a paid provider speaks, with tools. That test is in the repository |
 | **Gemini CLI** | Wired up and its flags checked against a real install. Its stream mapping is written from documentation rather than from output anyone has watched |
 
-Small local models are the honest weak point. llama3.2:3b calls a tool correctly from a clean conversation and then, once its own history contains a tool call it wrote out as prose, will happily imitate itself instead of calling anything. Bigger models do not do this and nothing in botcage can stop a model that does. The bound on that loop is twelve rounds.
+Small local models are the honest weak point. llama3.2:3b calls a tool correctly from a clean conversation and then, once its own history contains a tool call it wrote out as prose, will happily imitate itself instead of calling anything. Bigger models do not do this and nothing in botato can stop a model that does. The bound on that loop is twelve rounds.
 
 ## Why it is small
 

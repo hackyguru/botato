@@ -1,5 +1,5 @@
 /**
- * botcage's mark, on a phone.
+ * botato's mark, on a phone.
  *
  * The same bot's head the laptop draws in the corner of its sidebar and the
  * same one the app icon is cut from: an antenna, two ears, and a face. Drawn

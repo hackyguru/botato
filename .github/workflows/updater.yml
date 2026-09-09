@@ -6,7 +6,7 @@ name: Updater manifest
 # everyone but us, and the app would offer an update it cannot fetch. Pressing
 # publish is the moment the download actually exists, so that is the trigger.
 #
-# Pre-releases fire this too, which is the point: every botcage release is one,
+# Pre-releases fire this too, which is the point: every botato release is one,
 # and an updater that skipped them would never see anything.
 on:
   release:
@@ -71,5 +71,5 @@ jobs:
           fi
           cp "$RUNNER_TEMP/latest.json" latest.json
           git add latest.json
-          git commit -m "botcage $TAG"
+          git commit -m "botato $TAG"
           git push origin updater

@@ -1,13 +1,13 @@
 //! Turning what you said into words, on this machine.
 //!
-//! The webview has a speech recogniser, and botcage does not use it: on macOS
+//! The webview has a speech recogniser, and botato does not use it: on macOS
 //! it needs a packaged build to exist at all, WebKitGTK has no implementation
 //! of it, and nobody outside Apple can say whether the audio stays on the
 //! machine. All three are answered by doing it here — whisper.cpp compiled in,
 //! a model on disk, and no network involved once it is there.
 //!
 //! The model is downloaded on first use rather than shipped, which is the same
-//! bargain botcage already makes for a container engine. Fifty-odd megabytes
+//! bargain botato already makes for a container engine. Fifty-odd megabytes
 //! is a lot to put in a ten-megabyte app and nothing at all to fetch once.
 
 use std::path::PathBuf;
@@ -41,7 +41,7 @@ static LOADED: Mutex<Option<WhisperContext>> = Mutex::new(None);
 /// should outlive every utterance. But whisper's Metal backend keeps its own
 /// C++ global for the GPU device, and that one *does* have a destructor, which
 /// runs at exit and calls `ggml_abort` if buffers made from the device are
-/// still alive. Ours are, because nothing dropped them, so quitting botcage
+/// still alive. Ours are, because nothing dropped them, so quitting botato
 /// after dictating anything ends in a crash report for an app that had already
 /// decided to quit.
 ///

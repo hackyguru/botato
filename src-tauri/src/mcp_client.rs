@@ -1,9 +1,9 @@
 //! Speaking MCP as a client, for engines that cannot.
 //!
-//! botcage has had an MCP *server* since the beginning — [`crate::mcp`], the
+//! botato has had an MCP *server* since the beginning — [`crate::mcp`], the
 //! desktop handed to a bot. What it has never had is the other half. It did not
 //! need one: Claude Code and Gemini both bring their own MCP client and their
-//! own tool loop, so botcage's job was to name the servers and get out of the
+//! own tool loop, so botato's job was to name the servers and get out of the
 //! way.
 //!
 //! A hosted model brings neither. `POST /chat/completions` returns a request to
@@ -37,7 +37,7 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
-/// The version botcage's own server answers with. Naming the same one here
+/// The version botato's own server answers with. Naming the same one here
 /// keeps the two halves of this codebase talking about the same protocol.
 const PROTOCOL: &str = "2025-06-18";
 
@@ -178,7 +178,7 @@ pub struct Connection {
 impl Connection {
     /// Start a server from the same config Claude Code would have been given.
     ///
-    /// Reading the entry botcage already builds, rather than a second format,
+    /// Reading the entry botato already builds, rather than a second format,
     /// means a connector is configured once and works on every engine.
     pub fn start(config: &Value) -> Result<Self, String> {
         let command = config["command"]
@@ -224,7 +224,7 @@ impl Connection {
             json!({
                 "protocolVersion": PROTOCOL,
                 "capabilities": {},
-                "clientInfo": { "name": "botcage", "version": env!("CARGO_PKG_VERSION") },
+                "clientInfo": { "name": "botato", "version": env!("CARGO_PKG_VERSION") },
             }),
             HANDSHAKE,
         )?;
@@ -344,12 +344,12 @@ pub struct Bench {
     pub broken: Vec<(String, String)>,
 }
 
-/// Whether a bot is allowed this tool, by the list botcage already computes.
+/// Whether a bot is allowed this tool, by the list botato already computes.
 ///
 /// This is a permissions boundary, and on Claude Code it is enforced by the
 /// engine: `--allowed-tools` is what stops a bot with no computer taking a
 /// screenshot, even though the desktop server offers one to everybody. An
-/// engine where botcage runs the loop has no such argument to pass, so the
+/// engine where botato runs the loop has no such argument to pass, so the
 /// enforcement has to happen here or not at all. Not at all would mean a bot's
 /// reach quietly depended on which model it used.
 ///
@@ -372,7 +372,7 @@ pub fn permitted(allowed: &str, name: &str) -> bool {
 }
 
 impl Bench {
-    /// Start everything in the config botcage already builds for an engine, and
+    /// Start everything in the config botato already builds for an engine, and
     /// offer only what this bot is allowed.
     ///
     /// Never fails as a whole. A connector that will not start is recorded and
@@ -421,7 +421,7 @@ impl Bench {
     /// What to call a tool when talking to the model.
     ///
     /// Spelled the way Claude Code spells it — `mcp__server__tool` — so that
-    /// the allowed and denied lists botcage already computes mean the same
+    /// the allowed and denied lists botato already computes mean the same
     /// thing on every engine. A bot's permissions should not change because the
     /// thing answering for it did.
     ///
@@ -616,7 +616,7 @@ mod tests {
     #[test]
     fn tools_are_named_the_way_claude_code_names_them() {
         // The whole point: allowed_tools and denied_plugins are computed once,
-        // in botcage's vocabulary, and mean the same thing whichever engine
+        // in botato's vocabulary, and mean the same thing whichever engine
         // ends up answering.
         let mut bench = Bench::default();
         assert_eq!(
@@ -647,7 +647,7 @@ mod tests {
     ///
     /// Everything above tests the client against frames written by hand, which
     /// proves it reads what I think a server says. This proves it against a
-    /// server: botcage's own, started from the same config an engine is handed.
+    /// server: botato's own, started from the same config an engine is handed.
     /// Ignored because it needs the binary built beside it, which is true after
     /// `cargo build` and not during `cargo test` on a clean checkout.
     #[test]
@@ -658,23 +658,23 @@ mod tests {
             .parent()
             .and_then(|p| p.parent())
             .expect("the target directory")
-            .join("botcage");
+            .join("botato");
         assert!(exe.exists(), "run `cargo build` first: {}", exe.display());
 
-        let workspace = std::env::temp_dir().join("botcage-mcp-client-test");
+        let workspace = std::env::temp_dir().join("botato-mcp-client-test");
         std::fs::create_dir_all(&workspace).expect("a workspace");
 
-        // The entry botcage builds for every tool-carrying bot, verbatim.
+        // The entry botato builds for every tool-carrying bot, verbatim.
         let config = json!({
             "command": exe.display().to_string(),
             "args": ["--mcp"],
             "env": {
-                "BOTCAGE_BOT": "test",
-                "BOTCAGE_COLLEAGUES": "",
-                "BOTCAGE_WORKSPACE": workspace.display().to_string(),
-                "BOTCAGE_BRAND": "{}",
+                "BOTATO_BOT": "test",
+                "BOTATO_COLLEAGUES": "",
+                "BOTATO_WORKSPACE": workspace.display().to_string(),
+                "BOTATO_BRAND": "{}",
                 // As the app sets it for an engine with no file tools of its own.
-                "BOTCAGE_FILES": "1",
+                "BOTATO_FILES": "1",
             }
         });
 
@@ -692,7 +692,7 @@ mod tests {
             "the server offered no tools"
         );
 
-        // Named the way the rest of botcage names them, and shaped the way a
+        // Named the way the rest of botato names them, and shaped the way a
         // chat-completions request wants them.
         let names: Vec<&str> = bench
             .definitions()
@@ -720,7 +720,7 @@ mod tests {
 
         // And the whole way through to a file: the tool the app grants, the
         // name the server answers to, the folder it reads, and the text a
-        // model would be shown. Every piece of that is botcage's, which is why
+        // model would be shown. Every piece of that is botato's, which is why
         // it is worth one test that does not depend on a model agreeing to
         // call anything.
         let read = bench.call("mcp__desktop__read_file", &json!({ "path": "notes.md" }));

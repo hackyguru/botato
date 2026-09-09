@@ -2,11 +2,11 @@
 //!
 //! Claude Code and Gemini arrive with Read, Write, Glob and Grep already in
 //! hand. A hosted model arrives with nothing: it can call a function, and every
-//! function it can call is one botcage wrote. So a bot on such an engine could
+//! function it can call is one botato wrote. So a bot on such an engine could
 //! use its connectors and change its face and not open the notes it keeps —
 //! which is most of what a bot is for.
 //!
-//! These are the missing four. They are offered through botcage's own MCP
+//! These are the missing four. They are offered through botato's own MCP
 //! server, so they reach a bot down the path connectors already use, and they
 //! are named for the folder rather than the machine: this is the same directory
 //! that appears as `~/work` on a bot's desktop and as a real folder on the
@@ -16,7 +16,7 @@
 //! The boundary is the workspace, and it is enforced twice — once on the path
 //! as written, and once on where it actually landed. A bot is given its own
 //! folder, not the machine the folder is on: `Read` in Claude Code can reach
-//! anywhere the user can, and that is a decision botcage inherited rather than
+//! anywhere the user can, and that is a decision botato inherited rather than
 //! made. Making it again here, deliberately, seemed better than copying it.
 
 use std::path::{Component, Path, PathBuf};
@@ -34,7 +34,7 @@ const MOST: usize = 100_000;
 /// How many entries a listing will name before it stops counting them out.
 const MANY: usize = 400;
 
-/// What these tools are called, as the rest of botcage addresses them.
+/// What these tools are called, as the rest of botato addresses them.
 pub const NAMES: &str = "mcp__desktop__read_file,mcp__desktop__write_file,\
 mcp__desktop__list_files,mcp__desktop__find_in_files";
 
@@ -242,7 +242,7 @@ fn walk(from: &Path, at: &Path, into: &mut Vec<String>) {
     for entry in entries.flatten() {
         let path = entry.path();
         let name = path.file_name().unwrap_or_default().to_string_lossy();
-        // botcage's own bookkeeping, which is not the bot's business and would
+        // botato's own bookkeeping, which is not the bot's business and would
         // only invite it to read its own transcript back to itself.
         if name.starts_with('.') || name == "transcript.jsonl" || name.starts_with("transcript-") {
             continue;
@@ -313,7 +313,7 @@ mod tests {
     use super::*;
 
     fn folder(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("botcage-files-{name}"));
+        let dir = std::env::temp_dir().join(format!("botato-files-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("a folder");
         dir
@@ -363,7 +363,7 @@ mod tests {
         // the same move written differently, and a check on the path as typed
         // will happily wave it through.
         let dir = folder("links");
-        let outside = std::env::temp_dir().join("botcage-files-links-secret.txt");
+        let outside = std::env::temp_dir().join("botato-files-links-secret.txt");
         std::fs::write(&outside, "not yours").expect("a file outside");
 
         #[cfg(unix)]
@@ -382,16 +382,16 @@ mod tests {
         write(&dir, "a.md", "one").expect("a");
         write(&dir, "sub/b.md", "two").expect("b");
         std::fs::write(dir.join("transcript.jsonl"), "{}").expect("transcript");
-        std::fs::write(dir.join(".botcage-request.json"), "{}").expect("request");
+        std::fs::write(dir.join(".botato-request.json"), "{}").expect("request");
 
         let said = list(&dir, "").expect("a listing");
         assert!(said.contains("a.md"), "{said}");
         assert!(said.contains("sub/"), "{said}");
         assert!(said.contains("sub/b.md"), "{said}");
         // Its own transcript read back to itself is noise at best, and the
-        // request file is botcage talking to itself.
+        // request file is botato talking to itself.
         assert!(!said.contains("transcript"), "{said}");
-        assert!(!said.contains("botcage-request"), "{said}");
+        assert!(!said.contains("botato-request"), "{said}");
     }
 
     #[test]

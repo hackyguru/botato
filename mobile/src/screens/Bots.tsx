@@ -202,7 +202,7 @@ export default function Bots({
     <View style={s.fill}>
       <View style={s.head}>
         <View style={s.heading}>
-          <Text style={s.title}>botcage</Text>
+          <Text style={s.title}>botato</Text>
           <Light connected={connected} />
         </View>
         <View style={s.actions}>

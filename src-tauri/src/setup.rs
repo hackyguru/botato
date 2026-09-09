@@ -1,7 +1,7 @@
 //! Getting a new machine ready: the Claude Code CLI, its sign-in, and the
 //! container engine.
 //!
-//! botcage drives the CLI rather than shipping a model, so without it a bot
+//! botato drives the CLI rather than shipping a model, so without it a bot
 //! cannot answer at all. That made it the one thing a new user had to discover
 //! from a toast and install by hand, which is the wrong way round: the app knows
 //! whether it is there, knows how to install it, and can say what is missing.
@@ -96,7 +96,7 @@ pub fn install_claude(app: AppHandle) -> Result<String, String> {
         let _ = app.emit("claude-setup", line);
     };
 
-    let script = std::env::temp_dir().join("botcage-install-claude.sh");
+    let script = std::env::temp_dir().join("botato-install-claude.sh");
     say("Fetching the installer…");
     let fetched = Command::new("curl")
         .args(["-fsSL", "-o"])
@@ -116,7 +116,7 @@ pub fn install_claude(app: AppHandle) -> Result<String, String> {
         .arg(&script)
         .arg("stable")
         // The installer refuses to run under sudo and installs under $HOME, so
-        // it runs exactly as the person who launched botcage.
+        // it runs exactly as the person who launched botato.
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -150,11 +150,11 @@ pub fn install_claude(app: AppHandle) -> Result<String, String> {
     }
 
     // Believe the filesystem, not the exit code: the point of the step is that
-    // botcage can find the binary afterwards, and it looks in fixed places.
+    // botato can find the binary afterwards, and it looks in fixed places.
     crate::locate_claude()
         .map(|bin| bin.display().to_string())
         .ok_or_else(|| {
-            "the installer finished but botcage cannot find claude — a restart may fix it".into()
+            "the installer finished but botato cannot find claude — a restart may fix it".into()
         })
 }
 
@@ -201,7 +201,7 @@ pub fn claude_sign_in() -> Result<(), String> {
         }
     }
     Err(format!(
-        "botcage could not find a terminal to open. Run this yourself:  {command}"
+        "botato could not find a terminal to open. Run this yourself:  {command}"
     ))
 }
 

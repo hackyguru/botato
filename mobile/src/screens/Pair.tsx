@@ -73,7 +73,7 @@ export default function Pair({ onPaired }: { onPaired: (pairing: Pairing) => voi
     try {
       payload = JSON.parse(raw) as Scanned;
     } catch {
-      setError("that doesn't look like a botcage code");
+      setError("that doesn't look like a botato code");
       return;
     }
     if (!payload?.peer || !payload?.code) {
@@ -92,7 +92,7 @@ export default function Pair({ onPaired }: { onPaired: (pairing: Pairing) => voi
     if (text.trim().length < 20) return;
     try {
       const info = await probe(text.trim());
-      setFound(`botcage ${info.version}`);
+      setFound(`botato ${info.version}`);
     } catch (err) {
       setError(String(err instanceof Error ? err.message : err));
     }
@@ -116,7 +116,7 @@ export default function Pair({ onPaired }: { onPaired: (pairing: Pairing) => voi
         <View style={s.below}>
           <Text style={s.title}>Scan the square on your laptop</Text>
           <Text style={s.blurb}>
-            botcage → account menu → Settings → Phone. Turn on phone access, then point the camera
+            botato → account menu → Settings → Phone. Turn on phone access, then point the camera
             at what it shows.
           </Text>
 
@@ -124,7 +124,7 @@ export default function Pair({ onPaired }: { onPaired: (pairing: Pairing) => voi
           {error ? <Text style={s.error}>{error}</Text> : null}
           {permission && !permission.granted ? (
             <Text style={s.error}>
-              botcage needs the camera to read the code. You can type it instead.
+              botato needs the camera to read the code. You can type it instead.
             </Text>
           ) : null}
 
@@ -143,9 +143,9 @@ export default function Pair({ onPaired }: { onPaired: (pairing: Pairing) => voi
           <View style={s.eye} />
           <View style={s.eye} />
         </View>
-        <Text style={s.title}>Connect to your botcage</Text>
+        <Text style={s.title}>Connect to your botato</Text>
         <Text style={s.blurb}>
-          On the laptop: botcage → account menu → Settings → Phone. Turn on phone access, and it
+          On the laptop: botato → account menu → Settings → Phone. Turn on phone access, and it
           shows this machine's name and a code. Spaces don't matter.
         </Text>
 

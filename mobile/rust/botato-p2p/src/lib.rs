@@ -1,4 +1,4 @@
-//! The phone's half of botcage's peer-to-peer link.
+//! The phone's half of botato's peer-to-peer link.
 //!
 //! A phone cannot reach a laptop that sits behind a home router, and JavaScript
 //! cannot speak QUIC or punch holes through a NAT — so this is the one piece of
@@ -8,7 +8,7 @@
 //!
 //! It knows nothing about bots, messages or settings. The same JavaScript that
 //! talks to a laptop over the local network talks to it through here, so the
-//! app has one implementation of botcage and two ways of reaching it.
+//! app has one implementation of botato and two ways of reaching it.
 //!
 //! Calls block rather than being async across the FFI boundary. Swift and
 //! Kotlin both call them off the main thread (Expo's async functions run on a
@@ -23,7 +23,7 @@ uniffi::setup_scaffolding!();
 
 /// Must match the desktop. A mismatch is refused during the QUIC handshake
 /// rather than becoming a confusing error later.
-const ALPN: &[u8] = b"botcage/1";
+const ALPN: &[u8] = b"botato/1";
 
 /// Long enough to cross a relay on a bad mobile connection, short enough that a
 /// laptop that is actually asleep is reported rather than waited on.
@@ -44,7 +44,7 @@ const SILENCE: Duration = Duration::from_secs(45);
 /// generated bindings do not compile. Found by building for Android.
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 pub enum P2pError {
-    /// The laptop could not be reached: asleep, offline, or not running botcage.
+    /// The laptop could not be reached: asleep, offline, or not running botato.
     #[error("{reason}")]
     Unreachable { reason: String },
     /// It was reached, but something in between went wrong.
@@ -320,7 +320,7 @@ fn parse_address(text: &str) -> Result<iroh::EndpointAddr, P2pError> {
     }
     text.parse::<iroh::EndpointId>()
         .map(Into::into)
-        .map_err(|_| unreachable("that is not a botcage address"))
+        .map_err(|_| unreachable("that is not a botato address"))
 }
 
 /// The desktop speaks ordinary HTTP, so this speaks it too rather than
@@ -331,7 +331,7 @@ fn http_request(method: &str, path: &str, token: Option<&str>, body: Option<&str
         .map(|t| format!("Authorization: Bearer {t}\r\n"))
         .unwrap_or_default();
     format!(
-        "{method} {path} HTTP/1.1\r\nHost: botcage\r\n{auth}Content-Type: application/json\r\n\
+        "{method} {path} HTTP/1.1\r\nHost: botato\r\n{auth}Content-Type: application/json\r\n\
          Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
     )
@@ -423,7 +423,7 @@ mod tests {
     }
 
     /// The whole phone-side path against a stand-in for the desktop: an iroh
-    /// endpoint with botcage's ALPN, splicing streams to a local HTTP server.
+    /// endpoint with botato's ALPN, splicing streams to a local HTTP server.
     /// Everything above this line is parsing; this is the part that either
     /// works on a phone or does not.
     #[test]
@@ -473,7 +473,7 @@ mod tests {
             }
         });
 
-        // The desktop half, as botcage implements it.
+        // The desktop half, as botato implements it.
         let laptop_id = runtime().block_on(async move {
             let endpoint = iroh::Endpoint::builder(iroh::endpoint::presets::N0)
                 .alpns(vec![ALPN.to_vec()])

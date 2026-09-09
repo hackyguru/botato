@@ -1,4 +1,4 @@
-// The iOS side of botcage's peer-to-peer link.
+// The iOS side of botato's peer-to-peer link.
 //
 // Everything here is plumbing: the Rust library below does the work, and this
 // hands its results to JavaScript. Requests run on Expo's background queue, and
@@ -6,12 +6,12 @@
 import ExpoModulesCore
 
 private final class Frames: EventSink {
-  private weak var module: BotcageP2pModule?
+  private weak var module: BotatoP2pModule?
   /// Which attempt this sink belongs to. A stream that is still unwinding must
   /// not report anything about the one that replaced it.
   private let generation: Int
 
-  init(module: BotcageP2pModule, generation: Int) {
+  init(module: BotatoP2pModule, generation: Int) {
     self.module = module
     self.generation = generation
   }
@@ -25,7 +25,7 @@ private final class Frames: EventSink {
   }
 }
 
-public class BotcageP2pModule: Module {
+public class BotatoP2pModule: Module {
   private var peer: Peer?
   /// Counts attempts to open the event stream, so a stale one can be ignored
   /// rather than blocking its own replacement.
@@ -42,7 +42,7 @@ public class BotcageP2pModule: Module {
   }
 
   public func definition() -> ModuleDefinition {
-    Name("BotcageP2p")
+    Name("BotatoP2p")
     Events("frame", "state")
 
     AsyncFunction("connect") { (address: String) -> String in
@@ -91,7 +91,7 @@ public class BotcageP2pModule: Module {
           self.emit(connected: false, from: mine)
         }
       }
-      thread.name = "botcage.p2p.events"
+      thread.name = "botato.p2p.events"
       thread.start()
     }
 
@@ -107,14 +107,14 @@ public class BotcageP2pModule: Module {
 
 private final class NotConnected: Exception {
   override var reason: String {
-    "this phone is not connected to a botcage yet"
+    "this phone is not connected to a botato yet"
   }
 }
 
 /// Carries a Rust error's own words across to JavaScript.
 ///
 /// Without this, Expo wraps anything it does not recognise as
-/// `UnexpectedException: BotcageP2p.P2pError.Unreachable(reason: "…")` — the
+/// `UnexpectedException: BotatoP2p.P2pError.Unreachable(reason: "…")` — the
 /// sentence is in there, buried in a type name and a file position that mean
 /// nothing to whoever is holding the phone.
 private final class LinkFailed: Exception {

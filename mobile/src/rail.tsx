@@ -120,7 +120,7 @@ const s = StyleSheet.create({
      what is underneath it stops looking right the moment anything changes
      there. */
   rail: { width: RAIL_W, backgroundColor: T.bg },
-  /* Level with the "botcage" beside it — by the head, not by the box. The
+  /* Level with the "botato" beside it — by the head, not by the box. The
      mark's head sits at 56% of its own height (the antenna is above it), so
      aligning the two boxes would hang the face nine points below the word. It
      is drawn big enough to hold its own against a bot's face two rows down: at

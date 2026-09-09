@@ -1,6 +1,6 @@
-# botcage for phones
+# botato for phones
 
-A client for a botcage running on your own machine. It holds no state of its
+A client for a botato running on your own machine. It holds no state of its
 own: the laptop answers every request with the same code its own window uses, so
 the phone gets whatever the desktop can do rather than a reimplementation that
 drifts.
@@ -72,6 +72,6 @@ laptop job; the phone shows which are connected.
 | `App.tsx` | Screen switching, and the local copy of the laptop's state |
 | `src/screens/` | Pair, Bots, Chat, BotSettings |
 
-`src/api.ts` knows the transport and nothing about what botcage can do — a call
+`src/api.ts` knows the transport and nothing about what botato can do — a call
 is `POST /api/<action>`, and the action names are the desktop's. Adding a feature
 there usually needs no change to this file at all.

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "botcage",
+  "productName": "botato",
   "version": "0.7.0",
-  "identifier": "com.hackyguru.botcage",
+  "identifier": "com.hackyguru.botato",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "botcage",
+        "title": "botato",
         "width": 1100,
         "height": 760,
         "minWidth": 520,
@@ -60,14 +60,14 @@
     "deep-link": {
       "desktop": {
         "schemes": [
-          "botcage"
+          "botato"
         ]
       }
     },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI5QjRFNkIyQjJGOTRBNTEKUldSUlN2bXlzdWEwdVdJbDBXM1F2eDNyaXRLS3lZNFhmMElIWW1QbjJtSk1vRFpxbmdVekxCbW4K",
       "endpoints": [
-        "https://raw.githubusercontent.com/hackyguru/botcage/updater/latest.json"
+        "https://raw.githubusercontent.com/hackyguru/botato/updater/latest.json"
       ]
     }
   }

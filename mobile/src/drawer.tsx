@@ -1,7 +1,7 @@
 /**
  * The list beside the conversation, the way Discord has it on a phone.
  *
- * botcage had two full screens and a back button: the list, then the room,
+ * botato had two full screens and a back button: the list, then the room,
  * then back to the list. That is the iOS stack, and it makes the list somewhere
  * you *go* — which is wrong for a thing you glance at twenty times an hour to
  * see who is talking. Discord makes it a drawer the conversation slides off,

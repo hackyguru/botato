@@ -1,10 +1,10 @@
 //! An encrypted copy of everything that cannot be downloaded again.
 //!
-//! botcage keeps about half a gigabyte on disk and almost none of it matters:
+//! botato keeps about half a gigabyte on disk and almost none of it matters:
 //! the speech models, the container engine and the model catalogue are all
 //! fetched, and fetched again just as easily. What cannot be fetched again is
 //! small — a few megabytes of conversations, memory files, workspaces and
-//! routines — and it is the only part of botcage that is genuinely the user's.
+//! routines — and it is the only part of botato that is genuinely the user's.
 //!
 //! It is also in a worse place than anyone would guess. The conversations you
 //! see in the window live in the webview's `localStorage`, which on macOS is a
@@ -26,17 +26,17 @@
 //! it. The passphrase can be kept in the keychain for the unattended runs —
 //! convenience there, portability in the file.
 //!
-//! ## Openable without botcage
+//! ## Openable without botato
 //!
 //! An encrypted backup you can only read with the program that died is not a
 //! backup. So the format is written down here and in the README, the header is
 //! plain and fixed, and what comes out of the decryption is an ordinary
 //! `.tar.gz` that any machine can open. Sixty lines of Python would recover a
-//! conversation from one of these with botcage uninstalled.
+//! conversation from one of these with botato uninstalled.
 //!
 //! ```text
 //! offset  size  what
-//!      0     8  magic, b"BOTCAGE\x01"
+//!      0     8  magic, b"BOTATO\x01"
 //!      8     1  key derivation: 1 = argon2id
 //!      9     4  memory cost, KiB, little-endian u32
 //!     13     4  time cost, little-endian u32
@@ -56,14 +56,21 @@ use chacha20poly1305::aead::{Aead, KeyInit, Payload};
 use chacha20poly1305::{XChaCha20Poly1305, XNonce};
 use rand::RngCore;
 
-const MAGIC: &[u8; 8] = b"BOTCAGE\x01";
+/// The name, padded to seven, then the format version.
+const MAGIC: &[u8; 8] = b"BOTATO\0\x01";
+
+/// What the same format was called before the rename. Written by no version
+/// any more, still read by this one: a backup is how somebody carries their
+/// bots across the rename, so refusing the old magic would strand exactly the
+/// files that exist to be rescued.
+const MAGIC_WAS: &[u8; 8] = b"BOTCAGE\x01";
 const ARGON2ID: u8 = 1;
 const HEADER: usize = 58;
 
 /// Argon2id at roughly a tenth of a second on this decade's laptop.
 ///
 /// Chosen to be felt but not noticed when a backup is written by a timer, and
-/// to make a guess at the passphrase cost real time. A future botcage can raise
+/// to make a guess at the passphrase cost real time. A future botato can raise
 /// these — the numbers travel in the header, so an old file still opens.
 const MEMORY_KIB: u32 = 64 * 1024;
 const PASSES: u32 = 3;
@@ -83,9 +90,9 @@ const KEEP: &[&str] = &["bots", "plugins.json"];
 /// `p2p-key` is this machine's identity and `paired-devices.json` holds what a
 /// phone was given to prove itself. Both are secrets, and the user asked for a
 /// backup that is not a credential store — so they stay behind, and restoring
-/// means pairing a phone again. `.botcage-request.json` is one turn's prompt,
+/// means pairing a phone again. `.botato-request.json` is one turn's prompt,
 /// mid-flight, and belongs to nobody.
-const NEVER: &[&str] = &["p2p-key", "paired-devices.json", ".botcage-request.json"];
+const NEVER: &[&str] = &["p2p-key", "paired-devices.json", ".botato-request.json"];
 
 /// Make one archive.
 ///
@@ -108,11 +115,11 @@ pub fn write(
     // Named for when it was taken, so a folder of them sorts into an order and
     // the newest is obvious without opening anything.
     let at = stamp();
-    let path = into.join(format!("botcage-{at}.backup"));
+    let path = into.join(format!("botato-{at}.backup"));
 
     // Written beside and moved into place, so a backup interrupted halfway is
     // not left looking like a backup.
-    let part = into.join(format!("botcage-{at}.part"));
+    let part = into.join(format!("botato-{at}.part"));
     std::fs::write(&part, &sealed).map_err(|e| format!("could not write the backup: {e}"))?;
     std::fs::rename(&part, &path).map_err(|e| format!("could not finish the backup: {e}"))?;
     Ok(path)
@@ -225,12 +232,12 @@ fn seal(plain: &[u8], passphrase: &str) -> Result<Vec<u8>, String> {
 /// that wrote the state without the workspaces would leave a roster of bots
 /// whose memory had gone.
 pub fn read(sealed: &[u8], passphrase: &str) -> Result<Restored, String> {
-    if sealed.len() < HEADER || &sealed[..8] != MAGIC {
-        return Err("that is not a botcage backup".into());
+    if sealed.len() < HEADER || (&sealed[..8] != MAGIC && &sealed[..8] != MAGIC_WAS) {
+        return Err("that is not a botato backup".into());
     }
     let header = &sealed[..HEADER];
     if header[8] != ARGON2ID {
-        return Err("this backup was made by a later botcage than this one".into());
+        return Err("this backup was made by a later botato than this one".into());
     }
     let memory = u32::from_le_bytes(header[9..13].try_into().unwrap());
     let passes = u32::from_le_bytes(header[13..17].try_into().unwrap());
@@ -326,7 +333,7 @@ fn within(root: &Path, rel: &Path) -> Result<PathBuf, String> {
             std::path::Component::CurDir => {}
             _ => {
                 return Err(format!(
-                    "this backup wants to write outside botcage's folder ({}), which botcage \
+                    "this backup wants to write outside botato's folder ({}), which botato \
                      will not do",
                     rel.display()
                 ))
@@ -347,7 +354,7 @@ fn derive(
     // it, a hostile backup could name four terabytes of memory and take the
     // app down on the way to failing.
     if memory > 1024 * 1024 || passes > 32 || lanes > 16 || lanes == 0 {
-        return Err("this backup asks for more work than botcage will do".into());
+        return Err("this backup asks for more work than botato will do".into());
     }
     let params = argon2::Params::new(memory, passes, lanes, Some(32))
         .map_err(|e| format!("could not set up the key: {e}"))?;
@@ -403,7 +410,7 @@ pub fn prune(folder: &Path, keep: usize) -> usize {
         let Some(name) = path.file_name().map(|n| n.to_string_lossy().into_owned()) else {
             continue;
         };
-        if !name.starts_with("botcage-") {
+        if !name.starts_with("botato-") {
             continue;
         }
         if name.ends_with(".backup") {
@@ -441,13 +448,13 @@ mod tests {
     }
 
     fn a_folder(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("botcage-backup-{name}"));
+        let dir = std::env::temp_dir().join(format!("botato-backup-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("a folder");
         dir
     }
 
-    /// A machine's worth of botcage, in miniature.
+    /// A machine's worth of botato, in miniature.
     fn a_machine(name: &str) -> PathBuf {
         let dir = a_folder(name);
         std::fs::create_dir_all(dir.join("bots/b1/tasks")).expect("a bot");
@@ -459,7 +466,7 @@ mod tests {
         // The parts that must not travel.
         std::fs::write(dir.join("p2p-key"), "this machine's identity").expect("key");
         std::fs::write(dir.join("paired-devices.json"), "phone tokens").expect("devices");
-        std::fs::write(dir.join("bots/b1/.botcage-request.json"), "mid-flight").expect("req");
+        std::fs::write(dir.join("bots/b1/.botato-request.json"), "mid-flight").expect("req");
 
         // And the parts that are only downloads.
         std::fs::create_dir_all(dir.join("speech")).expect("speech");
@@ -529,7 +536,7 @@ mod tests {
             let name = path.display().to_string();
             assert!(!name.contains("p2p-key"), "the machine identity travelled");
             assert!(!name.contains("paired-devices"), "phone tokens travelled");
-            assert!(!name.contains(".botcage-request"), "a live turn travelled");
+            assert!(!name.contains(".botato-request"), "a live turn travelled");
             assert!(
                 !String::from_utf8_lossy(body).contains("phone tokens"),
                 "a secret travelled inside {name}"
@@ -580,10 +587,10 @@ mod tests {
     fn something_that_is_not_a_backup_is_named_as_such() {
         assert!(read(b"", "pass")
             .unwrap_err()
-            .contains("not a botcage backup"));
+            .contains("not a botato backup"));
         assert!(read(b"hello there, this is a text file", "pass")
             .unwrap_err()
-            .contains("not a botcage backup"));
+            .contains("not a botato backup"));
     }
 
     #[test]
@@ -627,26 +634,26 @@ mod tests {
     fn only_the_newest_few_are_kept() {
         let dir = a_folder("prune");
         for name in [
-            "botcage-2026-08-20-0900.backup",
-            "botcage-2026-08-21-0900.backup",
-            "botcage-2026-08-22-0900.backup",
-            "botcage-2026-08-23-0900.backup",
+            "botato-2026-08-20-0900.backup",
+            "botato-2026-08-21-0900.backup",
+            "botato-2026-08-22-0900.backup",
+            "botato-2026-08-23-0900.backup",
         ] {
             std::fs::write(dir.join(name), b"x").expect("a backup");
         }
         // Something else living in the same folder is not ours to delete.
         std::fs::write(dir.join("notes.txt"), b"mine").expect("a note");
         // A write that died before its rename, which nothing will ever finish.
-        std::fs::write(dir.join("botcage-2026-08-19-0900.part"), b"half").expect("a part");
+        std::fs::write(dir.join("botato-2026-08-19-0900.part"), b"half").expect("a part");
 
         assert_eq!(prune(&dir, 2), 2);
         assert!(
-            !dir.join("botcage-2026-08-19-0900.part").exists(),
+            !dir.join("botato-2026-08-19-0900.part").exists(),
             "an abandoned half-written backup was left behind"
         );
-        assert!(dir.join("botcage-2026-08-23-0900.backup").exists());
-        assert!(dir.join("botcage-2026-08-22-0900.backup").exists());
-        assert!(!dir.join("botcage-2026-08-20-0900.backup").exists());
+        assert!(dir.join("botato-2026-08-23-0900.backup").exists());
+        assert!(dir.join("botato-2026-08-22-0900.backup").exists());
+        assert!(!dir.join("botato-2026-08-20-0900.backup").exists());
         assert!(
             dir.join("notes.txt").exists(),
             "pruning took someone else's file"
@@ -670,7 +677,7 @@ mod tests {
         let name = path.file_name().unwrap().to_string_lossy().into_owned();
 
         assert!(
-            name.starts_with("botcage-") && name.ends_with(".backup"),
+            name.starts_with("botato-") && name.ends_with(".backup"),
             "{name}"
         );
         // No half-written file left behind.

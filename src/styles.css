@@ -6207,7 +6207,7 @@ button.learn-badge--open:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* A model whose provider botcage has no key for. Shown, because knowing it
+/* A model whose provider botato has no key for. Shown, because knowing it
    exists is most of the value; marked, because picking it needs one more step. */
 .model-row__locked {
   flex: 0 0 auto;
@@ -6607,7 +6607,7 @@ button.learn-badge--open:hover {
 }
 
 /* The name of the section you are in, which is what the window is showing —
-   "botcage settings" was true of every one of them and told you nothing about
+   "botato settings" was true of every one of them and told you nothing about
    which. */
 .settings__title {
   margin: 0;
@@ -8760,7 +8760,7 @@ label.setting {
 
 /* A checkbox, because this is not a setting.
  *
- * Everywhere else in botcage a boolean is a switch, and a switch is the right
+ * Everywhere else in botato a boolean is a switch, and a switch is the right
  * shape for something you turn on and off again — working hours, notifications.
  * Agreeing to terms is a statement you make once, and the control people have
  * been trained to read as "I agree" is a box with a tick in it. */
@@ -8810,7 +8810,7 @@ label.setting {
 }
 
 /* The line that answers "is this done?" — a dot whose colour is the whole
-   status, and text that says what botcage actually found. */
+   status, and text that says what botato actually found. */
 .setup__check {
   display: flex;
   gap: 10px;

@@ -70,9 +70,9 @@ pub struct Mirror {
 
 /// Where the mirror lives, for the process that owns the app.
 ///
-/// The MCP server is not that process — it is `botcage --mcp`, started with
+/// The MCP server is not that process — it is `botato --mcp`, started with
 /// its identity in the environment — so everything on the reading side takes
-/// the path explicitly and the server is told it in `BOTCAGE_ROOMS`, the way
+/// the path explicitly and the server is told it in `BOTATO_ROOMS`, the way
 /// it is told its workspace.
 pub fn mirror_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app
@@ -259,7 +259,7 @@ mod tests {
     }
 
     fn workspace(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("botcage-rooms-{name}"));
+        let dir = std::env::temp_dir().join(format!("botato-rooms-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("workspace");
         dir

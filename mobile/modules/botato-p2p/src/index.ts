@@ -1,9 +1,9 @@
 /**
- * The phone's peer-to-peer link to a botcage.
+ * The phone's peer-to-peer link to a botato.
  *
  * Deliberately shaped like the HTTP client it stands in for: a request in, a
  * status and a body out, and a stream of frames. The app then has one idea of
- * what botcage is and two ways of reaching it — over the local network, or
+ * what botato is and two ways of reaching it — over the local network, or
  * from anywhere at all.
  */
 import { NativeModule, requireNativeModule } from "expo";
@@ -24,7 +24,7 @@ export interface P2pEvents {
   state: (event: { connected: boolean }) => void;
 }
 
-declare class BotcageP2pModule extends NativeModule<P2pEvents> {
+declare class BotatoP2pModule extends NativeModule<P2pEvents> {
   /** Open this phone's endpoint and note which laptop to talk to. Returns this
    *  phone's own identity. The address is a full one at pairing time, or the
    *  laptop's public key afterwards. */
@@ -37,4 +37,4 @@ declare class BotcageP2pModule extends NativeModule<P2pEvents> {
   isConnected(): boolean;
 }
 
-export default requireNativeModule<BotcageP2pModule>("BotcageP2p");
+export default requireNativeModule<BotatoP2pModule>("BotatoP2p");

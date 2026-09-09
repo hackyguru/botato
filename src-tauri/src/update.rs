@@ -1,7 +1,7 @@
-//! Whether there is a newer botcage than this one.
+//! Whether there is a newer botato than this one.
 //!
 //! GitHub's releases list is the whole source, rather than `releases/latest`.
-//! botcage is alpha and every release is published as a pre-release, which
+//! botato is alpha and every release is published as a pre-release, which
 //! `releases/latest` excludes by definition — pointed there, this would answer
 //! 404 for ever and nobody would be offered an update again.
 //!
@@ -14,9 +14,9 @@
 //! Installing is the updater plugin's job, not this module's. What lives here
 //! is the question asked at launch — is there a newer one — and the question
 //! asked before offering to install it, which is whether this particular copy
-//! of botcage is one that can replace itself at all. See `update_installable`.
+//! of botato is one that can replace itself at all. See `update_installable`.
 //!
-//! Through curl, for the same reason the rest of botcage does: it is on every
+//! Through curl, for the same reason the rest of botato does: it is on every
 //! machine, and an app bundle started by the system has a PATH of four
 //! directories, all of which contain it.
 
@@ -28,11 +28,11 @@ use tauri::{AppHandle, Manager};
 
 /// Newest first, and one page is plenty: the answer is always in the first
 /// few, and asking for more only makes the reply bigger.
-const RELEASES: &str = "https://api.github.com/repos/hackyguru/botcage/releases?per_page=20";
+const RELEASES: &str = "https://api.github.com/repos/hackyguru/botato/releases?per_page=20";
 
 /// Where somebody is sent to fetch it. The list rather than `latest`, for the
 /// same reason as above: with only pre-releases published, `latest` is a 404.
-const RELEASES_PAGE: &str = "https://github.com/hackyguru/botcage/releases";
+const RELEASES_PAGE: &str = "https://github.com/hackyguru/botato/releases";
 
 /// How long an answer stays good. The unauthenticated API allows sixty calls
 /// an hour per address; this asks four times a day at most, and a release
@@ -140,11 +140,11 @@ fn ask() -> Result<(String, String), String> {
     best(&body).ok_or_else(|| "no releases in the answer".to_string())
 }
 
-/// Whether this copy of botcage can install an update over itself.
+/// Whether this copy of botato can install an update over itself.
 ///
 /// Not every install can, and the ones that cannot must not be offered a
 /// button that fails. A .deb or a .rpm belongs to the system package manager:
-/// its files are root-owned, its version is recorded in a database botcage has
+/// its files are root-owned, its version is recorded in a database botato has
 /// no business writing to, and replacing them behind apt's back is how a
 /// machine ends up with a package it can no longer upgrade. Those are sent to
 /// the release page, which is the honest answer for them.
@@ -263,7 +263,7 @@ mod tests {
         })
     }
 
-    /// The whole point of the change: every botcage release is marked as a
+    /// The whole point of the change: every botato release is marked as a
     /// pre-release, so one that is ignored is one nobody is ever offered.
     #[test]
     fn a_prerelease_is_still_an_update() {

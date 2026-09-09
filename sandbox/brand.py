@@ -3,7 +3,7 @@
 
 Generated per container at boot rather than shipped as a static asset, so each
 bot's screen carries its own name and accent colour — and so a glance at a
-screenshot tells you whose machine you are looking at, and that it is a botcage
+screenshot tells you whose machine you are looking at, and that it is a botato
 sandbox rather than someone's real desktop.
 """
 
@@ -92,7 +92,7 @@ def build():
     canvas.paste(
         Image.new("RGB", (width, height), WORDMARK),
         (0, 0),
-        watermark((width, height), "botcage"),
+        watermark((width, height), "botato"),
     )
 
     draw = ImageDraw.Draw(canvas)
@@ -102,15 +102,15 @@ def build():
                      centre_x + mark // 2, centre_y + mark // 2), accent)
 
     title = font(BOLD, max(28, width // 30))
-    draw.text((centre_x, centre_y + mark * 0.85), bot or "botcage",
+    draw.text((centre_x, centre_y + mark * 0.85), bot or "botato",
               font=title, fill=WORDMARK, anchor="mm")
 
     caption = font(REGULAR, max(14, width // 82))
-    subtitle = "sandboxed desktop · botcage" if bot else "sandboxed desktop"
+    subtitle = "sandboxed desktop · botato" if bot else "sandboxed desktop"
     draw.text((centre_x, centre_y + mark * 0.85 + max(28, width // 30) * 1.15),
               subtitle, font=caption, fill=SUBDUED, anchor="mm")
 
-    target = os.path.expanduser("~/.cache/botcage/wallpaper.png")
+    target = os.path.expanduser("~/.cache/botato/wallpaper.png")
     os.makedirs(os.path.dirname(target), exist_ok=True)
     canvas.save(target)
     print(target)

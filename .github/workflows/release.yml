@@ -143,9 +143,9 @@ jobs:
           # notes below say so rather than letting people find out.
         with:
           tagName: ${{ github.event.inputs.tag || github.ref_name }}
-          releaseName: botcage ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: botato ${{ github.event.inputs.tag || github.ref_name }}
           releaseDraft: true
-          # Every release is a pre-release. botcage is alpha: the version
+          # Every release is a pre-release. botato is alpha: the version
           # number is not a promise, and GitHub's "Latest release" badge is —
           # it is the one people download without reading anything else. The
           # in-app update check reads the releases list rather than
@@ -155,7 +155,7 @@ jobs:
           releaseBody: |
             > ## Alpha software, no warranty
             >
-            > botcage is in **alpha** and every release is a pre-release. It is
+            > botato is in **alpha** and every release is a pre-release. It is
             > provided **as is**, without warranty of any kind — expect bugs,
             > breaking changes between versions, and data that does not survive
             > an upgrade. Bots run commands, spend money against your own API
@@ -170,11 +170,11 @@ jobs:
 
             | You have | Download |
             | --- | --- |
-            | Mac, Apple silicon (M1–M4) | `botcage_*_aarch64.dmg` |
-            | Mac, Intel | `botcage_*_x64.dmg` |
-            | Debian, Ubuntu, Mint | `botcage_*_amd64.deb` |
-            | Fedora, RHEL, openSUSE | `botcage-*.x86_64.rpm` |
-            | Any other Linux | `botcage_*_amd64.AppImage` |
+            | Mac, Apple silicon (M1–M4) | `botato_*_aarch64.dmg` |
+            | Mac, Intel | `botato_*_x64.dmg` |
+            | Debian, Ubuntu, Mint | `botato_*_amd64.deb` |
+            | Fedora, RHEL, openSUSE | `botato-*.x86_64.rpm` |
+            | Any other Linux | `botato_*_amd64.AppImage` |
             | Linux on ARM — a Raspberry Pi, an ARM server, Asahi on a Mac | the same three, `arm64` / `aarch64` |
 
             Not sure which Mac you have?  → menu → About This Mac. Anything with
@@ -185,7 +185,7 @@ jobs:
 
             ## Before it will run
 
-            botcage needs the **Claude Code CLI** installed and signed in — it
+            botato needs the **Claude Code CLI** installed and signed in — it
             drives that rather than shipping a model of its own:
 
             ```sh
@@ -198,12 +198,12 @@ jobs:
             ## Giving a bot its own computer
 
             Optional, and off by default. Switch on **Own computer** in a bot's
-            settings and botcage sets up a container engine itself. The Linux
+            settings and botato sets up a container engine itself. The Linux
             desktop it runs is built on first use and takes a few minutes.
 
             ## The phone app
 
-            Not in this release. botcage has an iOS and Android client that
+            Not in this release. botato has an iOS and Android client that
             reaches your laptop directly, but neither ships here — an iPhone
             has no install path for a file attached to a release, and the
             Android build is not something to hand out signed with a debug key.

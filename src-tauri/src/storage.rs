@@ -1,4 +1,4 @@
-//! What botcage has put on this disk, and how to get it back.
+//! What botato has put on this disk, and how to get it back.
 //!
 //! Everything here is downloaded or built rather than written by a person: a
 //! speech model, a container engine, a desktop image, a container per bot.
@@ -32,7 +32,7 @@ pub struct StorageItem {
     /// left behind by a bot that has since been deleted.
     pub label: Option<String>,
     pub bytes: u64,
-    /// False for things botcage will not throw away on a button: a bot's own
+    /// False for things botato will not throw away on a button: a bot's own
     /// files go when the bot does, and not before.
     pub removable: bool,
     /// Inside the engine's disk rather than on this one. Counted separately so
@@ -93,7 +93,7 @@ fn item(id: &str, kind: &str, bytes: u64, removable: bool) -> StorageItem {
     }
 }
 
-/// Everything botcage is holding, largest first.
+/// Everything botato is holding, largest first.
 ///
 /// The bot ids come from the window because that is where the roster lives.
 /// They are used for two things: naming each bot's own files, and working out
@@ -219,7 +219,7 @@ mod tests {
 
     #[test]
     fn a_folder_is_the_sum_of_what_is_in_it() {
-        let dir = std::env::temp_dir().join(format!("botcage-storage-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("botato-storage-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("deep")).unwrap();
         std::fs::write(dir.join("one"), vec![0u8; 100_000]).unwrap();
@@ -242,7 +242,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn a_link_counts_as_nothing() {
-        let dir = std::env::temp_dir().join(format!("botcage-links-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("botato-links-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("real"), vec![0u8; 64_000]).unwrap();

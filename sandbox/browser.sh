@@ -15,7 +15,7 @@ case "${BROWSER_ENGINE:-chromium}" in
   firefox)
     # Firefox takes its advertised language from a pref rather than a flag, so
     # the profile has to carry it or it announces en-US whatever the machine is.
-    PROFILE="$HOME/.mozilla/botcage"
+    PROFILE="$HOME/.mozilla/botato"
     mkdir -p "$PROFILE"
     if [ -n "${BROWSER_LANG:-}" ]; then
       printf 'user_pref("intl.accept_languages", "%s,%s");\n' \

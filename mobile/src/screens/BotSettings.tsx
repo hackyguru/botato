@@ -494,7 +494,7 @@ function engineNote(bot: Bot, engines: EngineInfo[]): string {
   const chosen = engines.find((info) => info.key === bot.engine);
   const lines: string[] = [];
   if (chosen && !chosen.ownsTranscript) {
-    lines.push(`${chosen.name} can't resume a conversation, so botcage keeps this thread on the laptop and sends it each turn.`);
+    lines.push(`${chosen.name} can't resume a conversation, so botato keeps this thread on the laptop and sends it each turn.`);
   }
   for (const info of engines) {
     if (!info.ready.usable) lines.push(`${info.name}: ${info.ready.missing ?? "not available"}`);

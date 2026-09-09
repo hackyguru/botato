@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="/src/styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>botcage</title>
+    <title>botato</title>
     <script type="module" src="/src/main.ts" defer></script>
   </head>
 
@@ -181,10 +181,10 @@
         <div class="sidebar__head" data-tauri-drag-region="deep">
           <!-- The app's own mark, drawn by the same generator its bots are.
                It was a hand-drawn robot head living outside the face system,
-               which meant the one character that represents botcage was the one
+               which meant the one character that represents botato was the one
                character that could not be part of the family — and could never
                react to anything, being a static path. -->
-          <span class="brand" title="botcage">
+          <span class="brand" title="botato">
             <span class="brand__mark" id="brand-mark"></span>
           </span>
           <button class="icon-btn" id="btn-new" title="New bot or server" aria-label="New bot or server" aria-haspopup="menu">
@@ -202,7 +202,7 @@
         <div class="sidebar__foot">
           <button class="foot-row" id="btn-account" aria-haspopup="menu">
             <span class="foot-avatar" id="account-initial">·</span>
-            <span class="foot-label" id="account-name">botcage</span>
+            <span class="foot-label" id="account-name">botato</span>
           </button>
         </div>
       </aside>
@@ -1140,7 +1140,7 @@
 
               <div class="setting">
                 <span class="setting__label">Sandbox image
-                  <span class="setting__hint" id="app-image-note">botcage/desktop:1</span>
+                  <span class="setting__hint" id="app-image-note">botato/desktop:1</span>
                 </span>
                 <button type="button" class="chip" id="app-rebuild-image"><span>Rebuild</span></button>
               </div>
@@ -1163,7 +1163,7 @@
 
               <label class="setting">
                 <span class="setting__label">Launch at login
-                  <span class="setting__hint">Resume routines after restarting. Requires botcage to stay open.</span>
+                  <span class="setting__hint">Resume routines after restarting. Requires botato to stay open.</span>
                 </span>
                 <input type="checkbox" id="app-login" class="switch" />
               </label>
@@ -1192,7 +1192,7 @@
             <p class="settings__cap" id="app-remote-pairing-cap" hidden>Pairing</p>
             <div class="settings" id="app-remote-pairing" hidden>
               <div class="setting setting--stack">
-                <span class="setting__label">Scan this with botcage on your phone
+                <span class="setting__label">Scan this with botato on your phone
                   <span class="setting__hint" id="app-remote-hint">The code lasts five minutes and
                     works once.</span>
                 </span>
@@ -1242,7 +1242,7 @@
             </div>
           </div>
 
-          <!-- What botcage has downloaded or built, and a way to get it back.
+          <!-- What botato has downloaded or built, and a way to get it back.
                None of this was written by hand and none of it is irreplaceable
                — a model, an engine, an image, a container per bot — which is
                what makes listing it worth doing and removing it safe to
@@ -1255,7 +1255,7 @@
             <div class="store" id="app-store-inside"></div>
             <p class="store__note" id="app-store-inside-note" hidden>
               These live in the container engine's own storage rather than as files
-              botcage can see, so they are not part of the figure above.
+              botato can see, so they are not part of the figure above.
             </p>
           </div>
 
@@ -1298,7 +1298,7 @@
 
                 <label class="setting">
                   <span class="setting__label">How often
-                    <span class="setting__hint">Only while botcage is open.</span>
+                    <span class="setting__hint">Only while botato is open.</span>
                   </span>
                   <select id="app-backup-every" class="picker">
                     <option value="day">Every day</option>
@@ -1383,7 +1383,7 @@
     <div class="overlay" id="update" hidden>
       <div class="sheet sheet--update">
         <div class="sheet__body">
-          <h2 class="update__title" id="update-title">Update botcage</h2>
+          <h2 class="update__title" id="update-title">Update botato</h2>
           <p class="update__what" id="update-what"></p>
           <!-- In the body rather than the footer. A footer of three buttons
                makes somebody choose between three things, when the choice is
@@ -1413,7 +1413,7 @@
                face in CSS classes the stylesheet no longer has, so it rendered
                as two loose eyes and nothing else. -->
           <span class="about__mark" id="about-mark"></span></span>
-          <h2 class="about__name">botcage <span class="about__stage">Alpha</span></h2>
+          <h2 class="about__name">botato <span class="about__stage">Alpha</span></h2>
           <p class="about__version" id="about-version">—</p>
           <p class="about__blurb">
             Bots that live on your own machine — each a conversation that persists, with its own
@@ -1425,7 +1425,7 @@
                is the panel people open when something has gone wrong, which is
                the moment it is worth knowing what was promised. -->
           <p class="about__warn">
-            botcage is <b>alpha software</b>, released as a pre-release and provided
+            botato is <b>alpha software</b>, released as a pre-release and provided
             <b>as is, without warranty of any kind</b>. Expect bugs and breaking changes
             between versions. What your bots do is your responsibility — keep your own
             backups.
@@ -1439,7 +1439,7 @@
     </div>
 
     <!-- First run, and reachable afterwards from the account menu. Each step
-         reports what botcage can see rather than telling someone what to type:
+         reports what botato can see rather than telling someone what to type:
          the CLI is either there or it is installed from here, and the engine is
          optional and says so. -->
     <div class="overlay setup" id="setup" hidden>
@@ -1484,7 +1484,7 @@
           <section class="setup__step" data-step="terms" hidden>
             <h2 class="setup__title">Before you start</h2>
             <p class="setup__blurb">
-              Botcage is alpha software, comes with no warranty, and what your
+              Botato is alpha software, comes with no warranty, and what your
               bots do is your responsibility. Read more below.
             </p>
 
@@ -1492,21 +1492,21 @@
                  aria-label="Terms and conditions">
               <h3>1. Alpha software, and no warranty</h3>
               <p>
-                botcage is in <b>alpha</b>. Every release is a pre-release: it is
+                botato is in <b>alpha</b>. Every release is a pre-release: it is
                 unfinished, it will contain bugs, and behaviour, settings and stored
                 data may change or break between versions with no way back.
               </p>
               <p>
-                botcage is provided <b>“as is”</b> and <b>“as available”</b>, without
+                botato is provided <b>“as is”</b> and <b>“as available”</b>, without
                 warranty of any kind, express or implied, including but not limited to
                 the implied warranties of merchantability, fitness for a particular
                 purpose, title and non-infringement. No advice or information obtained
-                from botcage creates any warranty not stated here.
+                from botato creates any warranty not stated here.
               </p>
 
               <h3>2. You accept the risk</h3>
               <p>
-                You use botcage entirely at your own risk and you are solely
+                You use botato entirely at your own risk and you are solely
                 responsible for the instructions you give your bots and for everything
                 those bots do.
               </p>
@@ -1523,15 +1523,15 @@
               <h3>4. Loss of data</h3>
               <p>
                 No guarantee is made about the integrity, availability or retention of
-                anything botcage holds. Conversations, memory, workspaces, credentials,
+                anything botato holds. Conversations, memory, workspaces, credentials,
                 routines and backups may be lost, corrupted, overwritten or deleted, by
-                botcage, by a bot, or by a service it depends on. Keep your own backups
+                botato, by a bot, or by a service it depends on. Keep your own backups
                 of anything that matters.
               </p>
 
               <h3>5. Third-party services and your account with them</h3>
               <p>
-                botcage drives software and services it does not own or control,
+                botato drives software and services it does not own or control,
                 including the Claude Code CLI, Anthropic, Google, OpenAI, Ollama,
                 GitHub and any provider or plugin you connect. Your use of those is
                 governed by <b>their</b> terms and complying with them is your
@@ -1540,7 +1540,7 @@
               <p>
                 Automated and agentic use may breach some providers’ terms and may
                 result in throttling, suspension, loss of credit or the
-                <b>permanent termination of your account</b>. botcage does not control
+                <b>permanent termination of your account</b>. botato does not control
                 and is not responsible for any action a provider takes against you.
               </p>
 
@@ -1549,7 +1549,7 @@
                 Bots can make paid API calls, repeatedly and on a schedule, without
                 asking again. <b>You are responsible for every charge incurred</b>,
                 including charges from a routine, a loop or a mistake. Set spending
-                limits with your providers; botcage is not a billing control.
+                limits with your providers; botato is not a billing control.
               </p>
 
               <h3>7. Limitation of liability</h3>
@@ -1557,7 +1557,7 @@
                 To the maximum extent permitted by law, in no event shall the authors,
                 copyright holders or contributors be liable for any claim, damages or
                 other liability, whether in contract, tort (including negligence) or
-                otherwise, arising from or in connection with botcage or its use,
+                otherwise, arising from or in connection with botato or its use,
                 including without limitation <b>loss of data, loss of profit, loss of
                 revenue, business interruption, loss of goodwill, suspension or
                 termination of any account and any direct, indirect, incidental,
@@ -1569,7 +1569,7 @@
               <p>
                 You agree to indemnify and hold harmless the authors, copyright holders
                 and contributors against any claim, demand, loss or expense arising out
-                of your use of botcage, the actions of your bots, or your breach of
+                of your use of botato, the actions of your bots, or your breach of
                 these terms or of any third party’s terms.
               </p>
 
@@ -1582,8 +1582,8 @@
 
               <h3>10. The rest</h3>
               <p>
-                botcage is licensed under the Apache License 2.0, which governs the
-                software itself; nothing here grants any right in the botcage name. If
+                botato is licensed under the Apache License 2.0, which governs the
+                software itself; nothing here grants any right in the botato name. If
                 any part of these terms is held unenforceable, the remainder continues
                 to apply. Some jurisdictions do not allow the exclusion of certain
                 warranties or the limitation of certain liabilities, so parts of

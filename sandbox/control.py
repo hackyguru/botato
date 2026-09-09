@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Screen and input control for a botcage sandbox desktop.
+"""Screen and input control for a botato sandbox desktop.
 
 A small HTTP API sitting next to Xvfb inside the container. The host app uses
 /health to know the desktop is up; the bot's tools (slice B) use the rest to
-look at the screen and act on it. Reachable only through the port botcage
+look at the screen and act on it. Reachable only through the port botato
 publishes on the host loopback.
 """
 
@@ -17,7 +17,7 @@ from urllib.parse import parse_qs, urlparse
 
 PORT = int(os.environ.get("CONTROL_PORT", "6081"))
 ENV = {**os.environ, "DISPLAY": os.environ.get("DISPLAY", ":1")}
-SHOT = "/tmp/botcage-shot.png"
+SHOT = "/tmp/botato-shot.png"
 
 
 def glide(x, y, steps=14):

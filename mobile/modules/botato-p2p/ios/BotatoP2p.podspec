@@ -1,10 +1,10 @@
 Pod::Spec.new do |s|
-  s.name           = 'BotcageP2p'
+  s.name           = 'BotatoP2p'
   s.version        = '1.0.0'
-  s.summary        = "botcage's peer-to-peer link"
-  s.description    = 'Reaches a botcage on your own machine by public key, over QUIC.'
-  s.author         = 'botcage'
-  s.homepage       = 'https://github.com/hackyguru/botcage'
+  s.summary        = "botato's peer-to-peer link"
+  s.description    = 'Reaches a botato on your own machine by public key, over QUIC.'
+  s.author         = 'botato'
+  s.homepage       = 'https://github.com/hackyguru/botato'
   s.platforms      = {
     :ios => '16.4',
     :tvos => '16.4'
@@ -22,20 +22,20 @@ Pod::Spec.new do |s|
   # Everything except the xcframework's own contents: sweeping its headers into
   # source_files makes CocoaPods try to compile them.
   s.source_files = "*.{h,m,mm,swift,hpp,cpp}"
-  s.exclude_files = "BotcageP2P.xcframework/**/*"
-  s.preserve_paths = "BotcageP2P.xcframework/**/*"
+  s.exclude_files = "BotatoP2P.xcframework/**/*"
+  s.preserve_paths = "BotatoP2P.xcframework/**/*"
 
   # Linked by hand rather than through `vendored_frameworks`.
   #
   # That option describes *frameworks*: CocoaPods writes a copy phase whose
-  # declared output is `BotcageP2P.framework`, which this xcframework does not
+  # declared output is `BotatoP2P.framework`, which this xcframework does not
   # contain — it wraps a static library — so the phase quietly produces nothing
   # and the app fails to link against a library that was never unpacked.
   #
   # Naming the slice per SDK is unambiguous and needs no copy phase at all.
   # -force_load because the Rust symbols are reached through a module map rather
   # than referenced directly, and the linker would otherwise drop the archive.
-  xcframework = '$(PODS_ROOT)/../../modules/botcage-p2p/ios/BotcageP2P.xcframework'
+  xcframework = '$(PODS_ROOT)/../../modules/botato-p2p/ios/BotatoP2P.xcframework'
 
   # `$(inherited)` here for the same reason it is on the linker flags below, and
   # it took a broken build to notice it was missing: an SDK-conditional
@@ -59,8 +59,8 @@ Pod::Spec.new do |s|
   # being added here.
   s.user_target_xcconfig = {
     'OTHER_LDFLAGS[sdk=iphonesimulator*]' =>
-      "$(inherited) -force_load \"#{xcframework}/ios-arm64_x86_64-simulator/libbotcage_p2p.a\"",
+      "$(inherited) -force_load \"#{xcframework}/ios-arm64_x86_64-simulator/libbotato_p2p.a\"",
     'OTHER_LDFLAGS[sdk=iphoneos*]' =>
-      "$(inherited) -force_load \"#{xcframework}/ios-arm64/libbotcage_p2p.a\"",
+      "$(inherited) -force_load \"#{xcframework}/ios-arm64/libbotato_p2p.a\"",
   }
 end

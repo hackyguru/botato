@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Open a botcage backup without botcage.
+"""Open a botato backup without botato.
 
-    python3 scripts/open-backup.py botcage-2026-08-25-1232.backup out/
+    python3 scripts/open-backup.py botato-2026-08-25-1232.backup out/
 
 An encrypted backup you can only read with the program that died is not a
 backup, so this exists and is tested against real archives. It needs nothing
@@ -16,7 +16,7 @@ each bot's memory file and workspace.
 The format, which is also written down in src-tauri/src/backup.rs:
 
     offset  size  what
-         0     8  magic, b"BOTCAGE\\x01"
+         0     8  magic, b"BOTATO\\0\\x01"
          8     1  key derivation: 1 = argon2id
          9     4  memory cost, KiB, little-endian u32
         13     4  time cost, little-endian u32
@@ -40,7 +40,10 @@ from pathlib import Path
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
 
-MAGIC = b"BOTCAGE\x01"
+MAGIC = b"BOTATO\0\x01"
+# Backups written before the rename. Still opened, so a botcage backup can be
+# recovered by a botato that never wrote one.
+MAGIC_WAS = b"BOTCAGE\x01"
 HEADER = 58
 
 
@@ -84,12 +87,12 @@ def hchacha20(key: bytes, nonce16: bytes) -> bytes:
 
 
 def open_backup(sealed: bytes, passphrase: str) -> bytes:
-    if len(sealed) < HEADER or sealed[:8] != MAGIC:
-        raise SystemExit("that is not a botcage backup")
+    if len(sealed) < HEADER or sealed[:8] not in (MAGIC, MAGIC_WAS):
+        raise SystemExit("that is not a botato backup")
 
     header = sealed[:HEADER]
     if header[8] != 1:
-        raise SystemExit("unknown key derivation — a later botcage made this")
+        raise SystemExit("unknown key derivation — a later botato made this")
 
     memory_kib, passes = struct.unpack("<II", header[9:17])
     lanes = header[17]

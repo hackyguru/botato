@@ -1,5 +1,5 @@
 /**
- * botcage on a phone.
+ * botato on a phone.
  *
  * The laptop holds the state; this app holds a copy and keeps it honest two
  * ways. Snapshots come from the desktop on demand — when a screen opens, when
@@ -97,7 +97,7 @@ export default function App() {
   // and is burned after five wrong guesses. Handing it to somebody else buys
   // them the same five minutes, which is the bargain the square already makes.
   //
-  //   botcage://pair?peer=<the laptop>&code=ABC123
+  //   botato://pair?peer=<the laptop>&code=ABC123
   useEffect(() => {
     const take = async (url: string | null) => {
       if (!url) return;

@@ -1,4 +1,4 @@
-//! Connectors botcage owns: a remote MCP server plus a credential we hold, so a
+//! Connectors botato owns: a remote MCP server plus a credential we hold, so a
 //! bot's access to a service is ours to scope rather than inherited from the
 //! user's claude.ai account.
 //!
@@ -127,7 +127,7 @@ pub const CONNECTORS: &[ConnectorDef] = &[
         help_url: "https://www.notion.so/profile/integrations",
         google_scopes: &[],
         // Notion's server advertises dynamic registration, PKCE and a public
-        // client, so botcage registers itself: nothing for the user to set up.
+        // client, so botato registers itself: nothing for the user to set up.
         mcp_oauth: true,
     },
     ConnectorDef {
@@ -336,7 +336,7 @@ pub fn github_token(bot: Option<&str>) -> Option<String> {
 }
 
 /// The MCP server entry for a connector the user has connected, ready to drop
-/// into the `--mcp-config` botcage builds for a turn.
+/// into the `--mcp-config` botato builds for a turn.
 pub fn server_entry(key: &str, bot: Option<&str>) -> Option<serde_json::Value> {
     let def = find(key)?;
     let mut server = serde_json::json!({ "type": "http", "url": def.url });
@@ -381,7 +381,7 @@ fn pending() -> &'static Mutex<HashMap<String, PendingAuth>> {
 }
 
 /// Where a server says its authorisation lives. Servers that speak the MCP
-/// OAuth profile publish this, which is what lets botcage connect to one it has
+/// OAuth profile publish this, which is what lets botato connect to one it has
 /// never seen without anybody registering anything.
 fn discover(url: &str) -> Result<serde_json::Value, String> {
     let origin = url
@@ -440,10 +440,10 @@ fn discover(url: &str) -> Result<serde_json::Value, String> {
         }
     }
 
-    Err("this server does not publish OAuth metadata botcage can use".into())
+    Err("this server does not publish OAuth metadata botato can use".into())
 }
 
-/// Step one: register botcage as a client, then hand back the URL to open.
+/// Step one: register botato as a client, then hand back the URL to open.
 #[tauri::command(async)]
 pub fn mcp_oauth_start(key: String, bot: Option<String>) -> Result<String, String> {
     let def = find(&key).ok_or("unknown connector")?;
@@ -469,7 +469,7 @@ pub fn mcp_oauth_start(key: String, bot: Option<String>) -> Result<String, Strin
         .and_then(|v| v.as_str())
         .ok_or("this server needs a client registered by hand")?;
     let body = serde_json::json!({
-        "client_name": "botcage",
+        "client_name": "botato",
         "redirect_uris": [REDIRECT_URI],
         "grant_types": ["authorization_code", "refresh_token"],
         "response_types": ["code"],
@@ -520,7 +520,7 @@ pub fn mcp_oauth_finish(key: String, bot: Option<String>) -> Result<(), String> 
 
     let (code, state) = wait_for_code_and_state()?;
     if state.as_deref() != Some(auth.state.as_str()) {
-        return Err("the reply did not come from the sign-in botcage started".into());
+        return Err("the reply did not come from the sign-in botato started".into());
     }
 
     let body = format!(
@@ -641,7 +641,7 @@ fn post_form(url: &str, body: &str) -> Result<serde_json::Value, String> {
 
 /* ----------------------------------------------------------- github device */
 
-/// botcage's own GitHub OAuth app. Device flow needs no client secret, so this
+/// botato's own GitHub OAuth app. Device flow needs no client secret, so this
 /// is safe to ship in the binary — nothing here is a credential.
 ///
 /// Empty until an app is registered, and the UI falls back to asking for a
@@ -894,7 +894,7 @@ pub fn google_finish(key: String, client_id: String, client_secret: String) -> R
     let refresh = token
         .get("refresh_token")
         .and_then(|v| v.as_str())
-        .ok_or("Google did not return a refresh token — remove botcage from your Google account's third-party access and try again")?;
+        .ok_or("Google did not return a refresh token — remove botato from your Google account's third-party access and try again")?;
 
     store_token(&format!("{key}.refresh"), refresh)?;
     store_token(&format!("{key}.client"), client_id.trim())?;
@@ -902,7 +902,7 @@ pub fn google_finish(key: String, client_id: String, client_secret: String) -> R
     Ok(())
 }
 
-/// The one part of botcage a user sees outside the app, so it carries the same
+/// The one part of botato a user sees outside the app, so it carries the same
 /// dark surface, face mark and type as the window they came from — landing on a
 /// bare browser default reads like the flow went wrong.
 fn callback_page(ok: bool) -> String {
@@ -910,13 +910,13 @@ fn callback_page(ok: bool) -> String {
         (
             "#0a84ff",
             "Connected",
-            "You can close this tab and go back to botcage.",
+            "You can close this tab and go back to botato.",
         )
     } else {
         (
             "#ff453a",
             "Not connected",
-            "botcage did not get an approval from that page. Close this tab and try again.",
+            "botato did not get an approval from that page. Close this tab and try again.",
         )
     };
 
@@ -925,7 +925,7 @@ fn callback_page(ok: bool) -> String {
     format!(
         r##"<!doctype html><html lang="en"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>botcage</title>
+<title>botato</title>
 <style>
   :root {{ color-scheme: dark }}
   * {{ box-sizing: border-box }}
@@ -963,13 +963,13 @@ fn callback_page(ok: bool) -> String {
   <div class="face"><i></i><i></i></div>
   <h1>{heading}</h1>
   <p>{body}</p>
-  <div class="name">botcage</div>
+  <div class="name">botato</div>
 </div>"##
     )
 }
 
 /// Same listener, but reporting the state parameter too — the MCP flow checks
-/// it to be sure the reply belongs to the sign-in botcage started.
+/// it to be sure the reply belongs to the sign-in botato started.
 fn wait_for_code_and_state() -> Result<(String, Option<String>), String> {
     let target = wait_for_target()?;
     let code = query_value(&target, "code").ok_or("no code in the reply")?;
@@ -1171,7 +1171,7 @@ pub(crate) fn forget_secret(key: &str) {
 // Only the keychain path names a service; the file fallback elsewhere does not,
 // which makes this dead code on Linux and a hard error under `-D warnings`.
 #[cfg(target_os = "macos")]
-const SERVICE: &str = "botcage";
+const SERVICE: &str = "botato";
 
 /// macOS has a real keychain and the `security` CLI to reach it, so use it
 /// rather than inventing storage. Elsewhere fall back to a 0600 file, which is
@@ -1225,9 +1225,9 @@ fn delete_token(key: &str) {
  *
  * macOS has had the login keychain since this existed; everywhere else got a
  * JSON file at 0600, which is a permission rather than a protection. Anything
- * running as the user could read every API key and OAuth token botcage holds:
+ * running as the user could read every API key and OAuth token botato holds:
  * a curious script, a compromised dependency, a backup, a synced home
- * directory. botcage ships deb, appimage and rpm, so that is real people.
+ * directory. botato ships deb, appimage and rpm, so that is real people.
  *
  * Linux desktops have the same facility under a different name — the Secret
  * Service, which GNOME Keyring and KWallet both implement, reached through
@@ -1250,7 +1250,7 @@ fn delete_token(key: &str) {
 
 #[cfg(not(target_os = "macos"))]
 fn token_file() -> PathBuf {
-    crate::home().join(".botcage").join("connectors.json")
+    crate::home().join(".botato").join("connectors.json")
 }
 
 /// Is there a Secret Service to talk to?
@@ -1271,7 +1271,7 @@ fn secret_service() -> bool {
                 "service",
                 SERVICE_NAME,
                 "account",
-                "botcage-probe",
+                "botato-probe",
             ])
             .output()
             // Ran at all, and did not die on a missing bus. An empty answer to
@@ -1283,7 +1283,7 @@ fn secret_service() -> bool {
 
 /// The label the keyring files these under, matching the macOS service name.
 #[cfg(not(target_os = "macos"))]
-const SERVICE_NAME: &str = "botcage";
+const SERVICE_NAME: &str = "botato";
 
 /// Whether credentials are going somewhere the operating system protects.
 ///
@@ -1320,7 +1320,7 @@ fn keyring_store(key: &str, token: &str) -> Result<(), String> {
     let mut child = Command::new("secret-tool")
         .args([
             "store",
-            "--label=botcage",
+            "--label=botato",
             "service",
             SERVICE_NAME,
             "account",
@@ -1473,7 +1473,7 @@ mod tests {
     #[test]
     #[ignore = "uses the OS keychain; run with --ignored"]
     fn credentials_round_trip() {
-        let key = "botcage-selftest";
+        let key = "botato-selftest";
         delete_token(key);
         assert_eq!(read_token(key), None, "should start clean");
 
@@ -1494,7 +1494,7 @@ mod tests {
     /// ship: one we have never registered with hands us a client on request.
     #[test]
     #[ignore = "registers with live services; run with --ignored"]
-    fn every_oauth_connector_lets_botcage_register_itself() {
+    fn every_oauth_connector_lets_botato_register_itself() {
         for def in CONNECTORS.iter().filter(|d| d.mcp_oauth) {
             let meta = discover(def.url)
                 .unwrap_or_else(|e| panic!("{} publishes no usable metadata: {e}", def.name));
@@ -1557,12 +1557,12 @@ mod tests {
         for (ok, name) in [(true, "connected"), (false, "refused")] {
             let page = callback_page(ok);
             std::fs::write(
-                format!("/private/tmp/claude-501/-Users-guru-Desktop-indie-botcage/82f6a62a-cea8-490b-b05d-c2043f58b852/scratchpad/callback-{name}.html"),
+                format!("/private/tmp/claude-501/-Users-guru-Desktop-indie-botato/82f6a62a-cea8-490b-b05d-c2043f58b852/scratchpad/callback-{name}.html"),
                 &page,
             )
             .ok();
             assert!(page.starts_with("<!doctype html>"));
-            assert!(page.contains("botcage"));
+            assert!(page.contains("botato"));
             // Nothing external: the socket closes right after the response.
             assert!(
                 !page.contains("http://") && !page.contains("https://"),
@@ -1594,7 +1594,7 @@ mod tests {
             "the browser should land on the success page"
         );
         assert!(
-            page.contains("botcage"),
+            page.contains("botato"),
             "the page should say where it came from"
         );
 

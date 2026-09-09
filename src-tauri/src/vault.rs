@@ -1,6 +1,6 @@
 //! A bot's own credentials — the ones it needs to log into something.
 //!
-//! Not the same thing as the keys in `connectors.rs`. Those are botcage's: an
+//! Not the same thing as the keys in `connectors.rs`. Those are botato's: an
 //! API key for a model provider, an OAuth token for a connector, held by the
 //! app and handed to a server as a header. The bot never sees them and has no
 //! reason to. This is the other kind — the password to the thing a bot is

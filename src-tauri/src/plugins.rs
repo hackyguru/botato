@@ -1,7 +1,7 @@
-//! Claude Code plugins: the marketplace botcage browses, and the MCP servers an
+//! Claude Code plugins: the marketplace botato browses, and the MCP servers an
 //! installed plugin contributes to a session.
 //!
-//! Services botcage connects itself live in `connectors.rs`. The claude.ai
+//! Services botato connects itself live in `connectors.rs`. The claude.ai
 //! connectors that used to appear here are switched off for every turn, so
 //! discovery runs with the same setting — a server offered here that a bot
 //! could not actually reach would be worse than not listing it.
@@ -375,7 +375,7 @@ fn run_plugin_command(args: &[&str]) -> Result<(), String> {
 
 /// A catalogue entry says nothing about whether it works. Most of these are
 /// skills, which always do; the rest need a runtime this machine may not have,
-/// or a sign-in botcage cannot perform. Verified once and cached, because it
+/// or a sign-in botato cannot perform. Verified once and cached, because it
 /// means fetching each plugin's MCP config from its own repository.
 #[derive(Serialize, Deserialize, Clone, Default)]
 struct Health {
@@ -387,7 +387,7 @@ struct Health {
 }
 
 impl Health {
-    /// What botcage can make work: skills always; a key we can ask for; a
+    /// What botato can make work: skills always; a key we can ask for; a
     /// runtime that is actually installed. A remote server with neither is a
     /// sign-in this app cannot complete headlessly.
     fn verdict(&self) -> (bool, String) {
@@ -397,7 +397,7 @@ impl Health {
             }
         }
         if self.remote > self.remote_with_key && !self.remote_is_signin_capable() {
-            return (false, "needs a sign-in botcage cannot do yet".into());
+            return (false, "needs a sign-in botato cannot do yet".into());
         }
         (true, String::new())
     }
@@ -417,7 +417,7 @@ fn which(command: &str) -> Option<PathBuf> {
 }
 
 fn health_path() -> PathBuf {
-    claude_dir().join("plugins").join("botcage-health.json")
+    claude_dir().join("plugins").join("botato-health.json")
 }
 
 fn load_health() -> HashMap<String, Health> {
@@ -471,7 +471,7 @@ fn read_config(location: &str) -> Option<serde_json::Value> {
         return serde_json::from_str(&std::fs::read_to_string(location).ok()?).ok();
     }
     let out = Command::new("curl")
-        .args(["-sfL", "-m", "15", "-H", "User-Agent: botcage", location])
+        .args(["-sfL", "-m", "15", "-H", "User-Agent: botato", location])
         .output()
         .ok()?;
     out.status
@@ -815,7 +815,7 @@ mod tests {
     /// The race means a single probe legitimately returns nothing, so this
     /// asserts the call works and prints what it saw rather than demanding a
     /// non-empty answer.
-    /// botcage supplies its own connectors now, so a claude.ai one appearing here
+    /// botato supplies its own connectors now, so a claude.ai one appearing here
     /// would be a server a bot could be granted but never actually reach.
     #[test]
     #[ignore = "needs the Claude Code CLI; run with --ignored"]

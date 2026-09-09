@@ -1,6 +1,6 @@
-"""Draw botcage's app icon, and hand it to Tauri.
+"""Draw botato's app icon, and hand it to Tauri.
 
-    python3 scripts/make-icon.py && pnpm tauri icon /tmp/botcage-icon.png
+    python3 scripts/make-icon.py && pnpm tauri icon /tmp/botato-icon.png
 
 The mark is a bot's head: an antenna, two ears, and the app's own dot eyes and
 soft smile. The first version was a blue squircle with a face in it, which is
@@ -28,7 +28,7 @@ from PIL import Image, ImageDraw
 
 SIZE = 1024
 BLUE = (10, 132, 255, 255)
-OUT = "/tmp/botcage-icon.png"
+OUT = "/tmp/botato-icon.png"
 
 
 def main() -> None:

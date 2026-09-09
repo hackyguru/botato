@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager};
 
-const IMAGE: &str = "botcage/desktop:1";
+const IMAGE: &str = "botato/desktop:1";
 
 /// What the image was built from, written onto the image as a label and checked
 /// before it is reused.
@@ -31,7 +31,7 @@ const IMAGE: &str = "botcage/desktop:1";
 /// the Dockerfile, change the stamp, and the next desktop that starts rebuilds
 /// itself. Nobody has to remember to bump anything, which is the part a
 /// hand-kept version number gets wrong.
-const LAYER_LABEL: &str = "com.botcage.desktop-layer";
+const LAYER_LABEL: &str = "com.botato.desktop-layer";
 
 /// Bumped by hand only to force a rebuild the build context cannot explain —
 /// a new `debian:bookworm-slim` under the same tag being the likely reason.
@@ -90,12 +90,12 @@ pub fn start_reaper() {
             "--format",
             "{{.Names}}",
             "--filter",
-            "label=botcage=1",
+            "label=botato=1",
         ]) else {
             continue;
         };
         for name in stdout_of(&out).lines() {
-            let Some(bot) = name.strip_prefix("botcage-") else {
+            let Some(bot) = name.strip_prefix("botato-") else {
                 continue;
             };
             let limit = *IDLE_MINUTES.lock().unwrap();
@@ -129,7 +129,7 @@ fn home() -> PathBuf {
 
 /// GUI apps inherit a minimal PATH on macOS and Windows, so probe the places
 /// Docker Desktop, OrbStack, Colima, and distro packages actually install to.
-/// Any of these will do. botcage issues about a dozen ordinary subcommands —
+/// Any of these will do. botato issues about a dozen ordinary subcommands —
 /// run, ps, start, stop, rm, exec, build, port, inspect, volume — which podman
 /// and nerdctl implement with the same syntax, so Docker Desktop is one option
 /// rather than the requirement. Ordered by what is likeliest to already be set
@@ -139,11 +139,11 @@ const ENGINES: &[&str] = &["docker", "podman", "nerdctl"];
 #[cfg(target_os = "windows")]
 const ENGINES: &[&str] = &["docker.exe", "podman.exe", "nerdctl.exe"];
 
-/// Set once the app is up, so the sandbox layer can reach the engine botcage
+/// Set once the app is up, so the sandbox layer can reach the engine botato
 /// installed without every call needing an AppHandle.
 static MANAGED: Mutex<Option<(PathBuf, Option<String>)>> = Mutex::new(None);
 
-/// Remember botcage's own engine, and where its socket lives. Called at startup
+/// Remember botato's own engine, and where its socket lives. Called at startup
 /// and after an install, so a fresh install is used without a restart.
 pub fn use_managed_engine(client: Option<PathBuf>, host: Option<String>) {
     *MANAGED.lock().unwrap() = client.map(|path| (path, host));
@@ -164,7 +164,7 @@ fn answers(bin: &Path) -> bool {
 /// Ask an engine what version it is serving, in the two shapes engines answer.
 ///
 /// `{{.Server.Version}}` is Docker's, and it is the right first question — but
-/// it is Docker's alone. The engine botcage installs on Linux is rootless
+/// it is Docker's alone. The engine botato installs on Linux is rootless
 /// podman, which has no daemon at all and fills `.Server` only when it is
 /// talking to a service, so the same call against a perfectly healthy podman
 /// can come back empty or fail. Asked only that way, Linux would report its own
@@ -201,7 +201,7 @@ fn served_by(bin: &Path) -> Option<String> {
 }
 
 /// The engine chosen for this run, so the probe above is paid for once rather
-/// than on every command. Cleared when botcage installs one of its own.
+/// than on every command. Cleared when botato installs one of its own.
 static CHOSEN: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 fn locate_docker() -> Option<PathBuf> {
@@ -216,9 +216,9 @@ fn locate_docker() -> Option<PathBuf> {
 }
 
 fn pick_engine() -> Option<PathBuf> {
-    // botcage's own engine first: if the user let us install one, that is the
+    // botato's own engine first: if the user let us install one, that is the
     // one they expect to be running, whatever else happens to be on PATH — and
-    // if it is not running botcage can start it, which is not true of anyone
+    // if it is not running botato can start it, which is not true of anyone
     // else's.
     if let Some((path, _)) = MANAGED.lock().unwrap().clone() {
         if path.is_file() {
@@ -263,7 +263,7 @@ fn pick_engine() -> Option<PathBuf> {
 
     // Only one that answers. Somebody else's stopped engine is not a reason to
     // ask the person to start it — it is a reason to look past it and let
-    // botcage set up the machine it carries. Nothing answering returns nothing,
+    // botato set up the machine it carries. Nothing answering returns nothing,
     // and nothing is what makes the window offer its own.
     candidates
         .into_iter()
@@ -271,7 +271,7 @@ fn pick_engine() -> Option<PathBuf> {
         .find(|candidate| answers(candidate))
 }
 
-/// A docker command, pointed at the engine botcage manages.
+/// A docker command, pointed at the engine botato manages.
 ///
 /// The only place a docker process is constructed. It used not to be: the
 /// image build assembled its own, and so ran against whatever daemon the CLI
@@ -279,7 +279,7 @@ fn pick_engine() -> Option<PathBuf> {
 /// managed engine in its VM. On a machine with only one daemon those are the
 /// same thing and nothing looks wrong. On a machine with both, the image is
 /// built into one engine and looked for in another, which fails as "pull
-/// access denied for botcage/desktop" — a message about a registry, for a
+/// access denied for botato/desktop" — a message about a registry, for a
 /// local image that exists a few hundred megabytes away.
 fn docker_cmd(args: &[&str]) -> Result<Command, String> {
     let bin = locate_docker().ok_or("Docker CLI not found")?;
@@ -401,10 +401,10 @@ fn docker_stdin(args: &[&str], input: &str) -> Result<Output, String> {
 /// It also carries `currentContext: desktop-linux`, pointing at a daemon that
 /// is not ours.
 ///
-/// botcage installed its own engine; it keeps its own config next to it, and
+/// botato installed its own engine; it keeps its own config next to it, and
 /// then none of the above is our business. Written once and left alone: an
 /// empty object is the whole file.
-/// The directory botcage unpacked its engine into, worked back from the client
+/// The directory botato unpacked its engine into, worked back from the client
 /// inside it: macOS puts docker at `<engine>/bin/docker`, the Linux podman
 /// bundle puts podman at `<engine>/usr/local/bin/podman`. Told apart by the
 /// shape of the path rather than by a cfg, so either can be exercised from a
@@ -431,10 +431,10 @@ fn managed_root() -> Option<PathBuf> {
 ///
 /// The static bundle ships conmon at `<engine>/usr/local/lib/podman/conmon`,
 /// but podman looks for it at absolute system paths — `/usr/libexec/podman`,
-/// `/usr/local/lib/podman` and so on. botcage does not install to `/`, so on a
+/// `/usr/local/lib/podman` and so on. botato does not install to `/`, so on a
 /// machine with no podman of its own every `podman info` fails with "could not
 /// find a working conmon binary". That is the first rung of `served_by`, so
-/// `answers()` says no, `pick_engine` walks past the engine botcage just
+/// `answers()` says no, `pick_engine` walks past the engine botato just
 /// installed, and the app reports it has none.
 ///
 /// Written once beside the engine. Storage is deliberately not configured: the
@@ -446,7 +446,7 @@ fn containers_conf(root: &Path) -> Option<PathBuf> {
     if !conmon.is_file() {
         return None; // not the podman bundle — nothing to point anywhere
     }
-    let path = root.join("botcage-containers.conf");
+    let path = root.join("botato-containers.conf");
     if !path.is_file() {
         let helpers = root.join("usr/local/lib/podman");
         let bin = root.join("usr/local/bin");
@@ -540,7 +540,7 @@ pub fn docker_info() -> DockerInfo {
     // Once more if the engine we had chosen has since stopped: the first look
     // forgets it, the second picks again with it out of the way. Without this
     // the answer to "is there an engine" is a report about the one that just
-    // died, when the useful answer is that botcage can supply one.
+    // died, when the useful answer is that botato can supply one.
     let first = docker_look();
     if first.version.is_none() && CHOSEN.lock().unwrap().is_none() {
         return docker_look();
@@ -553,13 +553,13 @@ fn docker_look() -> DockerInfo {
         return DockerInfo {
             path: None,
             version: None,
-            // Not a list of things to go and install. botcage carries its own
+            // Not a list of things to go and install. botato carries its own
             // engine and the pane beside this offers to set it up — telling
             // somebody to fetch Docker Desktop instead is asking them to solve
             // a problem this app already solved, in vocabulary they may have no
             // reason to know.
             error: Some(
-                "No machine for bots to work on yet. botcage can set one up — nothing else \
+                "No machine for bots to work on yet. botato can set one up — nothing else \
                  needs installing."
                     .into(),
             ),
@@ -585,24 +585,24 @@ fn docker_look() -> DockerInfo {
             error: None,
         },
         // Chosen because it answered, and it has since stopped — a laptop that
-        // slept, or Docker Desktop quit while botcage was open. Rare, and it
+        // slept, or Docker Desktop quit while botato was open. Rare, and it
         // still does not ask anybody to go and start anything: the engine is
         // forgotten so the next attempt picks again, and picking again with
-        // nothing running is what offers botcage's own.
+        // nothing running is what offers botato's own.
         None => {
             *CHOSEN.lock().unwrap() = None;
             DockerInfo {
                 path: Some(bin.display().to_string()),
                 version: None,
-                // Which engine this is decides what to offer. botcage's own is
+                // Which engine this is decides what to offer. botato's own is
                 // installed and asleep, and the answer is to wake it; anybody
                 // else's is theirs to start, and offering to install ours is
                 // the useful thing left to say.
                 error: Some(if ours {
-                    "botcage's engine is asleep. Starting it…".to_string()
+                    "botato's engine is asleep. Starting it…".to_string()
                 } else {
                     format!(
-                        "{engine} is not answering. botcage can set up a machine of its own — \
+                        "{engine} is not answering. botato can set up a machine of its own — \
                          it needs nothing else installed."
                     )
                 }),
@@ -651,7 +651,7 @@ fn slug(bot_id: &str) -> String {
 }
 
 fn container_of(bot_id: &str) -> String {
-    format!("botcage-{}", slug(bot_id))
+    format!("botato-{}", slug(bot_id))
 }
 
 /// `Some(true)` running, `Some(false)` exists but stopped, `None` no container.
@@ -1129,11 +1129,11 @@ pub fn ensure_desktop(
 
     let name = container_of(bot_id);
 
-    // Missing, or built from a build context this botcage no longer ships. The
+    // Missing, or built from a build context this botato no longer ships. The
     // second case used to be invisible: the tag never changes, so an image from
     // an older version answered "yes, present" for ever and the desktop people
     // got was the one their first install happened to build.
-    // What this botcage would build right now. None when the context cannot be
+    // What this botato would build right now. None when the context cannot be
     // read, which is never a reason to disturb a desktop that works.
     let want = build_context.and_then(|dir| context_stamp(dir).ok());
 
@@ -1189,7 +1189,7 @@ pub fn ensure_desktop(
             let vnc = free_port()?;
             let control = free_port()?;
             // Which build context this desktop was made from, so the next
-            // start can tell whether it is still the one botcage ships.
+            // start can tell whether it is still the one botato ships.
             let container_label = format!(
                 "{LAYER_LABEL}={}",
                 want.clone().unwrap_or_else(|| "unknown".to_string())
@@ -1237,7 +1237,7 @@ pub fn ensure_desktop(
                 "--name",
                 &name,
                 "--label",
-                "botcage=1",
+                "botato=1",
                 "--label",
                 &container_label,
                 "--shm-size",
@@ -1412,7 +1412,7 @@ pub fn desks() -> Vec<(String, u64)> {
         "ps",
         "-a",
         "--filter",
-        "label=botcage=1",
+        "label=botato=1",
         "--format",
         "{{.Names}}",
     ]) else {
@@ -1464,7 +1464,7 @@ pub fn rebuild_image(app: AppHandle) -> Result<(), String> {
 
 /// Best-effort: leave no desktops running after the app quits.
 pub fn stop_all() {
-    let Ok(out) = docker(&["ps", "-q", "--filter", "label=botcage=1"]) else {
+    let Ok(out) = docker(&["ps", "-q", "--filter", "label=botato=1"]) else {
         return;
     };
     let ids: Vec<String> = stdout_of(&out).lines().map(str::to_string).collect();
@@ -1480,7 +1480,7 @@ pub fn stop_all() {
 mod tests {
     use super::*;
 
-    /// Both of these set the one global that says which engine botcage
+    /// Both of these set the one global that says which engine botato
     /// manages, and cargo runs tests in parallel — so without this they take
     /// each other's socket and fail on the other one's expectation.
     static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
@@ -1494,7 +1494,7 @@ mod tests {
     /// A build context, written to a fresh directory of its own. Named, because
     /// cargo runs these in parallel and a shared path is a shared answer.
     fn context(name: &str, files: &[(&str, &str)]) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("botcage-context-{name}"));
+        let dir = std::env::temp_dir().join(format!("botato-context-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("a folder");
         for (file, body) in files {
@@ -1503,9 +1503,9 @@ mod tests {
         dir
     }
 
-    /// The bug all of this exists for. The tag is `botcage/desktop:1` and has
+    /// The bug all of this exists for. The tag is `botato/desktop:1` and has
     /// never changed, while the build context has changed three times — so an
-    /// image built by an older botcage answered "present" for ever and the
+    /// image built by an older botato answered "present" for ever and the
     /// desktop somebody got was whichever one their first install happened to
     /// build. The stamp has to move when the Dockerfile does.
     #[test]
@@ -1617,7 +1617,7 @@ mod tests {
     /// The bug this exists to prevent, in the words of the person who hit it:
     /// the image built into one engine and looked for in another.
     ///
-    /// botcage installs its own engine, which on macOS lives in a VM reached
+    /// botato installs its own engine, which on macOS lives in a VM reached
     /// through a socket. Every docker command has to be told that, and the
     /// build was the one that was not — so on a machine that also had Docker
     /// Desktop, `docker build` succeeded against Desktop while the `docker run`
@@ -1628,11 +1628,11 @@ mod tests {
     /// A machine with only one daemon cannot tell the difference, which is why
     /// this survived every test on the machine it was written on.
     #[test]
-    fn every_docker_command_is_pointed_at_the_engine_botcage_manages() {
+    fn every_docker_command_is_pointed_at_the_engine_botato_manages() {
         let _alone = ONE_AT_A_TIME
             .lock()
             .unwrap_or_else(|held| held.into_inner());
-        let socket = "unix:///Users/someone/.botcage/lima/botcage/sock";
+        let socket = "unix:///Users/someone/.botato/lima/botato/sock";
 
         // A file that certainly exists, because `pick_engine` will not use a
         // managed client it cannot see on disk. This said /usr/local/bin/docker
@@ -1643,15 +1643,15 @@ mod tests {
         //
         // Nothing is ever run: the point is the command that gets built, so any
         // file will do to stand in for the CLI.
-        let stand_in = std::env::temp_dir().join("botcage-test-docker");
+        let stand_in = std::env::temp_dir().join("botato-test-docker");
         std::fs::write(&stand_in, b"").expect("a stand-in for the docker CLI");
         use_managed_engine(Some(stand_in.clone()), Some(socket.into()));
 
         for args in [
             vec!["image", "inspect", IMAGE],
             vec!["build", "--progress", "plain", "-t", IMAGE, "."],
-            vec!["run", "-d", "--name", "botcage-x", IMAGE],
-            vec!["exec", "botcage-x", "true"],
+            vec!["run", "-d", "--name", "botato-x", IMAGE],
+            vec!["exec", "botato-x", "true"],
         ] {
             let cmd = docker_cmd(&args).expect("a docker command");
             assert_eq!(
@@ -1675,10 +1675,10 @@ mod tests {
     /// The Linux engine, told where its own parts are.
     ///
     /// podman looks for conmon, a registries.conf and a policy.json at absolute
-    /// system paths. botcage does not install to `/`, so a bundle unpacked into
+    /// system paths. botato does not install to `/`, so a bundle unpacked into
     /// its app data directory is invisible to the binary inside it: `podman
     /// info` fails on conmon, which is the first thing `served_by` asks, so the
-    /// engine botcage just installed reports itself as no engine at all. The
+    /// engine botato just installed reports itself as no engine at all. The
     /// two after it stop a build: an unqualified `FROM debian:...` is refused
     /// without registries.conf, and nothing builds at all without a policy.
     ///
@@ -1691,7 +1691,7 @@ mod tests {
             .unwrap_or_else(|held| held.into_inner());
 
         // The layout podman-static unpacks into.
-        let root = std::env::temp_dir().join("botcage-podman-layout");
+        let root = std::env::temp_dir().join("botato-podman-layout");
         let _ = std::fs::remove_dir_all(&root);
         let bin = root.join("usr/local/bin");
         let lib = root.join("usr/local/lib/podman");
@@ -1759,7 +1759,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// And where botcage installed nothing, it must not invent a socket: the
+    /// And where botato installed nothing, it must not invent a socket: the
     /// user's own docker is the right answer then, and pointing it at a VM that
     /// does not exist would break the machines this works on today.
     #[test]

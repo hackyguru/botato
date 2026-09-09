@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <!-- botcage is signed with a Developer ID and notarised, not sandboxed: it
+  <!-- botato is signed with a Developer ID and notarised, not sandboxed: it
        spawns the Claude Code CLI and a container engine, and reads a workspace
        the user can open in Finder. None of that survives the App Sandbox.
 
@@ -11,7 +11,7 @@
 
        The hardened runtime needs no exception for spawning child processes; each
        child carries its own signature. What it does forbid is loading unsigned
-       code into our own process, which botcage never does. -->
+       code into our own process, which botato never does. -->
 
   <!-- The webview JITs JavaScript. On macOS that happens in Apple's own
        WebContent process, but this is inherited by children and costs nothing

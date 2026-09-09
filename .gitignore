@@ -30,13 +30,13 @@ mobile/dist
 
 # Built by mobile/rust/build.sh — hundreds of MB of static libraries, and
 # regenerated from the crate whenever the bindings change.
-mobile/rust/botcage-p2p/target
-mobile/rust/botcage-p2p/jniLibs
-mobile/rust/botcage-p2p/bindings
-mobile/modules/botcage-p2p/ios/BotcageP2P.xcframework
-mobile/modules/botcage-p2p/ios/botcage_p2p.swift
-mobile/modules/botcage-p2p/android/src/main/jniLibs
-mobile/modules/botcage-p2p/android/src/main/java/uniffi
+mobile/rust/botato-p2p/target
+mobile/rust/botato-p2p/jniLibs
+mobile/rust/botato-p2p/bindings
+mobile/modules/botato-p2p/ios/BotatoP2P.xcframework
+mobile/modules/botato-p2p/ios/botato_p2p.swift
+mobile/modules/botato-p2p/android/src/main/jniLibs
+mobile/modules/botato-p2p/android/src/main/java/uniffi
 
 # Gradle output for the local module
 mobile/modules/*/android/build
@@ -52,7 +52,7 @@ website/
 
 # Next.js writes here when its dev server picks this directory as the workspace
 # root, which it does because the lockfile it finds first is ours. It is the
-# site's build output, not botcage's.
+# site's build output, not botato's.
 .next/
 
 # pnpm content-addressable store, created by a local --store-dir run.

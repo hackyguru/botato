@@ -164,7 +164,7 @@ mod tests {
         assert_eq!(base64url(b"a"), "YQ");
         assert_eq!(base64url(b"ab"), "YWI");
         assert_eq!(base64url(b"abc"), "YWJj");
-        let encoded = base64url(&sha256(b"botcage"));
+        let encoded = base64url(&sha256(b"botato"));
         assert!(!encoded.contains('+') && !encoded.contains('/') && !encoded.contains('='));
     }
 

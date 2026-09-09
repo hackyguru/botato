@@ -3,7 +3,7 @@
  *
  * Synthesised rather than shipped. A file would mean licensing something,
  * carrying a megabyte of audio in a binary that is proud of being eleven, and
- * having a loop point somebody can hear — and botcage already prefers making a
+ * having a loop point somebody can hear — and botato already prefers making a
  * thing on the machine to downloading one. This is a few oscillators and a
  * delay line, and it weighs nothing.
  *

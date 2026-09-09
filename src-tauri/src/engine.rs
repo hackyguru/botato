@@ -1,7 +1,7 @@
-//! A container engine botcage installs and owns, so a bot's computer needs
+//! A container engine botato installs and owns, so a bot's computer needs
 //! nothing preinstalled — no Docker Desktop, no terminal, no admin password.
 //!
-//! Everything lands in botcage's own data directory and nothing touches the
+//! Everything lands in botato's own data directory and nothing touches the
 //! system, which is what makes it removable by deleting a folder — two, on
 //! macOS, because lima's state cannot live where the rest does (see `lima_home`).
 //!
@@ -98,7 +98,7 @@ const ARTIFACTS: &[Artifact] = &[];
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EngineStatus {
-    /// botcage has an engine of its own, downloaded and verified.
+    /// botato has an engine of its own, downloaded and verified.
     pub installed: bool,
     /// The client binary to drive it with.
     pub path: Option<String>,
@@ -121,7 +121,7 @@ pub fn engine_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
-/// The client botcage should drive, if it installed one. Checked by existence
+/// The client botato should drive, if it installed one. Checked by existence
 /// rather than by a marker file, so a half-finished install cannot look done.
 pub fn managed_client(app: &AppHandle) -> Option<PathBuf> {
     let dir = engine_dir(app).ok()?;
@@ -141,7 +141,7 @@ fn limactl(app: &AppHandle) -> Option<PathBuf> {
 /// Where lima keeps the VM. Deliberately not inside the app data directory,
 /// which is the obvious place and does not work: lima puts a unix socket under
 /// this directory and a unix path cannot exceed 104 bytes. Measured against the
-/// real binary, `~/Library/Application Support/com.botcage.app/engine/lima-home`
+/// real binary, `~/Library/Application Support/com.botato.app/engine/lima-home`
 /// produces a 106-byte socket path for a four-letter username, and lima refuses
 /// to start at all — so this lives in a short directory in the home folder, the
 /// same thing colima and Rancher Desktop do for the same reason.
@@ -154,7 +154,7 @@ fn lima_home(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn lima_home_in(home: &Path) -> PathBuf {
-    home.join(".botcage").join("lima")
+    home.join(".botato").join("lima")
 }
 
 /// The longest path lima will build under its home: the ssh socket plus the
@@ -164,7 +164,7 @@ fn longest_socket_path(lima_home: &Path) -> PathBuf {
     lima_home.join(VM_NAME).join("ssh.sock.1234567890123456")
 }
 
-const VM_NAME: &str = "botcage";
+const VM_NAME: &str = "botato";
 
 #[tauri::command(async)]
 pub fn engine_status(app: AppHandle) -> EngineStatus {
@@ -198,7 +198,7 @@ fn vm_is_running(app: &AppHandle) -> bool {
 #[tauri::command(async)]
 pub fn install_engine(app: AppHandle) -> Result<String, String> {
     if ARTIFACTS.is_empty() {
-        return Err("botcage has no engine for this platform yet".into());
+        return Err("botato has no engine for this platform yet".into());
     }
     let dir = engine_dir(&app)?;
     let say = |step: &str| {
@@ -406,11 +406,11 @@ pub fn start_engine(app: AppHandle) -> Result<(), String> {
 
     // Creating a machine and starting one that exists are the same subcommand
     // with different arguments, and passing the creating ones at an instance
-    // that is already there is fatal: "instance `botcage` already exists".
+    // that is already there is fatal: "instance `botato` already exists".
     //
     // Which meant this worked exactly once. The first install created the VM
     // and every later start failed — so a laptop that slept, or an app that
-    // had been quit, left botcage unable to bring up its own engine, reporting
+    // had been quit, left botato unable to bring up its own engine, reporting
     // "docker stopped answering" and offering to download six hundred
     // megabytes of something already on the disk.
     let exists = home.join(VM_NAME).is_dir();
@@ -465,7 +465,7 @@ pub fn start_engine(app: AppHandle) -> Result<(), String> {
 
 /// Where the docker client should look, once the VM is up. Empty on Linux,
 /// where podman needs no socket.
-/// Where botcage's engine listens, whether or not it is listening yet.
+/// Where botato's engine listens, whether or not it is listening yet.
 ///
 /// This used to return nothing unless the socket already existed — and the
 /// socket exists only while the VM is running. So the app, started on a machine
@@ -473,14 +473,14 @@ pub fn start_engine(app: AppHandle) -> Result<(), String> {
 /// its own client against whatever `DOCKER_HOST` defaulted to: Docker Desktop's
 /// socket, on a machine that had Docker Desktop installed and stopped.
 ///
-/// Everything downstream then made sense and was wrong. The engine botcage owns
+/// Everything downstream then made sense and was wrong. The engine botato owns
 /// was the one being used and the daemon being asked was somebody else's, so
 /// starting the VM changed nothing, and the honest report — "docker stopped
 /// answering" — named a component that was not the one at fault.
 ///
 /// Where the socket will be is a fact about where the engine is installed, not
 /// about whether it happens to be up.
-/// Where the engine's two halves sit: the client botcage unpacked, and the
+/// Where the engine's two halves sit: the client botato unpacked, and the
 /// Linux machine it drives on macOS. Both are wanted by the storage panel, and
 /// only this module knows the second one is not where the first one is.
 #[must_use]
@@ -540,7 +540,7 @@ mod tests {
     #[test]
     #[ignore = "downloads ~55MB; run explicitly"]
     fn the_engine_really_installs() {
-        let dir = std::env::temp_dir().join("botcage-engine-test");
+        let dir = std::env::temp_dir().join("botato-engine-test");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("temp dir");
 
@@ -650,9 +650,9 @@ mod tests {
     fn engine_log_lines_become_readable() {
         assert_eq!(
             readable(
-                r#"time="2026-08-17T10:00:00+05:30" level=info msg="Starting the instance \"botcage\" with VM driver \"vz\"""#
+                r#"time="2026-08-17T10:00:00+05:30" level=info msg="Starting the instance \"botato\" with VM driver \"vz\"""#
             ),
-            Some(r#"Starting the instance "botcage" with VM driver "vz""#.into())
+            Some(r#"Starting the instance "botato" with VM driver "vz""#.into())
         );
         assert_eq!(
             readable("INFO[0042] [hostagent] Waiting for the essential requirement 1 of 5: \"ssh\"  fields=x"),
@@ -688,7 +688,7 @@ mod tests {
 
         // And the location this replaced, to keep the reason from being lost.
         let old = PathBuf::from(
-            "/Users/guru/Library/Application Support/com.botcage.app/engine/lima-home",
+            "/Users/guru/Library/Application Support/com.botato.app/engine/lima-home",
         );
         assert!(longest_socket_path(&old).as_os_str().len() > UNIX_PATH_MAX);
     }

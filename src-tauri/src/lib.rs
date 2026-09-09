@@ -1,9 +1,9 @@
-//! Bridge between the botcage UI and whatever answers for a bot.
+//! Bridge between the botato UI and whatever answers for a bot.
 //!
 //! Each turn spawns the engine that bot chose — see [`inference`] — in its own
 //! workspace directory, and relays the stream to the webview as `bot-event`
 //! events. Which flags, which stream format and which model belong to the
-//! engine; what botcage does about any of it belongs here.
+//! engine; what botato does about any of it belongs here.
 //!
 //! Auth comes from the user's own CLI login, so no API key ever passes through
 //! this process.
@@ -43,10 +43,10 @@ mod update;
 mod vault;
 mod voice;
 
-/// Entry point for `botcage --mcp` (see main.rs). Identity arrives in the
+/// Entry point for `botato --mcp` (see main.rs). Identity arrives in the
 /// environment, set by the app when it registers this server.
 pub fn serve_mcp() {
-    // The engine botcage installed, told to us the same way our identity is.
+    // The engine botato installed, told to us the same way our identity is.
     //
     // This process is not the app: `use_managed_engine` runs in the app's
     // setup and sets a static in the app's memory, which this has no share of.
@@ -56,16 +56,16 @@ pub fn serve_mcp() {
     // the same desktop perfectly, because the app knew where its engine was.
     // Only the bots could not.
     sandbox::use_managed_engine(
-        std::env::var("BOTCAGE_ENGINE")
+        std::env::var("BOTATO_ENGINE")
             .ok()
             .filter(|p| !p.is_empty())
             .map(Into::into),
-        std::env::var("BOTCAGE_DOCKER_HOST")
+        std::env::var("BOTATO_DOCKER_HOST")
             .ok()
             .filter(|h| !h.is_empty()),
     );
 
-    let brand = std::env::var("BOTCAGE_BRAND")
+    let brand = std::env::var("BOTATO_BRAND")
         .ok()
         .and_then(|raw| serde_json::from_str(&raw).ok())
         .unwrap_or_default();
@@ -74,7 +74,7 @@ pub fn serve_mcp() {
         // Who else this bot could put work on the calendar of. Names rather
         // than ids: a bot says "Ops", and the window turns that into whichever
         // bot is called that when the turn ends.
-        colleagues: std::env::var("BOTCAGE_COLLEAGUES")
+        colleagues: std::env::var("BOTATO_COLLEAGUES")
             .unwrap_or_default()
             .split('\n')
             .map(str::trim)
@@ -84,16 +84,16 @@ pub fn serve_mcp() {
         // Present *and* not empty: a variable set to "" is still set, and a
         // bot silently given the wrong tools is not a thing that announces
         // itself.
-        files: std::env::var("BOTCAGE_FILES").is_ok_and(|on| !on.is_empty()),
+        files: std::env::var("BOTATO_FILES").is_ok_and(|on| !on.is_empty()),
         // Where the window keeps its digest of the rooms. Absent unless this
         // bot was given it, which is what makes looking around opt-in rather
         // than a thing every bot can quietly do.
-        rooms: std::env::var("BOTCAGE_ROOMS")
+        rooms: std::env::var("BOTATO_ROOMS")
             .ok()
             .filter(|path| !path.is_empty())
             .map(Into::into),
-        id: std::env::var("BOTCAGE_BOT").unwrap_or_default(),
-        workspace: std::env::var("BOTCAGE_WORKSPACE")
+        id: std::env::var("BOTATO_BOT").unwrap_or_default(),
+        workspace: std::env::var("BOTATO_WORKSPACE")
             .unwrap_or_default()
             .into(),
         brand,
@@ -176,7 +176,7 @@ never quietly. The user sees your name on it and can delete it in one click.";
 /// being unable to do something it is holding the tool for. Which is exactly
 /// what happened when the tool existed and nothing said so.
 const FACE_PROMPT: &str = "\
-You are drawn in botcage as a face — a head, eyes, brows, a resting smile, an optional mark and a colour — and `set_appearance` changes it. It is yours: change it when the user asks, and feel free to suggest one that suits the work you do. The vocabulary is fixed and the tool lists it, so anything outside it (a hat, a moustache, a monocle) does not exist; pick the nearest thing that does and say plainly what is not available rather than inventing it.";
+You are drawn in botato as a face — a head, eyes, brows, a resting smile, an optional mark and a colour — and `set_appearance` changes it. It is yours: change it when the user asks, and feel free to suggest one that suits the work you do. The vocabulary is fixed and the tool lists it, so anything outside it (a hat, a moustache, a monocle) does not exist; pick the nearest thing that does and say plainly what is not available rather than inventing it.";
 
 /// Built-in tools a bot may use. Deliberately no Bash — shell access belongs in
 /// the sandboxed desktop, not on the user's machine.
@@ -194,7 +194,7 @@ answer is a routine, not \
 The user creates and edits them from the clock icon at the top of this conversation, which opens \
 their week as a calendar: clicking a slot schedules something at that day and hour, and every \
 routine there has a Run now button. Two honest caveats worth passing on: routines only fire while \
-botcage is open on their machine, and each one spends model usage every time it runs.";
+botato is open on their machine, and each one spends model usage every time it runs.";
 
 /// Appended to the system prompt only while the bot's desktop is running.
 const DESKTOP_PROMPT: &str = "\
@@ -340,7 +340,7 @@ struct AskRequest {
     colleagues: Vec<String>,
     /// Which conversation this turn belongs to. Absent for the bot's own chat;
     /// a channel id when it is speaking in a room, so the two do not run into
-    /// one another for an engine botcage keeps the transcript for.
+    /// one another for an engine botato keeps the transcript for.
     #[serde(default)]
     thread: Option<String>,
     /// MCP server keys this bot may use, from the app's plugin list.
@@ -407,11 +407,11 @@ pub(crate) fn workspace(app: &AppHandle, bot_id: &str) -> Result<PathBuf, String
     Ok(dir)
 }
 
-/// How many times a model may ask for tools before botcage stops asking again.
+/// How many times a model may ask for tools before botato stops asking again.
 ///
 /// A loop needs a bound, and the bound has to be generous enough that real work
 /// fits inside it — a bot reading three issues and writing a comment is four
-/// rounds before it has said anything. Twelve is well past anything botcage
+/// rounds before it has said anything. Twelve is well past anything botato
 /// asks for and well short of a bot that has got stuck calling the same thing
 /// forever, which is the failure this is here to stop.
 const TOOL_ROUNDS: usize = 12;
@@ -419,7 +419,7 @@ const TOOL_ROUNDS: usize = 12;
 /// One request of a turn: the process, its pipes, and where its complaints go.
 ///
 /// A turn used to be exactly one of these, which is why this used to be written
-/// inline. It stopped being one when botcage started running the tool loop
+/// inline. It stopped being one when botato started running the tool loop
 /// itself: a model that asks for a tool has not finished the turn, and the same
 /// turn is put again with the result attached. The first request and the ones
 /// after it start here so they cannot drift apart.
@@ -535,7 +535,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     // the conversation, and handing it over again would double every exchange.
     // Note the `resume` — a bot that changed engines has a session id its new
     // engine never created, so its first turn there is not a resumption, and
-    // the history botcage kept is exactly what stops the thread starting over.
+    // the history botato kept is exactly what stops the thread starting over.
     let history = if engine.owns_transcript() && req.resume {
         Vec::new()
     } else {
@@ -559,7 +559,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     let carries_tools = delivery != inference::ToolDelivery::None;
 
     // Read, Grep, Write, WebSearch and the rest are Claude Code's own tools,
-    // not something the protocol provides. An engine where botcage runs the
+    // not something the protocol provides. An engine where botato runs the
     // loop gets the bot's connectors and its desktop and no files — so the
     // built-ins are named only for the engine that actually has them. Naming
     // them anyway is how a bot ends up claiming to have read something.
@@ -579,7 +579,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
 
     let base = format!("{}\n\n{}", req.system_prompt, ROUTINES_PROMPT);
     // The other half of the same thought: where the engine has no file tools,
-    // botcage's own server provides them, and they are granted in the same
+    // botato's own server provides them, and they are granted in the same
     // breath as everything else this bot may use.
     let papers = if builtins.is_empty() && carries_tools {
         files::NAMES
@@ -689,13 +689,13 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         );
     }
 
-    // Which servers a bot gets is botcage's decision, and stays here: a desktop
+    // Which servers a bot gets is botato's decision, and stays here: a desktop
     // if it has one, plus the connectors it was granted, each carrying the
     // credential we hold — so the grant decides reach, not whatever happens to
     // be configured on the machine.
     let mut servers = serde_json::Map::new();
 
-    // Every bot that can call a tool gets botcage's own server, whether or not
+    // Every bot that can call a tool gets botato's own server, whether or not
     // it has a computer: it is where a bot reaches its own face, and a face is
     // not a feature of owning a machine. The desktop tools inside it report
     // that there is no desktop when there isn't one, which is the same answer
@@ -708,22 +708,22 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
                 "command": exe.display().to_string(),
                 "args": ["--mcp"],
                 "env": {
-                    "BOTCAGE_BOT": req.bot_id,
-                    "BOTCAGE_COLLEAGUES": req.colleagues.join("\n"),
-                    "BOTCAGE_WORKSPACE": cwd.display().to_string(),
-                    "BOTCAGE_BRAND": serde_json::to_string(&req.brand).unwrap_or_default(),
+                    "BOTATO_BOT": req.bot_id,
+                    "BOTATO_COLLEAGUES": req.colleagues.join("\n"),
+                    "BOTATO_WORKSPACE": cwd.display().to_string(),
+                    "BOTATO_BRAND": serde_json::to_string(&req.brand).unwrap_or_default(),
                     // Only where the engine brings none of its own.
-                    "BOTCAGE_FILES": if builtins.is_empty() { "1" } else { "" },
+                    "BOTATO_FILES": if builtins.is_empty() { "1" } else { "" },
                     // Where our own engine is, and where it listens. Without
                     // these the server picks one off PATH, which is not the
                     // one the app is using.
-                    "BOTCAGE_ENGINE": engine::managed_client(&app)
+                    "BOTATO_ENGINE": engine::managed_client(&app)
                         .map(|p| p.display().to_string())
                         .unwrap_or_default(),
-                    "BOTCAGE_DOCKER_HOST": engine::docker_host(&app).unwrap_or_default(),
+                    "BOTATO_DOCKER_HOST": engine::docker_host(&app).unwrap_or_default(),
                     // Somewhere to look, or nothing — which is how the tool is
                     // withheld rather than offered and then refused.
-                    "BOTCAGE_ROOMS": if req.aware {
+                    "BOTATO_ROOMS": if req.aware {
                         rooms::mirror_path(&app).map(|p| p.display().to_string()).unwrap_or_default()
                     } else {
                         String::new()
@@ -744,7 +744,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
     let servers = serde_json::Value::Object(servers);
 
     // An engine that speaks MCP is handed the servers and asks them itself.
-    // One that does not needs botcage to have asked already: the tools go into
+    // One that does not needs botato to have asked already: the tools go into
     // the request as functions, and answering when the model calls one is this
     // process's job for the rest of the turn.
     //
@@ -767,7 +767,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
         ));
     }
 
-    // What tools, which connectors, which secrets: botcage's decisions. How any
+    // What tools, which connectors, which secrets: botato's decisions. How any
     // of it is spelled on a command line: the engine's.
     let turn = inference::Turn {
         session_id: req.session_id.clone(),
@@ -846,7 +846,7 @@ fn ask(app: AppHandle, running: tauri::State<Running>, req: AskRequest) -> Resul
 
             for line in BufReader::new(stdout).lines().map_while(Result::ok) {
                 // Read by the engine rather than here. What a stream means is the
-                // engine's business; this loop's business is what botcage does
+                // engine's business; this loop's business is what botato does
                 // about it, and the two were the same code only because there was
                 // one engine.
                 for event in reader.read_line(&line) {
@@ -1051,7 +1051,7 @@ fn cancel(app: AppHandle, running: tauri::State<Running>, bot_id: String) {
 /// person present.
 const BACKUP_SECRET: &str = "backup-passphrase";
 
-/// Whether botcage is holding a passphrase, without saying what it is.
+/// Whether botato is holding a passphrase, without saying what it is.
 #[tauri::command]
 fn backup_ready() -> bool {
     connectors::read_secret(BACKUP_SECRET).is_some_and(|word| !word.is_empty())
@@ -1115,7 +1115,7 @@ fn backup_default_folder() -> String {
     } else {
         home().join("Documents")
     };
-    base.join("botcage-backups").display().to_string()
+    base.join("botato-backups").display().to_string()
 }
 
 /// The archives in a folder, newest first.
@@ -1128,7 +1128,7 @@ fn backup_list(folder: String) -> Vec<Value> {
         .flatten()
         .filter(|e| {
             let name = e.file_name().to_string_lossy().into_owned();
-            name.starts_with("botcage-") && name.ends_with(".backup")
+            name.starts_with("botato-") && name.ends_with(".backup")
         })
         .map(|e| {
             let size = e.metadata().map(|m| m.len()).unwrap_or(0);
@@ -1148,7 +1148,7 @@ fn backup_list(folder: String) -> Vec<Value> {
 ///
 /// The window is what finishes the job: it takes the state, saves it, and
 /// reloads. Doing it here would mean a Rust process reaching into the webview's
-/// storage, which is exactly the coupling the rest of botcage avoids.
+/// storage, which is exactly the coupling the rest of botato avoids.
 #[tauri::command]
 fn backup_restore(app: AppHandle, path: String, passphrase: String) -> Result<String, String> {
     let sealed = fs::read(&path).map_err(|e| format!("could not read {path}: {e}"))?;
@@ -1213,7 +1213,7 @@ fn template_write(path: String, json: String) -> Result<(), String> {
 
 /// Read one back.
 ///
-/// Capped, because this is the one file botcage opens that came from somebody
+/// Capped, because this is the one file botato opens that came from somebody
 /// else: a template is a few kilobytes and anything claiming to be one that is
 /// megabytes long is not worth parsing to find out what it is.
 #[tauri::command]
@@ -1282,7 +1282,7 @@ fn take_routines(app: AppHandle, bot_id: String) -> Vec<Value> {
 /// Android webviews but not for GTK. An unanswered request is a denied one, so
 /// without this a call on Linux is silent and says nothing about why.
 ///
-/// The answer is yes because botcage is not a browser: there is one page, we
+/// The answer is yes because botato is not a browser: there is one page, we
 /// wrote it, and it asks for the microphone at exactly one moment — while you
 /// are holding the talk button on a call you started. macOS asks the user
 /// instead, through the system, which is the right place for that question
@@ -1316,11 +1316,11 @@ fn allow_the_microphone(app: &tauri::App) {
 #[cfg(not(target_os = "linux"))]
 fn allow_the_microphone(_app: &tauri::App) {}
 
-/// Someone clicked "Add to botcage" on a template.
+/// Someone clicked "Add to botato" on a template.
 ///
 /// The link carries the whole template rather than an id to fetch, so the app
 /// never has to talk to the website and a link keeps working after the page it
-/// came from is gone. It arrives here as a `botcage://` URL and goes straight
+/// came from is gone. It arrives here as a `botato://` URL and goes straight
 /// to the window as text — this end deliberately does not parse it, because
 /// the thing that has to understand a template is the thing that builds a bot
 /// out of one, and that lives in the front end already.
@@ -1416,7 +1416,7 @@ fn make_room(app: AppHandle, need: f64) -> Result<bool, String> {
     Ok(true)
 }
 
-/// Whether botcage's own speech engine is installed.
+/// Whether botato's own speech engine is installed.
 #[tauri::command]
 fn speech_ready(app: AppHandle) -> bool {
     speech::ready(&app)
@@ -1568,7 +1568,7 @@ fn set_awake(on: bool) -> Result<(), String> {
         let mut cmd = Command::new("systemd-inhibit");
         cmd.args([
             "--what=idle:sleep",
-            "--who=botcage",
+            "--who=botato",
             "--why=running bots",
             "--mode=block",
             "sleep",
@@ -1613,7 +1613,7 @@ fn lid_awake() -> bool {
 
 /// Keep working with the lid shut. Unlike the idle assertion this is a system
 /// setting, not something scoped to this app: it needs an administrator, it
-/// outlives botcage until switched off, and a closed machine doing constant
+/// outlives botato until switched off, and a closed machine doing constant
 /// work runs hotter.
 #[tauri::command]
 fn set_lid_awake(on: bool) -> Result<(), String> {
@@ -1641,7 +1641,7 @@ fn set_lid_awake(on: bool) -> Result<(), String> {
     })
 }
 
-/// Is botcage set to start when the user logs in?
+/// Is botato set to start when the user logs in?
 #[tauri::command]
 fn login_launch() -> bool {
     login_item_path().map(|path| path.exists()).unwrap_or(false)
@@ -1650,15 +1650,15 @@ fn login_launch() -> bool {
 fn login_item_path() -> Option<PathBuf> {
     let home = home();
     if cfg!(target_os = "macos") {
-        Some(home.join("Library/LaunchAgents/com.hackyguru.botcage.plist"))
+        Some(home.join("Library/LaunchAgents/com.hackyguru.botato.plist"))
     } else if cfg!(target_os = "linux") {
-        Some(home.join(".config/autostart/botcage.desktop"))
+        Some(home.join(".config/autostart/botato.desktop"))
     } else {
         None
     }
 }
 
-/// Start botcage at login, so "always running" survives a restart.
+/// Start botato at login, so "always running" survives a restart.
 #[tauri::command]
 fn set_login_launch(on: bool) -> Result<(), String> {
     let path = login_item_path().ok_or("launching at login isn't wired up on this platform yet")?;
@@ -1685,7 +1685,7 @@ fn set_login_launch(on: bool) -> Result<(), String> {
              <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \
              \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n\
              <plist version=\"1.0\"><dict>\n\
-             <key>Label</key><string>com.hackyguru.botcage</string>\n\
+             <key>Label</key><string>com.hackyguru.botato</string>\n\
              <key>ProgramArguments</key><array><string>{}</string></array>\n\
              <key>RunAtLoad</key><true/>\n\
              </dict></plist>\n",
@@ -1693,7 +1693,7 @@ fn set_login_launch(on: bool) -> Result<(), String> {
         )
     } else {
         format!(
-            "[Desktop Entry]\nType=Application\nName=botcage\nExec={}\nX-GNOME-Autostart-enabled=true\n",
+            "[Desktop Entry]\nType=Application\nName=botato\nExec={}\nX-GNOME-Autostart-enabled=true\n",
             exe.display()
         )
     };
@@ -1952,12 +1952,12 @@ fn teach_name(app: AppHandle, bot_id: String, slug: String) -> Option<String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        // Only so a person can point at a folder for their backups. botcage
+        // Only so a person can point at a folder for their backups. botato
         // never opens one on its own.
         .plugin(tauri_plugin_dialog::init())
-        // Notifications when botcage is not the window you are looking at.
+        // Notifications when botato is not the window you are looking at.
         .plugin(tauri_plugin_notification::init())
-        // "botcage://" — how a template on the website gets into the roster.
+        // "botato://" — how a template on the website gets into the roster.
         // Nothing is created by a link arriving; see `handed_a_bot`.
         .plugin(tauri_plugin_deep_link::init())
         // Replacing this app with a newer one, and restarting into it. The
@@ -2082,13 +2082,14 @@ pub fn run() {
             allow_the_microphone(app);
             handed_a_bot(app);
 
-            // If botcage installed its own engine, use that rather than whatever
+            // If botato installed its own engine, use that rather than whatever
             // is on PATH — it is the one the user agreed to.
             let handle = app.handle().clone();
             sandbox::use_managed_engine(
                 engine::managed_client(&handle),
                 engine::docker_host(&handle),
             );
+
 
             // Bots may switch their own desktops on, so something has to switch
             // idle ones off.

@@ -6,12 +6,12 @@
        why, and it shows that sentence to the person being asked — so this is
        written for them rather than for us.
 
-       There is deliberately no NSSpeechRecognitionUsageDescription: botcage
+       There is deliberately no NSSpeechRecognitionUsageDescription: botato
        transcribes on this machine with its own model and never asks Apple's
        recogniser for anything, so asking for that permission would be a claim
        we could not justify. -->
 
   <key>NSMicrophoneUsageDescription</key>
-  <string>botcage uses the microphone while you hold the talk button on a call with one of your bots, and while you dictate a message instead of typing it. Both start and stop with a button, nothing listens in between, and what you say is turned into text on this machine and never sent anywhere.</string>
+  <string>botato uses the microphone while you hold the talk button on a call with one of your bots, and while you dictate a message instead of typing it. Both start and stop with a button, nothing listens in between, and what you say is turned into text on this machine and never sent anywhere.</string>
 </dict>
 </plist>

@@ -1,9 +1,9 @@
 //! What a bot said, for engines that do not remember.
 //!
 //! Claude Code keeps its own conversation and picks it up again with
-//! `--resume`, so botcage has never had to hold one. Most engines cannot: a
+//! `--resume`, so botato has never had to hold one. Most engines cannot: a
 //! hosted API or a local model is given a prompt and answers it, and anything
-//! it should know has to be in that prompt. This is where botcage keeps it.
+//! it should know has to be in that prompt. This is where botato keeps it.
 //!
 //! Deliberately not the bot's memory. `MEMORY.md` is what a bot chose to write
 //! down and carries across everything it does; this is the last few exchanges,
@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 
-/// Who said it. Engines name these differently; botcage does not care.
+/// Who said it. Engines name these differently; botato does not care.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Voice {
@@ -146,7 +146,7 @@ mod tests {
     use super::*;
 
     fn workspace(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("botcage-transcript-{name}"));
+        let dir = std::env::temp_dir().join(format!("botato-transcript-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("temp workspace");
         dir

@@ -17,7 +17,7 @@
 //! once, plus its ten-character key id and the team id. Without them nothing
 //! here does anything and the settings row says so.
 //!
-//! The request goes out through `curl`, which every machine botcage runs on
+//! The request goes out through `curl`, which every machine botato runs on
 //! already has and which speaks the HTTP/2 that APNs requires. Linking an HTTP
 //! stack for one small POST would add megabytes to a binary that is proud of
 //! being eleven.

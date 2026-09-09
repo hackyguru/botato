@@ -50,12 +50,12 @@ RUN set -eux; \
     rm -rf /tmp/gh.tgz "/tmp/gh_${GH_VERSION}_linux_${arch}"; \
     HOME=/root gh --version
 
-COPY entrypoint.sh /usr/local/bin/botcage-entrypoint
+COPY entrypoint.sh /usr/local/bin/botato-entrypoint
 COPY browser.sh /usr/local/bin/browser
-COPY control.py /usr/local/lib/botcage/control.py
-COPY brand.py /usr/local/lib/botcage/brand.py
+COPY control.py /usr/local/lib/botato/control.py
+COPY brand.py /usr/local/lib/botato/brand.py
 COPY tint2rc /etc/xdg/tint2/tint2rc
-RUN chmod +x /usr/local/bin/botcage-entrypoint /usr/local/bin/browser \
+RUN chmod +x /usr/local/bin/botato-entrypoint /usr/local/bin/browser \
     && useradd -m -u 1000 -s /bin/bash bot \
     # Root inside its own throwaway container, so a bot can apt-install what it
     # needs. The container is the security boundary, not this user.
@@ -74,4 +74,4 @@ WORKDIR /home/bot
 # 6080 = VNC over WebSocket (the panel), 6081 = input/screen control API.
 EXPOSE 6080 6081
 
-ENTRYPOINT ["/usr/local/bin/botcage-entrypoint"]
+ENTRYPOINT ["/usr/local/bin/botato-entrypoint"]

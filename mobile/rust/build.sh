@@ -13,8 +13,8 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
-crate="$here/botcage-p2p"
-module="$here/../modules/botcage-p2p"
+crate="$here/botato-p2p"
+module="$here/../modules/botato-p2p"
 want="${1:-all}"
 
 cd "$crate"
@@ -34,8 +34,8 @@ generate_bindings () {
   # is not always a Mac: the Android half of this runs on Linux in CI, where
   # the same crate produces a .so. Hardcoding .dylib made the script useless
   # anywhere an Android build actually wants to happen.
-  local host="target/release/libbotcage_p2p.dylib"
-  [ -f "$host" ] || host="target/release/libbotcage_p2p.so"
+  local host="target/release/libbotato_p2p.dylib"
+  [ -f "$host" ] || host="target/release/libbotato_p2p.so"
 
   cargo run --release --bin uniffi-bindgen -- generate \
     --library "$host" --language swift --out-dir bindings/swift
@@ -57,32 +57,32 @@ build_ios () {
   local sim="$crate/target/simulator-universal"
   mkdir -p "$sim"
   lipo -create \
-    "target/aarch64-apple-ios-sim/release/libbotcage_p2p.a" \
-    "target/x86_64-apple-ios/release/libbotcage_p2p.a" \
-    -output "$sim/libbotcage_p2p.a"
+    "target/aarch64-apple-ios-sim/release/libbotato_p2p.a" \
+    "target/x86_64-apple-ios/release/libbotato_p2p.a" \
+    -output "$sim/libbotato_p2p.a"
 
   # xcodebuild wants headers in a directory with the modulemap under its
   # conventional name, not uniffi's.
   local headers="$crate/target/xcframework-headers"
-  rm -rf "$headers" "$crate/target/BotcageP2P.xcframework"
+  rm -rf "$headers" "$crate/target/BotatoP2P.xcframework"
   mkdir -p "$headers"
-  cp bindings/swift/botcage_p2pFFI.h "$headers/"
-  cp bindings/swift/botcage_p2pFFI.modulemap "$headers/module.modulemap"
+  cp bindings/swift/botato_p2pFFI.h "$headers/"
+  cp bindings/swift/botato_p2pFFI.modulemap "$headers/module.modulemap"
 
   xcodebuild -create-xcframework \
-    -library "target/aarch64-apple-ios/release/libbotcage_p2p.a" -headers "$headers" \
-    -library "$sim/libbotcage_p2p.a" -headers "$headers" \
-    -output "target/BotcageP2P.xcframework" >/dev/null
+    -library "target/aarch64-apple-ios/release/libbotato_p2p.a" -headers "$headers" \
+    -library "$sim/libbotato_p2p.a" -headers "$headers" \
+    -output "target/BotatoP2P.xcframework" >/dev/null
 
   mkdir -p "$module/ios"
-  rm -rf "$module/ios/BotcageP2P.xcframework"
-  cp -R "target/BotcageP2P.xcframework" "$module/ios/"
-  cp bindings/swift/botcage_p2p.swift "$module/ios/"
+  rm -rf "$module/ios/BotatoP2P.xcframework"
+  cp -R "target/BotatoP2P.xcframework" "$module/ios/"
+  cp bindings/swift/botato_p2p.swift "$module/ios/"
   # The C header goes in the pod as well, so CocoaPods puts it in the umbrella
   # and the Rust symbols are visible to the generated Swift without depending on
   # the xcframework's own module being importable — which it is not, and which
   # fails silently because the generated code guards it with canImport.
-  cp bindings/swift/botcage_p2pFFI.h "$module/ios/"
+  cp bindings/swift/botato_p2pFFI.h "$module/ios/"
 }
 
 build_android () {
@@ -96,14 +96,14 @@ build_android () {
   rm -rf jniLibs
   cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 -o ./jniLibs build --release
   # cargo-ndk copies dependency dylibs beside ours; only ours is loaded.
-  find jniLibs -name "*.so" ! -name "libbotcage_p2p.so" -delete
+  find jniLibs -name "*.so" ! -name "libbotato_p2p.so" -delete
 
   mkdir -p "$module/android/src/main/jniLibs" "$module/android/src/main/java"
   rm -rf "$module/android/src/main/jniLibs"/*
   cp -R jniLibs/* "$module/android/src/main/jniLibs/"
-  mkdir -p "$module/android/src/main/java/uniffi/botcage_p2p"
-  cp bindings/kotlin/uniffi/botcage_p2p/botcage_p2p.kt \
-     "$module/android/src/main/java/uniffi/botcage_p2p/"
+  mkdir -p "$module/android/src/main/java/uniffi/botato_p2p"
+  cp bindings/kotlin/uniffi/botato_p2p/botato_p2p.kt \
+     "$module/android/src/main/java/uniffi/botato_p2p/"
 }
 
 generate_bindings

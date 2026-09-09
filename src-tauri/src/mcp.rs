@@ -1,6 +1,6 @@
 //! The desktop, exposed to a bot's Claude Code session as an MCP server.
 //!
-//! Runs as `botcage --mcp <controlPort>`: the same binary the GUI lives in, so
+//! Runs as `botato --mcp <controlPort>`: the same binary the GUI lives in, so
 //! there is no Node or Python runtime to depend on, on any platform. Speaks
 //! newline-delimited JSON-RPC on stdin/stdout and forwards each tool call to the
 //! container's control API on the loopback port it was given.
@@ -25,7 +25,7 @@ pub struct Bot {
     pub brand: sandbox::BotBrand,
     /// Who else is on this machine, by name. A bot cannot put work on a
     /// colleague's calendar without knowing the colleague exists, and names
-    /// are what one bot calls another — ids are botcage's business.
+    /// are what one bot calls another — ids are botato's business.
     pub colleagues: Vec<String>,
     /// Where the window keeps its digest of the rooms, if this bot is allowed
     /// to look at all. Absent means the tool is not offered — which is the
@@ -878,7 +878,7 @@ fn base_specs(bot: &Bot) -> Value {
         {
             "name": "set_appearance",
             "description": format!(
-                "Change how you look. You are drawn as a face in botcage: a body, eyes, brows, an                  optional mark, and a colour. There is no mouth — the shape you are and                  the colour you are is how anybody knows you. Call this when the user asks you                  to change your appearance, or when you want to — you own your own face. Every                  field is optional; the ones you leave out stay as they are.\n\n                 head: {}\neyes: {}\nbrow: {}\nmark: {}\n                 colour: a hex value like #30d158.\n\n                 Nothing                  outside these words exists: pick the closest thing that does,                  say what you picked, and name what was not available rather than inventing it.                  Your head is your outline, and it is what anybody recognises you by \
+                "Change how you look. You are drawn as a face in botato: a body, eyes, brows, an                  optional mark, and a colour. There is no mouth — the shape you are and                  the colour you are is how anybody knows you. Call this when the user asks you                  to change your appearance, or when you want to — you own your own face. Every                  field is optional; the ones you leave out stay as they are.\n\n                 head: {}\neyes: {}\nbrow: {}\nmark: {}\n                 colour: a hex value like #30d158.\n\n                 Nothing                  outside these words exists: pick the closest thing that does,                  say what you picked, and name what was not available rather than inventing it.                  Your head is your outline, and it is what anybody recognises you by \
                  in a list — pebble and bean and egg are plain, drop and spike come to a \
                  point, cat and hare and horns have ears, cloud and tuft are lumpy, crest \
                  leans, and moon has a bite out of one side. \
@@ -1331,7 +1331,7 @@ pub fn serve(bot: Bot) {
             "initialize" => Some(json!({
                 "protocolVersion": params["protocolVersion"].as_str().unwrap_or("2025-06-18"),
                 "capabilities": { "tools": {} },
-                "serverInfo": { "name": "botcage-desktop", "version": env!("CARGO_PKG_VERSION") }
+                "serverInfo": { "name": "botato-desktop", "version": env!("CARGO_PKG_VERSION") }
             })),
             "tools/list" => Some(json!({ "tools": tool_specs(&bot) })),
             "tools/call" => Some(call_tool(&bot, &params)),
@@ -1361,7 +1361,7 @@ mod tests {
     use super::*;
 
     fn a_bot(name: &str) -> Bot {
-        let dir = std::env::temp_dir().join(format!("botcage-face-{name}"));
+        let dir = std::env::temp_dir().join(format!("botato-face-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("workspace");
         Bot {
@@ -1648,7 +1648,7 @@ mod drawing_tests {
     #[test]
     fn a_bot_can_draw_what_the_wardrobe_has_not_got() {
         let bot = {
-            let dir = std::env::temp_dir().join("botcage-face-draw");
+            let dir = std::env::temp_dir().join("botato-face-draw");
             let _ = std::fs::remove_dir_all(&dir);
             std::fs::create_dir_all(&dir).unwrap();
             Bot {
@@ -1738,7 +1738,7 @@ mod schedule_tests {
     use super::*;
 
     fn a_bot(name: &str) -> Bot {
-        let dir = std::env::temp_dir().join(format!("botcage-sched-{name}"));
+        let dir = std::env::temp_dir().join(format!("botato-sched-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("workspace");
         Bot {

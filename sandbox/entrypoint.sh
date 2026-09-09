@@ -42,10 +42,10 @@ case "${NETWORK_POLICY:-full}" in
     ;;
 esac
 
-# botcage signs `gh` in from the host once the desktop is up, so nothing is
+# botato signs `gh` in from the host once the desktop is up, so nothing is
 # needed here beyond an identity for any commits the bot makes.
-git config --global user.name "${BOT_NAME:-botcage}" 2>/dev/null || true
-git config --global user.email "${BOT_NAME:-botcage}@botcage.local" 2>/dev/null || true
+git config --global user.name "${BOT_NAME:-botato}" 2>/dev/null || true
+git config --global user.email "${BOT_NAME:-botato}@botato.local" 2>/dev/null || true
 
 # How this desktop draws text, and which families it has. Both change what a
 # canvas fingerprint comes out as — verified: the same drawing produces four
@@ -113,7 +113,7 @@ done
 if ! xdpyinfo >/dev/null 2>&1; then
   # Exit rather than wait forever: a dead desktop should look like a stopped
   # container, not a running one serving nothing.
-  echo "botcage: display :1 never came up" >&2
+  echo "botato: display :1 never came up" >&2
   exit 1
 fi
 
@@ -131,7 +131,7 @@ else
 fi
 WEBSOCKIFY=$!
 
-python3 /usr/local/lib/botcage/control.py &
+python3 /usr/local/lib/botato/control.py &
 CONTROL=$!
 
 # Session apps, not infrastructure: the bot (or the user) may close these, and
@@ -141,7 +141,7 @@ openbox &
 # Without a desktop manager, openbox leaves the root window bare and anything
 # saved to ~/Desktop is invisible — files appear to vanish. pcmanfm draws the
 # icons and the wallpaper.
-WALLPAPER="$(python3 /usr/local/lib/botcage/brand.py 2>/dev/null || true)"
+WALLPAPER="$(python3 /usr/local/lib/botato/brand.py 2>/dev/null || true)"
 mkdir -p "$HOME/.config/pcmanfm/default"
 cat > "$HOME/.config/pcmanfm/default/desktop-items-0.conf" <<CONF
 [*]
@@ -177,7 +177,7 @@ trap 'exit 0' TERM INT
 while :; do
   for pid in "$XVFB" "$VNC" "$WEBSOCKIFY" "$CONTROL"; do
     if ! kill -0 "$pid" 2>/dev/null; then
-      echo "botcage: core service (pid $pid) exited; stopping" >&2
+      echo "botato: core service (pid $pid) exited; stopping" >&2
       exit 1
     fi
   done

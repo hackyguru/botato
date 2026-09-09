@@ -21,7 +21,7 @@ use tauri::{AppHandle, Manager};
 
 /// Ours, so a stray QUIC connection from anything else is refused before it can
 /// say anything. Versioned: the phone and the desktop must agree.
-const ALPN: &[u8] = b"botcage/1";
+const ALPN: &[u8] = b"botato/1";
 
 /// The identity of this machine, once the endpoint is up. It is the address a
 /// phone pairs with, and it survives restarts because the key is kept.
@@ -206,7 +206,7 @@ mod tests {
     use super::*;
 
     /// The identity has to survive a restart, or every phone would have to pair
-    /// again each time botcage opens.
+    /// again each time botato opens.
     #[test]
     fn a_key_file_round_trips() {
         let mut bytes = [0u8; 32];
@@ -246,7 +246,7 @@ mod tests {
                 let Ok(mut stream) = stream else { continue };
                 let mut buf = [0u8; 1024];
                 let _ = stream.read(&mut buf);
-                let body = br#"{"app":"botcage"}"#;
+                let body = br#"{"app":"botato"}"#;
                 let _ = stream.write_all(
                     format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", body.len()).as_bytes(),
                 );
@@ -295,7 +295,7 @@ mod tests {
             let answer = recv.read_to_end(64 * 1024).await.expect("read");
             let text = String::from_utf8_lossy(&answer);
             assert!(text.contains("200 OK"), "unexpected answer: {text}");
-            assert!(text.contains("botcage"), "unexpected body: {text}");
+            assert!(text.contains("botato"), "unexpected body: {text}");
             println!(
                 "  reached the local server over p2p: {}",
                 text.lines().next().unwrap_or("")

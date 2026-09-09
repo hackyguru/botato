@@ -1,6 +1,6 @@
 //! What answers for a bot.
 //!
-//! botcage drives the Claude Code CLI today, but nothing about a bot requires
+//! botato drives the Claude Code CLI today, but nothing about a bot requires
 //! that: a bot is a name, a role, a memory, a workspace, optionally a computer,
 //! and something that turns a prompt into words. This module is the seam
 //! between the last of those and the rest of the app, so a second engine —
@@ -8,21 +8,21 @@
 //! without the roster, the threads, the sandbox, the routines, the relay or the
 //! phone knowing anything happened.
 //!
-//! Most of botcage is already indifferent. Everything downstream speaks
-//! [`Event`], which is botcage's own vocabulary rather than any one tool's
+//! Most of botato is already indifferent. Everything downstream speaks
+//! [`Event`], which is botato's own vocabulary rather than any one tool's
 //! stream format, and has been since before there was a second engine to
 //! consider.
 //!
 //! The hard part is not the command line. It is [`Engine::owns_transcript`]:
 //! Claude Code keeps a conversation on disk and picks it up again with
-//! `--resume`, so botcage has never had to remember one. An engine without
-//! that — an API, a local model — needs botcage to hold the transcript and
+//! `--resume`, so botato has never had to remember one. An engine without
+//! that — an API, a local model — needs botato to hold the transcript and
 //! replay it each turn. Declaring which kind an engine is, rather than assuming
 //! the first kind, is what makes the second one possible.
 
 use serde::Serialize;
 
-/// One turn's work, in botcage's terms.
+/// One turn's work, in botato's terms.
 ///
 /// Deliberately not a command line: what an engine is *given* is a prompt, who
 /// the bot is, what it may use and where it works. How that becomes a process,
@@ -41,20 +41,20 @@ pub struct Turn {
     pub model: String,
     /// The bot's own workspace, which is also where a transcript would live.
     pub cwd: std::path::PathBuf,
-    /// Which tools this bot may use, as botcage decided. The engine names them
+    /// Which tools this bot may use, as botato decided. The engine names them
     /// in whatever way it takes; it does not choose them.
     pub allowed_tools: String,
     /// Plugins this bot may not use. Named by key: how a denial is spelled is
-    /// the engine's convention, not botcage's.
+    /// the engine's convention, not botato's.
     pub denied_plugins: Vec<String>,
     /// The MCP servers this bot's connectors amount to. Which servers is
-    /// botcage's business; how they are handed over is the engine's.
+    /// botato's business; how they are handed over is the engine's.
     pub mcp_servers: serde_json::Value,
     /// Secrets a plugin needs in the environment.
     pub env: Vec<(String, String)>,
     /// Where to send this turn, for an engine that is an API rather than a
     /// program. Resolved by the caller, because which provider a bot uses and
-    /// what key botcage holds for it are botcage's business, not the engine's.
+    /// what key botato holds for it are botato's business, not the engine's.
     pub api: Option<Api>,
     /// What was said before this, oldest first.
     ///
@@ -64,7 +64,7 @@ pub struct Turn {
     /// makes a bot on such an engine a bot rather than a series of strangers.
     pub history: Vec<crate::transcript::Entry>,
     /// The tools this bot may call, already in the shape the engine's API
-    /// wants. Empty unless botcage is running the loop: an engine that speaks
+    /// wants. Empty unless botato is running the loop: an engine that speaks
     /// MCP is handed the servers instead and works this out for itself.
     pub tools: Vec<serde_json::Value>,
     /// What has happened *within* this turn already — what the model asked to
@@ -152,7 +152,7 @@ pub fn unslashed(text: String) -> String {
     }
 }
 
-/// What botcage understands, whatever produced it.
+/// What botato understands, whatever produced it.
 ///
 /// The desktop, the phone and the relay all render these; an engine's own
 /// stream format never reaches them.
@@ -217,14 +217,14 @@ pub trait Engine: Send + Sync {
     /// Does it keep the conversation itself?
     ///
     /// True for a CLI that resumes a session from disk. False for anything
-    /// stateless, which means botcage must hold the transcript and send it
+    /// stateless, which means botato must hold the transcript and send it
     /// each turn — the one difference that is not cosmetic.
     fn owns_transcript(&self) -> bool;
 
     /// Does it read the bot's memory file for itself?
     ///
     /// Claude Code loads `CLAUDE.md` from the session's cwd on every turn, so
-    /// botcage handing it over as well would say everything twice. Nothing
+    /// botato handing it over as well would say everything twice. Nothing
     /// else does, and a memory file nothing reads is a bot that forgets
     /// everything it wrote down — which is worse than having no memory at all,
     /// because it looks like it has one.
@@ -235,14 +235,14 @@ pub trait Engine: Send + Sync {
     /// The command that runs one turn.
     fn command(&self, turn: &Turn) -> Result<std::process::Command, String>;
 
-    /// One line of that command's output, as botcage understands it. A line may
+    /// One line of that command's output, as botato understands it. A line may
     /// carry nothing worth showing, so the answer is a list rather than an
     /// option.
     fn read_line(&self, line: &str) -> Vec<Event>;
 
     /// How this engine is given a bot's connectors.
     ///
-    /// Not *whether*: the connectors belong to botcage — that is the whole
+    /// Not *whether*: the connectors belong to botato — that is the whole
     /// reason claude.ai's were removed — and a bot's GitHub or Notion should
     /// work whatever answers for it.
     fn tools(&self) -> ToolDelivery;
@@ -277,11 +277,11 @@ pub struct Model {
 
 /// How a bot's connectors reach the model.
 ///
-/// MCP is how botcage implements a connector, not something an engine has to
+/// MCP is how botato implements a connector, not something an engine has to
 /// understand. An engine that speaks MCP is handed the servers directly,
 /// because it already has a tool loop and doing it twice would only add
 /// latency. Anything else gets the same connectors as ordinary function
-/// definitions, with botcage running the loop: calling the MCP server, feeding
+/// definitions, with botato running the loop: calling the MCP server, feeding
 /// the result back, and going round again.
 ///
 /// The difference is plumbing. The connectors are the same either way, which is
@@ -295,7 +295,7 @@ pub struct Model {
 pub enum ToolDelivery {
     /// The engine speaks MCP: hand it the servers and let it run its own loop.
     Native,
-    /// botcage runs the loop and passes tools in whatever shape the engine
+    /// botato runs the loop and passes tools in whatever shape the engine
     /// takes. Everything that can call a function qualifies.
     Hosted,
     /// The model cannot call tools at all. A bot on such an engine is told so
@@ -328,9 +328,9 @@ impl Ready {
     }
 }
 
-/// The Claude Code CLI: the engine botcage has always used.
+/// The Claude Code CLI: the engine botato has always used.
 ///
-/// It owns its transcripts, which is why botcage has never kept one, and it
+/// It owns its transcripts, which is why botato has never kept one, and it
 /// brings its own tool loop and MCP support.
 pub struct ClaudeCode;
 
@@ -369,7 +369,7 @@ impl Engine for ClaudeCode {
 
         // Not --strict-mcp-config, which would also suppress the servers an
         // installed marketplace plugin brings. Only claude.ai's own connectors
-        // are turned off: botcage supplies its own, and a bot should reach the
+        // are turned off: botato supplies its own, and a bot should reach the
         // account its user connected here rather than one connected elsewhere.
         cmd.args(["--settings", "{\"disableClaudeAiConnectors\":true}"]);
 
@@ -496,7 +496,7 @@ impl Engine for ClaudeCode {
     }
 
     fn tools(&self) -> ToolDelivery {
-        // It has its own MCP client and tool loop; botcage hands over the
+        // It has its own MCP client and tool loop; botato hands over the
         // servers and stays out of the way.
         ToolDelivery::Native
     }
@@ -517,13 +517,13 @@ impl Engine for ClaudeCode {
     }
 }
 
-/// One line of a Claude Code stream, as botcage understands it.
+/// One line of a Claude Code stream, as botato understands it.
 /// Google's Gemini CLI.
 ///
 /// The second engine, and chosen deliberately as the awkward one: it streams
 /// newline-delimited events like Claude Code and speaks MCP, but it does not
 /// resume a conversation from a session id in headless mode. That makes it the
-/// first engine botcage has to remember a transcript for — which is exactly the
+/// first engine botato has to remember a transcript for — which is exactly the
 /// assumption worth breaking early, while there are two engines rather than
 /// five.
 pub struct GeminiCli;
@@ -595,7 +595,7 @@ fn gemini_signed_in() -> bool {
     // `findEnvFile` walks up from the working directory for `.gemini/.env` and
     // `.env`, and falls back to this one — which is the only arrangement that
     // works for an app launched from Finder, where a key exported in a shell
-    // profile does not exist. botcage never reads the key, only notices that
+    // profile does not exist. botato never reads the key, only notices that
     // one is there to be found.
     if std::fs::read_to_string(crate::home().join(".gemini/.env"))
         .is_ok_and(|env| env.contains("GEMINI_API_KEY") || env.contains("GOOGLE_API_KEY"))
@@ -617,10 +617,10 @@ fn gemini_signed_in() -> bool {
 ///
 /// Rewritten every turn and labelled as ours, because the bot can see it and
 /// will otherwise mistake it for something worth maintaining. Its own notes go
-/// in MEMORY.md, which botcage never overwrites.
+/// in MEMORY.md, which botato never overwrites.
 fn write_instructions(cwd: &std::path::Path, system_prompt: &str) -> Result<(), String> {
     let body = format!(
-        "<!-- Written by botcage before every turn, and replaced each time. \
+        "<!-- Written by botato before every turn, and replaced each time. \
          Your own notes belong in MEMORY.md. -->\n\n{system_prompt}\n"
     );
     std::fs::write(cwd.join("GEMINI.md"), body)
@@ -629,7 +629,7 @@ fn write_instructions(cwd: &std::path::Path, system_prompt: &str) -> Result<(), 
 
 /// The bot's connectors, where Gemini looks for them.
 ///
-/// Merged rather than replaced: only `mcpServers` is botcage's to decide, and a
+/// Merged rather than replaced: only `mcpServers` is botato's to decide, and a
 /// bot that edited its own settings for some other reason should keep what it
 /// wrote. The key is always set, including to nothing — a revoked connector has
 /// to actually disappear.
@@ -707,7 +707,7 @@ impl Engine for GeminiCli {
         }
 
         // Nothing here denies a plugin by name, and that is not an omission:
-        // botcage writes the settings file itself, so a bot is only offered the
+        // botato writes the settings file itself, so a bot is only offered the
         // servers it was granted. Claude Code has to be told what to subtract
         // because an installed plugin reaches every session; here the list is
         // built from nothing each turn, so `denied_plugins` has nothing to do.
@@ -761,7 +761,7 @@ impl Engine for GeminiCli {
 
     fn owns_transcript(&self) -> bool {
         // Headless runs take a prompt and stream a reply; there is no session to
-        // resume. botcage keeps the conversation and sends it.
+        // resume. botato keeps the conversation and sends it.
         false
     }
 
@@ -790,7 +790,7 @@ impl Engine for GeminiCli {
 /// Any model with an OpenAI-shaped API — which, by way of models.dev, is most
 /// of them.
 ///
-/// The other two engines are programs botcage runs. This one is a request:
+/// The other two engines are programs botato runs. This one is a request:
 /// a base URL from the catalogue, a key from the keychain, and the chat
 /// completions shape that every provider worth reaching has settled on. That
 /// is what makes "all of them" a reasonable claim rather than a hundred
@@ -801,7 +801,7 @@ impl Engine for GeminiCli {
 /// stop button can stop. The engine seam does not care which it is.
 pub struct OpenAiCompatible;
 
-/// What the request needs from botcage: the conversation, as the API wants it.
+/// What the request needs from botato: the conversation, as the API wants it.
 ///
 /// The system prompt is a message rather than a preamble, and the history is
 /// turns rather than a transcript pasted into one — this is the one engine that
@@ -861,7 +861,7 @@ impl Engine for OpenAiCompatible {
     }
 
     fn tools(&self) -> ToolDelivery {
-        // The request carries the bot's connectors as functions and botcage
+        // The request carries the bot's connectors as functions and botato
         // runs the loop: asking, executing, asking again. What it does not
         // carry is Claude Code's own Read, Grep and the rest — those are that
         // program's, not the protocol's — so a bot here has its connectors and
@@ -876,7 +876,7 @@ impl Engine for OpenAiCompatible {
             .ok_or("this bot has no provider chosen — pick a model in its settings")?;
         if api.key.is_none() && !api.base.starts_with("http://localhost") {
             return Err(format!(
-                "botcage has no API key for {} — add one in the bot's settings",
+                "botato has no API key for {} — add one in the bot's settings",
                 api.provider
             ));
         }
@@ -895,7 +895,7 @@ impl Engine for OpenAiCompatible {
             body["tools"] = serde_json::Value::Array(turn.tools.clone());
             body["tool_choice"] = serde_json::json!("auto");
         }
-        let request = turn.cwd.join(".botcage-request.json");
+        let request = turn.cwd.join(".botato-request.json");
         std::fs::write(&request, body.to_string())
             .map_err(|e| format!("could not write this turn's request: {e}"))?;
 
@@ -916,9 +916,9 @@ impl Engine for OpenAiCompatible {
             // Through the environment and curl's own expansion, so the key is
             // in neither the command line nor a file. `ps` shows the variable's
             // name; only this process and curl ever see its contents.
-            cmd.env("BOTCAGE_KEY", key)
-                .args(["--variable", "%BOTCAGE_KEY"])
-                .args(["--expand-header", "authorization: Bearer {{BOTCAGE_KEY}}"]);
+            cmd.env("BOTATO_KEY", key)
+                .args(["--variable", "%BOTATO_KEY"])
+                .args(["--expand-header", "authorization: Bearer {{BOTATO_KEY}}"]);
         }
 
         for (var, value) in &turn.env {
@@ -1009,7 +1009,7 @@ impl Engine for OpenAiCompatible {
     }
 }
 
-/// Every engine botcage knows about. A list rather than a constant, so adding
+/// Every engine botato knows about. A list rather than a constant, so adding
 /// one is a line here and an implementation beside it.
 pub fn all() -> Vec<Box<dyn Engine>> {
     vec![
@@ -1099,7 +1099,7 @@ mod tests {
         assert_eq!(for_key(Some("something-else")).key(), DEFAULT);
     }
 
-    /// The connectors are botcage's own — a bot's GitHub should work whatever
+    /// The connectors are botato's own — a bot's GitHub should work whatever
     /// answers for it — so an engine declares how they reach the model.
     ///
     /// An engine that runs its own tool loop must carry them: an MCP client is
@@ -1108,13 +1108,13 @@ mod tests {
     /// prevent. An engine may answer None, but only as a statement about what
     /// it can do today, and the app has to be able to see that it said so.
     #[test]
-    fn an_engine_says_how_botcage_s_connectors_reach_it() {
+    fn an_engine_says_how_botato_s_connectors_reach_it() {
         // The two that bring their own MCP client are handed the servers. If
         // either of these changes, a bot has quietly lost its connections.
         assert_eq!(for_key(Some("claude-code")).tools(), ToolDelivery::Native);
         assert_eq!(for_key(Some("gemini-cli")).tools(), ToolDelivery::Native);
 
-        // The hosted engine carries them as functions, with botcage running
+        // The hosted engine carries them as functions, with botato running
         // the loop. It said None until there was a loop to run — a statement
         // about what it could do, kept honest by this line.
         assert_eq!(
@@ -1131,7 +1131,7 @@ mod tests {
     /// nobody would look for here.
     #[test]
     fn tools_appear_in_the_request_only_when_the_bot_has_any() {
-        let cwd = std::env::temp_dir().join("botcage-hosted-tools");
+        let cwd = std::env::temp_dir().join("botato-hosted-tools");
         std::fs::create_dir_all(&cwd).expect("a workspace");
 
         let mut turn = a_turn(cwd.clone());
@@ -1143,7 +1143,7 @@ mod tests {
 
         let body = |turn: &Turn| -> serde_json::Value {
             OpenAiCompatible.command(turn).expect("a command");
-            let raw = std::fs::read_to_string(cwd.join(".botcage-request.json")).expect("the body");
+            let raw = std::fs::read_to_string(cwd.join(".botato-request.json")).expect("the body");
             serde_json::from_str(&raw).expect("json")
         };
 
@@ -1238,7 +1238,7 @@ mod tests {
         assert_eq!(now[was + 1]["content"], "42 open");
     }
 
-    /// The reason for adding a second engine at all: to find out what botcage
+    /// The reason for adding a second engine at all: to find out what botato
     /// assumed. Claude Code keeps its own conversation; Gemini does not — and a
     /// turn runner written for the first would silently lose the thread on the
     /// second.
@@ -1259,7 +1259,7 @@ mod tests {
     /// that differs per engine, and the half that can be checked without
     /// running anything — so it is checked.
     #[test]
-    fn a_claude_stream_becomes_botcage_events() {
+    fn a_claude_stream_becomes_botato_events() {
         let claude = ClaudeCode;
         let read = |line: &str| claude.read_line(line);
 
@@ -1302,7 +1302,7 @@ mod tests {
             }]
         ));
 
-        // Frames botcage has nothing to say about, and a line cut in half by a
+        // Frames botato has nothing to say about, and a line cut in half by a
         // crash: both are silence rather than noise or a panic.
         assert!(read(r#"{"type":"system","subtype":"init"}"#).is_empty());
         assert!(read(r#"{"type":"stream_event","event":{"type":"message_start"}}"#).is_empty());
@@ -1364,7 +1364,7 @@ mod tests {
         );
         assert!(
             args.iter().any(|a| a.contains("disableClaudeAiConnectors")),
-            "claude.ai's connectors must stay off — botcage supplies its own"
+            "claude.ai's connectors must stay off — botato supplies its own"
         );
         assert!(
             args.iter().any(|a| a.contains("mcpServers")),
@@ -1403,7 +1403,7 @@ mod tests {
     /// Gemini's stream, mapped onto the same vocabulary.
     ///
     /// Written against documented event types rather than a binary — the CLI is
-    /// not installed here — so this test is a statement of what botcage expects,
+    /// not installed here — so this test is a statement of what botato expects,
     /// and the first thing to run against a real one.
     #[test]
     fn a_gemini_stream_becomes_the_same_events() {
@@ -1525,12 +1525,12 @@ mod tests {
     /// that can be checked without the binary.
     #[test]
     fn gemini_leaves_the_bot_s_instructions_and_connectors_where_it_looks() {
-        let cwd = std::env::temp_dir().join("botcage-gemini-files");
+        let cwd = std::env::temp_dir().join("botato-gemini-files");
         let _ = std::fs::remove_dir_all(&cwd);
         std::fs::create_dir_all(&cwd).expect("workspace");
 
         let mut turn = a_turn(cwd.clone());
-        // A file the bot wrote itself, which botcage has no business dropping.
+        // A file the bot wrote itself, which botato has no business dropping.
         std::fs::create_dir_all(cwd.join(".gemini")).unwrap();
         std::fs::write(
             cwd.join(".gemini/settings.json"),
@@ -1547,7 +1547,7 @@ mod tests {
             "a bot with no role is a different bot"
         );
         assert!(
-            md.contains("botcage"),
+            md.contains("botato"),
             "the bot can see this file; it must say who owns it"
         );
 
@@ -1565,7 +1565,7 @@ mod tests {
         );
         assert_eq!(
             settings["theme"], "Dracula",
-            "only mcpServers is botcage's to decide"
+            "only mcpServers is botato's to decide"
         );
 
         // And a bot granted nothing is offered nothing, rather than keeping
@@ -1584,7 +1584,7 @@ mod tests {
     /// engine that also took the prompt as an argument would be asked twice.
     #[test]
     fn an_engine_that_took_the_prompt_as_an_argument_is_not_told_it_twice() {
-        let cwd = std::env::temp_dir().join("botcage-gemini-stdin");
+        let cwd = std::env::temp_dir().join("botato-gemini-stdin");
         let _ = std::fs::remove_dir_all(&cwd);
         std::fs::create_dir_all(&cwd).expect("workspace");
 
@@ -1615,7 +1615,7 @@ mod tests {
     /// Against the shapes a streaming chat API sends. Written from real ones,
     /// including the two names reasoning goes by.
     #[test]
-    fn a_chat_stream_becomes_botcage_events() {
+    fn a_chat_stream_becomes_botato_events() {
         let api = OpenAiCompatible;
         let read = |line: &str| api.read_line(line);
 
@@ -1698,7 +1698,7 @@ mod tests {
     fn a_local_model_answers_through_the_hosted_engine() {
         use std::io::{BufRead, BufReader};
 
-        let dir = std::env::temp_dir().join("botcage-hosted-turn");
+        let dir = std::env::temp_dir().join("botato-hosted-turn");
         std::fs::create_dir_all(&dir).expect("workspace");
 
         let mut turn = a_turn(dir);
@@ -1743,7 +1743,7 @@ mod tests {
         let listed = engines();
         assert!(
             !listed.is_empty(),
-            "botcage must know of at least one engine"
+            "botato must know of at least one engine"
         );
         for engine in &listed {
             assert!(!engine.key.is_empty());

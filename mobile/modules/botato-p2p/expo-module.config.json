@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["BotatoP2pModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.botatop2p.BotatoP2pModule"]
+  }
+}

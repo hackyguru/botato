@@ -4,10 +4,10 @@
 //! providers and some six thousand models: what each one costs, how much
 //! context it has, whether it can call a tool, and — the part that makes this
 //! more than a table — where the provider's API lives and what it calls its
-//! key. That last pair is what lets botcage offer a model it has never heard
+//! key. That last pair is what lets botato offer a model it has never heard
 //! of: a base URL and a credential are the whole of what talking to one takes.
 //!
-//! botcage keeps a copy on disk. The file is a few megabytes and changes by the
+//! botato keeps a copy on disk. The file is a few megabytes and changes by the
 //! week, not the minute, so fetching it once and refreshing on demand beats a
 //! request per search — and a laptop with no signal still gets to choose a
 //! model.
@@ -39,7 +39,7 @@ fn cache_path(app: &AppHandle) -> Result<PathBuf, String> {
 
 /// Fetch the catalogue and keep it. Returns how many models it describes.
 ///
-/// Through curl for the same reason the rest of botcage does: it is on every
+/// Through curl for the same reason the rest of botato does: it is on every
 /// machine this runs on, and an HTTP stack with TLS would be a larger
 /// dependency than the app.
 pub fn fetch(app: &AppHandle) -> Result<usize, String> {
@@ -110,7 +110,7 @@ pub struct Provider {
     /// for one can say it.
     pub env: Vec<String>,
     pub doc: String,
-    /// Whether botcage is holding a key for it.
+    /// Whether botato is holding a key for it.
     pub has_key: bool,
     /// How many models it offers, so a list of providers can be ordered by
     /// something more useful than the alphabet.
@@ -123,7 +123,7 @@ pub struct Provider {
 
 /// Base URLs for providers whose catalogue entry has none.
 ///
-/// models.dev does not publish an `api` for every provider, and botcage drops
+/// models.dev does not publish an `api` for every provider, and botato drops
 /// any provider without one — there is nothing to talk to. That quietly cost
 /// twenty-six of them, including OpenAI, so a person holding an OpenAI key
 /// could not find anywhere to put it.
@@ -211,7 +211,7 @@ pub fn providers(app: &AppHandle) -> Vec<Provider> {
     out
 }
 
-/// The one provider botcage adds itself.
+/// The one provider botato adds itself.
 ///
 /// Ollama is not in the catalogue — it has no prices to publish and no key to
 /// name — but it speaks the same API on this machine, for nothing, without an
@@ -507,7 +507,7 @@ pub fn provider_key_clear(provider: String) {
 mod tests {
     use super::*;
 
-    /// The shape botcage reads, against the shape models.dev publishes. Written
+    /// The shape botato reads, against the shape models.dev publishes. Written
     /// from the real file — 192 providers, 6,841 models — rather than from its
     /// documentation.
     fn sample() -> serde_json::Value {
@@ -554,7 +554,7 @@ mod tests {
         assert_eq!(count_models(&serde_json::json!("not a catalogue")), 0);
     }
 
-    /// A provider with no API base is a provider botcage cannot reach, whatever
+    /// A provider with no API base is a provider botato cannot reach, whatever
     /// its models are called. Twenty-six of the real ones are like this.
     #[test]
     fn a_provider_with_nowhere_to_send_a_request_is_not_offered() {
@@ -592,7 +592,7 @@ mod tests {
         for peculiar in ["azure", "amazon-bedrock", "vercel", "cloudflare-ai-gateway"] {
             assert!(
                 known(peculiar).is_none(),
-                "{peculiar} has no one address, so botcage should not pretend it does"
+                "{peculiar} has no one address, so botato should not pretend it does"
             );
         }
     }

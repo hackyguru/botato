@@ -30,8 +30,8 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")/.." && pwd)"
-binary="$here/src-tauri/target/debug/botcage"
-app="$here/src-tauri/target/botcage-dev.app"
+binary="$here/src-tauri/target/debug/botato"
+app="$here/src-tauri/target/botato-dev.app"
 
 if pgrep -f "tauri.js dev" >/dev/null 2>&1; then
   echo "'pnpm tauri dev' is running — quit it first. This replaces it." >&2
@@ -59,7 +59,7 @@ echo "→ building"
 
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-cp "$binary" "$app/Contents/MacOS/botcage"
+cp "$binary" "$app/Contents/MacOS/botato"
 
 # The icon, which a bundle has somewhere to put and a bare binary does not —
 # the same reason this script exists for the microphone. Without it the dev app
@@ -86,14 +86,14 @@ if schemes:
         "CFBundleURLSchemes": schemes,
     }]
 info.update({
-    "CFBundleExecutable": "botcage",
+    "CFBundleExecutable": "botato",
     # Named without the extension, which is how CFBundleIconFile has always
     # wanted it; CFBundleIconName is what newer macOS reads.
     "CFBundleIconFile": "icon",
     "CFBundleIconName": "icon",
     # Its own identifier, so this is a scratch copy rather than the real one.
-    "CFBundleIdentifier": "com.hackyguru.botcage.dev",
-    "CFBundleName": "botcage (dev)",
+    "CFBundleIdentifier": "com.hackyguru.botato.dev",
+    "CFBundleName": "botato (dev)",
     "CFBundlePackageType": "APPL",
     "CFBundleShortVersionString": "0.0.0-dev",
     "CFBundleVersion": "0.0.0-dev",
@@ -109,8 +109,8 @@ codesign --force --sign - --entitlements "$here/src-tauri/entitlements.plist" "$
 
 echo "→ $app"
 # The executable directly rather than `open`: LaunchServices starts an app with
-# a login environment, so anything exported here — BOTCAGE_TTS, a different
+# a login environment, so anything exported here — BOTATO_TTS, a different
 # CLAUDE_BIN — would be dropped on the floor, which is most of the reason to
 # run a dev build at all. macOS still reads the bundle around the binary, so
 # the microphone permission this whole script exists for is unaffected.
-exec "$app/Contents/MacOS/botcage"
+exec "$app/Contents/MacOS/botato"

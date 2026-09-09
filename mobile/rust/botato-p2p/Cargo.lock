@@ -270,7 +270,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "botcage-p2p"
+name = "botato-p2p"
 version = "0.1.0"
 dependencies = [
  "iroh",

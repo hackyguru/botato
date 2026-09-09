@@ -44,7 +44,7 @@ export function installAccessibility(): void {
     if (dialog && heading && root.id !== 'setup') {
       heading.id ||= `${root.id}-title`;
       dialog.setAttribute('aria-labelledby', heading.id);
-    } else if (dialog) dialog.setAttribute('aria-label', 'Set up botcage');
+    } else if (dialog) dialog.setAttribute('aria-label', 'Set up botato');
     // Do not discard a draft when selecting text and releasing on the backdrop.
     let beganOnBackdrop = false;
     root.addEventListener('pointerdown', (event) => {

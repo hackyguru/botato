@@ -474,7 +474,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "botcage"
+name = "botato"
 version = "0.7.0"
 dependencies = [
  "argon2",

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "botcage",
-    "slug": "botcage",
+    "name": "botato",
+    "slug": "botato",
     "version": "0.3.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -9,17 +9,17 @@
     "backgroundColor": "#000000",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.botcage.phone",
+      "bundleIdentifier": "com.botato.phone",
       "infoPlist": {
-        "NSLocalNetworkUsageDescription": "botcage connects directly to your own laptop.",
-        "NSCameraUsageDescription": "botcage uses the camera once, to scan the pairing code your laptop shows."
+        "NSLocalNetworkUsageDescription": "botato connects directly to your own laptop.",
+        "NSCameraUsageDescription": "botato uses the camera once, to scan the pairing code your laptop shows."
       },
       "entitlements": {
         "aps-environment": "development"
       }
     },
     "android": {
-      "package": "com.botcage.phone",
+      "package": "com.botato.phone",
       "adaptiveIcon": {
         "backgroundColor": "#000000",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -36,11 +36,11 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "botcage uses the camera once, to scan the pairing code your laptop shows."
+          "cameraPermission": "botato uses the camera once, to scan the pairing code your laptop shows."
         }
       ],
       "expo-notifications"
     ],
-    "scheme": "botcage"
+    "scheme": "botato"
   }
 }

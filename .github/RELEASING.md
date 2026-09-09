@@ -1,4 +1,4 @@
-# Releasing botcage
+# Releasing botato
 
 Tags matching `v*` build for macOS (both architectures) and Linux, and attach the
 bundles to a **draft** release. Nothing is published until you press the button.
@@ -17,7 +17,7 @@ git tag v0.2.0 && git push origin v0.2.0
 
 ## Everything is a pre-release
 
-The workflow sets `prerelease: true` and it stays that way while botcage is
+The workflow sets `prerelease: true` and it stays that way while botato is
 alpha. Leave the box ticked when publishing the draft; GitHub remembers the flag
 from the release the workflow created, and unticking it is a one-click way to
 promise a stability nothing here has.
@@ -32,7 +32,7 @@ Two things depend on that being true rather than on it looking tidy:
   `/releases`, [`update.rs`](../src-tauri/src/update.rs) reads the releases
   *list*, and the updater manifest is served from its own branch.
 - **The release notes lead with the alpha and no-warranty disclaimer**, because
-  the release page is where most people meet botcage for the first time. It is
+  the release page is where most people meet botato for the first time. It is
   in `releaseBody` in [the workflow](workflows/release.yml); keep it at the top
   when the rest of the notes are edited.
 
@@ -57,7 +57,7 @@ you: the app refuses anything the public key in `tauri.conf.json` does not
 verify.
 
 ```sh
-pnpm exec tauri signer generate -w ~/.tauri/botcage-updater.key
+pnpm exec tauri signer generate -w ~/.tauri/botato-updater.key
 ```
 
 The public half is already committed in `tauri.conf.json` under
@@ -65,7 +65,7 @@ The public half is already committed in `tauri.conf.json` under
 
 | Secret | Value |
 | --- | --- |
-| `TAURI_SIGNING_PRIVATE_KEY` | the contents of `~/.tauri/botcage-updater.key` |
+| `TAURI_SIGNING_PRIVATE_KEY` | the contents of `~/.tauri/botato-updater.key` |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | the passphrase, or empty if none |
 
 Losing the private key means every existing install stops accepting updates,
@@ -75,7 +75,7 @@ somewhere that is not this repository.
 ### 2. The manifest, on its own branch
 
 `tauri-action` writes `latest.json` beside the bundles. The app reads it from
-`https://raw.githubusercontent.com/hackyguru/botcage/updater/latest.json` —
+`https://raw.githubusercontent.com/hackyguru/botato/updater/latest.json` —
 an `updater` branch holding that one file and nothing else.
 
 It is published by [`updater.yml`](workflows/updater.yml), which runs on
@@ -102,7 +102,7 @@ its notes cannot walk every install down a version.
 After publishing, the manifest should be live and name the version you just cut:
 
 ```sh
-curl -s https://raw.githubusercontent.com/hackyguru/botcage/updater/latest.json | head -5
+curl -s https://raw.githubusercontent.com/hackyguru/botato/updater/latest.json | head -5
 ```
 
 raw.githubusercontent caches for around five minutes, so an immediate check can
@@ -178,9 +178,9 @@ rather than broken, which is why the release notes explain how to open one.
 Download the `.dmg` from the draft release, then:
 
 ```sh
-codesign -dv --verbose=2 /Applications/botcage.app     # expect "Developer ID Application"
-spctl -a -vvv /Applications/botcage.app                # expect "accepted / Notarized Developer ID"
-xcrun stapler validate /Applications/botcage.app       # expect "The validate action worked"
+codesign -dv --verbose=2 /Applications/botato.app     # expect "Developer ID Application"
+spctl -a -vvv /Applications/botato.app                # expect "accepted / Notarized Developer ID"
+xcrun stapler validate /Applications/botato.app       # expect "The validate action worked"
 ```
 
 If `spctl` says accepted but `stapler` fails, the app is signed but the
@@ -195,8 +195,8 @@ with an ad-hoc signature:
 ```sh
 export APPLE_SIGNING_IDENTITY="Developer ID Application: Kumaraguru Thambidurai (6DJWZ77R6C)"
 npx tauri build --bundles app
-codesign -dv --verbose=2 src-tauri/target/release/bundle/macos/botcage.app
-codesign -d --entitlements - --xml src-tauri/target/release/bundle/macos/botcage.app
+codesign -dv --verbose=2 src-tauri/target/release/bundle/macos/botato.app
+codesign -d --entitlements - --xml src-tauri/target/release/bundle/macos/botato.app
 ```
 
 A correctly signed, not-yet-notarised build looks like this — `rejected` is the
@@ -221,7 +221,7 @@ than during one.
 Worth keeping in the release notes, because the download is small and the
 prerequisites are not:
 
-- **Claude Code CLI** — required, ~220 MB, and must be signed in. botcage drives
+- **Claude Code CLI** — required, ~220 MB, and must be signed in. botato drives
   it rather than shipping a model.
-- **A container engine** — only for bots given a computer. botcage installs one
+- **A container engine** — only for bots given a computer. botato installs one
   itself; the Linux desktop image is built on first use and takes minutes.

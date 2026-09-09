@@ -1,18 +1,18 @@
-// The Android side of botcage's peer-to-peer link. A mirror of the iOS module:
+// The Android side of botato's peer-to-peer link. A mirror of the iOS module:
 // the Rust library does the work, this hands its results to JavaScript.
-package expo.modules.botcagep2p
+package expo.modules.botatop2p
 
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import kotlin.concurrent.thread
-import uniffi.botcage_p2p.EventSink
-import uniffi.botcage_p2p.Peer
+import uniffi.botato_p2p.EventSink
+import uniffi.botato_p2p.Peer
 
 class NotConnectedException :
-  CodedException("this phone is not connected to a botcage yet")
+  CodedException("this phone is not connected to a botato yet")
 
-class BotcageP2pModule : Module() {
+class BotatoP2pModule : Module() {
   private var peer: Peer? = null
 
   /** Counts attempts to open the event stream, so a stale one can be ignored
@@ -20,7 +20,7 @@ class BotcageP2pModule : Module() {
   private var generation = 0
 
   override fun definition() = ModuleDefinition {
-    Name("BotcageP2p")
+    Name("BotatoP2p")
     Events("frame", "state")
 
     AsyncFunction("connect") { address: String ->
@@ -44,7 +44,7 @@ class BotcageP2pModule : Module() {
       val mine = generation
       open.stop()
 
-      thread(name = "botcage.p2p.events") {
+      thread(name = "botato.p2p.events") {
         val sink = object : EventSink {
           override fun onFrame(name: String, data: String) {
             if (mine == generation) sendEvent("frame", mapOf("name" to name, "data" to data))

@@ -1,12 +1,12 @@
-//! A better voice than the machine's own, fetched and managed by botcage.
+//! A better voice than the machine's own, fetched and managed by botato.
 //!
 //! macOS speaks well enough and Linux does not, and neither sounds like a
 //! person. Kyutai's Pocket TTS does, in a hundred megabytes, on the processor,
-//! and identically on both — so botcage fetches it the same way it fetches a
+//! and identically on both — so botato fetches it the same way it fetches a
 //! container engine: on request, into its own directory, and removable.
 //!
 //! There is no Python here. The model is run by sherpa-onnx, which publishes
-//! it as ONNX alongside prebuilt binaries for every platform botcage ships to.
+//! it as ONNX alongside prebuilt binaries for every platform botato ships to.
 //! Measured on an M-series Mac: 0.66 s for a sentence, cold process, model
 //! load included — six times faster than saying it.
 //!
@@ -108,7 +108,7 @@ pub fn voices(app: &AppHandle) -> Vec<String> {
 /// Fetch the engine, the model and the voices. Reports progress as it goes.
 pub fn install(app: &AppHandle) -> Result<(), String> {
     let asset = sherpa_asset().ok_or(
-        "no prebuilt speech engine for this platform — botcage will keep using the system voice",
+        "no prebuilt speech engine for this platform — botato will keep using the system voice",
     )?;
     let dir = home(app)?;
     std::fs::create_dir_all(dir.join("bin")).map_err(|e| e.to_string())?;
@@ -221,7 +221,7 @@ pub fn command(
         .ok_or("no voices installed")?;
 
     let out = std::env::temp_dir().join(format!(
-        "botcage-speech-{}.wav",
+        "botato-speech-{}.wav",
         std::process::id() as u64 + text.len() as u64
     ));
 

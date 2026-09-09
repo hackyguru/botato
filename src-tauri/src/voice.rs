@@ -11,7 +11,7 @@
 //! download, and nothing said leaves the machine — which for a voice matters
 //! as much as it does for what was heard.
 //!
-//! And when something better is installed, botcage will use it: see `CUSTOM`.
+//! And when something better is installed, botato will use it: see `CUSTOM`.
 
 use std::io::Write;
 use std::process::{Child, Command, Stdio};
@@ -19,31 +19,31 @@ use std::sync::Mutex;
 
 /// A command to speak with instead of the system's own.
 ///
-/// Set `BOTCAGE_TTS` to a shell command that reads the text on stdin.
-/// `{voice}` is replaced with the bot's voice, and `BOTCAGE_TTS_VOICES` is the
+/// Set `BOTATO_TTS` to a shell command that reads the text on stdin.
+/// `{voice}` is replaced with the bot's voice, and `BOTATO_TTS_VOICES` is the
 /// comma-separated list to hand out, so a bot still sounds like itself.
 ///
-/// It may either play the audio itself or write it to stdout, and botcage
+/// It may either play the audio itself or write it to stdout, and botato
 /// works out which by whether anything came out. That is not cleverness for
 /// its own sake: half of these tools play and half write a file, and a seam
 /// that only accepted one of those shapes would exclude the tool somebody
 /// actually wanted.
 ///
 /// ```text
-/// # writes a wav to stdout — botcage plays it
-/// BOTCAGE_TTS='pocket-tts generate --voice {voice} --output - --text -'
-/// BOTCAGE_TTS_VOICES='Alba,Giovanni,Estelle,Charles'
+/// # writes a wav to stdout — botato plays it
+/// BOTATO_TTS='pocket-tts generate --voice {voice} --output - --text -'
+/// BOTATO_TTS_VOICES='Alba,Giovanni,Estelle,Charles'
 ///
 /// # plays it itself
-/// BOTCAGE_TTS='piper -m {voice}.onnx --output-raw | aplay -q -r 22050 -f S16_LE -t raw -'
+/// BOTATO_TTS='piper -m {voice}.onnx --output-raw | aplay -q -r 22050 -f S16_LE -t raw -'
 /// ```
 ///
 /// This is how Kokoro, Piper, pocket-tts or whatever comes next speaks for a
-/// bot without botcage shipping a model, an inference engine and a Python
+/// bot without botato shipping a model, an inference engine and a Python
 /// runtime to go with them. A ten-megabyte app that speaks well by borrowing
 /// beats a three-hundred megabyte one that speaks well by itself.
-const CUSTOM: &str = "BOTCAGE_TTS";
-const CUSTOM_VOICES: &str = "BOTCAGE_TTS_VOICES";
+const CUSTOM: &str = "BOTATO_TTS";
+const CUSTOM_VOICES: &str = "BOTATO_TTS_VOICES";
 
 /// Playing a file, when the speaking command wrote one instead of playing it.
 fn player(file: &std::path::Path) -> Option<Command> {
@@ -147,8 +147,8 @@ fn espeak() -> Option<&'static str> {
 
 /// The voices this machine can give bots, for a language.
 ///
-/// In order of how good they sound: the model botcage manages if it is
-/// installed, then whatever `BOTCAGE_TTS` was pointed at, then the system's
+/// In order of how good they sound: the model botato manages if it is
+/// installed, then whatever `BOTATO_TTS` was pointed at, then the system's
 /// own. Installing the model gives every bot a new voice, which is the point
 /// of installing it.
 #[must_use]
@@ -331,7 +331,7 @@ pub fn speak(
 
     let voice = voice.filter(|v| !v.is_empty());
 
-    // Something the user pointed us at beats something botcage installed,
+    // Something the user pointed us at beats something botato installed,
     // which beats the machine's own: a command set by hand is a preference,
     // and a preference outranks a default.
     if let Ok(template) = std::env::var(CUSTOM) {
@@ -463,7 +463,7 @@ fn borrowed(command: &str, text: &str) -> Result<(), String> {
         return Ok(());
     }
 
-    let file = std::env::temp_dir().join(format!("botcage-said-{mine}.wav"));
+    let file = std::env::temp_dir().join(format!("botato-said-{mine}.wav"));
     std::fs::write(&file, &done.stdout).map_err(|e| format!("could not save the audio: {e}"))?;
     let played = player(&file)
         .ok_or("nothing on this machine can play audio — install afplay, paplay or aplay")?
@@ -659,13 +659,13 @@ Pty Language       Age/Gender VoiceName          File                 Other Lang
     #[ignore]
     #[cfg(target_os = "macos")]
     fn a_borrowed_synthesiser_that_writes_a_wav_is_played() {
-        let wav = std::env::temp_dir().join("botcage-borrow-test.wav");
+        let wav = std::env::temp_dir().join("botato-borrow-test.wav");
         let _ = std::fs::remove_file(&wav);
         std::env::set_var(
             CUSTOM,
             format!(
-                "cat > /tmp/botcage-borrow-in.txt; \
-                 say -v Daniel -f /tmp/botcage-borrow-in.txt \
+                "cat > /tmp/botato-borrow-in.txt; \
+                 say -v Daniel -f /tmp/botato-borrow-in.txt \
                      -o {} --data-format=LEI16@22050 && cat {}",
                 wav.display(),
                 wav.display()

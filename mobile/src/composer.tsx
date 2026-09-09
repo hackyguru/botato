@@ -2,11 +2,11 @@
  * The bar you type in, shaped the way Discord shapes it on a phone.
  *
  * One rounded field spanning the width, with the send arrow *inside* it on the
- * right and only once there is something to send. botcage had the field and a
+ * right and only once there is something to send. botato had the field and a
  * blue circle beside it, which is the iMessage arrangement: the circle is
  * always there, always the brightest thing on the screen, and mostly disabled.
  *
- * Deliberately no "+". Discord has one for attachments and botcage has nothing
+ * Deliberately no "+". Discord has one for attachments and botato has nothing
  * to attach — a button that opens nothing is worse than a missing button.
  */
 
