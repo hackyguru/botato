@@ -687,9 +687,19 @@ mod tests {
         }
 
         // And the location this replaced, to keep the reason from being lost.
+        //
+        // A literal from history, spelled the way it actually was. It is not a
+        // name to keep in step with the app's: the rename to botato rewrote the
+        // stand-in that used to be here, took one byte out of it, and dropped it
+        // to exactly 104 — so the line recording why the VM had to move stopped
+        // being true, and the only thing that noticed was CI. The real path is
+        // both correct and seven bytes clear of the limit.
         let old = PathBuf::from(
-            "/Users/guru/Library/Application Support/com.botato.app/engine/lima-home",
+            "/Users/guru/Library/Application Support/com.hackyguru.botcage/engine/lima-home",
         );
-        assert!(longest_socket_path(&old).as_os_str().len() > UNIX_PATH_MAX);
+        assert!(
+            longest_socket_path(&old).as_os_str().len() > UNIX_PATH_MAX,
+            "the path the VM moved off must still be over lima's limit",
+        );
     }
 }
