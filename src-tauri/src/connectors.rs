@@ -1266,13 +1266,7 @@ fn secret_service() -> bool {
     static FOUND: OnceLock<bool> = OnceLock::new();
     *FOUND.get_or_init(|| {
         Command::new("secret-tool")
-            .args([
-                "lookup",
-                "service",
-                SERVICE_NAME,
-                "account",
-                "botato-probe",
-            ])
+            .args(["lookup", "service", SERVICE_NAME, "account", "botato-probe"])
             .output()
             // Ran at all, and did not die on a missing bus. An empty answer to
             // a key nobody stored is exactly the right reply.
