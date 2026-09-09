@@ -85,13 +85,8 @@ fn idle_for(bot_id: &str) -> Duration {
 pub fn start_reaper() {
     std::thread::spawn(|| loop {
         std::thread::sleep(Duration::from_secs(60));
-        let Ok(out) = docker(&[
-            "ps",
-            "--format",
-            "{{.Names}}",
-            "--filter",
-            "label=botato=1",
-        ]) else {
+        let Ok(out) = docker(&["ps", "--format", "{{.Names}}", "--filter", "label=botato=1"])
+        else {
             continue;
         };
         for name in stdout_of(&out).lines() {
@@ -303,7 +298,7 @@ fn docker_cmd(args: &[&str]) -> Result<Command, String> {
     Ok(cmd)
 }
 
-fn docker(args: &[&str]) -> Result<Output, String> {
+pub(crate) fn docker(args: &[&str]) -> Result<Output, String> {
     docker_cmd(args)?
         .output()
         .map_err(|e| format!("docker {}: {e}", args.join(" ")))

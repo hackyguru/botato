@@ -32,6 +32,7 @@ mod oauth;
 mod p2p;
 mod plugins;
 mod push;
+mod rebrand;
 mod remote;
 mod rooms;
 mod sandbox;
@@ -93,9 +94,7 @@ pub fn serve_mcp() {
             .filter(|path| !path.is_empty())
             .map(Into::into),
         id: std::env::var("BOTATO_BOT").unwrap_or_default(),
-        workspace: std::env::var("BOTATO_WORKSPACE")
-            .unwrap_or_default()
-            .into(),
+        workspace: std::env::var("BOTATO_WORKSPACE").unwrap_or_default().into(),
         brand,
     });
 }
@@ -2079,6 +2078,14 @@ pub fn run() {
             storage::storage_free,
         ])
         .setup(|app| {
+            // Before anything reads a bot, a room or a setting: on a machine
+            // that used botcage, all of it is still under the old name and the
+            // app would otherwise open onto an empty roster and write a fresh
+            // install over the top of the evidence.
+            for line in rebrand::carry_over(app.handle()) {
+                eprintln!("rebrand: {line}");
+            }
+
             allow_the_microphone(app);
             handed_a_bot(app);
 
@@ -2090,6 +2097,15 @@ pub fn run() {
                 engine::docker_host(&handle),
             );
 
+            // The desktops and image the old name left behind, once we know
+            // which engine to ask. Off the launch path: the engine may not be
+            // installed or may not be awake, and everything being swept is
+            // rebuilt on demand — so failing here costs disk and nothing else.
+            std::thread::spawn(|| {
+                for line in rebrand::sweep_engine() {
+                    eprintln!("rebrand: {line}");
+                }
+            });
 
             // Bots may switch their own desktops on, so something has to switch
             // idle ones off.
